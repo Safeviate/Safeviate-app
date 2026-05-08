@@ -10,7 +10,7 @@ type MapLibreBackgroundProps = {
   variant?: 'light' | 'satellite';
 };
 
-const STYLES: Record<NonNullable<MapLibreBackgroundProps['variant']>, string> = MAPLIBRE_BASE_STYLES;
+const STYLES = MAPLIBRE_BASE_STYLES;
 
 const addPointImage = (map: MapLibreMap, id: string, fill: string) =>
   new Promise<void>((resolve) => {

@@ -1,6 +1,6 @@
 ﻿'use client';
 
-import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FeatureGroup, GeoJSON, Marker, Polyline, Popup, TileLayer, Tooltip, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -837,6 +837,7 @@ function MenuCloseButton({ onClose }: { onClose?: () => void }) {
 function RouteLegDrawer({
   open,
   onOpenChange,
+  showToggleButton = true,
   isWaypointMoveMode,
   onWaypointMoveModeChange,
   legs,
@@ -848,6 +849,7 @@ function RouteLegDrawer({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  showToggleButton?: boolean;
   isWaypointMoveMode: boolean;
   onWaypointMoveModeChange: (next: boolean) => void;
   legs: NavlogLeg[];
@@ -881,16 +883,18 @@ function RouteLegDrawer({
 
   return (
     <div className="pointer-events-none absolute inset-0 z-[1200]">
-      <Button
-        type="button"
-        size="sm"
-        variant="outline"
-        className="pointer-events-auto absolute right-4 top-4 z-[1100] h-9 rounded-full border-slate-200 bg-white/95 px-4 text-[10px] font-black uppercase tracking-[0.12em] text-slate-800 shadow-lg backdrop-blur hover:bg-white hover:text-slate-800 active:scale-95 active:translate-y-px sm:right-4 sm:top-4"
-        onClick={() => onOpenChange(!open)}
-      >
-        <Route className="mr-2 h-4 w-4" />
-        Route {segmentCount > 0 ? `(${segmentCount})` : ''}
-      </Button>
+      {showToggleButton ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="pointer-events-auto absolute right-4 top-4 z-[1100] h-9 rounded-full border-slate-200 bg-white/95 px-4 text-[10px] font-black uppercase tracking-[0.12em] text-slate-800 shadow-lg backdrop-blur hover:bg-white hover:text-slate-800 active:scale-95 active:translate-y-px sm:right-4 sm:top-4"
+          onClick={() => onOpenChange(!open)}
+        >
+          <Route className="mr-2 h-4 w-4" />
+          Route {segmentCount > 0 ? `(${segmentCount})` : ''}
+        </Button>
+      ) : null}
 
       {open ? (
         <div className="pointer-events-auto fixed inset-x-3 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-[1200] flex h-[min(36dvh,calc(100dvh-18rem))] min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white/95 text-slate-900 shadow-2xl backdrop-blur sm:left-auto sm:right-8 sm:inset-x-auto sm:h-[min(40dvh,calc(100dvh-16rem))] sm:w-[min(340px,calc(100%-4rem))] lg:right-28 lg:w-[300px] xl:right-36 2xl:right-44">
@@ -1090,6 +1094,9 @@ export function ActiveFlightLiveMap({
   fullscreen = false,
   showControls = true,
   showRouteDrawer = true,
+  showRouteDrawerButton = true,
+  routeDrawerOpen,
+  onRouteDrawerOpenChange,
   followOwnship: followOwnshipProp,
   onFollowOwnshipChange,
   recenterSignal = 0,
@@ -1097,6 +1104,7 @@ export function ActiveFlightLiveMap({
   isMapZoomCardOpen = false,
   onLayersCardOpenChange,
   onMapZoomCardOpenChange,
+  mapOverlay,
   geolocationError,
   permissionState,
   isWatching,
@@ -1112,6 +1120,9 @@ export function ActiveFlightLiveMap({
   fullscreen?: boolean;
   showControls?: boolean;
   showRouteDrawer?: boolean;
+  showRouteDrawerButton?: boolean;
+  routeDrawerOpen?: boolean;
+  onRouteDrawerOpenChange?: (open: boolean) => void;
   followOwnship?: boolean;
   onFollowOwnshipChange?: (followOwnship: boolean) => void;
   recenterSignal?: number;
@@ -1119,6 +1130,7 @@ export function ActiveFlightLiveMap({
   isMapZoomCardOpen?: boolean;
   onLayersCardOpenChange?: (open: boolean) => void;
   onMapZoomCardOpenChange?: (open: boolean) => void;
+  mapOverlay?: ReactNode;
   geolocationError?: string | null;
   permissionState?: 'idle' | 'granted' | 'denied' | 'unsupported';
   isWatching?: boolean;
@@ -1160,7 +1172,7 @@ export function ActiveFlightLiveMap({
   const [routeDownloadState, setRouteDownloadState] = useState<'idle' | 'downloading' | 'complete'>('idle');
   const [isDownloadingRoute, setIsDownloadingRoute] = useState(false);
   const [offlineManagerOpen, setOfflineManagerOpen] = useState(false);
-  const [isRouteDrawerOpen, setIsRouteDrawerOpen] = useState(() => readStoredRouteDrawerOpen());
+  const [internalRouteDrawerOpen, setInternalRouteDrawerOpen] = useState(() => readStoredRouteDrawerOpen());
   const [isWaypointMoveMode, setIsWaypointMoveMode] = useState(false);
   const [offlineTileCount, setOfflineTileCount] = useState(0);
   const [offlineCacheCount, setOfflineCacheCount] = useState(0);
@@ -1258,10 +1270,21 @@ export function ActiveFlightLiveMap({
     showTrackLine,
   ]);
 
+  const isRouteDrawerOpen = routeDrawerOpen ?? internalRouteDrawerOpen;
+  const setIsRouteDrawerOpen = useCallback(
+    (next: boolean) => {
+      if (routeDrawerOpen === undefined) {
+        setInternalRouteDrawerOpen(next);
+      }
+      onRouteDrawerOpenChange?.(next);
+    },
+    [onRouteDrawerOpenChange, routeDrawerOpen]
+  );
+
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    window.sessionStorage.setItem(ACTIVE_FLIGHT_ROUTE_DRAWER_OPEN_KEY, String(isRouteDrawerOpen));
-  }, [isRouteDrawerOpen]);
+    if (typeof window === 'undefined' || routeDrawerOpen !== undefined) return;
+    window.sessionStorage.setItem(ACTIVE_FLIGHT_ROUTE_DRAWER_OPEN_KEY, String(internalRouteDrawerOpen));
+  }, [internalRouteDrawerOpen, routeDrawerOpen]);
 
   useEffect(() => {
     setLocationCalibration(readLocationCalibration());
@@ -1797,6 +1820,7 @@ export function ActiveFlightLiveMap({
           <div className="absolute inset-0 overflow-hidden">
           <div className="nose-up-map absolute inset-0">
             <ActiveFlightMapLibreShell
+              key={`active-flight-fullscreen-${baseStyle}`}
               className="h-full w-full rounded-none"
               center={center}
               position={displayPosition}
@@ -1841,6 +1865,7 @@ export function ActiveFlightLiveMap({
               <RouteLegDrawer
                 open={isRouteDrawerOpen}
                 onOpenChange={setIsRouteDrawerOpen}
+                showToggleButton={showRouteDrawerButton}
                 isWaypointMoveMode={isWaypointMoveMode}
                 onWaypointMoveModeChange={setIsWaypointMoveMode}
                 legs={legs}
@@ -2267,7 +2292,9 @@ export function ActiveFlightLiveMap({
       ) : null}
 
         <div className={cn('nose-up-map relative h-full flex-1', OPERATIONS_MAP_SURFACE_HEIGHT_CLASS)}>
+          {mapOverlay ? <div className="pointer-events-none absolute left-1/2 top-3 z-[1200] -translate-x-1/2">{mapOverlay}</div> : null}
           <ActiveFlightMapLibreShell
+            key={`active-flight-compact-${baseStyle}`}
             className="h-full w-full rounded-2xl"
             center={center}
             position={displayPosition}
@@ -2284,6 +2311,7 @@ export function ActiveFlightLiveMap({
             showTrackLine={showTrackLine}
             showLabels={showLabels}
             showMasterChart={showMasterChart}
+            baseStyle={baseStyle}
             showAirports={showAirports}
             showNavaids={showNavaids}
             showReportingPoints={showReportingPoints}
@@ -2311,6 +2339,7 @@ export function ActiveFlightLiveMap({
             <RouteLegDrawer
               open={isRouteDrawerOpen}
               onOpenChange={setIsRouteDrawerOpen}
+              showToggleButton={showRouteDrawerButton}
               isWaypointMoveMode={isWaypointMoveMode}
               onWaypointMoveModeChange={setIsWaypointMoveMode}
               legs={legs}

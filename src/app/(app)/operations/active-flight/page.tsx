@@ -3,7 +3,7 @@
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, Loader2, Navigation, PlaneTakeoff, Radio } from 'lucide-react';
+import { ChevronDown, Compass, Layers3, Loader2, Menu, Navigation, PlaneTakeoff, Play, Radio, Route, Square } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -179,6 +179,8 @@ export default function ActiveFlightPage() {
   const isMobile = useIsMobile();
   const [isMobileSelectorOpen, setIsMobileSelectorOpen] = useState(false);
   const [showCompactMenus, setShowCompactMenus] = useState(true);
+  const [isOrientationCardOpen, setIsOrientationCardOpen] = useState(false);
+  const [isRouteDrawerOpen, setIsRouteDrawerOpen] = useState(false);
   const [selectedAircraftId, setSelectedAircraftId] = useState('');
   const [selectedBookingFilterId, setSelectedBookingFilterId] = useState('');
   const [selectedBookingId, setSelectedBookingId] = useState('');
@@ -443,7 +445,8 @@ export default function ActiveFlightPage() {
         ? 'GPS Fix'
         : 'Waiting for GPS';
   const nextWaypointNumber = activeLegState?.activeLegIndex != null ? `${activeLegState.activeLegIndex + 2}` : 'N/A';
-  const etaToNextLabel = activeLegState?.etaToNextMinutes != null ? `${Math.max(1, Math.round(activeLegState.etaToNextMinutes))} min` : 'N/A';
+  const etaToNextMinutes = activeLegState?.etaToNextWaypointMinutes ?? activeLegState?.etaToNextMinutes ?? null;
+  const etaToNextLabel = etaToNextMinutes != null ? `${Math.max(1, Math.round(etaToNextMinutes))} min` : 'N/A';
   const activeNavlogLeg =
     activeLegState?.activeLegIndex != null ? displayLegs[activeLegState.activeLegIndex] ?? null : null;
   const activeFromNavlogLeg =
@@ -814,16 +817,24 @@ export default function ActiveFlightPage() {
       toast({ variant: 'destructive', title: 'Aircraft Already In Use', description: `${selectedAircraft.tailNumber} is already active on another device.` });
       return;
     }
+    if (selectedBookingId) {
+      setLoadedBookingId(selectedBookingId);
+      setLoadedPlannerRouteId('');
+    } else if (selectedPlannerRouteId) {
+      setLoadedPlannerRouteId(selectedPlannerRouteId);
+      setLoadedBookingId('');
+    }
     void fetch(`/api/flight-sessions?id=${deviceBinding.deviceId}&mode=unblock`, { method: 'DELETE' });
     saveActiveTrackingState(deviceBinding.deviceId, {
       active: true,
       aircraftId: selectedAircraft.id,
-      bookingId: selectedBooking?.id || undefined,
+      bookingId: selectedBookingId || selectedBooking?.id || undefined,
       savedAt: new Date().toISOString(),
     });
     saveActiveTrackingSelection(deviceBinding.deviceId, {
       aircraftId: selectedAircraft.id,
-      bookingId: selectedBooking?.id || undefined,
+      bookingId: selectedBookingId || selectedBooking?.id || undefined,
+      plannerRouteId: selectedPlannerRouteId || undefined,
     });
     setIsTrackingActive(true);
     lastWriteRef.current = 0;
@@ -833,7 +844,7 @@ export default function ActiveFlightPage() {
       pilotName,
       aircraftId: selectedAircraft.id,
       aircraftRegistration: selectedAircraft.tailNumber,
-      bookingId: selectedBooking?.id || undefined,
+      bookingId: selectedBookingId || selectedBooking?.id || undefined,
       status: 'active',
       deviceId: deviceBinding.deviceId,
       deviceLabel: savedDeviceLabel || deviceBinding.deviceLabel || '',
@@ -1177,20 +1188,6 @@ export default function ActiveFlightPage() {
       )}
 
       <Card className={cn('flex min-h-0 flex-1 flex-col border shadow-none', isModern && 'overflow-hidden border-slate-200/80 bg-white/95 shadow-[0_18px_45px_rgba(15,23,42,0.08)]')}>
-        {isMobile ? (
-          <div className="border-b border-slate-200/80 bg-white px-2 py-1.5 sm:px-3 sm:py-2">
-            <div className="flex justify-end">
-              <Button
-                type="button"
-                variant="outline"
-                className="h-7 border-slate-300 bg-white px-3 text-[9px] font-black uppercase tracking-[0.12em] text-slate-800 hover:bg-slate-50"
-                onClick={() => setShowCompactMenus((current) => !current)}
-              >
-                {showCompactMenus ? 'Hide Menus' : 'Show Menus'}
-              </Button>
-            </div>
-          </div>
-        ) : null}
         {(!isMobile || showCompactMenus) ? (
         <>
         <div className="border-b border-slate-200/80 px-2 py-1.5 sm:px-3 sm:py-2">
@@ -1532,13 +1529,157 @@ export default function ActiveFlightPage() {
                 isMapZoomCardOpen={isMapZoomCardOpen}
                 onLayersCardOpenChange={setIsLayersCardOpen}
                 onMapZoomCardOpenChange={setIsMapZoomCardOpen}
+                routeDrawerOpen={isRouteDrawerOpen}
+                onRouteDrawerOpenChange={setIsRouteDrawerOpen}
+                showRouteDrawerButton={!isMobile}
+                mapOverlay={
+                  isMobile ? (
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="pointer-events-auto flex flex-row items-center gap-2 rounded-2xl border border-slate-200 bg-white/95 p-2 shadow-xl backdrop-blur">
+                        <Button
+                          type="button"
+                          variant={isTrackingActive ? 'default' : 'outline'}
+                          size="icon"
+                          aria-label={isTrackingActive ? 'Stop tracking' : 'Start tracking'}
+                          className={cn(
+                            'h-10 w-10 rounded-full shadow-sm',
+                            isTrackingActive
+                              ? 'border-rose-600 bg-rose-600 text-white hover:bg-rose-700'
+                              : 'border-slate-300 bg-white text-slate-800 hover:bg-slate-50'
+                          )}
+                          disabled={!isTrackingActive && (!selectedAircraft || Boolean(conflictingAircraftSession))}
+                          onClick={() => {
+                            setIsOrientationCardOpen(false);
+                            if (isTrackingActive) {
+                              stopTrackingSession();
+                              return;
+                            }
+                            startTracking();
+                          }}
+                        >
+                          {isTrackingActive ? <Square className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          aria-label="Toggle map layers"
+                          className={cn(
+                            'h-10 w-10 rounded-full border-slate-300 shadow-sm',
+                            isLayersCardOpen ? 'bg-slate-900 text-white hover:bg-slate-800' : 'bg-white text-slate-800 hover:bg-slate-50'
+                          )}
+                          onClick={() => {
+                            setIsOrientationCardOpen(false);
+                            setIsLayersCardOpen((current) => !current);
+                            setIsMapZoomCardOpen(false);
+                          }}
+                        >
+                          <Layers3 className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          aria-label="Toggle map orientation controls"
+                          className={cn(
+                            'h-10 w-10 rounded-full border-slate-300 shadow-sm',
+                            isOrientationCardOpen ? 'bg-slate-900 text-white hover:bg-slate-800' : 'bg-white text-slate-800 hover:bg-slate-50'
+                          )}
+                          onClick={() => {
+                            setIsLayersCardOpen(false);
+                            setIsMapZoomCardOpen(false);
+                            setIsOrientationCardOpen((current) => !current);
+                          }}
+                        >
+                          <Compass className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          aria-label="Center map"
+                          className="h-10 w-10 rounded-full border-slate-300 bg-white text-slate-800 shadow-sm hover:bg-slate-50"
+                          onClick={() => {
+                            setIsOrientationCardOpen(false);
+                            setMapRecenterSignal((current) => current + 1);
+                          }}
+                        >
+                          <Navigation className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          aria-label={isRouteDrawerOpen ? 'Hide route cards' : 'Show route cards'}
+                          className={cn(
+                            'h-10 w-10 rounded-full border-slate-300 shadow-sm',
+                            isRouteDrawerOpen ? 'bg-slate-900 text-white hover:bg-slate-800' : 'bg-white text-slate-800 hover:bg-slate-50'
+                          )}
+                          onClick={() => {
+                            setIsOrientationCardOpen(false);
+                            setIsRouteDrawerOpen((current) => !current);
+                          }}
+                        >
+                          <Route className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          aria-label={showCompactMenus ? 'Hide menus' : 'Show menus'}
+                          className={cn(
+                            'h-10 w-10 rounded-full border-slate-300 shadow-sm',
+                            showCompactMenus ? 'bg-slate-900 text-white hover:bg-slate-800' : 'bg-white text-slate-800 hover:bg-slate-50'
+                          )}
+                          onClick={() => setShowCompactMenus((current) => !current)}
+                        >
+                          <Menu className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      {isOrientationCardOpen ? (
+                        <div className="pointer-events-auto rounded-2xl border border-slate-200 bg-white/95 p-2 shadow-xl backdrop-blur">
+                          <div className="grid gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className={cn(
+                                'h-8 justify-start rounded-full px-3 text-[9px] font-black uppercase tracking-[0.12em]',
+                                !followOwnship ? 'border-slate-900 bg-slate-900 text-white hover:bg-slate-800' : 'border-slate-300 bg-white text-slate-800 hover:bg-slate-50'
+                              )}
+                              onClick={() => {
+                                setFollowOwnship(false);
+                                setIsOrientationCardOpen(false);
+                              }}
+                            >
+                              North Up
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className={cn(
+                                'h-8 justify-start rounded-full px-3 text-[9px] font-black uppercase tracking-[0.12em]',
+                                followOwnship ? 'border-slate-900 bg-slate-900 text-white hover:bg-slate-800' : 'border-slate-300 bg-white text-slate-800 hover:bg-slate-50'
+                              )}
+                              onClick={() => {
+                                setFollowOwnship(true);
+                                setIsOrientationCardOpen(false);
+                              }}
+                            >
+                              Nose Up
+                            </Button>
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null
+                }
                 onMoveWaypoint={handleMoveWaypoint}
                 onWaypointNotesChange={handleWaypointNotesChange}
               />
             ) : (
-                <div className={cn('flex items-center justify-center rounded-2xl border border-dashed bg-muted/10 px-6 py-12 text-center text-sm text-muted-foreground', OPERATIONS_MAP_SURFACE_HEIGHT_CLASS)}>
-                  Full screen map is open. Close it to restore the compact pilot map.
-                </div>
+                  <div className={cn('flex items-center justify-center rounded-2xl border border-dashed bg-muted/10 px-6 py-12 text-center text-sm text-muted-foreground', OPERATIONS_MAP_SURFACE_HEIGHT_CLASS)}>
+                    Full screen map is open. Close it to restore the compact pilot map.
+                  </div>
             )}
           </div>
         </CardContent>
