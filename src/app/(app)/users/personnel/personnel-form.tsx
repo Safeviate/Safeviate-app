@@ -57,6 +57,7 @@ export function PersonnelForm({
   const [organizationId, setOrganizationId] = useState<string | null>(null);
   const [canBeInstructor, setCanBeInstructor] = useState(false);
   const [canBeStudent, setCanBeStudent] = useState(false);
+  const [canBePIC, setCanBePIC] = useState(false);
   const [isIncerfaContact, setIsIncerfaContact] = useState(false);
   const [isAlerfaContact, setIsAlerfaContact] = useState(false);
 
@@ -72,6 +73,7 @@ export function PersonnelForm({
       setOrganizationId(existingPersonnel.organizationId || null);
       setCanBeInstructor(!!existingPersonnel.canBeInstructor);
       setCanBeStudent(!!existingPersonnel.canBeStudent);
+      setCanBePIC(!!existingPersonnel.canBePIC);
       setIsIncerfaContact(existingPersonnel.isErpIncerfaContact || false);
       setIsAlerfaContact(existingPersonnel.isErpAlerfaContact || false);
     } else if (defaultDepartmentId) {
@@ -81,9 +83,11 @@ export function PersonnelForm({
       setUserType(defaultUserType);
       setCanBeInstructor(defaultUserType === 'Instructor');
       setCanBeStudent(defaultUserType === 'Student');
+      setCanBePIC(defaultUserType === 'PIC');
     } else if (!existingPersonnel && !defaultUserType) {
       setCanBeInstructor(false);
       setCanBeStudent(false);
+      setCanBePIC(false);
     }
     if (!existingPersonnel && defaultRoleId) {
       setSelectedRole(defaultRoleId);
@@ -127,6 +131,7 @@ export function PersonnelForm({
               role: selectedRole,
               canBeInstructor,
               canBeStudent,
+              canBePIC,
               organizationId: organizationId === 'internal' ? null : organizationId,
               isErpIncerfaContact: !!isIncerfaContact,
               isErpAlerfaContact: !!isAlerfaContact,
@@ -153,6 +158,7 @@ export function PersonnelForm({
             userType,
             canBeInstructor,
             canBeStudent,
+            canBePIC,
             organizationId: organizationId === 'internal' ? null : (organizationId || null),
             isErpIncerfaContact: !!isIncerfaContact,
             isErpAlerfaContact: !!isAlerfaContact,
@@ -256,17 +262,21 @@ export function PersonnelForm({
       </div>
       <div className="grid grid-cols-4 items-center gap-4">
         <Label className="text-right">Bookings</Label>
-        <div className="col-span-3 flex items-center space-x-4">
-          <div className="flex items-center gap-2">
-            <Switch id="assign-instructor" checked={canBeInstructor} onCheckedChange={setCanBeInstructor} />
-            <Label htmlFor="assign-instructor" className="text-xs font-normal cursor-pointer">Assignable as Instructor</Label>
-          </div>
-          <div className="flex items-center gap-2">
-            <Switch id="assign-student" checked={canBeStudent} onCheckedChange={setCanBeStudent} />
-            <Label htmlFor="assign-student" className="text-xs font-normal cursor-pointer">Assignable as Student</Label>
+          <div className="col-span-3 flex items-center space-x-4">
+            <div className="flex items-center gap-2">
+              <Switch id="assign-instructor" checked={canBeInstructor} onCheckedChange={setCanBeInstructor} />
+              <Label htmlFor="assign-instructor" className="text-xs font-normal cursor-pointer">Assignable as Instructor</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch id="assign-student" checked={canBeStudent} onCheckedChange={setCanBeStudent} />
+              <Label htmlFor="assign-student" className="text-xs font-normal cursor-pointer">Assignable as Student</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch id="assign-pic" checked={canBePIC} onCheckedChange={setCanBePIC} />
+              <Label htmlFor="assign-pic" className="text-xs font-normal cursor-pointer">Assignable as PIC</Label>
+            </div>
           </div>
         </div>
-      </div>
       <div className="flex justify-end gap-2 mt-4">
         <Button onClick={handleAddOrUpdateUser} disabled={isSubmitting}>
           {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

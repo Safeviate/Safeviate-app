@@ -16,7 +16,7 @@ export default function WorkpacksPage() {
   const [workpacks, setWorkpacks] = useState<Workpack[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const canManageWorkpacks = hasPermission('maintenance-workpacks-create') || hasPermission('admin');
+  const canManageWorkpacks = hasPermission('maintenance-workpacks-create') || hasPermission('admin-view');
 
   const loadWorkpacks = useCallback(async () => {
     setIsLoading(true);

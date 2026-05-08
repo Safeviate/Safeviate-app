@@ -91,6 +91,7 @@ export function FullScreenFlightLayout({
                 aircraftRegistration={aircraftRegistration}
                 activeLegIndex={activeLegIndex}
                 activeLegState={activeLegState}
+                showRouteDrawer={false}
               />
             </div>
           </div>

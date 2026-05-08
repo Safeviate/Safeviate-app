@@ -18,13 +18,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized to create users.' }, { status: 403 });
     }
 
-    const body = await request.json();
-    const {
-      tenantId, email, firstName, lastName,
-      userType, role, department, userNumber,
-      organizationId, isErpIncerfaContact, isErpAlerfaContact,
-      canBeInstructor, canBeStudent,
-    } = body;
+      const body = await request.json();
+      const {
+        tenantId, email, firstName, lastName,
+        userType, role, department, userNumber,
+        organizationId, isErpIncerfaContact, isErpAlerfaContact,
+        canBeInstructor, canBeStudent, canBePIC,
+      } = body;
     const normalizedUserType = userType || 'Personnel';
     const resolvedCanBeInstructor = typeof canBeInstructor === 'boolean'
       ? canBeInstructor
@@ -32,6 +32,9 @@ export async function POST(request: Request) {
     const resolvedCanBeStudent = typeof canBeStudent === 'boolean'
       ? canBeStudent
       : normalizedUserType === 'Student';
+    const resolvedCanBePIC = typeof canBePIC === 'boolean'
+      ? canBePIC
+      : normalizedUserType === 'PIC';
 
     if (!tenantId || !email || !firstName || !lastName || !role) {
       return NextResponse.json({ error: 'Missing required user information.' }, { status: 400 });
@@ -87,6 +90,7 @@ export async function POST(request: Request) {
         userType: normalizedUserType,
         canBeInstructor: resolvedCanBeInstructor,
         canBeStudent: resolvedCanBeStudent,
+        canBePIC: resolvedCanBePIC,
         isErpIncerfaContact: !!isErpIncerfaContact,
         isErpAlerfaContact: !!isErpAlerfaContact,
         updatedAt: new Date(),
@@ -106,6 +110,7 @@ export async function POST(request: Request) {
         userType: normalizedUserType,
         canBeInstructor: resolvedCanBeInstructor,
         canBeStudent: resolvedCanBeStudent,
+        canBePIC: resolvedCanBePIC,
         isErpIncerfaContact: !!isErpIncerfaContact,
         isErpAlerfaContact: !!isErpAlerfaContact,
       },

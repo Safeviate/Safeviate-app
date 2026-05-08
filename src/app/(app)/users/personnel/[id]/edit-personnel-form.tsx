@@ -41,6 +41,7 @@ type PersonnelFormState = {
   dateOfBirth?: string;
   canBeInstructor?: boolean;
   canBeStudent?: boolean;
+  canBePIC?: boolean;
   isErpIncerfaContact?: boolean;
   isErpAlerfaContact?: boolean;
   emergencyContact?: {
@@ -288,16 +289,25 @@ export function EditPersonnelForm({ tenantId, user, roles, departments, logbookT
                     <Label htmlFor="booking-instructor" className="cursor-pointer text-xs">Assignable as Instructor</Label>
                   </div>
 
-                  <div className="flex items-center space-x-2 p-3 border rounded-lg bg-muted/10">
-                    <Switch
-                      id="booking-student"
-                      checked={!!formData?.canBeStudent}
-                      onCheckedChange={(val) => handleInputChange('canBeStudent', val)}
-                    />
-                    <Label htmlFor="booking-student" className="cursor-pointer text-xs">Assignable as Student</Label>
-                  </div>
+                    <div className="flex items-center space-x-2 p-3 border rounded-lg bg-muted/10">
+                      <Switch
+                        id="booking-student"
+                        checked={!!formData?.canBeStudent}
+                        onCheckedChange={(val) => handleInputChange('canBeStudent', val)}
+                      />
+                      <Label htmlFor="booking-student" className="cursor-pointer text-xs">Assignable as Student</Label>
+                    </div>
 
-                  {formData && !isPilotProfile(formData) && (
+                    <div className="flex items-center space-x-2 p-3 border rounded-lg bg-muted/10">
+                      <Switch
+                        id="booking-pic"
+                        checked={!!formData?.canBePIC}
+                        onCheckedChange={(val) => handleInputChange('canBePIC', val)}
+                      />
+                      <Label htmlFor="booking-pic" className="cursor-pointer text-xs">Assignable as PIC</Label>
+                    </div>
+
+                    {formData && !isPilotProfile(formData) && (
                       <div className="space-y-2">
                           <Label>Department</Label>
                           <Select onValueChange={(value) => handleInputChange('department', value)} value={formData.department}>

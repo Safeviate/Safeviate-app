@@ -164,7 +164,7 @@ export function BookingForm({ isOpen, setIsOpen, aircraft, startTime, tenantId, 
     const canDelete = hasPermission('bookings-delete') && (!isUnderway || canOverride);
 
     const instructors = useMemo(() => pilots.filter(p => p.canBeInstructor || p.userType === 'Instructor'), [pilots]);
-    const students = useMemo(() => pilots.filter(p => p.canBeStudent || p.userType === 'Student'), [pilots]);
+    const students = useMemo(() => pilots.filter(p => p.canBeStudent || p.canBePIC || p.userType === 'Student'), [pilots]);
 
     const defaultValues = useMemo(() => ({
         type: existingBooking?.type || 'Training Flight',
@@ -209,6 +209,10 @@ export function BookingForm({ isOpen, setIsOpen, aircraft, startTime, tenantId, 
     const watchStatus = form.watch('status');
     const watchType = form.watch('type');
     const isMaintenanceBooking = watchType === 'Maintenance';
+    const isNonInstructorBooking = ['Rental', 'Charter', 'Ferry Flight', 'Maintenance'].includes(watchType);
+    const showInstructorField = !isMaintenanceBooking && !isNonInstructorBooking;
+    const studentFieldLabel = isNonInstructorBooking ? 'Pilot in Command' : 'Student';
+    const studentSelectPlaceholder = isNonInstructorBooking ? 'Select Pilot in Command...' : 'Select Student...';
 
     const onSubmit = async (data: z.infer<typeof bookingFormSchema>) => {
         if (!canEditBooking) {
@@ -319,7 +323,7 @@ export function BookingForm({ isOpen, setIsOpen, aircraft, startTime, tenantId, 
             endTime: data.endTime,
             start: startIso,
             end: endIso,
-            instructorId: data.instructorId || null,
+            instructorId: isNonInstructorBooking ? null : data.instructorId || null,
             studentId: data.studentId || null,
             status: data.status,
             notes: data.notes || null,
@@ -633,7 +637,8 @@ export function BookingForm({ isOpen, setIsOpen, aircraft, startTime, tenantId, 
                                 )}
 
                                 {!isMaintenanceBooking ? (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className={cn('grid grid-cols-1 gap-4', showInstructorField ? 'md:grid-cols-2' : 'md:grid-cols-1')}>
+                                    {showInstructorField ? (
                                     <FormField
                                         control={form.control}
                                         name="instructorId"
@@ -659,12 +664,13 @@ export function BookingForm({ isOpen, setIsOpen, aircraft, startTime, tenantId, 
                                             </FormItem>
                                         )}
                                     />
+                                    ) : null}
                                     <FormField
                                         control={form.control}
                                         name="studentId"
                                         render={({ field }) => (
                                             <FormItem>
-                                                <FormLabel className="text-[9px] font-black uppercase tracking-widest">Student</FormLabel>
+                                                <FormLabel className="text-[9px] font-black uppercase tracking-widest">{studentFieldLabel}</FormLabel>
                                                 <FormControl>
                                                     <select
                                                         value={field.value || ''}
@@ -672,7 +678,7 @@ export function BookingForm({ isOpen, setIsOpen, aircraft, startTime, tenantId, 
                                                         disabled={isLocked || !canEditBooking}
                                                         className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                                                     >
-                                                        <option value="">Select Student...</option>
+                                                        <option value="">{studentSelectPlaceholder}</option>
                                                         {students.map((pilot) => (
                                                             <option key={pilot.id} value={pilot.id}>
                                                                 {pilot.firstName} {pilot.lastName}

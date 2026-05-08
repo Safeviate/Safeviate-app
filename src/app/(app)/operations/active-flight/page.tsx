@@ -41,6 +41,8 @@ const FLIGHT_SESSION_OUTBOX_PREFIX = 'safeviate:active-flight-session-outbox:';
 const ACTIVE_TRACKING_STATE_PREFIX = 'safeviate:active-flight-tracking-state:';
 const ACTIVE_TRACKING_SELECTION_PREFIX = 'safeviate:active-flight-selection:';
 const ACTIVE_TRACKING_LOCATION_CALIBRATION_PREFIX = 'safeviate:active-flight-location-calibration:';
+const ACTIVE_TRACKING_LAYERS_CARD_OPEN_KEY = 'safeviate:active-flight-layers-card-open';
+const ACTIVE_TRACKING_MAP_ZOOM_CARD_OPEN_KEY = 'safeviate:active-flight-map-zoom-card-open';
 
 interface ActiveTrackingState {
   active: true;
@@ -151,6 +153,13 @@ const saveLocationCalibration = (deviceId: string, calibration: LocationCalibrat
   window.localStorage.setItem(getLocationCalibrationKey(deviceId), JSON.stringify(calibration));
 };
 
+const readStoredBoolean = (key: string, fallback = false) => {
+  if (typeof window === 'undefined') return fallback;
+  const stored = window.sessionStorage.getItem(key);
+  if (stored === null) return fallback;
+  return stored === 'true';
+};
+
 const clearLocationCalibration = (deviceId: string) => {
   if (typeof window === 'undefined') return;
   window.localStorage.removeItem(getLocationCalibrationKey(deviceId));
@@ -169,6 +178,7 @@ export default function ActiveFlightPage() {
   const { uiMode } = useTheme();
   const isMobile = useIsMobile();
   const [isMobileSelectorOpen, setIsMobileSelectorOpen] = useState(false);
+  const [showCompactMenus, setShowCompactMenus] = useState(true);
   const [selectedAircraftId, setSelectedAircraftId] = useState('');
   const [selectedBookingFilterId, setSelectedBookingFilterId] = useState('');
   const [selectedBookingId, setSelectedBookingId] = useState('');
@@ -190,8 +200,8 @@ export default function ActiveFlightPage() {
   const [mapRecenterSignal, setMapRecenterSignal] = useState(0);
   const [loadedBookingId, setLoadedBookingId] = useState('');
   const [loadedPlannerRouteId, setLoadedPlannerRouteId] = useState('');
-  const [isLayersCardOpen, setIsLayersCardOpen] = useState(false);
-  const [isMapZoomCardOpen, setIsMapZoomCardOpen] = useState(false);
+  const [isLayersCardOpen, setIsLayersCardOpen] = useState(() => readStoredBoolean(ACTIVE_TRACKING_LAYERS_CARD_OPEN_KEY, false));
+  const [isMapZoomCardOpen, setIsMapZoomCardOpen] = useState(() => readStoredBoolean(ACTIVE_TRACKING_MAP_ZOOM_CARD_OPEN_KEY, false));
   const resumeHydratedRef = useRef<string | null>(null);
   const lastWriteRef = useRef(0);
   const { position, error: geolocationError, permissionState, isWatching, startWatching, stopWatching } = useGeolocationTrack();
@@ -287,6 +297,16 @@ export default function ActiveFlightPage() {
       window.removeEventListener('storage', syncQueuedSessionState);
     };
   }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.sessionStorage.setItem(ACTIVE_TRACKING_LAYERS_CARD_OPEN_KEY, String(isLayersCardOpen));
+  }, [isLayersCardOpen]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.sessionStorage.setItem(ACTIVE_TRACKING_MAP_ZOOM_CARD_OPEN_KEY, String(isMapZoomCardOpen));
+  }, [isMapZoomCardOpen]);
 
   const deviceBinding = useMemo(() => getOrCreateDeviceBinding(), []);
   const fallbackAircraft = useMemo(
@@ -424,12 +444,35 @@ export default function ActiveFlightPage() {
         : 'Waiting for GPS';
   const nextWaypointNumber = activeLegState?.activeLegIndex != null ? `${activeLegState.activeLegIndex + 2}` : 'N/A';
   const etaToNextLabel = activeLegState?.etaToNextMinutes != null ? `${Math.max(1, Math.round(activeLegState.etaToNextMinutes))} min` : 'N/A';
+  const activeNavlogLeg =
+    activeLegState?.activeLegIndex != null ? displayLegs[activeLegState.activeLegIndex] ?? null : null;
+  const activeFromNavlogLeg =
+    activeLegState?.activeLegIndex != null && activeLegState.activeLegIndex > 0
+      ? displayLegs[activeLegState.activeLegIndex - 1] ?? null
+      : null;
+  const activeLegRemainingFuel =
+    activeLegState?.activeLegIndex != null && selectedBooking?.navlog?.globalFuelOnBoard != null
+      ? selectedBooking.navlog.globalFuelOnBoard -
+        displayLegs
+          .slice(1, activeLegState.activeLegIndex + 1)
+          .reduce((sum, leg) => sum + (leg.tripFuel ?? 0), 0)
+      : null;
   const syncStatusLabel = hasQueuedSession ? 'Queued for Sync' : isOnline ? 'Online' : 'Offline';
   const syncStatusClassName = hasQueuedSession
     ? 'border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-50'
     : isOnline
       ? 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-50'
       : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-50';
+  const formatHeadingValue = (value?: number | null) =>
+    value == null || Number.isNaN(value) ? 'N/A' : `${Math.round(((value % 360) + 360) % 360)}°`;
+  const formatSignedHeadingValue = (value?: number | null) =>
+    value == null || Number.isNaN(value) ? 'N/A' : `${value >= 0 ? '+' : '-'}${Math.abs(Math.round(value))}°`;
+  const formatMinutesValue = (value?: number | null) => {
+    if (value == null || Number.isNaN(value) || value <= 0) return 'N/A';
+    const hours = Math.floor(value / 60);
+    const minutes = Math.round(value % 60);
+    return hours > 0 ? `${hours}:${minutes.toString().padStart(2, '0')}` : `${minutes} min`;
+  };
 
   const conflictingAircraftSession = useMemo(() => {
     if (!selectedAircraft || !deviceBinding?.deviceId) return null;
@@ -1134,6 +1177,22 @@ export default function ActiveFlightPage() {
       )}
 
       <Card className={cn('flex min-h-0 flex-1 flex-col border shadow-none', isModern && 'overflow-hidden border-slate-200/80 bg-white/95 shadow-[0_18px_45px_rgba(15,23,42,0.08)]')}>
+        {isMobile ? (
+          <div className="border-b border-slate-200/80 bg-white px-2 py-1.5 sm:px-3 sm:py-2">
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                className="h-7 border-slate-300 bg-white px-3 text-[9px] font-black uppercase tracking-[0.12em] text-slate-800 hover:bg-slate-50"
+                onClick={() => setShowCompactMenus((current) => !current)}
+              >
+                {showCompactMenus ? 'Hide Menus' : 'Show Menus'}
+              </Button>
+            </div>
+          </div>
+        ) : null}
+        {(!isMobile || showCompactMenus) ? (
+        <>
         <div className="border-b border-slate-200/80 px-2 py-1.5 sm:px-3 sm:py-2">
           {isMobile ? (
             <Collapsible open={isMobileSelectorOpen} onOpenChange={setIsMobileSelectorOpen}>
@@ -1360,6 +1419,8 @@ export default function ActiveFlightPage() {
             </p>
           </div>
         </div>
+        </>
+        ) : null}
         <div className="border-b border-slate-200/80 bg-white">
           <div className="grid grid-cols-4 gap-px bg-slate-200/80 lg:grid-cols-8">
             {[
@@ -1368,7 +1429,7 @@ export default function ActiveFlightPage() {
               { label: 'DIR', value: liveTelemetry.heading != null ? `${liveTelemetry.heading.toFixed(0)}°` : 'N/A' },
               { label: 'NXT', value: nextWaypointNumber },
               { label: 'DST', value: activeLegState?.distanceToNextNm != null ? `${activeLegState.distanceToNextNm.toFixed(1)} NM` : 'N/A' },
-              { label: 'WPT', value: activeLegState?.toWaypoint || 'N/A' },
+              { label: 'XTK', value: activeLegState?.crossTrackErrorNm != null ? `${activeLegState.crossTrackErrorNm.toFixed(1)} NM` : 'N/A' },
               { label: 'BRG', value: activeLegState?.bearingToNext != null ? `${activeLegState.bearingToNext.toFixed(0)}°` : 'N/A' },
               { label: 'ETA', value: etaToNextLabel },
             ].map((item) => (
@@ -1381,6 +1442,52 @@ export default function ActiveFlightPage() {
                 </span>
               </div>
             ))}
+          </div>
+        </div>
+        <div className="border-b border-slate-200/80 bg-white">
+          <div className="overflow-x-auto">
+            <table className="min-w-full border-collapse text-left">
+              <thead>
+                <tr className="bg-slate-50/80">
+                  {['FROM', 'TO', 'TC', 'TH', 'MH', 'WCA', 'VAR', 'GS', 'DIST', 'ETE', 'CUM', 'FUEL', 'REM'].map((label) => (
+                    <th
+                      key={label}
+                      className="border-r border-slate-200/80 px-2 py-1 text-[9px] font-black uppercase tracking-[0.14em] text-muted-foreground last:border-r-0 sm:px-3"
+                    >
+                      {label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  {[
+                    activeFromNavlogLeg?.waypoint || 'N/A',
+                    activeNavlogLeg?.waypoint || 'N/A',
+                    formatHeadingValue(activeNavlogLeg?.trueCourse),
+                    formatHeadingValue(activeNavlogLeg?.trueHeading),
+                    formatHeadingValue(activeNavlogLeg?.magneticHeading),
+                    formatSignedHeadingValue(activeNavlogLeg?.wca),
+                    activeNavlogLeg?.variation == null || Number.isNaN(activeNavlogLeg.variation)
+                      ? 'N/A'
+                      : `${Math.abs(Math.round(activeNavlogLeg.variation))}°${activeNavlogLeg.variation >= 0 ? 'E' : 'W'}`,
+                    activeNavlogLeg?.groundSpeed != null ? `${Math.round(activeNavlogLeg.groundSpeed)} kt` : 'N/A',
+                    activeNavlogLeg?.distance != null ? `${activeNavlogLeg.distance.toFixed(1)} NM` : 'N/A',
+                    formatMinutesValue(activeNavlogLeg?.ete),
+                    formatMinutesValue(activeNavlogLeg?.cumulativeEte),
+                    activeNavlogLeg?.tripFuel != null ? `${activeNavlogLeg.tripFuel.toFixed(1)}` : 'N/A',
+                    activeLegRemainingFuel != null ? `${Math.max(0, activeLegRemainingFuel).toFixed(1)}` : 'N/A',
+                  ].map((value, index) => (
+                    <td
+                      key={`${index}-${value}`}
+                      className="max-w-[8rem] border-r border-t border-slate-200/80 px-2 py-1.5 text-[10px] font-black leading-none text-foreground last:border-r-0 sm:px-3"
+                    >
+                      <span className="block truncate">{value}</span>
+                    </td>
+                  ))}
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
         <CardContent className="flex min-h-0 flex-1 flex-col p-4 sm:p-6">

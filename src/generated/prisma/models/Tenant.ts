@@ -188,7 +188,9 @@ export type TenantWhereInput = {
   vehicles?: Prisma.VehicleRecordListRelationFilter
   vehicleUsageRecords?: Prisma.VehicleUsageRecordListRelationFilter
   bookings?: Prisma.BookingRecordListRelationFilter
+  attendanceRecords?: Prisma.AttendanceRecordListRelationFilter
   trainingRoutes?: Prisma.TrainingRouteRecordListRelationFilter
+  meetings?: Prisma.MeetingRecordListRelationFilter
   companyDocuments?: Prisma.CompanyDocumentListRelationFilter
   externalOrganizations?: Prisma.ExternalOrganizationListRelationFilter
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceListRelationFilter
@@ -221,7 +223,9 @@ export type TenantOrderByWithRelationInput = {
   vehicles?: Prisma.VehicleRecordOrderByRelationAggregateInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordOrderByRelationAggregateInput
   bookings?: Prisma.BookingRecordOrderByRelationAggregateInput
+  attendanceRecords?: Prisma.AttendanceRecordOrderByRelationAggregateInput
   trainingRoutes?: Prisma.TrainingRouteRecordOrderByRelationAggregateInput
+  meetings?: Prisma.MeetingRecordOrderByRelationAggregateInput
   companyDocuments?: Prisma.CompanyDocumentOrderByRelationAggregateInput
   externalOrganizations?: Prisma.ExternalOrganizationOrderByRelationAggregateInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceOrderByRelationAggregateInput
@@ -257,7 +261,9 @@ export type TenantWhereUniqueInput = Prisma.AtLeast<{
   vehicles?: Prisma.VehicleRecordListRelationFilter
   vehicleUsageRecords?: Prisma.VehicleUsageRecordListRelationFilter
   bookings?: Prisma.BookingRecordListRelationFilter
+  attendanceRecords?: Prisma.AttendanceRecordListRelationFilter
   trainingRoutes?: Prisma.TrainingRouteRecordListRelationFilter
+  meetings?: Prisma.MeetingRecordListRelationFilter
   companyDocuments?: Prisma.CompanyDocumentListRelationFilter
   externalOrganizations?: Prisma.ExternalOrganizationListRelationFilter
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceListRelationFilter
@@ -310,7 +316,9 @@ export type TenantCreateInput = {
   vehicles?: Prisma.VehicleRecordCreateNestedManyWithoutTenantInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordCreateNestedManyWithoutTenantInput
   bookings?: Prisma.BookingRecordCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordCreateNestedManyWithoutTenantInput
   trainingRoutes?: Prisma.TrainingRouteRecordCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordCreateNestedManyWithoutTenantInput
   companyDocuments?: Prisma.CompanyDocumentCreateNestedManyWithoutTenantInput
   externalOrganizations?: Prisma.ExternalOrganizationCreateNestedManyWithoutTenantInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceCreateNestedManyWithoutTenantInput
@@ -343,7 +351,9 @@ export type TenantUncheckedCreateInput = {
   vehicles?: Prisma.VehicleRecordUncheckedCreateNestedManyWithoutTenantInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedCreateNestedManyWithoutTenantInput
   bookings?: Prisma.BookingRecordUncheckedCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedCreateNestedManyWithoutTenantInput
   trainingRoutes?: Prisma.TrainingRouteRecordUncheckedCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordUncheckedCreateNestedManyWithoutTenantInput
   companyDocuments?: Prisma.CompanyDocumentUncheckedCreateNestedManyWithoutTenantInput
   externalOrganizations?: Prisma.ExternalOrganizationUncheckedCreateNestedManyWithoutTenantInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedCreateNestedManyWithoutTenantInput
@@ -376,7 +386,9 @@ export type TenantUpdateInput = {
   vehicles?: Prisma.VehicleRecordUpdateManyWithoutTenantNestedInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUpdateManyWithoutTenantNestedInput
   bookings?: Prisma.BookingRecordUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUpdateManyWithoutTenantNestedInput
   trainingRoutes?: Prisma.TrainingRouteRecordUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUpdateManyWithoutTenantNestedInput
   companyDocuments?: Prisma.CompanyDocumentUpdateManyWithoutTenantNestedInput
   externalOrganizations?: Prisma.ExternalOrganizationUpdateManyWithoutTenantNestedInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUpdateManyWithoutTenantNestedInput
@@ -409,7 +421,9 @@ export type TenantUncheckedUpdateInput = {
   vehicles?: Prisma.VehicleRecordUncheckedUpdateManyWithoutTenantNestedInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedUpdateManyWithoutTenantNestedInput
   bookings?: Prisma.BookingRecordUncheckedUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedUpdateManyWithoutTenantNestedInput
   trainingRoutes?: Prisma.TrainingRouteRecordUncheckedUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUncheckedUpdateManyWithoutTenantNestedInput
   companyDocuments?: Prisma.CompanyDocumentUncheckedUpdateManyWithoutTenantNestedInput
   externalOrganizations?: Prisma.ExternalOrganizationUncheckedUpdateManyWithoutTenantNestedInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedUpdateManyWithoutTenantNestedInput
@@ -702,6 +716,20 @@ export type TenantUpdateOneRequiredWithoutBookingsNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.TenantUpdateToOneWithWhereWithoutBookingsInput, Prisma.TenantUpdateWithoutBookingsInput>, Prisma.TenantUncheckedUpdateWithoutBookingsInput>
 }
 
+export type TenantCreateNestedOneWithoutAttendanceRecordsInput = {
+  create?: Prisma.XOR<Prisma.TenantCreateWithoutAttendanceRecordsInput, Prisma.TenantUncheckedCreateWithoutAttendanceRecordsInput>
+  connectOrCreate?: Prisma.TenantCreateOrConnectWithoutAttendanceRecordsInput
+  connect?: Prisma.TenantWhereUniqueInput
+}
+
+export type TenantUpdateOneRequiredWithoutAttendanceRecordsNestedInput = {
+  create?: Prisma.XOR<Prisma.TenantCreateWithoutAttendanceRecordsInput, Prisma.TenantUncheckedCreateWithoutAttendanceRecordsInput>
+  connectOrCreate?: Prisma.TenantCreateOrConnectWithoutAttendanceRecordsInput
+  upsert?: Prisma.TenantUpsertWithoutAttendanceRecordsInput
+  connect?: Prisma.TenantWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.TenantUpdateToOneWithWhereWithoutAttendanceRecordsInput, Prisma.TenantUpdateWithoutAttendanceRecordsInput>, Prisma.TenantUncheckedUpdateWithoutAttendanceRecordsInput>
+}
+
 export type TenantCreateNestedOneWithoutTrainingRoutesInput = {
   create?: Prisma.XOR<Prisma.TenantCreateWithoutTrainingRoutesInput, Prisma.TenantUncheckedCreateWithoutTrainingRoutesInput>
   connectOrCreate?: Prisma.TenantCreateOrConnectWithoutTrainingRoutesInput
@@ -714,6 +742,20 @@ export type TenantUpdateOneRequiredWithoutTrainingRoutesNestedInput = {
   upsert?: Prisma.TenantUpsertWithoutTrainingRoutesInput
   connect?: Prisma.TenantWhereUniqueInput
   update?: Prisma.XOR<Prisma.XOR<Prisma.TenantUpdateToOneWithWhereWithoutTrainingRoutesInput, Prisma.TenantUpdateWithoutTrainingRoutesInput>, Prisma.TenantUncheckedUpdateWithoutTrainingRoutesInput>
+}
+
+export type TenantCreateNestedOneWithoutMeetingsInput = {
+  create?: Prisma.XOR<Prisma.TenantCreateWithoutMeetingsInput, Prisma.TenantUncheckedCreateWithoutMeetingsInput>
+  connectOrCreate?: Prisma.TenantCreateOrConnectWithoutMeetingsInput
+  connect?: Prisma.TenantWhereUniqueInput
+}
+
+export type TenantUpdateOneRequiredWithoutMeetingsNestedInput = {
+  create?: Prisma.XOR<Prisma.TenantCreateWithoutMeetingsInput, Prisma.TenantUncheckedCreateWithoutMeetingsInput>
+  connectOrCreate?: Prisma.TenantCreateOrConnectWithoutMeetingsInput
+  upsert?: Prisma.TenantUpsertWithoutMeetingsInput
+  connect?: Prisma.TenantWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.TenantUpdateToOneWithWhereWithoutMeetingsInput, Prisma.TenantUpdateWithoutMeetingsInput>, Prisma.TenantUncheckedUpdateWithoutMeetingsInput>
 }
 
 export type TenantCreateNestedOneWithoutCompanyDocumentsInput = {
@@ -860,7 +902,9 @@ export type TenantCreateWithoutUsersInput = {
   vehicles?: Prisma.VehicleRecordCreateNestedManyWithoutTenantInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordCreateNestedManyWithoutTenantInput
   bookings?: Prisma.BookingRecordCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordCreateNestedManyWithoutTenantInput
   trainingRoutes?: Prisma.TrainingRouteRecordCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordCreateNestedManyWithoutTenantInput
   companyDocuments?: Prisma.CompanyDocumentCreateNestedManyWithoutTenantInput
   externalOrganizations?: Prisma.ExternalOrganizationCreateNestedManyWithoutTenantInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceCreateNestedManyWithoutTenantInput
@@ -892,7 +936,9 @@ export type TenantUncheckedCreateWithoutUsersInput = {
   vehicles?: Prisma.VehicleRecordUncheckedCreateNestedManyWithoutTenantInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedCreateNestedManyWithoutTenantInput
   bookings?: Prisma.BookingRecordUncheckedCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedCreateNestedManyWithoutTenantInput
   trainingRoutes?: Prisma.TrainingRouteRecordUncheckedCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordUncheckedCreateNestedManyWithoutTenantInput
   companyDocuments?: Prisma.CompanyDocumentUncheckedCreateNestedManyWithoutTenantInput
   externalOrganizations?: Prisma.ExternalOrganizationUncheckedCreateNestedManyWithoutTenantInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedCreateNestedManyWithoutTenantInput
@@ -940,7 +986,9 @@ export type TenantUpdateWithoutUsersInput = {
   vehicles?: Prisma.VehicleRecordUpdateManyWithoutTenantNestedInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUpdateManyWithoutTenantNestedInput
   bookings?: Prisma.BookingRecordUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUpdateManyWithoutTenantNestedInput
   trainingRoutes?: Prisma.TrainingRouteRecordUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUpdateManyWithoutTenantNestedInput
   companyDocuments?: Prisma.CompanyDocumentUpdateManyWithoutTenantNestedInput
   externalOrganizations?: Prisma.ExternalOrganizationUpdateManyWithoutTenantNestedInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUpdateManyWithoutTenantNestedInput
@@ -972,7 +1020,9 @@ export type TenantUncheckedUpdateWithoutUsersInput = {
   vehicles?: Prisma.VehicleRecordUncheckedUpdateManyWithoutTenantNestedInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedUpdateManyWithoutTenantNestedInput
   bookings?: Prisma.BookingRecordUncheckedUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedUpdateManyWithoutTenantNestedInput
   trainingRoutes?: Prisma.TrainingRouteRecordUncheckedUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUncheckedUpdateManyWithoutTenantNestedInput
   companyDocuments?: Prisma.CompanyDocumentUncheckedUpdateManyWithoutTenantNestedInput
   externalOrganizations?: Prisma.ExternalOrganizationUncheckedUpdateManyWithoutTenantNestedInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedUpdateManyWithoutTenantNestedInput
@@ -1005,7 +1055,9 @@ export type TenantCreateWithoutPasswordSetupInvitesInput = {
   vehicles?: Prisma.VehicleRecordCreateNestedManyWithoutTenantInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordCreateNestedManyWithoutTenantInput
   bookings?: Prisma.BookingRecordCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordCreateNestedManyWithoutTenantInput
   trainingRoutes?: Prisma.TrainingRouteRecordCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordCreateNestedManyWithoutTenantInput
   companyDocuments?: Prisma.CompanyDocumentCreateNestedManyWithoutTenantInput
   externalOrganizations?: Prisma.ExternalOrganizationCreateNestedManyWithoutTenantInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceCreateNestedManyWithoutTenantInput
@@ -1037,7 +1089,9 @@ export type TenantUncheckedCreateWithoutPasswordSetupInvitesInput = {
   vehicles?: Prisma.VehicleRecordUncheckedCreateNestedManyWithoutTenantInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedCreateNestedManyWithoutTenantInput
   bookings?: Prisma.BookingRecordUncheckedCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedCreateNestedManyWithoutTenantInput
   trainingRoutes?: Prisma.TrainingRouteRecordUncheckedCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordUncheckedCreateNestedManyWithoutTenantInput
   companyDocuments?: Prisma.CompanyDocumentUncheckedCreateNestedManyWithoutTenantInput
   externalOrganizations?: Prisma.ExternalOrganizationUncheckedCreateNestedManyWithoutTenantInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedCreateNestedManyWithoutTenantInput
@@ -1085,7 +1139,9 @@ export type TenantUpdateWithoutPasswordSetupInvitesInput = {
   vehicles?: Prisma.VehicleRecordUpdateManyWithoutTenantNestedInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUpdateManyWithoutTenantNestedInput
   bookings?: Prisma.BookingRecordUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUpdateManyWithoutTenantNestedInput
   trainingRoutes?: Prisma.TrainingRouteRecordUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUpdateManyWithoutTenantNestedInput
   companyDocuments?: Prisma.CompanyDocumentUpdateManyWithoutTenantNestedInput
   externalOrganizations?: Prisma.ExternalOrganizationUpdateManyWithoutTenantNestedInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUpdateManyWithoutTenantNestedInput
@@ -1117,7 +1173,9 @@ export type TenantUncheckedUpdateWithoutPasswordSetupInvitesInput = {
   vehicles?: Prisma.VehicleRecordUncheckedUpdateManyWithoutTenantNestedInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedUpdateManyWithoutTenantNestedInput
   bookings?: Prisma.BookingRecordUncheckedUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedUpdateManyWithoutTenantNestedInput
   trainingRoutes?: Prisma.TrainingRouteRecordUncheckedUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUncheckedUpdateManyWithoutTenantNestedInput
   companyDocuments?: Prisma.CompanyDocumentUncheckedUpdateManyWithoutTenantNestedInput
   externalOrganizations?: Prisma.ExternalOrganizationUncheckedUpdateManyWithoutTenantNestedInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedUpdateManyWithoutTenantNestedInput
@@ -1149,7 +1207,9 @@ export type TenantCreateWithoutBetaNdaAcceptancesInput = {
   vehicles?: Prisma.VehicleRecordCreateNestedManyWithoutTenantInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordCreateNestedManyWithoutTenantInput
   bookings?: Prisma.BookingRecordCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordCreateNestedManyWithoutTenantInput
   trainingRoutes?: Prisma.TrainingRouteRecordCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordCreateNestedManyWithoutTenantInput
   companyDocuments?: Prisma.CompanyDocumentCreateNestedManyWithoutTenantInput
   externalOrganizations?: Prisma.ExternalOrganizationCreateNestedManyWithoutTenantInput
   erpStates?: Prisma.ErpStateCreateNestedManyWithoutTenantInput
@@ -1181,7 +1241,9 @@ export type TenantUncheckedCreateWithoutBetaNdaAcceptancesInput = {
   vehicles?: Prisma.VehicleRecordUncheckedCreateNestedManyWithoutTenantInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedCreateNestedManyWithoutTenantInput
   bookings?: Prisma.BookingRecordUncheckedCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedCreateNestedManyWithoutTenantInput
   trainingRoutes?: Prisma.TrainingRouteRecordUncheckedCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordUncheckedCreateNestedManyWithoutTenantInput
   companyDocuments?: Prisma.CompanyDocumentUncheckedCreateNestedManyWithoutTenantInput
   externalOrganizations?: Prisma.ExternalOrganizationUncheckedCreateNestedManyWithoutTenantInput
   erpStates?: Prisma.ErpStateUncheckedCreateNestedManyWithoutTenantInput
@@ -1229,7 +1291,9 @@ export type TenantUpdateWithoutBetaNdaAcceptancesInput = {
   vehicles?: Prisma.VehicleRecordUpdateManyWithoutTenantNestedInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUpdateManyWithoutTenantNestedInput
   bookings?: Prisma.BookingRecordUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUpdateManyWithoutTenantNestedInput
   trainingRoutes?: Prisma.TrainingRouteRecordUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUpdateManyWithoutTenantNestedInput
   companyDocuments?: Prisma.CompanyDocumentUpdateManyWithoutTenantNestedInput
   externalOrganizations?: Prisma.ExternalOrganizationUpdateManyWithoutTenantNestedInput
   erpStates?: Prisma.ErpStateUpdateManyWithoutTenantNestedInput
@@ -1261,7 +1325,9 @@ export type TenantUncheckedUpdateWithoutBetaNdaAcceptancesInput = {
   vehicles?: Prisma.VehicleRecordUncheckedUpdateManyWithoutTenantNestedInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedUpdateManyWithoutTenantNestedInput
   bookings?: Prisma.BookingRecordUncheckedUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedUpdateManyWithoutTenantNestedInput
   trainingRoutes?: Prisma.TrainingRouteRecordUncheckedUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUncheckedUpdateManyWithoutTenantNestedInput
   companyDocuments?: Prisma.CompanyDocumentUncheckedUpdateManyWithoutTenantNestedInput
   externalOrganizations?: Prisma.ExternalOrganizationUncheckedUpdateManyWithoutTenantNestedInput
   erpStates?: Prisma.ErpStateUncheckedUpdateManyWithoutTenantNestedInput
@@ -1292,7 +1358,9 @@ export type TenantCreateWithoutRolesInput = {
   vehicles?: Prisma.VehicleRecordCreateNestedManyWithoutTenantInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordCreateNestedManyWithoutTenantInput
   bookings?: Prisma.BookingRecordCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordCreateNestedManyWithoutTenantInput
   trainingRoutes?: Prisma.TrainingRouteRecordCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordCreateNestedManyWithoutTenantInput
   companyDocuments?: Prisma.CompanyDocumentCreateNestedManyWithoutTenantInput
   externalOrganizations?: Prisma.ExternalOrganizationCreateNestedManyWithoutTenantInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceCreateNestedManyWithoutTenantInput
@@ -1324,7 +1392,9 @@ export type TenantUncheckedCreateWithoutRolesInput = {
   vehicles?: Prisma.VehicleRecordUncheckedCreateNestedManyWithoutTenantInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedCreateNestedManyWithoutTenantInput
   bookings?: Prisma.BookingRecordUncheckedCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedCreateNestedManyWithoutTenantInput
   trainingRoutes?: Prisma.TrainingRouteRecordUncheckedCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordUncheckedCreateNestedManyWithoutTenantInput
   companyDocuments?: Prisma.CompanyDocumentUncheckedCreateNestedManyWithoutTenantInput
   externalOrganizations?: Prisma.ExternalOrganizationUncheckedCreateNestedManyWithoutTenantInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedCreateNestedManyWithoutTenantInput
@@ -1372,7 +1442,9 @@ export type TenantUpdateWithoutRolesInput = {
   vehicles?: Prisma.VehicleRecordUpdateManyWithoutTenantNestedInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUpdateManyWithoutTenantNestedInput
   bookings?: Prisma.BookingRecordUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUpdateManyWithoutTenantNestedInput
   trainingRoutes?: Prisma.TrainingRouteRecordUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUpdateManyWithoutTenantNestedInput
   companyDocuments?: Prisma.CompanyDocumentUpdateManyWithoutTenantNestedInput
   externalOrganizations?: Prisma.ExternalOrganizationUpdateManyWithoutTenantNestedInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUpdateManyWithoutTenantNestedInput
@@ -1404,7 +1476,9 @@ export type TenantUncheckedUpdateWithoutRolesInput = {
   vehicles?: Prisma.VehicleRecordUncheckedUpdateManyWithoutTenantNestedInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedUpdateManyWithoutTenantNestedInput
   bookings?: Prisma.BookingRecordUncheckedUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedUpdateManyWithoutTenantNestedInput
   trainingRoutes?: Prisma.TrainingRouteRecordUncheckedUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUncheckedUpdateManyWithoutTenantNestedInput
   companyDocuments?: Prisma.CompanyDocumentUncheckedUpdateManyWithoutTenantNestedInput
   externalOrganizations?: Prisma.ExternalOrganizationUncheckedUpdateManyWithoutTenantNestedInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedUpdateManyWithoutTenantNestedInput
@@ -1436,7 +1510,9 @@ export type TenantCreateWithoutDepartmentsInput = {
   vehicles?: Prisma.VehicleRecordCreateNestedManyWithoutTenantInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordCreateNestedManyWithoutTenantInput
   bookings?: Prisma.BookingRecordCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordCreateNestedManyWithoutTenantInput
   trainingRoutes?: Prisma.TrainingRouteRecordCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordCreateNestedManyWithoutTenantInput
   companyDocuments?: Prisma.CompanyDocumentCreateNestedManyWithoutTenantInput
   externalOrganizations?: Prisma.ExternalOrganizationCreateNestedManyWithoutTenantInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceCreateNestedManyWithoutTenantInput
@@ -1468,7 +1544,9 @@ export type TenantUncheckedCreateWithoutDepartmentsInput = {
   vehicles?: Prisma.VehicleRecordUncheckedCreateNestedManyWithoutTenantInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedCreateNestedManyWithoutTenantInput
   bookings?: Prisma.BookingRecordUncheckedCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedCreateNestedManyWithoutTenantInput
   trainingRoutes?: Prisma.TrainingRouteRecordUncheckedCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordUncheckedCreateNestedManyWithoutTenantInput
   companyDocuments?: Prisma.CompanyDocumentUncheckedCreateNestedManyWithoutTenantInput
   externalOrganizations?: Prisma.ExternalOrganizationUncheckedCreateNestedManyWithoutTenantInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedCreateNestedManyWithoutTenantInput
@@ -1516,7 +1594,9 @@ export type TenantUpdateWithoutDepartmentsInput = {
   vehicles?: Prisma.VehicleRecordUpdateManyWithoutTenantNestedInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUpdateManyWithoutTenantNestedInput
   bookings?: Prisma.BookingRecordUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUpdateManyWithoutTenantNestedInput
   trainingRoutes?: Prisma.TrainingRouteRecordUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUpdateManyWithoutTenantNestedInput
   companyDocuments?: Prisma.CompanyDocumentUpdateManyWithoutTenantNestedInput
   externalOrganizations?: Prisma.ExternalOrganizationUpdateManyWithoutTenantNestedInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUpdateManyWithoutTenantNestedInput
@@ -1548,7 +1628,9 @@ export type TenantUncheckedUpdateWithoutDepartmentsInput = {
   vehicles?: Prisma.VehicleRecordUncheckedUpdateManyWithoutTenantNestedInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedUpdateManyWithoutTenantNestedInput
   bookings?: Prisma.BookingRecordUncheckedUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedUpdateManyWithoutTenantNestedInput
   trainingRoutes?: Prisma.TrainingRouteRecordUncheckedUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUncheckedUpdateManyWithoutTenantNestedInput
   companyDocuments?: Prisma.CompanyDocumentUncheckedUpdateManyWithoutTenantNestedInput
   externalOrganizations?: Prisma.ExternalOrganizationUncheckedUpdateManyWithoutTenantNestedInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedUpdateManyWithoutTenantNestedInput
@@ -1580,7 +1662,9 @@ export type TenantCreateWithoutPersonnelInput = {
   vehicles?: Prisma.VehicleRecordCreateNestedManyWithoutTenantInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordCreateNestedManyWithoutTenantInput
   bookings?: Prisma.BookingRecordCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordCreateNestedManyWithoutTenantInput
   trainingRoutes?: Prisma.TrainingRouteRecordCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordCreateNestedManyWithoutTenantInput
   companyDocuments?: Prisma.CompanyDocumentCreateNestedManyWithoutTenantInput
   externalOrganizations?: Prisma.ExternalOrganizationCreateNestedManyWithoutTenantInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceCreateNestedManyWithoutTenantInput
@@ -1612,7 +1696,9 @@ export type TenantUncheckedCreateWithoutPersonnelInput = {
   vehicles?: Prisma.VehicleRecordUncheckedCreateNestedManyWithoutTenantInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedCreateNestedManyWithoutTenantInput
   bookings?: Prisma.BookingRecordUncheckedCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedCreateNestedManyWithoutTenantInput
   trainingRoutes?: Prisma.TrainingRouteRecordUncheckedCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordUncheckedCreateNestedManyWithoutTenantInput
   companyDocuments?: Prisma.CompanyDocumentUncheckedCreateNestedManyWithoutTenantInput
   externalOrganizations?: Prisma.ExternalOrganizationUncheckedCreateNestedManyWithoutTenantInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedCreateNestedManyWithoutTenantInput
@@ -1660,7 +1746,9 @@ export type TenantUpdateWithoutPersonnelInput = {
   vehicles?: Prisma.VehicleRecordUpdateManyWithoutTenantNestedInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUpdateManyWithoutTenantNestedInput
   bookings?: Prisma.BookingRecordUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUpdateManyWithoutTenantNestedInput
   trainingRoutes?: Prisma.TrainingRouteRecordUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUpdateManyWithoutTenantNestedInput
   companyDocuments?: Prisma.CompanyDocumentUpdateManyWithoutTenantNestedInput
   externalOrganizations?: Prisma.ExternalOrganizationUpdateManyWithoutTenantNestedInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUpdateManyWithoutTenantNestedInput
@@ -1692,7 +1780,9 @@ export type TenantUncheckedUpdateWithoutPersonnelInput = {
   vehicles?: Prisma.VehicleRecordUncheckedUpdateManyWithoutTenantNestedInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedUpdateManyWithoutTenantNestedInput
   bookings?: Prisma.BookingRecordUncheckedUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedUpdateManyWithoutTenantNestedInput
   trainingRoutes?: Prisma.TrainingRouteRecordUncheckedUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUncheckedUpdateManyWithoutTenantNestedInput
   companyDocuments?: Prisma.CompanyDocumentUncheckedUpdateManyWithoutTenantNestedInput
   externalOrganizations?: Prisma.ExternalOrganizationUncheckedUpdateManyWithoutTenantNestedInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedUpdateManyWithoutTenantNestedInput
@@ -1724,7 +1814,9 @@ export type TenantCreateWithoutTenantConfigsInput = {
   vehicles?: Prisma.VehicleRecordCreateNestedManyWithoutTenantInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordCreateNestedManyWithoutTenantInput
   bookings?: Prisma.BookingRecordCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordCreateNestedManyWithoutTenantInput
   trainingRoutes?: Prisma.TrainingRouteRecordCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordCreateNestedManyWithoutTenantInput
   companyDocuments?: Prisma.CompanyDocumentCreateNestedManyWithoutTenantInput
   externalOrganizations?: Prisma.ExternalOrganizationCreateNestedManyWithoutTenantInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceCreateNestedManyWithoutTenantInput
@@ -1756,7 +1848,9 @@ export type TenantUncheckedCreateWithoutTenantConfigsInput = {
   vehicles?: Prisma.VehicleRecordUncheckedCreateNestedManyWithoutTenantInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedCreateNestedManyWithoutTenantInput
   bookings?: Prisma.BookingRecordUncheckedCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedCreateNestedManyWithoutTenantInput
   trainingRoutes?: Prisma.TrainingRouteRecordUncheckedCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordUncheckedCreateNestedManyWithoutTenantInput
   companyDocuments?: Prisma.CompanyDocumentUncheckedCreateNestedManyWithoutTenantInput
   externalOrganizations?: Prisma.ExternalOrganizationUncheckedCreateNestedManyWithoutTenantInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedCreateNestedManyWithoutTenantInput
@@ -1804,7 +1898,9 @@ export type TenantUpdateWithoutTenantConfigsInput = {
   vehicles?: Prisma.VehicleRecordUpdateManyWithoutTenantNestedInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUpdateManyWithoutTenantNestedInput
   bookings?: Prisma.BookingRecordUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUpdateManyWithoutTenantNestedInput
   trainingRoutes?: Prisma.TrainingRouteRecordUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUpdateManyWithoutTenantNestedInput
   companyDocuments?: Prisma.CompanyDocumentUpdateManyWithoutTenantNestedInput
   externalOrganizations?: Prisma.ExternalOrganizationUpdateManyWithoutTenantNestedInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUpdateManyWithoutTenantNestedInput
@@ -1836,7 +1932,9 @@ export type TenantUncheckedUpdateWithoutTenantConfigsInput = {
   vehicles?: Prisma.VehicleRecordUncheckedUpdateManyWithoutTenantNestedInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedUpdateManyWithoutTenantNestedInput
   bookings?: Prisma.BookingRecordUncheckedUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedUpdateManyWithoutTenantNestedInput
   trainingRoutes?: Prisma.TrainingRouteRecordUncheckedUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUncheckedUpdateManyWithoutTenantNestedInput
   companyDocuments?: Prisma.CompanyDocumentUncheckedUpdateManyWithoutTenantNestedInput
   externalOrganizations?: Prisma.ExternalOrganizationUncheckedUpdateManyWithoutTenantNestedInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedUpdateManyWithoutTenantNestedInput
@@ -1868,7 +1966,9 @@ export type TenantCreateWithoutManagementOfChangesInput = {
   vehicles?: Prisma.VehicleRecordCreateNestedManyWithoutTenantInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordCreateNestedManyWithoutTenantInput
   bookings?: Prisma.BookingRecordCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordCreateNestedManyWithoutTenantInput
   trainingRoutes?: Prisma.TrainingRouteRecordCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordCreateNestedManyWithoutTenantInput
   companyDocuments?: Prisma.CompanyDocumentCreateNestedManyWithoutTenantInput
   externalOrganizations?: Prisma.ExternalOrganizationCreateNestedManyWithoutTenantInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceCreateNestedManyWithoutTenantInput
@@ -1900,7 +2000,9 @@ export type TenantUncheckedCreateWithoutManagementOfChangesInput = {
   vehicles?: Prisma.VehicleRecordUncheckedCreateNestedManyWithoutTenantInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedCreateNestedManyWithoutTenantInput
   bookings?: Prisma.BookingRecordUncheckedCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedCreateNestedManyWithoutTenantInput
   trainingRoutes?: Prisma.TrainingRouteRecordUncheckedCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordUncheckedCreateNestedManyWithoutTenantInput
   companyDocuments?: Prisma.CompanyDocumentUncheckedCreateNestedManyWithoutTenantInput
   externalOrganizations?: Prisma.ExternalOrganizationUncheckedCreateNestedManyWithoutTenantInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedCreateNestedManyWithoutTenantInput
@@ -1948,7 +2050,9 @@ export type TenantUpdateWithoutManagementOfChangesInput = {
   vehicles?: Prisma.VehicleRecordUpdateManyWithoutTenantNestedInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUpdateManyWithoutTenantNestedInput
   bookings?: Prisma.BookingRecordUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUpdateManyWithoutTenantNestedInput
   trainingRoutes?: Prisma.TrainingRouteRecordUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUpdateManyWithoutTenantNestedInput
   companyDocuments?: Prisma.CompanyDocumentUpdateManyWithoutTenantNestedInput
   externalOrganizations?: Prisma.ExternalOrganizationUpdateManyWithoutTenantNestedInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUpdateManyWithoutTenantNestedInput
@@ -1980,7 +2084,9 @@ export type TenantUncheckedUpdateWithoutManagementOfChangesInput = {
   vehicles?: Prisma.VehicleRecordUncheckedUpdateManyWithoutTenantNestedInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedUpdateManyWithoutTenantNestedInput
   bookings?: Prisma.BookingRecordUncheckedUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedUpdateManyWithoutTenantNestedInput
   trainingRoutes?: Prisma.TrainingRouteRecordUncheckedUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUncheckedUpdateManyWithoutTenantNestedInput
   companyDocuments?: Prisma.CompanyDocumentUncheckedUpdateManyWithoutTenantNestedInput
   externalOrganizations?: Prisma.ExternalOrganizationUncheckedUpdateManyWithoutTenantNestedInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedUpdateManyWithoutTenantNestedInput
@@ -2012,7 +2118,9 @@ export type TenantCreateWithoutQualityAuditsInput = {
   vehicles?: Prisma.VehicleRecordCreateNestedManyWithoutTenantInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordCreateNestedManyWithoutTenantInput
   bookings?: Prisma.BookingRecordCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordCreateNestedManyWithoutTenantInput
   trainingRoutes?: Prisma.TrainingRouteRecordCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordCreateNestedManyWithoutTenantInput
   companyDocuments?: Prisma.CompanyDocumentCreateNestedManyWithoutTenantInput
   externalOrganizations?: Prisma.ExternalOrganizationCreateNestedManyWithoutTenantInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceCreateNestedManyWithoutTenantInput
@@ -2044,7 +2152,9 @@ export type TenantUncheckedCreateWithoutQualityAuditsInput = {
   vehicles?: Prisma.VehicleRecordUncheckedCreateNestedManyWithoutTenantInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedCreateNestedManyWithoutTenantInput
   bookings?: Prisma.BookingRecordUncheckedCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedCreateNestedManyWithoutTenantInput
   trainingRoutes?: Prisma.TrainingRouteRecordUncheckedCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordUncheckedCreateNestedManyWithoutTenantInput
   companyDocuments?: Prisma.CompanyDocumentUncheckedCreateNestedManyWithoutTenantInput
   externalOrganizations?: Prisma.ExternalOrganizationUncheckedCreateNestedManyWithoutTenantInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedCreateNestedManyWithoutTenantInput
@@ -2092,7 +2202,9 @@ export type TenantUpdateWithoutQualityAuditsInput = {
   vehicles?: Prisma.VehicleRecordUpdateManyWithoutTenantNestedInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUpdateManyWithoutTenantNestedInput
   bookings?: Prisma.BookingRecordUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUpdateManyWithoutTenantNestedInput
   trainingRoutes?: Prisma.TrainingRouteRecordUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUpdateManyWithoutTenantNestedInput
   companyDocuments?: Prisma.CompanyDocumentUpdateManyWithoutTenantNestedInput
   externalOrganizations?: Prisma.ExternalOrganizationUpdateManyWithoutTenantNestedInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUpdateManyWithoutTenantNestedInput
@@ -2124,7 +2236,9 @@ export type TenantUncheckedUpdateWithoutQualityAuditsInput = {
   vehicles?: Prisma.VehicleRecordUncheckedUpdateManyWithoutTenantNestedInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedUpdateManyWithoutTenantNestedInput
   bookings?: Prisma.BookingRecordUncheckedUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedUpdateManyWithoutTenantNestedInput
   trainingRoutes?: Prisma.TrainingRouteRecordUncheckedUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUncheckedUpdateManyWithoutTenantNestedInput
   companyDocuments?: Prisma.CompanyDocumentUncheckedUpdateManyWithoutTenantNestedInput
   externalOrganizations?: Prisma.ExternalOrganizationUncheckedUpdateManyWithoutTenantNestedInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedUpdateManyWithoutTenantNestedInput
@@ -2156,7 +2270,9 @@ export type TenantCreateWithoutSafetyReportsInput = {
   vehicles?: Prisma.VehicleRecordCreateNestedManyWithoutTenantInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordCreateNestedManyWithoutTenantInput
   bookings?: Prisma.BookingRecordCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordCreateNestedManyWithoutTenantInput
   trainingRoutes?: Prisma.TrainingRouteRecordCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordCreateNestedManyWithoutTenantInput
   companyDocuments?: Prisma.CompanyDocumentCreateNestedManyWithoutTenantInput
   externalOrganizations?: Prisma.ExternalOrganizationCreateNestedManyWithoutTenantInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceCreateNestedManyWithoutTenantInput
@@ -2188,7 +2304,9 @@ export type TenantUncheckedCreateWithoutSafetyReportsInput = {
   vehicles?: Prisma.VehicleRecordUncheckedCreateNestedManyWithoutTenantInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedCreateNestedManyWithoutTenantInput
   bookings?: Prisma.BookingRecordUncheckedCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedCreateNestedManyWithoutTenantInput
   trainingRoutes?: Prisma.TrainingRouteRecordUncheckedCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordUncheckedCreateNestedManyWithoutTenantInput
   companyDocuments?: Prisma.CompanyDocumentUncheckedCreateNestedManyWithoutTenantInput
   externalOrganizations?: Prisma.ExternalOrganizationUncheckedCreateNestedManyWithoutTenantInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedCreateNestedManyWithoutTenantInput
@@ -2236,7 +2354,9 @@ export type TenantUpdateWithoutSafetyReportsInput = {
   vehicles?: Prisma.VehicleRecordUpdateManyWithoutTenantNestedInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUpdateManyWithoutTenantNestedInput
   bookings?: Prisma.BookingRecordUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUpdateManyWithoutTenantNestedInput
   trainingRoutes?: Prisma.TrainingRouteRecordUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUpdateManyWithoutTenantNestedInput
   companyDocuments?: Prisma.CompanyDocumentUpdateManyWithoutTenantNestedInput
   externalOrganizations?: Prisma.ExternalOrganizationUpdateManyWithoutTenantNestedInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUpdateManyWithoutTenantNestedInput
@@ -2268,7 +2388,9 @@ export type TenantUncheckedUpdateWithoutSafetyReportsInput = {
   vehicles?: Prisma.VehicleRecordUncheckedUpdateManyWithoutTenantNestedInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedUpdateManyWithoutTenantNestedInput
   bookings?: Prisma.BookingRecordUncheckedUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedUpdateManyWithoutTenantNestedInput
   trainingRoutes?: Prisma.TrainingRouteRecordUncheckedUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUncheckedUpdateManyWithoutTenantNestedInput
   companyDocuments?: Prisma.CompanyDocumentUncheckedUpdateManyWithoutTenantNestedInput
   externalOrganizations?: Prisma.ExternalOrganizationUncheckedUpdateManyWithoutTenantNestedInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedUpdateManyWithoutTenantNestedInput
@@ -2300,7 +2422,9 @@ export type TenantCreateWithoutCorrectiveActionPlansInput = {
   vehicles?: Prisma.VehicleRecordCreateNestedManyWithoutTenantInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordCreateNestedManyWithoutTenantInput
   bookings?: Prisma.BookingRecordCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordCreateNestedManyWithoutTenantInput
   trainingRoutes?: Prisma.TrainingRouteRecordCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordCreateNestedManyWithoutTenantInput
   companyDocuments?: Prisma.CompanyDocumentCreateNestedManyWithoutTenantInput
   externalOrganizations?: Prisma.ExternalOrganizationCreateNestedManyWithoutTenantInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceCreateNestedManyWithoutTenantInput
@@ -2332,7 +2456,9 @@ export type TenantUncheckedCreateWithoutCorrectiveActionPlansInput = {
   vehicles?: Prisma.VehicleRecordUncheckedCreateNestedManyWithoutTenantInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedCreateNestedManyWithoutTenantInput
   bookings?: Prisma.BookingRecordUncheckedCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedCreateNestedManyWithoutTenantInput
   trainingRoutes?: Prisma.TrainingRouteRecordUncheckedCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordUncheckedCreateNestedManyWithoutTenantInput
   companyDocuments?: Prisma.CompanyDocumentUncheckedCreateNestedManyWithoutTenantInput
   externalOrganizations?: Prisma.ExternalOrganizationUncheckedCreateNestedManyWithoutTenantInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedCreateNestedManyWithoutTenantInput
@@ -2380,7 +2506,9 @@ export type TenantUpdateWithoutCorrectiveActionPlansInput = {
   vehicles?: Prisma.VehicleRecordUpdateManyWithoutTenantNestedInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUpdateManyWithoutTenantNestedInput
   bookings?: Prisma.BookingRecordUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUpdateManyWithoutTenantNestedInput
   trainingRoutes?: Prisma.TrainingRouteRecordUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUpdateManyWithoutTenantNestedInput
   companyDocuments?: Prisma.CompanyDocumentUpdateManyWithoutTenantNestedInput
   externalOrganizations?: Prisma.ExternalOrganizationUpdateManyWithoutTenantNestedInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUpdateManyWithoutTenantNestedInput
@@ -2412,7 +2540,9 @@ export type TenantUncheckedUpdateWithoutCorrectiveActionPlansInput = {
   vehicles?: Prisma.VehicleRecordUncheckedUpdateManyWithoutTenantNestedInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedUpdateManyWithoutTenantNestedInput
   bookings?: Prisma.BookingRecordUncheckedUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedUpdateManyWithoutTenantNestedInput
   trainingRoutes?: Prisma.TrainingRouteRecordUncheckedUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUncheckedUpdateManyWithoutTenantNestedInput
   companyDocuments?: Prisma.CompanyDocumentUncheckedUpdateManyWithoutTenantNestedInput
   externalOrganizations?: Prisma.ExternalOrganizationUncheckedUpdateManyWithoutTenantNestedInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedUpdateManyWithoutTenantNestedInput
@@ -2444,7 +2574,9 @@ export type TenantCreateWithoutRisksInput = {
   vehicles?: Prisma.VehicleRecordCreateNestedManyWithoutTenantInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordCreateNestedManyWithoutTenantInput
   bookings?: Prisma.BookingRecordCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordCreateNestedManyWithoutTenantInput
   trainingRoutes?: Prisma.TrainingRouteRecordCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordCreateNestedManyWithoutTenantInput
   companyDocuments?: Prisma.CompanyDocumentCreateNestedManyWithoutTenantInput
   externalOrganizations?: Prisma.ExternalOrganizationCreateNestedManyWithoutTenantInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceCreateNestedManyWithoutTenantInput
@@ -2476,7 +2608,9 @@ export type TenantUncheckedCreateWithoutRisksInput = {
   vehicles?: Prisma.VehicleRecordUncheckedCreateNestedManyWithoutTenantInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedCreateNestedManyWithoutTenantInput
   bookings?: Prisma.BookingRecordUncheckedCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedCreateNestedManyWithoutTenantInput
   trainingRoutes?: Prisma.TrainingRouteRecordUncheckedCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordUncheckedCreateNestedManyWithoutTenantInput
   companyDocuments?: Prisma.CompanyDocumentUncheckedCreateNestedManyWithoutTenantInput
   externalOrganizations?: Prisma.ExternalOrganizationUncheckedCreateNestedManyWithoutTenantInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedCreateNestedManyWithoutTenantInput
@@ -2524,7 +2658,9 @@ export type TenantUpdateWithoutRisksInput = {
   vehicles?: Prisma.VehicleRecordUpdateManyWithoutTenantNestedInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUpdateManyWithoutTenantNestedInput
   bookings?: Prisma.BookingRecordUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUpdateManyWithoutTenantNestedInput
   trainingRoutes?: Prisma.TrainingRouteRecordUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUpdateManyWithoutTenantNestedInput
   companyDocuments?: Prisma.CompanyDocumentUpdateManyWithoutTenantNestedInput
   externalOrganizations?: Prisma.ExternalOrganizationUpdateManyWithoutTenantNestedInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUpdateManyWithoutTenantNestedInput
@@ -2556,7 +2692,9 @@ export type TenantUncheckedUpdateWithoutRisksInput = {
   vehicles?: Prisma.VehicleRecordUncheckedUpdateManyWithoutTenantNestedInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedUpdateManyWithoutTenantNestedInput
   bookings?: Prisma.BookingRecordUncheckedUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedUpdateManyWithoutTenantNestedInput
   trainingRoutes?: Prisma.TrainingRouteRecordUncheckedUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUncheckedUpdateManyWithoutTenantNestedInput
   companyDocuments?: Prisma.CompanyDocumentUncheckedUpdateManyWithoutTenantNestedInput
   externalOrganizations?: Prisma.ExternalOrganizationUncheckedUpdateManyWithoutTenantNestedInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedUpdateManyWithoutTenantNestedInput
@@ -2588,7 +2726,9 @@ export type TenantCreateWithoutAircraftsInput = {
   vehicles?: Prisma.VehicleRecordCreateNestedManyWithoutTenantInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordCreateNestedManyWithoutTenantInput
   bookings?: Prisma.BookingRecordCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordCreateNestedManyWithoutTenantInput
   trainingRoutes?: Prisma.TrainingRouteRecordCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordCreateNestedManyWithoutTenantInput
   companyDocuments?: Prisma.CompanyDocumentCreateNestedManyWithoutTenantInput
   externalOrganizations?: Prisma.ExternalOrganizationCreateNestedManyWithoutTenantInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceCreateNestedManyWithoutTenantInput
@@ -2620,7 +2760,9 @@ export type TenantUncheckedCreateWithoutAircraftsInput = {
   vehicles?: Prisma.VehicleRecordUncheckedCreateNestedManyWithoutTenantInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedCreateNestedManyWithoutTenantInput
   bookings?: Prisma.BookingRecordUncheckedCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedCreateNestedManyWithoutTenantInput
   trainingRoutes?: Prisma.TrainingRouteRecordUncheckedCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordUncheckedCreateNestedManyWithoutTenantInput
   companyDocuments?: Prisma.CompanyDocumentUncheckedCreateNestedManyWithoutTenantInput
   externalOrganizations?: Prisma.ExternalOrganizationUncheckedCreateNestedManyWithoutTenantInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedCreateNestedManyWithoutTenantInput
@@ -2668,7 +2810,9 @@ export type TenantUpdateWithoutAircraftsInput = {
   vehicles?: Prisma.VehicleRecordUpdateManyWithoutTenantNestedInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUpdateManyWithoutTenantNestedInput
   bookings?: Prisma.BookingRecordUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUpdateManyWithoutTenantNestedInput
   trainingRoutes?: Prisma.TrainingRouteRecordUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUpdateManyWithoutTenantNestedInput
   companyDocuments?: Prisma.CompanyDocumentUpdateManyWithoutTenantNestedInput
   externalOrganizations?: Prisma.ExternalOrganizationUpdateManyWithoutTenantNestedInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUpdateManyWithoutTenantNestedInput
@@ -2700,7 +2844,9 @@ export type TenantUncheckedUpdateWithoutAircraftsInput = {
   vehicles?: Prisma.VehicleRecordUncheckedUpdateManyWithoutTenantNestedInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedUpdateManyWithoutTenantNestedInput
   bookings?: Prisma.BookingRecordUncheckedUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedUpdateManyWithoutTenantNestedInput
   trainingRoutes?: Prisma.TrainingRouteRecordUncheckedUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUncheckedUpdateManyWithoutTenantNestedInput
   companyDocuments?: Prisma.CompanyDocumentUncheckedUpdateManyWithoutTenantNestedInput
   externalOrganizations?: Prisma.ExternalOrganizationUncheckedUpdateManyWithoutTenantNestedInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedUpdateManyWithoutTenantNestedInput
@@ -2732,7 +2878,9 @@ export type TenantCreateWithoutVehiclesInput = {
   aircrafts?: Prisma.AircraftRecordCreateNestedManyWithoutTenantInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordCreateNestedManyWithoutTenantInput
   bookings?: Prisma.BookingRecordCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordCreateNestedManyWithoutTenantInput
   trainingRoutes?: Prisma.TrainingRouteRecordCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordCreateNestedManyWithoutTenantInput
   companyDocuments?: Prisma.CompanyDocumentCreateNestedManyWithoutTenantInput
   externalOrganizations?: Prisma.ExternalOrganizationCreateNestedManyWithoutTenantInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceCreateNestedManyWithoutTenantInput
@@ -2764,7 +2912,9 @@ export type TenantUncheckedCreateWithoutVehiclesInput = {
   aircrafts?: Prisma.AircraftRecordUncheckedCreateNestedManyWithoutTenantInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedCreateNestedManyWithoutTenantInput
   bookings?: Prisma.BookingRecordUncheckedCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedCreateNestedManyWithoutTenantInput
   trainingRoutes?: Prisma.TrainingRouteRecordUncheckedCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordUncheckedCreateNestedManyWithoutTenantInput
   companyDocuments?: Prisma.CompanyDocumentUncheckedCreateNestedManyWithoutTenantInput
   externalOrganizations?: Prisma.ExternalOrganizationUncheckedCreateNestedManyWithoutTenantInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedCreateNestedManyWithoutTenantInput
@@ -2812,7 +2962,9 @@ export type TenantUpdateWithoutVehiclesInput = {
   aircrafts?: Prisma.AircraftRecordUpdateManyWithoutTenantNestedInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUpdateManyWithoutTenantNestedInput
   bookings?: Prisma.BookingRecordUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUpdateManyWithoutTenantNestedInput
   trainingRoutes?: Prisma.TrainingRouteRecordUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUpdateManyWithoutTenantNestedInput
   companyDocuments?: Prisma.CompanyDocumentUpdateManyWithoutTenantNestedInput
   externalOrganizations?: Prisma.ExternalOrganizationUpdateManyWithoutTenantNestedInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUpdateManyWithoutTenantNestedInput
@@ -2844,7 +2996,9 @@ export type TenantUncheckedUpdateWithoutVehiclesInput = {
   aircrafts?: Prisma.AircraftRecordUncheckedUpdateManyWithoutTenantNestedInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedUpdateManyWithoutTenantNestedInput
   bookings?: Prisma.BookingRecordUncheckedUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedUpdateManyWithoutTenantNestedInput
   trainingRoutes?: Prisma.TrainingRouteRecordUncheckedUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUncheckedUpdateManyWithoutTenantNestedInput
   companyDocuments?: Prisma.CompanyDocumentUncheckedUpdateManyWithoutTenantNestedInput
   externalOrganizations?: Prisma.ExternalOrganizationUncheckedUpdateManyWithoutTenantNestedInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedUpdateManyWithoutTenantNestedInput
@@ -2876,7 +3030,9 @@ export type TenantCreateWithoutVehicleUsageRecordsInput = {
   aircrafts?: Prisma.AircraftRecordCreateNestedManyWithoutTenantInput
   vehicles?: Prisma.VehicleRecordCreateNestedManyWithoutTenantInput
   bookings?: Prisma.BookingRecordCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordCreateNestedManyWithoutTenantInput
   trainingRoutes?: Prisma.TrainingRouteRecordCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordCreateNestedManyWithoutTenantInput
   companyDocuments?: Prisma.CompanyDocumentCreateNestedManyWithoutTenantInput
   externalOrganizations?: Prisma.ExternalOrganizationCreateNestedManyWithoutTenantInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceCreateNestedManyWithoutTenantInput
@@ -2908,7 +3064,9 @@ export type TenantUncheckedCreateWithoutVehicleUsageRecordsInput = {
   aircrafts?: Prisma.AircraftRecordUncheckedCreateNestedManyWithoutTenantInput
   vehicles?: Prisma.VehicleRecordUncheckedCreateNestedManyWithoutTenantInput
   bookings?: Prisma.BookingRecordUncheckedCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedCreateNestedManyWithoutTenantInput
   trainingRoutes?: Prisma.TrainingRouteRecordUncheckedCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordUncheckedCreateNestedManyWithoutTenantInput
   companyDocuments?: Prisma.CompanyDocumentUncheckedCreateNestedManyWithoutTenantInput
   externalOrganizations?: Prisma.ExternalOrganizationUncheckedCreateNestedManyWithoutTenantInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedCreateNestedManyWithoutTenantInput
@@ -2956,7 +3114,9 @@ export type TenantUpdateWithoutVehicleUsageRecordsInput = {
   aircrafts?: Prisma.AircraftRecordUpdateManyWithoutTenantNestedInput
   vehicles?: Prisma.VehicleRecordUpdateManyWithoutTenantNestedInput
   bookings?: Prisma.BookingRecordUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUpdateManyWithoutTenantNestedInput
   trainingRoutes?: Prisma.TrainingRouteRecordUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUpdateManyWithoutTenantNestedInput
   companyDocuments?: Prisma.CompanyDocumentUpdateManyWithoutTenantNestedInput
   externalOrganizations?: Prisma.ExternalOrganizationUpdateManyWithoutTenantNestedInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUpdateManyWithoutTenantNestedInput
@@ -2988,7 +3148,9 @@ export type TenantUncheckedUpdateWithoutVehicleUsageRecordsInput = {
   aircrafts?: Prisma.AircraftRecordUncheckedUpdateManyWithoutTenantNestedInput
   vehicles?: Prisma.VehicleRecordUncheckedUpdateManyWithoutTenantNestedInput
   bookings?: Prisma.BookingRecordUncheckedUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedUpdateManyWithoutTenantNestedInput
   trainingRoutes?: Prisma.TrainingRouteRecordUncheckedUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUncheckedUpdateManyWithoutTenantNestedInput
   companyDocuments?: Prisma.CompanyDocumentUncheckedUpdateManyWithoutTenantNestedInput
   externalOrganizations?: Prisma.ExternalOrganizationUncheckedUpdateManyWithoutTenantNestedInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedUpdateManyWithoutTenantNestedInput
@@ -3020,7 +3182,9 @@ export type TenantCreateWithoutBookingsInput = {
   aircrafts?: Prisma.AircraftRecordCreateNestedManyWithoutTenantInput
   vehicles?: Prisma.VehicleRecordCreateNestedManyWithoutTenantInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordCreateNestedManyWithoutTenantInput
   trainingRoutes?: Prisma.TrainingRouteRecordCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordCreateNestedManyWithoutTenantInput
   companyDocuments?: Prisma.CompanyDocumentCreateNestedManyWithoutTenantInput
   externalOrganizations?: Prisma.ExternalOrganizationCreateNestedManyWithoutTenantInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceCreateNestedManyWithoutTenantInput
@@ -3052,7 +3216,9 @@ export type TenantUncheckedCreateWithoutBookingsInput = {
   aircrafts?: Prisma.AircraftRecordUncheckedCreateNestedManyWithoutTenantInput
   vehicles?: Prisma.VehicleRecordUncheckedCreateNestedManyWithoutTenantInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedCreateNestedManyWithoutTenantInput
   trainingRoutes?: Prisma.TrainingRouteRecordUncheckedCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordUncheckedCreateNestedManyWithoutTenantInput
   companyDocuments?: Prisma.CompanyDocumentUncheckedCreateNestedManyWithoutTenantInput
   externalOrganizations?: Prisma.ExternalOrganizationUncheckedCreateNestedManyWithoutTenantInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedCreateNestedManyWithoutTenantInput
@@ -3100,7 +3266,9 @@ export type TenantUpdateWithoutBookingsInput = {
   aircrafts?: Prisma.AircraftRecordUpdateManyWithoutTenantNestedInput
   vehicles?: Prisma.VehicleRecordUpdateManyWithoutTenantNestedInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUpdateManyWithoutTenantNestedInput
   trainingRoutes?: Prisma.TrainingRouteRecordUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUpdateManyWithoutTenantNestedInput
   companyDocuments?: Prisma.CompanyDocumentUpdateManyWithoutTenantNestedInput
   externalOrganizations?: Prisma.ExternalOrganizationUpdateManyWithoutTenantNestedInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUpdateManyWithoutTenantNestedInput
@@ -3132,7 +3300,161 @@ export type TenantUncheckedUpdateWithoutBookingsInput = {
   aircrafts?: Prisma.AircraftRecordUncheckedUpdateManyWithoutTenantNestedInput
   vehicles?: Prisma.VehicleRecordUncheckedUpdateManyWithoutTenantNestedInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedUpdateManyWithoutTenantNestedInput
   trainingRoutes?: Prisma.TrainingRouteRecordUncheckedUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUncheckedUpdateManyWithoutTenantNestedInput
+  companyDocuments?: Prisma.CompanyDocumentUncheckedUpdateManyWithoutTenantNestedInput
+  externalOrganizations?: Prisma.ExternalOrganizationUncheckedUpdateManyWithoutTenantNestedInput
+  betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedUpdateManyWithoutTenantNestedInput
+  erpStates?: Prisma.ErpStateUncheckedUpdateManyWithoutTenantNestedInput
+  workpacks?: Prisma.WorkpackRecordUncheckedUpdateManyWithoutTenantNestedInput
+  maintenanceTaskCards?: Prisma.MaintenanceTaskCardRecordUncheckedUpdateManyWithoutTenantNestedInput
+  tools?: Prisma.ToolRecordUncheckedUpdateManyWithoutTenantNestedInput
+  activeFlightSessions?: Prisma.ActiveFlightSessionRecordUncheckedUpdateManyWithoutTenantNestedInput
+  activeFlightSessionBlocks?: Prisma.ActiveFlightSessionBlockUncheckedUpdateManyWithoutTenantNestedInput
+  alerts?: Prisma.AlertRecordUncheckedUpdateManyWithoutTenantNestedInput
+  passwordSetupInvites?: Prisma.PasswordSetupInviteUncheckedUpdateManyWithoutTenantNestedInput
+}
+
+export type TenantCreateWithoutAttendanceRecordsInput = {
+  id: string
+  name: string
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  users?: Prisma.UserCreateNestedManyWithoutTenantInput
+  roles?: Prisma.RoleCreateNestedManyWithoutTenantInput
+  departments?: Prisma.DepartmentCreateNestedManyWithoutTenantInput
+  personnel?: Prisma.PersonnelCreateNestedManyWithoutTenantInput
+  tenantConfigs?: Prisma.TenantConfigCreateNestedManyWithoutTenantInput
+  managementOfChanges?: Prisma.ManagementOfChangeCreateNestedManyWithoutTenantInput
+  qualityAudits?: Prisma.QualityAuditCreateNestedManyWithoutTenantInput
+  safetyReports?: Prisma.SafetyReportCreateNestedManyWithoutTenantInput
+  correctiveActionPlans?: Prisma.CorrectiveActionPlanCreateNestedManyWithoutTenantInput
+  risks?: Prisma.RiskCreateNestedManyWithoutTenantInput
+  aircrafts?: Prisma.AircraftRecordCreateNestedManyWithoutTenantInput
+  vehicles?: Prisma.VehicleRecordCreateNestedManyWithoutTenantInput
+  vehicleUsageRecords?: Prisma.VehicleUsageRecordCreateNestedManyWithoutTenantInput
+  bookings?: Prisma.BookingRecordCreateNestedManyWithoutTenantInput
+  trainingRoutes?: Prisma.TrainingRouteRecordCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordCreateNestedManyWithoutTenantInput
+  companyDocuments?: Prisma.CompanyDocumentCreateNestedManyWithoutTenantInput
+  externalOrganizations?: Prisma.ExternalOrganizationCreateNestedManyWithoutTenantInput
+  betaNdaAcceptances?: Prisma.BetaNdaAcceptanceCreateNestedManyWithoutTenantInput
+  erpStates?: Prisma.ErpStateCreateNestedManyWithoutTenantInput
+  workpacks?: Prisma.WorkpackRecordCreateNestedManyWithoutTenantInput
+  maintenanceTaskCards?: Prisma.MaintenanceTaskCardRecordCreateNestedManyWithoutTenantInput
+  tools?: Prisma.ToolRecordCreateNestedManyWithoutTenantInput
+  activeFlightSessions?: Prisma.ActiveFlightSessionRecordCreateNestedManyWithoutTenantInput
+  activeFlightSessionBlocks?: Prisma.ActiveFlightSessionBlockCreateNestedManyWithoutTenantInput
+  alerts?: Prisma.AlertRecordCreateNestedManyWithoutTenantInput
+  passwordSetupInvites?: Prisma.PasswordSetupInviteCreateNestedManyWithoutTenantInput
+}
+
+export type TenantUncheckedCreateWithoutAttendanceRecordsInput = {
+  id: string
+  name: string
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  users?: Prisma.UserUncheckedCreateNestedManyWithoutTenantInput
+  roles?: Prisma.RoleUncheckedCreateNestedManyWithoutTenantInput
+  departments?: Prisma.DepartmentUncheckedCreateNestedManyWithoutTenantInput
+  personnel?: Prisma.PersonnelUncheckedCreateNestedManyWithoutTenantInput
+  tenantConfigs?: Prisma.TenantConfigUncheckedCreateNestedManyWithoutTenantInput
+  managementOfChanges?: Prisma.ManagementOfChangeUncheckedCreateNestedManyWithoutTenantInput
+  qualityAudits?: Prisma.QualityAuditUncheckedCreateNestedManyWithoutTenantInput
+  safetyReports?: Prisma.SafetyReportUncheckedCreateNestedManyWithoutTenantInput
+  correctiveActionPlans?: Prisma.CorrectiveActionPlanUncheckedCreateNestedManyWithoutTenantInput
+  risks?: Prisma.RiskUncheckedCreateNestedManyWithoutTenantInput
+  aircrafts?: Prisma.AircraftRecordUncheckedCreateNestedManyWithoutTenantInput
+  vehicles?: Prisma.VehicleRecordUncheckedCreateNestedManyWithoutTenantInput
+  vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedCreateNestedManyWithoutTenantInput
+  bookings?: Prisma.BookingRecordUncheckedCreateNestedManyWithoutTenantInput
+  trainingRoutes?: Prisma.TrainingRouteRecordUncheckedCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordUncheckedCreateNestedManyWithoutTenantInput
+  companyDocuments?: Prisma.CompanyDocumentUncheckedCreateNestedManyWithoutTenantInput
+  externalOrganizations?: Prisma.ExternalOrganizationUncheckedCreateNestedManyWithoutTenantInput
+  betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedCreateNestedManyWithoutTenantInput
+  erpStates?: Prisma.ErpStateUncheckedCreateNestedManyWithoutTenantInput
+  workpacks?: Prisma.WorkpackRecordUncheckedCreateNestedManyWithoutTenantInput
+  maintenanceTaskCards?: Prisma.MaintenanceTaskCardRecordUncheckedCreateNestedManyWithoutTenantInput
+  tools?: Prisma.ToolRecordUncheckedCreateNestedManyWithoutTenantInput
+  activeFlightSessions?: Prisma.ActiveFlightSessionRecordUncheckedCreateNestedManyWithoutTenantInput
+  activeFlightSessionBlocks?: Prisma.ActiveFlightSessionBlockUncheckedCreateNestedManyWithoutTenantInput
+  alerts?: Prisma.AlertRecordUncheckedCreateNestedManyWithoutTenantInput
+  passwordSetupInvites?: Prisma.PasswordSetupInviteUncheckedCreateNestedManyWithoutTenantInput
+}
+
+export type TenantCreateOrConnectWithoutAttendanceRecordsInput = {
+  where: Prisma.TenantWhereUniqueInput
+  create: Prisma.XOR<Prisma.TenantCreateWithoutAttendanceRecordsInput, Prisma.TenantUncheckedCreateWithoutAttendanceRecordsInput>
+}
+
+export type TenantUpsertWithoutAttendanceRecordsInput = {
+  update: Prisma.XOR<Prisma.TenantUpdateWithoutAttendanceRecordsInput, Prisma.TenantUncheckedUpdateWithoutAttendanceRecordsInput>
+  create: Prisma.XOR<Prisma.TenantCreateWithoutAttendanceRecordsInput, Prisma.TenantUncheckedCreateWithoutAttendanceRecordsInput>
+  where?: Prisma.TenantWhereInput
+}
+
+export type TenantUpdateToOneWithWhereWithoutAttendanceRecordsInput = {
+  where?: Prisma.TenantWhereInput
+  data: Prisma.XOR<Prisma.TenantUpdateWithoutAttendanceRecordsInput, Prisma.TenantUncheckedUpdateWithoutAttendanceRecordsInput>
+}
+
+export type TenantUpdateWithoutAttendanceRecordsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  users?: Prisma.UserUpdateManyWithoutTenantNestedInput
+  roles?: Prisma.RoleUpdateManyWithoutTenantNestedInput
+  departments?: Prisma.DepartmentUpdateManyWithoutTenantNestedInput
+  personnel?: Prisma.PersonnelUpdateManyWithoutTenantNestedInput
+  tenantConfigs?: Prisma.TenantConfigUpdateManyWithoutTenantNestedInput
+  managementOfChanges?: Prisma.ManagementOfChangeUpdateManyWithoutTenantNestedInput
+  qualityAudits?: Prisma.QualityAuditUpdateManyWithoutTenantNestedInput
+  safetyReports?: Prisma.SafetyReportUpdateManyWithoutTenantNestedInput
+  correctiveActionPlans?: Prisma.CorrectiveActionPlanUpdateManyWithoutTenantNestedInput
+  risks?: Prisma.RiskUpdateManyWithoutTenantNestedInput
+  aircrafts?: Prisma.AircraftRecordUpdateManyWithoutTenantNestedInput
+  vehicles?: Prisma.VehicleRecordUpdateManyWithoutTenantNestedInput
+  vehicleUsageRecords?: Prisma.VehicleUsageRecordUpdateManyWithoutTenantNestedInput
+  bookings?: Prisma.BookingRecordUpdateManyWithoutTenantNestedInput
+  trainingRoutes?: Prisma.TrainingRouteRecordUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUpdateManyWithoutTenantNestedInput
+  companyDocuments?: Prisma.CompanyDocumentUpdateManyWithoutTenantNestedInput
+  externalOrganizations?: Prisma.ExternalOrganizationUpdateManyWithoutTenantNestedInput
+  betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUpdateManyWithoutTenantNestedInput
+  erpStates?: Prisma.ErpStateUpdateManyWithoutTenantNestedInput
+  workpacks?: Prisma.WorkpackRecordUpdateManyWithoutTenantNestedInput
+  maintenanceTaskCards?: Prisma.MaintenanceTaskCardRecordUpdateManyWithoutTenantNestedInput
+  tools?: Prisma.ToolRecordUpdateManyWithoutTenantNestedInput
+  activeFlightSessions?: Prisma.ActiveFlightSessionRecordUpdateManyWithoutTenantNestedInput
+  activeFlightSessionBlocks?: Prisma.ActiveFlightSessionBlockUpdateManyWithoutTenantNestedInput
+  alerts?: Prisma.AlertRecordUpdateManyWithoutTenantNestedInput
+  passwordSetupInvites?: Prisma.PasswordSetupInviteUpdateManyWithoutTenantNestedInput
+}
+
+export type TenantUncheckedUpdateWithoutAttendanceRecordsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  users?: Prisma.UserUncheckedUpdateManyWithoutTenantNestedInput
+  roles?: Prisma.RoleUncheckedUpdateManyWithoutTenantNestedInput
+  departments?: Prisma.DepartmentUncheckedUpdateManyWithoutTenantNestedInput
+  personnel?: Prisma.PersonnelUncheckedUpdateManyWithoutTenantNestedInput
+  tenantConfigs?: Prisma.TenantConfigUncheckedUpdateManyWithoutTenantNestedInput
+  managementOfChanges?: Prisma.ManagementOfChangeUncheckedUpdateManyWithoutTenantNestedInput
+  qualityAudits?: Prisma.QualityAuditUncheckedUpdateManyWithoutTenantNestedInput
+  safetyReports?: Prisma.SafetyReportUncheckedUpdateManyWithoutTenantNestedInput
+  correctiveActionPlans?: Prisma.CorrectiveActionPlanUncheckedUpdateManyWithoutTenantNestedInput
+  risks?: Prisma.RiskUncheckedUpdateManyWithoutTenantNestedInput
+  aircrafts?: Prisma.AircraftRecordUncheckedUpdateManyWithoutTenantNestedInput
+  vehicles?: Prisma.VehicleRecordUncheckedUpdateManyWithoutTenantNestedInput
+  vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedUpdateManyWithoutTenantNestedInput
+  bookings?: Prisma.BookingRecordUncheckedUpdateManyWithoutTenantNestedInput
+  trainingRoutes?: Prisma.TrainingRouteRecordUncheckedUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUncheckedUpdateManyWithoutTenantNestedInput
   companyDocuments?: Prisma.CompanyDocumentUncheckedUpdateManyWithoutTenantNestedInput
   externalOrganizations?: Prisma.ExternalOrganizationUncheckedUpdateManyWithoutTenantNestedInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedUpdateManyWithoutTenantNestedInput
@@ -3165,6 +3487,8 @@ export type TenantCreateWithoutTrainingRoutesInput = {
   vehicles?: Prisma.VehicleRecordCreateNestedManyWithoutTenantInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordCreateNestedManyWithoutTenantInput
   bookings?: Prisma.BookingRecordCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordCreateNestedManyWithoutTenantInput
   companyDocuments?: Prisma.CompanyDocumentCreateNestedManyWithoutTenantInput
   externalOrganizations?: Prisma.ExternalOrganizationCreateNestedManyWithoutTenantInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceCreateNestedManyWithoutTenantInput
@@ -3197,6 +3521,8 @@ export type TenantUncheckedCreateWithoutTrainingRoutesInput = {
   vehicles?: Prisma.VehicleRecordUncheckedCreateNestedManyWithoutTenantInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedCreateNestedManyWithoutTenantInput
   bookings?: Prisma.BookingRecordUncheckedCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordUncheckedCreateNestedManyWithoutTenantInput
   companyDocuments?: Prisma.CompanyDocumentUncheckedCreateNestedManyWithoutTenantInput
   externalOrganizations?: Prisma.ExternalOrganizationUncheckedCreateNestedManyWithoutTenantInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedCreateNestedManyWithoutTenantInput
@@ -3245,6 +3571,8 @@ export type TenantUpdateWithoutTrainingRoutesInput = {
   vehicles?: Prisma.VehicleRecordUpdateManyWithoutTenantNestedInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUpdateManyWithoutTenantNestedInput
   bookings?: Prisma.BookingRecordUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUpdateManyWithoutTenantNestedInput
   companyDocuments?: Prisma.CompanyDocumentUpdateManyWithoutTenantNestedInput
   externalOrganizations?: Prisma.ExternalOrganizationUpdateManyWithoutTenantNestedInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUpdateManyWithoutTenantNestedInput
@@ -3277,6 +3605,160 @@ export type TenantUncheckedUpdateWithoutTrainingRoutesInput = {
   vehicles?: Prisma.VehicleRecordUncheckedUpdateManyWithoutTenantNestedInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedUpdateManyWithoutTenantNestedInput
   bookings?: Prisma.BookingRecordUncheckedUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUncheckedUpdateManyWithoutTenantNestedInput
+  companyDocuments?: Prisma.CompanyDocumentUncheckedUpdateManyWithoutTenantNestedInput
+  externalOrganizations?: Prisma.ExternalOrganizationUncheckedUpdateManyWithoutTenantNestedInput
+  betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedUpdateManyWithoutTenantNestedInput
+  erpStates?: Prisma.ErpStateUncheckedUpdateManyWithoutTenantNestedInput
+  workpacks?: Prisma.WorkpackRecordUncheckedUpdateManyWithoutTenantNestedInput
+  maintenanceTaskCards?: Prisma.MaintenanceTaskCardRecordUncheckedUpdateManyWithoutTenantNestedInput
+  tools?: Prisma.ToolRecordUncheckedUpdateManyWithoutTenantNestedInput
+  activeFlightSessions?: Prisma.ActiveFlightSessionRecordUncheckedUpdateManyWithoutTenantNestedInput
+  activeFlightSessionBlocks?: Prisma.ActiveFlightSessionBlockUncheckedUpdateManyWithoutTenantNestedInput
+  alerts?: Prisma.AlertRecordUncheckedUpdateManyWithoutTenantNestedInput
+  passwordSetupInvites?: Prisma.PasswordSetupInviteUncheckedUpdateManyWithoutTenantNestedInput
+}
+
+export type TenantCreateWithoutMeetingsInput = {
+  id: string
+  name: string
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  users?: Prisma.UserCreateNestedManyWithoutTenantInput
+  roles?: Prisma.RoleCreateNestedManyWithoutTenantInput
+  departments?: Prisma.DepartmentCreateNestedManyWithoutTenantInput
+  personnel?: Prisma.PersonnelCreateNestedManyWithoutTenantInput
+  tenantConfigs?: Prisma.TenantConfigCreateNestedManyWithoutTenantInput
+  managementOfChanges?: Prisma.ManagementOfChangeCreateNestedManyWithoutTenantInput
+  qualityAudits?: Prisma.QualityAuditCreateNestedManyWithoutTenantInput
+  safetyReports?: Prisma.SafetyReportCreateNestedManyWithoutTenantInput
+  correctiveActionPlans?: Prisma.CorrectiveActionPlanCreateNestedManyWithoutTenantInput
+  risks?: Prisma.RiskCreateNestedManyWithoutTenantInput
+  aircrafts?: Prisma.AircraftRecordCreateNestedManyWithoutTenantInput
+  vehicles?: Prisma.VehicleRecordCreateNestedManyWithoutTenantInput
+  vehicleUsageRecords?: Prisma.VehicleUsageRecordCreateNestedManyWithoutTenantInput
+  bookings?: Prisma.BookingRecordCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordCreateNestedManyWithoutTenantInput
+  trainingRoutes?: Prisma.TrainingRouteRecordCreateNestedManyWithoutTenantInput
+  companyDocuments?: Prisma.CompanyDocumentCreateNestedManyWithoutTenantInput
+  externalOrganizations?: Prisma.ExternalOrganizationCreateNestedManyWithoutTenantInput
+  betaNdaAcceptances?: Prisma.BetaNdaAcceptanceCreateNestedManyWithoutTenantInput
+  erpStates?: Prisma.ErpStateCreateNestedManyWithoutTenantInput
+  workpacks?: Prisma.WorkpackRecordCreateNestedManyWithoutTenantInput
+  maintenanceTaskCards?: Prisma.MaintenanceTaskCardRecordCreateNestedManyWithoutTenantInput
+  tools?: Prisma.ToolRecordCreateNestedManyWithoutTenantInput
+  activeFlightSessions?: Prisma.ActiveFlightSessionRecordCreateNestedManyWithoutTenantInput
+  activeFlightSessionBlocks?: Prisma.ActiveFlightSessionBlockCreateNestedManyWithoutTenantInput
+  alerts?: Prisma.AlertRecordCreateNestedManyWithoutTenantInput
+  passwordSetupInvites?: Prisma.PasswordSetupInviteCreateNestedManyWithoutTenantInput
+}
+
+export type TenantUncheckedCreateWithoutMeetingsInput = {
+  id: string
+  name: string
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  users?: Prisma.UserUncheckedCreateNestedManyWithoutTenantInput
+  roles?: Prisma.RoleUncheckedCreateNestedManyWithoutTenantInput
+  departments?: Prisma.DepartmentUncheckedCreateNestedManyWithoutTenantInput
+  personnel?: Prisma.PersonnelUncheckedCreateNestedManyWithoutTenantInput
+  tenantConfigs?: Prisma.TenantConfigUncheckedCreateNestedManyWithoutTenantInput
+  managementOfChanges?: Prisma.ManagementOfChangeUncheckedCreateNestedManyWithoutTenantInput
+  qualityAudits?: Prisma.QualityAuditUncheckedCreateNestedManyWithoutTenantInput
+  safetyReports?: Prisma.SafetyReportUncheckedCreateNestedManyWithoutTenantInput
+  correctiveActionPlans?: Prisma.CorrectiveActionPlanUncheckedCreateNestedManyWithoutTenantInput
+  risks?: Prisma.RiskUncheckedCreateNestedManyWithoutTenantInput
+  aircrafts?: Prisma.AircraftRecordUncheckedCreateNestedManyWithoutTenantInput
+  vehicles?: Prisma.VehicleRecordUncheckedCreateNestedManyWithoutTenantInput
+  vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedCreateNestedManyWithoutTenantInput
+  bookings?: Prisma.BookingRecordUncheckedCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedCreateNestedManyWithoutTenantInput
+  trainingRoutes?: Prisma.TrainingRouteRecordUncheckedCreateNestedManyWithoutTenantInput
+  companyDocuments?: Prisma.CompanyDocumentUncheckedCreateNestedManyWithoutTenantInput
+  externalOrganizations?: Prisma.ExternalOrganizationUncheckedCreateNestedManyWithoutTenantInput
+  betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedCreateNestedManyWithoutTenantInput
+  erpStates?: Prisma.ErpStateUncheckedCreateNestedManyWithoutTenantInput
+  workpacks?: Prisma.WorkpackRecordUncheckedCreateNestedManyWithoutTenantInput
+  maintenanceTaskCards?: Prisma.MaintenanceTaskCardRecordUncheckedCreateNestedManyWithoutTenantInput
+  tools?: Prisma.ToolRecordUncheckedCreateNestedManyWithoutTenantInput
+  activeFlightSessions?: Prisma.ActiveFlightSessionRecordUncheckedCreateNestedManyWithoutTenantInput
+  activeFlightSessionBlocks?: Prisma.ActiveFlightSessionBlockUncheckedCreateNestedManyWithoutTenantInput
+  alerts?: Prisma.AlertRecordUncheckedCreateNestedManyWithoutTenantInput
+  passwordSetupInvites?: Prisma.PasswordSetupInviteUncheckedCreateNestedManyWithoutTenantInput
+}
+
+export type TenantCreateOrConnectWithoutMeetingsInput = {
+  where: Prisma.TenantWhereUniqueInput
+  create: Prisma.XOR<Prisma.TenantCreateWithoutMeetingsInput, Prisma.TenantUncheckedCreateWithoutMeetingsInput>
+}
+
+export type TenantUpsertWithoutMeetingsInput = {
+  update: Prisma.XOR<Prisma.TenantUpdateWithoutMeetingsInput, Prisma.TenantUncheckedUpdateWithoutMeetingsInput>
+  create: Prisma.XOR<Prisma.TenantCreateWithoutMeetingsInput, Prisma.TenantUncheckedCreateWithoutMeetingsInput>
+  where?: Prisma.TenantWhereInput
+}
+
+export type TenantUpdateToOneWithWhereWithoutMeetingsInput = {
+  where?: Prisma.TenantWhereInput
+  data: Prisma.XOR<Prisma.TenantUpdateWithoutMeetingsInput, Prisma.TenantUncheckedUpdateWithoutMeetingsInput>
+}
+
+export type TenantUpdateWithoutMeetingsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  users?: Prisma.UserUpdateManyWithoutTenantNestedInput
+  roles?: Prisma.RoleUpdateManyWithoutTenantNestedInput
+  departments?: Prisma.DepartmentUpdateManyWithoutTenantNestedInput
+  personnel?: Prisma.PersonnelUpdateManyWithoutTenantNestedInput
+  tenantConfigs?: Prisma.TenantConfigUpdateManyWithoutTenantNestedInput
+  managementOfChanges?: Prisma.ManagementOfChangeUpdateManyWithoutTenantNestedInput
+  qualityAudits?: Prisma.QualityAuditUpdateManyWithoutTenantNestedInput
+  safetyReports?: Prisma.SafetyReportUpdateManyWithoutTenantNestedInput
+  correctiveActionPlans?: Prisma.CorrectiveActionPlanUpdateManyWithoutTenantNestedInput
+  risks?: Prisma.RiskUpdateManyWithoutTenantNestedInput
+  aircrafts?: Prisma.AircraftRecordUpdateManyWithoutTenantNestedInput
+  vehicles?: Prisma.VehicleRecordUpdateManyWithoutTenantNestedInput
+  vehicleUsageRecords?: Prisma.VehicleUsageRecordUpdateManyWithoutTenantNestedInput
+  bookings?: Prisma.BookingRecordUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUpdateManyWithoutTenantNestedInput
+  trainingRoutes?: Prisma.TrainingRouteRecordUpdateManyWithoutTenantNestedInput
+  companyDocuments?: Prisma.CompanyDocumentUpdateManyWithoutTenantNestedInput
+  externalOrganizations?: Prisma.ExternalOrganizationUpdateManyWithoutTenantNestedInput
+  betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUpdateManyWithoutTenantNestedInput
+  erpStates?: Prisma.ErpStateUpdateManyWithoutTenantNestedInput
+  workpacks?: Prisma.WorkpackRecordUpdateManyWithoutTenantNestedInput
+  maintenanceTaskCards?: Prisma.MaintenanceTaskCardRecordUpdateManyWithoutTenantNestedInput
+  tools?: Prisma.ToolRecordUpdateManyWithoutTenantNestedInput
+  activeFlightSessions?: Prisma.ActiveFlightSessionRecordUpdateManyWithoutTenantNestedInput
+  activeFlightSessionBlocks?: Prisma.ActiveFlightSessionBlockUpdateManyWithoutTenantNestedInput
+  alerts?: Prisma.AlertRecordUpdateManyWithoutTenantNestedInput
+  passwordSetupInvites?: Prisma.PasswordSetupInviteUpdateManyWithoutTenantNestedInput
+}
+
+export type TenantUncheckedUpdateWithoutMeetingsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  users?: Prisma.UserUncheckedUpdateManyWithoutTenantNestedInput
+  roles?: Prisma.RoleUncheckedUpdateManyWithoutTenantNestedInput
+  departments?: Prisma.DepartmentUncheckedUpdateManyWithoutTenantNestedInput
+  personnel?: Prisma.PersonnelUncheckedUpdateManyWithoutTenantNestedInput
+  tenantConfigs?: Prisma.TenantConfigUncheckedUpdateManyWithoutTenantNestedInput
+  managementOfChanges?: Prisma.ManagementOfChangeUncheckedUpdateManyWithoutTenantNestedInput
+  qualityAudits?: Prisma.QualityAuditUncheckedUpdateManyWithoutTenantNestedInput
+  safetyReports?: Prisma.SafetyReportUncheckedUpdateManyWithoutTenantNestedInput
+  correctiveActionPlans?: Prisma.CorrectiveActionPlanUncheckedUpdateManyWithoutTenantNestedInput
+  risks?: Prisma.RiskUncheckedUpdateManyWithoutTenantNestedInput
+  aircrafts?: Prisma.AircraftRecordUncheckedUpdateManyWithoutTenantNestedInput
+  vehicles?: Prisma.VehicleRecordUncheckedUpdateManyWithoutTenantNestedInput
+  vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedUpdateManyWithoutTenantNestedInput
+  bookings?: Prisma.BookingRecordUncheckedUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedUpdateManyWithoutTenantNestedInput
+  trainingRoutes?: Prisma.TrainingRouteRecordUncheckedUpdateManyWithoutTenantNestedInput
   companyDocuments?: Prisma.CompanyDocumentUncheckedUpdateManyWithoutTenantNestedInput
   externalOrganizations?: Prisma.ExternalOrganizationUncheckedUpdateManyWithoutTenantNestedInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedUpdateManyWithoutTenantNestedInput
@@ -3309,7 +3791,9 @@ export type TenantCreateWithoutCompanyDocumentsInput = {
   vehicles?: Prisma.VehicleRecordCreateNestedManyWithoutTenantInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordCreateNestedManyWithoutTenantInput
   bookings?: Prisma.BookingRecordCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordCreateNestedManyWithoutTenantInput
   trainingRoutes?: Prisma.TrainingRouteRecordCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordCreateNestedManyWithoutTenantInput
   externalOrganizations?: Prisma.ExternalOrganizationCreateNestedManyWithoutTenantInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceCreateNestedManyWithoutTenantInput
   erpStates?: Prisma.ErpStateCreateNestedManyWithoutTenantInput
@@ -3341,7 +3825,9 @@ export type TenantUncheckedCreateWithoutCompanyDocumentsInput = {
   vehicles?: Prisma.VehicleRecordUncheckedCreateNestedManyWithoutTenantInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedCreateNestedManyWithoutTenantInput
   bookings?: Prisma.BookingRecordUncheckedCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedCreateNestedManyWithoutTenantInput
   trainingRoutes?: Prisma.TrainingRouteRecordUncheckedCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordUncheckedCreateNestedManyWithoutTenantInput
   externalOrganizations?: Prisma.ExternalOrganizationUncheckedCreateNestedManyWithoutTenantInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedCreateNestedManyWithoutTenantInput
   erpStates?: Prisma.ErpStateUncheckedCreateNestedManyWithoutTenantInput
@@ -3389,7 +3875,9 @@ export type TenantUpdateWithoutCompanyDocumentsInput = {
   vehicles?: Prisma.VehicleRecordUpdateManyWithoutTenantNestedInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUpdateManyWithoutTenantNestedInput
   bookings?: Prisma.BookingRecordUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUpdateManyWithoutTenantNestedInput
   trainingRoutes?: Prisma.TrainingRouteRecordUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUpdateManyWithoutTenantNestedInput
   externalOrganizations?: Prisma.ExternalOrganizationUpdateManyWithoutTenantNestedInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUpdateManyWithoutTenantNestedInput
   erpStates?: Prisma.ErpStateUpdateManyWithoutTenantNestedInput
@@ -3421,7 +3909,9 @@ export type TenantUncheckedUpdateWithoutCompanyDocumentsInput = {
   vehicles?: Prisma.VehicleRecordUncheckedUpdateManyWithoutTenantNestedInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedUpdateManyWithoutTenantNestedInput
   bookings?: Prisma.BookingRecordUncheckedUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedUpdateManyWithoutTenantNestedInput
   trainingRoutes?: Prisma.TrainingRouteRecordUncheckedUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUncheckedUpdateManyWithoutTenantNestedInput
   externalOrganizations?: Prisma.ExternalOrganizationUncheckedUpdateManyWithoutTenantNestedInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedUpdateManyWithoutTenantNestedInput
   erpStates?: Prisma.ErpStateUncheckedUpdateManyWithoutTenantNestedInput
@@ -3453,7 +3943,9 @@ export type TenantCreateWithoutExternalOrganizationsInput = {
   vehicles?: Prisma.VehicleRecordCreateNestedManyWithoutTenantInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordCreateNestedManyWithoutTenantInput
   bookings?: Prisma.BookingRecordCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordCreateNestedManyWithoutTenantInput
   trainingRoutes?: Prisma.TrainingRouteRecordCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordCreateNestedManyWithoutTenantInput
   companyDocuments?: Prisma.CompanyDocumentCreateNestedManyWithoutTenantInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceCreateNestedManyWithoutTenantInput
   erpStates?: Prisma.ErpStateCreateNestedManyWithoutTenantInput
@@ -3485,7 +3977,9 @@ export type TenantUncheckedCreateWithoutExternalOrganizationsInput = {
   vehicles?: Prisma.VehicleRecordUncheckedCreateNestedManyWithoutTenantInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedCreateNestedManyWithoutTenantInput
   bookings?: Prisma.BookingRecordUncheckedCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedCreateNestedManyWithoutTenantInput
   trainingRoutes?: Prisma.TrainingRouteRecordUncheckedCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordUncheckedCreateNestedManyWithoutTenantInput
   companyDocuments?: Prisma.CompanyDocumentUncheckedCreateNestedManyWithoutTenantInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedCreateNestedManyWithoutTenantInput
   erpStates?: Prisma.ErpStateUncheckedCreateNestedManyWithoutTenantInput
@@ -3533,7 +4027,9 @@ export type TenantUpdateWithoutExternalOrganizationsInput = {
   vehicles?: Prisma.VehicleRecordUpdateManyWithoutTenantNestedInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUpdateManyWithoutTenantNestedInput
   bookings?: Prisma.BookingRecordUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUpdateManyWithoutTenantNestedInput
   trainingRoutes?: Prisma.TrainingRouteRecordUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUpdateManyWithoutTenantNestedInput
   companyDocuments?: Prisma.CompanyDocumentUpdateManyWithoutTenantNestedInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUpdateManyWithoutTenantNestedInput
   erpStates?: Prisma.ErpStateUpdateManyWithoutTenantNestedInput
@@ -3565,7 +4061,9 @@ export type TenantUncheckedUpdateWithoutExternalOrganizationsInput = {
   vehicles?: Prisma.VehicleRecordUncheckedUpdateManyWithoutTenantNestedInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedUpdateManyWithoutTenantNestedInput
   bookings?: Prisma.BookingRecordUncheckedUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedUpdateManyWithoutTenantNestedInput
   trainingRoutes?: Prisma.TrainingRouteRecordUncheckedUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUncheckedUpdateManyWithoutTenantNestedInput
   companyDocuments?: Prisma.CompanyDocumentUncheckedUpdateManyWithoutTenantNestedInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedUpdateManyWithoutTenantNestedInput
   erpStates?: Prisma.ErpStateUncheckedUpdateManyWithoutTenantNestedInput
@@ -3597,7 +4095,9 @@ export type TenantCreateWithoutErpStatesInput = {
   vehicles?: Prisma.VehicleRecordCreateNestedManyWithoutTenantInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordCreateNestedManyWithoutTenantInput
   bookings?: Prisma.BookingRecordCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordCreateNestedManyWithoutTenantInput
   trainingRoutes?: Prisma.TrainingRouteRecordCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordCreateNestedManyWithoutTenantInput
   companyDocuments?: Prisma.CompanyDocumentCreateNestedManyWithoutTenantInput
   externalOrganizations?: Prisma.ExternalOrganizationCreateNestedManyWithoutTenantInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceCreateNestedManyWithoutTenantInput
@@ -3629,7 +4129,9 @@ export type TenantUncheckedCreateWithoutErpStatesInput = {
   vehicles?: Prisma.VehicleRecordUncheckedCreateNestedManyWithoutTenantInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedCreateNestedManyWithoutTenantInput
   bookings?: Prisma.BookingRecordUncheckedCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedCreateNestedManyWithoutTenantInput
   trainingRoutes?: Prisma.TrainingRouteRecordUncheckedCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordUncheckedCreateNestedManyWithoutTenantInput
   companyDocuments?: Prisma.CompanyDocumentUncheckedCreateNestedManyWithoutTenantInput
   externalOrganizations?: Prisma.ExternalOrganizationUncheckedCreateNestedManyWithoutTenantInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedCreateNestedManyWithoutTenantInput
@@ -3677,7 +4179,9 @@ export type TenantUpdateWithoutErpStatesInput = {
   vehicles?: Prisma.VehicleRecordUpdateManyWithoutTenantNestedInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUpdateManyWithoutTenantNestedInput
   bookings?: Prisma.BookingRecordUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUpdateManyWithoutTenantNestedInput
   trainingRoutes?: Prisma.TrainingRouteRecordUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUpdateManyWithoutTenantNestedInput
   companyDocuments?: Prisma.CompanyDocumentUpdateManyWithoutTenantNestedInput
   externalOrganizations?: Prisma.ExternalOrganizationUpdateManyWithoutTenantNestedInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUpdateManyWithoutTenantNestedInput
@@ -3709,7 +4213,9 @@ export type TenantUncheckedUpdateWithoutErpStatesInput = {
   vehicles?: Prisma.VehicleRecordUncheckedUpdateManyWithoutTenantNestedInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedUpdateManyWithoutTenantNestedInput
   bookings?: Prisma.BookingRecordUncheckedUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedUpdateManyWithoutTenantNestedInput
   trainingRoutes?: Prisma.TrainingRouteRecordUncheckedUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUncheckedUpdateManyWithoutTenantNestedInput
   companyDocuments?: Prisma.CompanyDocumentUncheckedUpdateManyWithoutTenantNestedInput
   externalOrganizations?: Prisma.ExternalOrganizationUncheckedUpdateManyWithoutTenantNestedInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedUpdateManyWithoutTenantNestedInput
@@ -3741,7 +4247,9 @@ export type TenantCreateWithoutWorkpacksInput = {
   vehicles?: Prisma.VehicleRecordCreateNestedManyWithoutTenantInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordCreateNestedManyWithoutTenantInput
   bookings?: Prisma.BookingRecordCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordCreateNestedManyWithoutTenantInput
   trainingRoutes?: Prisma.TrainingRouteRecordCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordCreateNestedManyWithoutTenantInput
   companyDocuments?: Prisma.CompanyDocumentCreateNestedManyWithoutTenantInput
   externalOrganizations?: Prisma.ExternalOrganizationCreateNestedManyWithoutTenantInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceCreateNestedManyWithoutTenantInput
@@ -3773,7 +4281,9 @@ export type TenantUncheckedCreateWithoutWorkpacksInput = {
   vehicles?: Prisma.VehicleRecordUncheckedCreateNestedManyWithoutTenantInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedCreateNestedManyWithoutTenantInput
   bookings?: Prisma.BookingRecordUncheckedCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedCreateNestedManyWithoutTenantInput
   trainingRoutes?: Prisma.TrainingRouteRecordUncheckedCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordUncheckedCreateNestedManyWithoutTenantInput
   companyDocuments?: Prisma.CompanyDocumentUncheckedCreateNestedManyWithoutTenantInput
   externalOrganizations?: Prisma.ExternalOrganizationUncheckedCreateNestedManyWithoutTenantInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedCreateNestedManyWithoutTenantInput
@@ -3821,7 +4331,9 @@ export type TenantUpdateWithoutWorkpacksInput = {
   vehicles?: Prisma.VehicleRecordUpdateManyWithoutTenantNestedInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUpdateManyWithoutTenantNestedInput
   bookings?: Prisma.BookingRecordUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUpdateManyWithoutTenantNestedInput
   trainingRoutes?: Prisma.TrainingRouteRecordUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUpdateManyWithoutTenantNestedInput
   companyDocuments?: Prisma.CompanyDocumentUpdateManyWithoutTenantNestedInput
   externalOrganizations?: Prisma.ExternalOrganizationUpdateManyWithoutTenantNestedInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUpdateManyWithoutTenantNestedInput
@@ -3853,7 +4365,9 @@ export type TenantUncheckedUpdateWithoutWorkpacksInput = {
   vehicles?: Prisma.VehicleRecordUncheckedUpdateManyWithoutTenantNestedInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedUpdateManyWithoutTenantNestedInput
   bookings?: Prisma.BookingRecordUncheckedUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedUpdateManyWithoutTenantNestedInput
   trainingRoutes?: Prisma.TrainingRouteRecordUncheckedUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUncheckedUpdateManyWithoutTenantNestedInput
   companyDocuments?: Prisma.CompanyDocumentUncheckedUpdateManyWithoutTenantNestedInput
   externalOrganizations?: Prisma.ExternalOrganizationUncheckedUpdateManyWithoutTenantNestedInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedUpdateManyWithoutTenantNestedInput
@@ -3885,7 +4399,9 @@ export type TenantCreateWithoutMaintenanceTaskCardsInput = {
   vehicles?: Prisma.VehicleRecordCreateNestedManyWithoutTenantInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordCreateNestedManyWithoutTenantInput
   bookings?: Prisma.BookingRecordCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordCreateNestedManyWithoutTenantInput
   trainingRoutes?: Prisma.TrainingRouteRecordCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordCreateNestedManyWithoutTenantInput
   companyDocuments?: Prisma.CompanyDocumentCreateNestedManyWithoutTenantInput
   externalOrganizations?: Prisma.ExternalOrganizationCreateNestedManyWithoutTenantInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceCreateNestedManyWithoutTenantInput
@@ -3917,7 +4433,9 @@ export type TenantUncheckedCreateWithoutMaintenanceTaskCardsInput = {
   vehicles?: Prisma.VehicleRecordUncheckedCreateNestedManyWithoutTenantInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedCreateNestedManyWithoutTenantInput
   bookings?: Prisma.BookingRecordUncheckedCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedCreateNestedManyWithoutTenantInput
   trainingRoutes?: Prisma.TrainingRouteRecordUncheckedCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordUncheckedCreateNestedManyWithoutTenantInput
   companyDocuments?: Prisma.CompanyDocumentUncheckedCreateNestedManyWithoutTenantInput
   externalOrganizations?: Prisma.ExternalOrganizationUncheckedCreateNestedManyWithoutTenantInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedCreateNestedManyWithoutTenantInput
@@ -3965,7 +4483,9 @@ export type TenantUpdateWithoutMaintenanceTaskCardsInput = {
   vehicles?: Prisma.VehicleRecordUpdateManyWithoutTenantNestedInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUpdateManyWithoutTenantNestedInput
   bookings?: Prisma.BookingRecordUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUpdateManyWithoutTenantNestedInput
   trainingRoutes?: Prisma.TrainingRouteRecordUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUpdateManyWithoutTenantNestedInput
   companyDocuments?: Prisma.CompanyDocumentUpdateManyWithoutTenantNestedInput
   externalOrganizations?: Prisma.ExternalOrganizationUpdateManyWithoutTenantNestedInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUpdateManyWithoutTenantNestedInput
@@ -3997,7 +4517,9 @@ export type TenantUncheckedUpdateWithoutMaintenanceTaskCardsInput = {
   vehicles?: Prisma.VehicleRecordUncheckedUpdateManyWithoutTenantNestedInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedUpdateManyWithoutTenantNestedInput
   bookings?: Prisma.BookingRecordUncheckedUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedUpdateManyWithoutTenantNestedInput
   trainingRoutes?: Prisma.TrainingRouteRecordUncheckedUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUncheckedUpdateManyWithoutTenantNestedInput
   companyDocuments?: Prisma.CompanyDocumentUncheckedUpdateManyWithoutTenantNestedInput
   externalOrganizations?: Prisma.ExternalOrganizationUncheckedUpdateManyWithoutTenantNestedInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedUpdateManyWithoutTenantNestedInput
@@ -4029,7 +4551,9 @@ export type TenantCreateWithoutToolsInput = {
   vehicles?: Prisma.VehicleRecordCreateNestedManyWithoutTenantInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordCreateNestedManyWithoutTenantInput
   bookings?: Prisma.BookingRecordCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordCreateNestedManyWithoutTenantInput
   trainingRoutes?: Prisma.TrainingRouteRecordCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordCreateNestedManyWithoutTenantInput
   companyDocuments?: Prisma.CompanyDocumentCreateNestedManyWithoutTenantInput
   externalOrganizations?: Prisma.ExternalOrganizationCreateNestedManyWithoutTenantInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceCreateNestedManyWithoutTenantInput
@@ -4061,7 +4585,9 @@ export type TenantUncheckedCreateWithoutToolsInput = {
   vehicles?: Prisma.VehicleRecordUncheckedCreateNestedManyWithoutTenantInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedCreateNestedManyWithoutTenantInput
   bookings?: Prisma.BookingRecordUncheckedCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedCreateNestedManyWithoutTenantInput
   trainingRoutes?: Prisma.TrainingRouteRecordUncheckedCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordUncheckedCreateNestedManyWithoutTenantInput
   companyDocuments?: Prisma.CompanyDocumentUncheckedCreateNestedManyWithoutTenantInput
   externalOrganizations?: Prisma.ExternalOrganizationUncheckedCreateNestedManyWithoutTenantInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedCreateNestedManyWithoutTenantInput
@@ -4109,7 +4635,9 @@ export type TenantUpdateWithoutToolsInput = {
   vehicles?: Prisma.VehicleRecordUpdateManyWithoutTenantNestedInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUpdateManyWithoutTenantNestedInput
   bookings?: Prisma.BookingRecordUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUpdateManyWithoutTenantNestedInput
   trainingRoutes?: Prisma.TrainingRouteRecordUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUpdateManyWithoutTenantNestedInput
   companyDocuments?: Prisma.CompanyDocumentUpdateManyWithoutTenantNestedInput
   externalOrganizations?: Prisma.ExternalOrganizationUpdateManyWithoutTenantNestedInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUpdateManyWithoutTenantNestedInput
@@ -4141,7 +4669,9 @@ export type TenantUncheckedUpdateWithoutToolsInput = {
   vehicles?: Prisma.VehicleRecordUncheckedUpdateManyWithoutTenantNestedInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedUpdateManyWithoutTenantNestedInput
   bookings?: Prisma.BookingRecordUncheckedUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedUpdateManyWithoutTenantNestedInput
   trainingRoutes?: Prisma.TrainingRouteRecordUncheckedUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUncheckedUpdateManyWithoutTenantNestedInput
   companyDocuments?: Prisma.CompanyDocumentUncheckedUpdateManyWithoutTenantNestedInput
   externalOrganizations?: Prisma.ExternalOrganizationUncheckedUpdateManyWithoutTenantNestedInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedUpdateManyWithoutTenantNestedInput
@@ -4173,7 +4703,9 @@ export type TenantCreateWithoutActiveFlightSessionsInput = {
   vehicles?: Prisma.VehicleRecordCreateNestedManyWithoutTenantInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordCreateNestedManyWithoutTenantInput
   bookings?: Prisma.BookingRecordCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordCreateNestedManyWithoutTenantInput
   trainingRoutes?: Prisma.TrainingRouteRecordCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordCreateNestedManyWithoutTenantInput
   companyDocuments?: Prisma.CompanyDocumentCreateNestedManyWithoutTenantInput
   externalOrganizations?: Prisma.ExternalOrganizationCreateNestedManyWithoutTenantInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceCreateNestedManyWithoutTenantInput
@@ -4205,7 +4737,9 @@ export type TenantUncheckedCreateWithoutActiveFlightSessionsInput = {
   vehicles?: Prisma.VehicleRecordUncheckedCreateNestedManyWithoutTenantInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedCreateNestedManyWithoutTenantInput
   bookings?: Prisma.BookingRecordUncheckedCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedCreateNestedManyWithoutTenantInput
   trainingRoutes?: Prisma.TrainingRouteRecordUncheckedCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordUncheckedCreateNestedManyWithoutTenantInput
   companyDocuments?: Prisma.CompanyDocumentUncheckedCreateNestedManyWithoutTenantInput
   externalOrganizations?: Prisma.ExternalOrganizationUncheckedCreateNestedManyWithoutTenantInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedCreateNestedManyWithoutTenantInput
@@ -4253,7 +4787,9 @@ export type TenantUpdateWithoutActiveFlightSessionsInput = {
   vehicles?: Prisma.VehicleRecordUpdateManyWithoutTenantNestedInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUpdateManyWithoutTenantNestedInput
   bookings?: Prisma.BookingRecordUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUpdateManyWithoutTenantNestedInput
   trainingRoutes?: Prisma.TrainingRouteRecordUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUpdateManyWithoutTenantNestedInput
   companyDocuments?: Prisma.CompanyDocumentUpdateManyWithoutTenantNestedInput
   externalOrganizations?: Prisma.ExternalOrganizationUpdateManyWithoutTenantNestedInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUpdateManyWithoutTenantNestedInput
@@ -4285,7 +4821,9 @@ export type TenantUncheckedUpdateWithoutActiveFlightSessionsInput = {
   vehicles?: Prisma.VehicleRecordUncheckedUpdateManyWithoutTenantNestedInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedUpdateManyWithoutTenantNestedInput
   bookings?: Prisma.BookingRecordUncheckedUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedUpdateManyWithoutTenantNestedInput
   trainingRoutes?: Prisma.TrainingRouteRecordUncheckedUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUncheckedUpdateManyWithoutTenantNestedInput
   companyDocuments?: Prisma.CompanyDocumentUncheckedUpdateManyWithoutTenantNestedInput
   externalOrganizations?: Prisma.ExternalOrganizationUncheckedUpdateManyWithoutTenantNestedInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedUpdateManyWithoutTenantNestedInput
@@ -4317,7 +4855,9 @@ export type TenantCreateWithoutActiveFlightSessionBlocksInput = {
   vehicles?: Prisma.VehicleRecordCreateNestedManyWithoutTenantInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordCreateNestedManyWithoutTenantInput
   bookings?: Prisma.BookingRecordCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordCreateNestedManyWithoutTenantInput
   trainingRoutes?: Prisma.TrainingRouteRecordCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordCreateNestedManyWithoutTenantInput
   companyDocuments?: Prisma.CompanyDocumentCreateNestedManyWithoutTenantInput
   externalOrganizations?: Prisma.ExternalOrganizationCreateNestedManyWithoutTenantInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceCreateNestedManyWithoutTenantInput
@@ -4349,7 +4889,9 @@ export type TenantUncheckedCreateWithoutActiveFlightSessionBlocksInput = {
   vehicles?: Prisma.VehicleRecordUncheckedCreateNestedManyWithoutTenantInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedCreateNestedManyWithoutTenantInput
   bookings?: Prisma.BookingRecordUncheckedCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedCreateNestedManyWithoutTenantInput
   trainingRoutes?: Prisma.TrainingRouteRecordUncheckedCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordUncheckedCreateNestedManyWithoutTenantInput
   companyDocuments?: Prisma.CompanyDocumentUncheckedCreateNestedManyWithoutTenantInput
   externalOrganizations?: Prisma.ExternalOrganizationUncheckedCreateNestedManyWithoutTenantInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedCreateNestedManyWithoutTenantInput
@@ -4397,7 +4939,9 @@ export type TenantUpdateWithoutActiveFlightSessionBlocksInput = {
   vehicles?: Prisma.VehicleRecordUpdateManyWithoutTenantNestedInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUpdateManyWithoutTenantNestedInput
   bookings?: Prisma.BookingRecordUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUpdateManyWithoutTenantNestedInput
   trainingRoutes?: Prisma.TrainingRouteRecordUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUpdateManyWithoutTenantNestedInput
   companyDocuments?: Prisma.CompanyDocumentUpdateManyWithoutTenantNestedInput
   externalOrganizations?: Prisma.ExternalOrganizationUpdateManyWithoutTenantNestedInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUpdateManyWithoutTenantNestedInput
@@ -4429,7 +4973,9 @@ export type TenantUncheckedUpdateWithoutActiveFlightSessionBlocksInput = {
   vehicles?: Prisma.VehicleRecordUncheckedUpdateManyWithoutTenantNestedInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedUpdateManyWithoutTenantNestedInput
   bookings?: Prisma.BookingRecordUncheckedUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedUpdateManyWithoutTenantNestedInput
   trainingRoutes?: Prisma.TrainingRouteRecordUncheckedUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUncheckedUpdateManyWithoutTenantNestedInput
   companyDocuments?: Prisma.CompanyDocumentUncheckedUpdateManyWithoutTenantNestedInput
   externalOrganizations?: Prisma.ExternalOrganizationUncheckedUpdateManyWithoutTenantNestedInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedUpdateManyWithoutTenantNestedInput
@@ -4461,7 +5007,9 @@ export type TenantCreateWithoutAlertsInput = {
   vehicles?: Prisma.VehicleRecordCreateNestedManyWithoutTenantInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordCreateNestedManyWithoutTenantInput
   bookings?: Prisma.BookingRecordCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordCreateNestedManyWithoutTenantInput
   trainingRoutes?: Prisma.TrainingRouteRecordCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordCreateNestedManyWithoutTenantInput
   companyDocuments?: Prisma.CompanyDocumentCreateNestedManyWithoutTenantInput
   externalOrganizations?: Prisma.ExternalOrganizationCreateNestedManyWithoutTenantInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceCreateNestedManyWithoutTenantInput
@@ -4493,7 +5041,9 @@ export type TenantUncheckedCreateWithoutAlertsInput = {
   vehicles?: Prisma.VehicleRecordUncheckedCreateNestedManyWithoutTenantInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedCreateNestedManyWithoutTenantInput
   bookings?: Prisma.BookingRecordUncheckedCreateNestedManyWithoutTenantInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedCreateNestedManyWithoutTenantInput
   trainingRoutes?: Prisma.TrainingRouteRecordUncheckedCreateNestedManyWithoutTenantInput
+  meetings?: Prisma.MeetingRecordUncheckedCreateNestedManyWithoutTenantInput
   companyDocuments?: Prisma.CompanyDocumentUncheckedCreateNestedManyWithoutTenantInput
   externalOrganizations?: Prisma.ExternalOrganizationUncheckedCreateNestedManyWithoutTenantInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedCreateNestedManyWithoutTenantInput
@@ -4541,7 +5091,9 @@ export type TenantUpdateWithoutAlertsInput = {
   vehicles?: Prisma.VehicleRecordUpdateManyWithoutTenantNestedInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUpdateManyWithoutTenantNestedInput
   bookings?: Prisma.BookingRecordUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUpdateManyWithoutTenantNestedInput
   trainingRoutes?: Prisma.TrainingRouteRecordUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUpdateManyWithoutTenantNestedInput
   companyDocuments?: Prisma.CompanyDocumentUpdateManyWithoutTenantNestedInput
   externalOrganizations?: Prisma.ExternalOrganizationUpdateManyWithoutTenantNestedInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUpdateManyWithoutTenantNestedInput
@@ -4573,7 +5125,9 @@ export type TenantUncheckedUpdateWithoutAlertsInput = {
   vehicles?: Prisma.VehicleRecordUncheckedUpdateManyWithoutTenantNestedInput
   vehicleUsageRecords?: Prisma.VehicleUsageRecordUncheckedUpdateManyWithoutTenantNestedInput
   bookings?: Prisma.BookingRecordUncheckedUpdateManyWithoutTenantNestedInput
+  attendanceRecords?: Prisma.AttendanceRecordUncheckedUpdateManyWithoutTenantNestedInput
   trainingRoutes?: Prisma.TrainingRouteRecordUncheckedUpdateManyWithoutTenantNestedInput
+  meetings?: Prisma.MeetingRecordUncheckedUpdateManyWithoutTenantNestedInput
   companyDocuments?: Prisma.CompanyDocumentUncheckedUpdateManyWithoutTenantNestedInput
   externalOrganizations?: Prisma.ExternalOrganizationUncheckedUpdateManyWithoutTenantNestedInput
   betaNdaAcceptances?: Prisma.BetaNdaAcceptanceUncheckedUpdateManyWithoutTenantNestedInput
@@ -4606,7 +5160,9 @@ export type TenantCountOutputType = {
   vehicles: number
   vehicleUsageRecords: number
   bookings: number
+  attendanceRecords: number
   trainingRoutes: number
+  meetings: number
   companyDocuments: number
   externalOrganizations: number
   betaNdaAcceptances: number
@@ -4635,7 +5191,9 @@ export type TenantCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions
   vehicles?: boolean | TenantCountOutputTypeCountVehiclesArgs
   vehicleUsageRecords?: boolean | TenantCountOutputTypeCountVehicleUsageRecordsArgs
   bookings?: boolean | TenantCountOutputTypeCountBookingsArgs
+  attendanceRecords?: boolean | TenantCountOutputTypeCountAttendanceRecordsArgs
   trainingRoutes?: boolean | TenantCountOutputTypeCountTrainingRoutesArgs
+  meetings?: boolean | TenantCountOutputTypeCountMeetingsArgs
   companyDocuments?: boolean | TenantCountOutputTypeCountCompanyDocumentsArgs
   externalOrganizations?: boolean | TenantCountOutputTypeCountExternalOrganizationsArgs
   betaNdaAcceptances?: boolean | TenantCountOutputTypeCountBetaNdaAcceptancesArgs
@@ -4760,8 +5318,22 @@ export type TenantCountOutputTypeCountBookingsArgs<ExtArgs extends runtime.Types
 /**
  * TenantCountOutputType without action
  */
+export type TenantCountOutputTypeCountAttendanceRecordsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.AttendanceRecordWhereInput
+}
+
+/**
+ * TenantCountOutputType without action
+ */
 export type TenantCountOutputTypeCountTrainingRoutesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   where?: Prisma.TrainingRouteRecordWhereInput
+}
+
+/**
+ * TenantCountOutputType without action
+ */
+export type TenantCountOutputTypeCountMeetingsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.MeetingRecordWhereInput
 }
 
 /**
@@ -4861,7 +5433,9 @@ export type TenantSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs =
   vehicles?: boolean | Prisma.Tenant$vehiclesArgs<ExtArgs>
   vehicleUsageRecords?: boolean | Prisma.Tenant$vehicleUsageRecordsArgs<ExtArgs>
   bookings?: boolean | Prisma.Tenant$bookingsArgs<ExtArgs>
+  attendanceRecords?: boolean | Prisma.Tenant$attendanceRecordsArgs<ExtArgs>
   trainingRoutes?: boolean | Prisma.Tenant$trainingRoutesArgs<ExtArgs>
+  meetings?: boolean | Prisma.Tenant$meetingsArgs<ExtArgs>
   companyDocuments?: boolean | Prisma.Tenant$companyDocumentsArgs<ExtArgs>
   externalOrganizations?: boolean | Prisma.Tenant$externalOrganizationsArgs<ExtArgs>
   betaNdaAcceptances?: boolean | Prisma.Tenant$betaNdaAcceptancesArgs<ExtArgs>
@@ -4913,7 +5487,9 @@ export type TenantInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs 
   vehicles?: boolean | Prisma.Tenant$vehiclesArgs<ExtArgs>
   vehicleUsageRecords?: boolean | Prisma.Tenant$vehicleUsageRecordsArgs<ExtArgs>
   bookings?: boolean | Prisma.Tenant$bookingsArgs<ExtArgs>
+  attendanceRecords?: boolean | Prisma.Tenant$attendanceRecordsArgs<ExtArgs>
   trainingRoutes?: boolean | Prisma.Tenant$trainingRoutesArgs<ExtArgs>
+  meetings?: boolean | Prisma.Tenant$meetingsArgs<ExtArgs>
   companyDocuments?: boolean | Prisma.Tenant$companyDocumentsArgs<ExtArgs>
   externalOrganizations?: boolean | Prisma.Tenant$externalOrganizationsArgs<ExtArgs>
   betaNdaAcceptances?: boolean | Prisma.Tenant$betaNdaAcceptancesArgs<ExtArgs>
@@ -4947,7 +5523,9 @@ export type $TenantPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs
     vehicles: Prisma.$VehicleRecordPayload<ExtArgs>[]
     vehicleUsageRecords: Prisma.$VehicleUsageRecordPayload<ExtArgs>[]
     bookings: Prisma.$BookingRecordPayload<ExtArgs>[]
+    attendanceRecords: Prisma.$AttendanceRecordPayload<ExtArgs>[]
     trainingRoutes: Prisma.$TrainingRouteRecordPayload<ExtArgs>[]
+    meetings: Prisma.$MeetingRecordPayload<ExtArgs>[]
     companyDocuments: Prisma.$CompanyDocumentPayload<ExtArgs>[]
     externalOrganizations: Prisma.$ExternalOrganizationPayload<ExtArgs>[]
     betaNdaAcceptances: Prisma.$BetaNdaAcceptancePayload<ExtArgs>[]
@@ -5373,7 +5951,9 @@ export interface Prisma__TenantClient<T, Null = never, ExtArgs extends runtime.T
   vehicles<T extends Prisma.Tenant$vehiclesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Tenant$vehiclesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$VehicleRecordPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   vehicleUsageRecords<T extends Prisma.Tenant$vehicleUsageRecordsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Tenant$vehicleUsageRecordsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$VehicleUsageRecordPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   bookings<T extends Prisma.Tenant$bookingsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Tenant$bookingsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$BookingRecordPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  attendanceRecords<T extends Prisma.Tenant$attendanceRecordsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Tenant$attendanceRecordsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$AttendanceRecordPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   trainingRoutes<T extends Prisma.Tenant$trainingRoutesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Tenant$trainingRoutesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$TrainingRouteRecordPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  meetings<T extends Prisma.Tenant$meetingsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Tenant$meetingsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$MeetingRecordPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   companyDocuments<T extends Prisma.Tenant$companyDocumentsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Tenant$companyDocumentsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$CompanyDocumentPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   externalOrganizations<T extends Prisma.Tenant$externalOrganizationsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Tenant$externalOrganizationsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ExternalOrganizationPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   betaNdaAcceptances<T extends Prisma.Tenant$betaNdaAcceptancesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Tenant$betaNdaAcceptancesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$BetaNdaAcceptancePayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
@@ -6147,6 +6727,30 @@ export type Tenant$bookingsArgs<ExtArgs extends runtime.Types.Extensions.Interna
 }
 
 /**
+ * Tenant.attendanceRecords
+ */
+export type Tenant$attendanceRecordsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the AttendanceRecord
+   */
+  select?: Prisma.AttendanceRecordSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the AttendanceRecord
+   */
+  omit?: Prisma.AttendanceRecordOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.AttendanceRecordInclude<ExtArgs> | null
+  where?: Prisma.AttendanceRecordWhereInput
+  orderBy?: Prisma.AttendanceRecordOrderByWithRelationInput | Prisma.AttendanceRecordOrderByWithRelationInput[]
+  cursor?: Prisma.AttendanceRecordWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.AttendanceRecordScalarFieldEnum | Prisma.AttendanceRecordScalarFieldEnum[]
+}
+
+/**
  * Tenant.trainingRoutes
  */
 export type Tenant$trainingRoutesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -6168,6 +6772,30 @@ export type Tenant$trainingRoutesArgs<ExtArgs extends runtime.Types.Extensions.I
   take?: number
   skip?: number
   distinct?: Prisma.TrainingRouteRecordScalarFieldEnum | Prisma.TrainingRouteRecordScalarFieldEnum[]
+}
+
+/**
+ * Tenant.meetings
+ */
+export type Tenant$meetingsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the MeetingRecord
+   */
+  select?: Prisma.MeetingRecordSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the MeetingRecord
+   */
+  omit?: Prisma.MeetingRecordOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.MeetingRecordInclude<ExtArgs> | null
+  where?: Prisma.MeetingRecordWhereInput
+  orderBy?: Prisma.MeetingRecordOrderByWithRelationInput | Prisma.MeetingRecordOrderByWithRelationInput[]
+  cursor?: Prisma.MeetingRecordWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.MeetingRecordScalarFieldEnum | Prisma.MeetingRecordScalarFieldEnum[]
 }
 
 /**

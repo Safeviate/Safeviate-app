@@ -68,7 +68,9 @@ export const ModelName = {
   VehicleRecord: 'VehicleRecord',
   VehicleUsageRecord: 'VehicleUsageRecord',
   BookingRecord: 'BookingRecord',
+  AttendanceRecord: 'AttendanceRecord',
   TrainingRouteRecord: 'TrainingRouteRecord',
+  MeetingRecord: 'MeetingRecord',
   CompanyDocument: 'CompanyDocument',
   ExternalOrganization: 'ExternalOrganization',
   ErpState: 'ErpState',
@@ -160,6 +162,7 @@ export const RoleScalarFieldEnum = {
   tenantId: 'tenantId',
   name: 'name',
   permissions: 'permissions',
+  accessOverrides: 'accessOverrides',
   requiredDocuments: 'requiredDocuments',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
@@ -196,6 +199,7 @@ export const PersonnelScalarFieldEnum = {
   userType: 'userType',
   canBeInstructor: 'canBeInstructor',
   canBeStudent: 'canBeStudent',
+  canBePIC: 'canBePIC',
   isErpIncerfaContact: 'isErpIncerfaContact',
   isErpAlerfaContact: 'isErpAlerfaContact',
   createdAt: 'createdAt',
@@ -314,6 +318,17 @@ export const BookingRecordScalarFieldEnum = {
 export type BookingRecordScalarFieldEnum = (typeof BookingRecordScalarFieldEnum)[keyof typeof BookingRecordScalarFieldEnum]
 
 
+export const AttendanceRecordScalarFieldEnum = {
+  id: 'id',
+  tenantId: 'tenantId',
+  data: 'data',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type AttendanceRecordScalarFieldEnum = (typeof AttendanceRecordScalarFieldEnum)[keyof typeof AttendanceRecordScalarFieldEnum]
+
+
 export const TrainingRouteRecordScalarFieldEnum = {
   id: 'id',
   tenantId: 'tenantId',
@@ -323,6 +338,17 @@ export const TrainingRouteRecordScalarFieldEnum = {
 } as const
 
 export type TrainingRouteRecordScalarFieldEnum = (typeof TrainingRouteRecordScalarFieldEnum)[keyof typeof TrainingRouteRecordScalarFieldEnum]
+
+
+export const MeetingRecordScalarFieldEnum = {
+  id: 'id',
+  tenantId: 'tenantId',
+  data: 'data',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type MeetingRecordScalarFieldEnum = (typeof MeetingRecordScalarFieldEnum)[keyof typeof MeetingRecordScalarFieldEnum]
 
 
 export const CompanyDocumentScalarFieldEnum = {

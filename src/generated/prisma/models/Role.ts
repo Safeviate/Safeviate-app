@@ -45,6 +45,7 @@ export type RoleCountAggregateOutputType = {
   tenantId: number
   name: number
   permissions: number
+  accessOverrides: number
   requiredDocuments: number
   createdAt: number
   updatedAt: number
@@ -73,6 +74,7 @@ export type RoleCountAggregateInputType = {
   tenantId?: true
   name?: true
   permissions?: true
+  accessOverrides?: true
   requiredDocuments?: true
   createdAt?: true
   updatedAt?: true
@@ -156,6 +158,7 @@ export type RoleGroupByOutputType = {
   tenantId: string
   name: string
   permissions: runtime.JsonValue
+  accessOverrides: runtime.JsonValue | null
   requiredDocuments: runtime.JsonValue | null
   createdAt: Date
   updatedAt: Date
@@ -187,6 +190,7 @@ export type RoleWhereInput = {
   tenantId?: Prisma.StringFilter<"Role"> | string
   name?: Prisma.StringFilter<"Role"> | string
   permissions?: Prisma.JsonFilter<"Role">
+  accessOverrides?: Prisma.JsonNullableFilter<"Role">
   requiredDocuments?: Prisma.JsonNullableFilter<"Role">
   createdAt?: Prisma.DateTimeFilter<"Role"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Role"> | Date | string
@@ -198,6 +202,7 @@ export type RoleOrderByWithRelationInput = {
   tenantId?: Prisma.SortOrder
   name?: Prisma.SortOrder
   permissions?: Prisma.SortOrder
+  accessOverrides?: Prisma.SortOrderInput | Prisma.SortOrder
   requiredDocuments?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
@@ -212,6 +217,7 @@ export type RoleWhereUniqueInput = Prisma.AtLeast<{
   tenantId?: Prisma.StringFilter<"Role"> | string
   name?: Prisma.StringFilter<"Role"> | string
   permissions?: Prisma.JsonFilter<"Role">
+  accessOverrides?: Prisma.JsonNullableFilter<"Role">
   requiredDocuments?: Prisma.JsonNullableFilter<"Role">
   createdAt?: Prisma.DateTimeFilter<"Role"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Role"> | Date | string
@@ -223,6 +229,7 @@ export type RoleOrderByWithAggregationInput = {
   tenantId?: Prisma.SortOrder
   name?: Prisma.SortOrder
   permissions?: Prisma.SortOrder
+  accessOverrides?: Prisma.SortOrderInput | Prisma.SortOrder
   requiredDocuments?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
@@ -239,6 +246,7 @@ export type RoleScalarWhereWithAggregatesInput = {
   tenantId?: Prisma.StringWithAggregatesFilter<"Role"> | string
   name?: Prisma.StringWithAggregatesFilter<"Role"> | string
   permissions?: Prisma.JsonWithAggregatesFilter<"Role">
+  accessOverrides?: Prisma.JsonNullableWithAggregatesFilter<"Role">
   requiredDocuments?: Prisma.JsonNullableWithAggregatesFilter<"Role">
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"Role"> | Date | string
   updatedAt?: Prisma.DateTimeWithAggregatesFilter<"Role"> | Date | string
@@ -248,6 +256,7 @@ export type RoleCreateInput = {
   id: string
   name: string
   permissions?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  accessOverrides?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   requiredDocuments?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -259,6 +268,7 @@ export type RoleUncheckedCreateInput = {
   tenantId: string
   name: string
   permissions?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  accessOverrides?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   requiredDocuments?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -268,6 +278,7 @@ export type RoleUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   name?: Prisma.StringFieldUpdateOperationsInput | string
   permissions?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  accessOverrides?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   requiredDocuments?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -279,6 +290,7 @@ export type RoleUncheckedUpdateInput = {
   tenantId?: Prisma.StringFieldUpdateOperationsInput | string
   name?: Prisma.StringFieldUpdateOperationsInput | string
   permissions?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  accessOverrides?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   requiredDocuments?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -289,6 +301,7 @@ export type RoleCreateManyInput = {
   tenantId: string
   name: string
   permissions?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  accessOverrides?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   requiredDocuments?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -298,6 +311,7 @@ export type RoleUpdateManyMutationInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   name?: Prisma.StringFieldUpdateOperationsInput | string
   permissions?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  accessOverrides?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   requiredDocuments?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -308,6 +322,7 @@ export type RoleUncheckedUpdateManyInput = {
   tenantId?: Prisma.StringFieldUpdateOperationsInput | string
   name?: Prisma.StringFieldUpdateOperationsInput | string
   permissions?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  accessOverrides?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   requiredDocuments?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -328,6 +343,7 @@ export type RoleCountOrderByAggregateInput = {
   tenantId?: Prisma.SortOrder
   name?: Prisma.SortOrder
   permissions?: Prisma.SortOrder
+  accessOverrides?: Prisma.SortOrder
   requiredDocuments?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
@@ -395,6 +411,7 @@ export type RoleCreateWithoutTenantInput = {
   id: string
   name: string
   permissions?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  accessOverrides?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   requiredDocuments?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -404,6 +421,7 @@ export type RoleUncheckedCreateWithoutTenantInput = {
   id: string
   name: string
   permissions?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  accessOverrides?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   requiredDocuments?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -443,6 +461,7 @@ export type RoleScalarWhereInput = {
   tenantId?: Prisma.StringFilter<"Role"> | string
   name?: Prisma.StringFilter<"Role"> | string
   permissions?: Prisma.JsonFilter<"Role">
+  accessOverrides?: Prisma.JsonNullableFilter<"Role">
   requiredDocuments?: Prisma.JsonNullableFilter<"Role">
   createdAt?: Prisma.DateTimeFilter<"Role"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Role"> | Date | string
@@ -452,6 +471,7 @@ export type RoleCreateManyTenantInput = {
   id: string
   name: string
   permissions?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  accessOverrides?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   requiredDocuments?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -461,6 +481,7 @@ export type RoleUpdateWithoutTenantInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   name?: Prisma.StringFieldUpdateOperationsInput | string
   permissions?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  accessOverrides?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   requiredDocuments?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -470,6 +491,7 @@ export type RoleUncheckedUpdateWithoutTenantInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   name?: Prisma.StringFieldUpdateOperationsInput | string
   permissions?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  accessOverrides?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   requiredDocuments?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -479,6 +501,7 @@ export type RoleUncheckedUpdateManyWithoutTenantInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   name?: Prisma.StringFieldUpdateOperationsInput | string
   permissions?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  accessOverrides?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   requiredDocuments?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -491,6 +514,7 @@ export type RoleSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = r
   tenantId?: boolean
   name?: boolean
   permissions?: boolean
+  accessOverrides?: boolean
   requiredDocuments?: boolean
   createdAt?: boolean
   updatedAt?: boolean
@@ -502,6 +526,7 @@ export type RoleSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensio
   tenantId?: boolean
   name?: boolean
   permissions?: boolean
+  accessOverrides?: boolean
   requiredDocuments?: boolean
   createdAt?: boolean
   updatedAt?: boolean
@@ -513,6 +538,7 @@ export type RoleSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensio
   tenantId?: boolean
   name?: boolean
   permissions?: boolean
+  accessOverrides?: boolean
   requiredDocuments?: boolean
   createdAt?: boolean
   updatedAt?: boolean
@@ -524,12 +550,13 @@ export type RoleSelectScalar = {
   tenantId?: boolean
   name?: boolean
   permissions?: boolean
+  accessOverrides?: boolean
   requiredDocuments?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }
 
-export type RoleOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "tenantId" | "name" | "permissions" | "requiredDocuments" | "createdAt" | "updatedAt", ExtArgs["result"]["role"]>
+export type RoleOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "tenantId" | "name" | "permissions" | "accessOverrides" | "requiredDocuments" | "createdAt" | "updatedAt", ExtArgs["result"]["role"]>
 export type RoleInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   tenant?: boolean | Prisma.TenantDefaultArgs<ExtArgs>
 }
@@ -550,6 +577,7 @@ export type $RolePayload<ExtArgs extends runtime.Types.Extensions.InternalArgs =
     tenantId: string
     name: string
     permissions: runtime.JsonValue
+    accessOverrides: runtime.JsonValue | null
     requiredDocuments: runtime.JsonValue | null
     createdAt: Date
     updatedAt: Date
@@ -981,6 +1009,7 @@ export interface RoleFieldRefs {
   readonly tenantId: Prisma.FieldRef<"Role", 'String'>
   readonly name: Prisma.FieldRef<"Role", 'String'>
   readonly permissions: Prisma.FieldRef<"Role", 'Json'>
+  readonly accessOverrides: Prisma.FieldRef<"Role", 'Json'>
   readonly requiredDocuments: Prisma.FieldRef<"Role", 'Json'>
   readonly createdAt: Prisma.FieldRef<"Role", 'DateTime'>
   readonly updatedAt: Prisma.FieldRef<"Role", 'DateTime'>

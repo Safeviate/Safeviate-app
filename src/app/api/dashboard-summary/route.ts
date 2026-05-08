@@ -67,12 +67,13 @@ type SummaryBookingRecord = {
   } | null;
 };
 
-type SummaryPersonRecord = {
-  id: string;
-  userType: string;
-  canBeInstructor: boolean | null;
-  canBeStudent: boolean | null;
-  userNumber: string | null;
+  type SummaryPersonRecord = {
+    id: string;
+    userType: string;
+    canBeInstructor: boolean | null;
+    canBeStudent: boolean | null;
+    canBePIC: boolean | null;
+    userNumber: string | null;
   firstName: string;
   lastName: string;
   email: string;
@@ -125,12 +126,13 @@ const projectBookingSummary = (value: unknown): SummaryBookingRecord => {
   };
 };
 
-const projectPersonSummary = (person: SummaryPersonRecord) => ({
-  id: person.id,
-  userType: person.userType,
-  canBeInstructor: person.canBeInstructor ?? undefined,
-  canBeStudent: person.canBeStudent ?? undefined,
-  userNumber: person.userNumber ?? undefined,
+  const projectPersonSummary = (person: SummaryPersonRecord) => ({
+    id: person.id,
+    userType: person.userType,
+    canBeInstructor: person.canBeInstructor ?? undefined,
+    canBeStudent: person.canBeStudent ?? undefined,
+    canBePIC: person.canBePIC ?? undefined,
+    userNumber: person.userNumber ?? undefined,
   firstName: person.firstName,
   lastName: person.lastName,
   email: person.email,
@@ -227,14 +229,15 @@ export async function GET() {
         'personnel',
         prisma.personnel.findMany({
           where: { tenantId: resolvedTenantId },
-          select: {
-            id: true,
-            userType: true,
-            canBeInstructor: true,
-            canBeStudent: true,
-            userNumber: true,
-            firstName: true,
-            lastName: true,
+            select: {
+              id: true,
+              userType: true,
+              canBeInstructor: true,
+              canBeStudent: true,
+              canBePIC: true,
+              userNumber: true,
+              firstName: true,
+              lastName: true,
             email: true,
             role: true,
             department: true,
@@ -268,10 +271,10 @@ export async function GET() {
       ),
     ]));
 
-    const personnelList: Array<{ id: string; firstName?: string; lastName?: string; userType?: string; canBeInstructor?: boolean | null; canBeStudent?: boolean | null }> = [];
-    const instructorList: Array<{ id: string; firstName?: string; lastName?: string; userType?: string; canBeInstructor?: boolean | null; canBeStudent?: boolean | null }> = [];
-    const studentList: Array<{ id: string; firstName?: string; lastName?: string; userType?: string; canBeInstructor?: boolean | null; canBeStudent?: boolean | null }> = [];
-    const privatePilotList: Array<{ id: string; firstName?: string; lastName?: string; userType?: string; canBeInstructor?: boolean | null; canBeStudent?: boolean | null }> = [];
+    const personnelList: Array<{ id: string; firstName?: string; lastName?: string; userType?: string; canBeInstructor?: boolean | null; canBeStudent?: boolean | null; canBePIC?: boolean | null }> = [];
+    const instructorList: Array<{ id: string; firstName?: string; lastName?: string; userType?: string; canBeInstructor?: boolean | null; canBeStudent?: boolean | null; canBePIC?: boolean | null }> = [];
+    const studentList: Array<{ id: string; firstName?: string; lastName?: string; userType?: string; canBeInstructor?: boolean | null; canBeStudent?: boolean | null; canBePIC?: boolean | null }> = [];
+    const privatePilotList: Array<{ id: string; firstName?: string; lastName?: string; userType?: string; canBeInstructor?: boolean | null; canBeStudent?: boolean | null; canBePIC?: boolean | null }> = [];
     const studentTrainingReports = Array.isArray(tenantConfig['student-progress-reports'])
       ? (tenantConfig['student-progress-reports'] as unknown[])
       : [];
@@ -299,7 +302,7 @@ export async function GET() {
       if (row.canBeInstructor || INSTRUCTOR_TYPES.has(type)) {
         instructorList.push(row);
       }
-      if (row.canBeStudent || STUDENT_TYPES.has(type)) {
+      if (row.canBeStudent || row.canBePIC || STUDENT_TYPES.has(type)) {
         studentList.push(row);
       }
       if (PRIVATE_PILOT_TYPES.has(type)) {
@@ -307,7 +310,7 @@ export async function GET() {
       }
       if (PERSONNEL_TYPES.has(type)) {
         personnelList.push(row);
-      } else if (!row.canBeInstructor && !row.canBeStudent && !PRIVATE_PILOT_TYPES.has(type)) {
+      } else if (!row.canBeInstructor && !row.canBeStudent && !row.canBePIC && !PRIVATE_PILOT_TYPES.has(type)) {
         personnelList.push(row);
       }
     }

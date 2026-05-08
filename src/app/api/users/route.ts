@@ -46,7 +46,7 @@ export async function GET() {
     ]);
 
     const instructors = userRows.filter((row) => row.canBeInstructor || INSTRUCTOR_TYPES.has(row.userType || ''));
-    const students = userRows.filter((row) => row.canBeStudent || STUDENT_TYPES.has(row.userType || ''));
+    const students = userRows.filter((row) => row.canBeStudent || row.canBePIC || STUDENT_TYPES.has(row.userType || ''));
     const privatePilots = userRows.filter((row) => PRIVATE_PILOT_TYPES.has(row.userType || ''));
     const authMap = new Map(authRows.map((row) => [row.email.trim().toLowerCase(), row.suspendedAt]));
     const mergedUsers = userRows.map((row) => ({

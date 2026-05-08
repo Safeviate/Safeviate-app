@@ -138,6 +138,7 @@ model Personnel {
   userType             String   @default("Personnel") @map("user_type")
   canBeInstructor      Boolean  @default(false) @map("can_be_instructor")
   canBeStudent         Boolean  @default(false) @map("can_be_student")
+  canBePIC             Boolean  @default(false) @map("can_be_pic")
   isErpIncerfaContact  Boolean  @default(false) @map("is_erp_incerfa_contact")
   isErpAlerfaContact   Boolean  @default(false) @map("is_erp_alerfa_contact")
   createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)

@@ -127,10 +127,20 @@ export type VehicleUsageRecord = Prisma.VehicleUsageRecordModel
  */
 export type BookingRecord = Prisma.BookingRecordModel
 /**
+ * Model AttendanceRecord
+ * 
+ */
+export type AttendanceRecord = Prisma.AttendanceRecordModel
+/**
  * Model TrainingRouteRecord
  * 
  */
 export type TrainingRouteRecord = Prisma.TrainingRouteRecordModel
+/**
+ * Model MeetingRecord
+ * 
+ */
+export type MeetingRecord = Prisma.MeetingRecordModel
 /**
  * Model CompanyDocument
  * 

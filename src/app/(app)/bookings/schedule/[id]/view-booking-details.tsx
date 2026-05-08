@@ -139,6 +139,7 @@ export function ViewBookingDetails({ booking }: ViewBookingDetailsProps) {
     const [workflowCompletion, setWorkflowCompletion] = useState<BookingWorkflowCompletion>(booking.workflowCompletion || {});
 
     const aircraft = useMemo(() => aircrafts?.find(a => a.id === booking.aircraftId), [aircrafts, booking.aircraftId]);
+    const isNonInstructorBooking = ['Rental', 'Charter', 'Ferry Flight', 'Maintenance'].includes(booking.type);
     const instructorLabel = useMemo(() => {
         if (!booking.instructorId) return 'N/A';
         const instructor = personnel.find((person) => person.id === booking.instructorId);
@@ -683,8 +684,8 @@ export function ViewBookingDetails({ booking }: ViewBookingDetailsProps) {
                                     <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3 xl:grid-cols-4">
                                         <DetailItem label="Status" value={getStatusLabel(booking.status)} />
                                         <DetailItem label="Aircraft" value={aircraft ? aircraft.tailNumber : booking.aircraftId} />
-                                        <DetailItem label="Instructor" value={instructorLabel} />
-                                        <DetailItem label="Student" value={studentLabel} />
+          {!isNonInstructorBooking ? <DetailItem label="Instructor" value={instructorLabel} /> : null}
+          <DetailItem label={isNonInstructorBooking ? 'Pilot in command' : 'Student'} value={studentLabel} />
                                         <DetailItem label="Date" value={formatDateSafe(booking.start, 'PPP')} />
                                         <DetailItem label="Start Time" value={formatDateSafe(booking.start, 'p')} />
                                         <DetailItem label="End Time" value={formatDateSafe(booking.end, 'p')} />

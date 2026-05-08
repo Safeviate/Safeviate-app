@@ -23,6 +23,7 @@ interface BookingPlannedLegsPanelProps {
   onWaypointNotesChange?: (legId: string, nextNotes: string) => void;
   headingLabel?: string;
   activeLegIndex?: number;
+  initialFuelOnBoard?: number;
 }
 
 export function BookingPlannedLegsPanel({
@@ -34,6 +35,7 @@ export function BookingPlannedLegsPanel({
   onWaypointNotesChange,
   headingLabel = 'Planned Legs',
   activeLegIndex,
+  initialFuelOnBoard,
 }: BookingPlannedLegsPanelProps) {
   const [expandedLegId, setExpandedLegId] = useState<string | null>(null);
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
@@ -74,6 +76,32 @@ export function BookingPlannedLegsPanel({
     setNoteDrafts((current) => ({ ...current, [legId]: nextNotes }));
     onWaypointNotesChange(legId, nextNotes);
   }, [noteDrafts, onWaypointNotesChange]);
+
+  const formatHeadingValue = (value: number | undefined, suffix = '°') =>
+    value === undefined || Number.isNaN(value) ? '-' : `${Math.round(((value % 360) + 360) % 360)}${suffix}`;
+
+  const formatSignedHeadingValue = (value: number | undefined) =>
+    value === undefined || Number.isNaN(value) ? '-' : `${value >= 0 ? '+' : '-'}${Math.abs(Math.round(value))}°`;
+
+  const formatDistanceValue = (value: number | undefined) =>
+    value === undefined || Number.isNaN(value) ? '-' : `${value.toFixed(1)} NM`;
+
+  const formatGroundSpeedValue = (value: number | undefined) =>
+    value === undefined || Number.isNaN(value) ? '-' : `${Math.round(value)}`;
+
+  const formatMinutesValue = (value: number | undefined) => {
+    if (value === undefined || Number.isNaN(value) || value <= 0) return '-';
+    const hours = Math.floor(value / 60);
+    const minutes = Math.round(value % 60);
+    return hours > 0 ? `${hours}:${minutes.toString().padStart(2, '0')}` : `${minutes}`;
+  };
+
+  const renderNavlogMetric = (label: string, value: string, valueClassName = 'text-slate-900') => (
+    <div className="rounded-md border border-slate-200 bg-white px-2 py-1.5">
+      <p className="text-[8px] font-black uppercase tracking-[0.12em] text-slate-500">{label}</p>
+      <p className={cn('mt-0.5 text-[10px] font-black leading-tight', valueClassName)}>{value}</p>
+    </div>
+  );
 
   return (
     <section className="min-w-0 space-y-2 overflow-hidden">
@@ -186,6 +214,11 @@ export function BookingPlannedLegsPanel({
           const toWaypoint = leg.waypoint || `WP ${i + 2}`;
           const fromNotes = fromLeg?.notes?.trim();
           const toNotes = leg.notes?.trim();
+          const remainingFuel =
+            initialFuelOnBoard === undefined
+              ? undefined
+              : initialFuelOnBoard -
+                legs.slice(1, i + 2).reduce((sum, currentLeg) => sum + (currentLeg.tripFuel ?? 0), 0);
           const distanceLabel = `${(leg.distance ?? 0).toFixed(1)} NM`;
           const trackLabel = `${(((leg.magneticHeading ?? 0) + 180) % 360).toFixed(0)}°`;
           const fromToneClass = getWaypointDetailToneClass(getWaypointDetailTone(fromLeg));
@@ -317,6 +350,33 @@ export function BookingPlannedLegsPanel({
                       </div>
                     ) : null}
 
+                    <div className="mt-2 border-t border-slate-200 pt-2">
+                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+                        {renderNavlogMetric('TC', formatHeadingValue(leg.trueCourse))}
+                        {renderNavlogMetric('WCA', formatSignedHeadingValue(leg.wca))}
+                        {renderNavlogMetric('TH', formatHeadingValue(leg.trueHeading))}
+                        {renderNavlogMetric(
+                          'VAR',
+                          leg.variation === undefined || Number.isNaN(leg.variation)
+                            ? '-'
+                            : `${Math.abs(Math.round(leg.variation))}°${leg.variation >= 0 ? 'E' : 'W'}`
+                        )}
+                        {renderNavlogMetric('MH', formatHeadingValue(leg.magneticHeading), 'text-primary')}
+                        {renderNavlogMetric('DIST', formatDistanceValue(leg.distance))}
+                        {renderNavlogMetric('GS', formatGroundSpeedValue(leg.groundSpeed))}
+                        {renderNavlogMetric('ETE', formatMinutesValue(leg.ete))}
+                        {renderNavlogMetric('CUM', formatMinutesValue(leg.cumulativeEte))}
+                        {renderNavlogMetric(
+                          'FUEL',
+                          leg.tripFuel === undefined || Number.isNaN(leg.tripFuel) ? '-' : `${leg.tripFuel.toFixed(1)}`
+                        )}
+                        {renderNavlogMetric(
+                          'REM',
+                          remainingFuel === undefined || Number.isNaN(remainingFuel) ? '-' : `${Math.max(0, remainingFuel).toFixed(1)}`
+                        )}
+                      </div>
+                    </div>
+
                     {(fromNotes || toNotes) ? (
                       <div className="mt-2 border-t border-slate-200 pt-2">
                         <p className="text-[8px] font-black uppercase tracking-[0.12em] text-slate-500">NOTES</p>
@@ -367,18 +427,6 @@ export function BookingPlannedLegsPanel({
                       </div>
                     ) : null}
 
-                    <div className="mt-2 border-t border-slate-200 pt-2">
-                      <div className="flex gap-5">
-                      <div className="flex flex-col">
-                        <span className="text-[8px] font-bold uppercase text-muted-foreground">Dist</span>
-                        <span className="text-[10px] font-black">{leg.distance?.toFixed(1) || '0.0'} NM</span>
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="text-[8px] font-bold uppercase text-muted-foreground">HDG</span>
-                        <span className="text-[10px] font-black">{(((leg.magneticHeading ?? 0) + 180) % 360).toFixed(0)}{"\u00B0"}</span>
-                      </div>
-                      </div>
-                    </div>
                   </div>
                 ) : null}
               </div>

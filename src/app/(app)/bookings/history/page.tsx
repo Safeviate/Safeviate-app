@@ -138,11 +138,12 @@ const BookingsTable = ({
               className="p-4"
               gridClassName="sm:grid-cols-2 xl:grid-cols-3"
               renderItem={(b) => {
+                const isNonInstructorBooking = ['Rental', 'Charter', 'Ferry Flight', 'Maintenance'].includes(b.type);
                 const dateLabel = b.fullStartTime ? format(b.fullStartTime, 'PPP') : 'Invalid Date';
                 const crewLabel = [
                   b.creatorName ? `Creator: ${b.creatorName}` : '',
-                  b.instructorName ? `Instructor: ${b.instructorName}` : '',
-                  b.studentName ? `Student: ${b.studentName}` : '',
+                  !isNonInstructorBooking && b.instructorName ? `Instructor: ${b.instructorName}` : '',
+                  b.studentName ? `${isNonInstructorBooking ? 'PIC' : 'Student'}: ${b.studentName}` : '',
                 ].filter(Boolean).join(' • ');
                 const isMuted = b.status === 'Cancelled' || b.status === 'Cancelled with Reason' || b.status === 'Completed';
 

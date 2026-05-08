@@ -38,6 +38,7 @@ export type PersonnelMinAggregateOutputType = {
   userType: string | null
   canBeInstructor: boolean | null
   canBeStudent: boolean | null
+  canBePIC: boolean | null
   isErpIncerfaContact: boolean | null
   isErpAlerfaContact: boolean | null
   createdAt: Date | null
@@ -58,6 +59,7 @@ export type PersonnelMaxAggregateOutputType = {
   userType: string | null
   canBeInstructor: boolean | null
   canBeStudent: boolean | null
+  canBePIC: boolean | null
   isErpIncerfaContact: boolean | null
   isErpAlerfaContact: boolean | null
   createdAt: Date | null
@@ -81,6 +83,7 @@ export type PersonnelCountAggregateOutputType = {
   userType: number
   canBeInstructor: number
   canBeStudent: number
+  canBePIC: number
   isErpIncerfaContact: number
   isErpAlerfaContact: number
   createdAt: number
@@ -103,6 +106,7 @@ export type PersonnelMinAggregateInputType = {
   userType?: true
   canBeInstructor?: true
   canBeStudent?: true
+  canBePIC?: true
   isErpIncerfaContact?: true
   isErpAlerfaContact?: true
   createdAt?: true
@@ -123,6 +127,7 @@ export type PersonnelMaxAggregateInputType = {
   userType?: true
   canBeInstructor?: true
   canBeStudent?: true
+  canBePIC?: true
   isErpIncerfaContact?: true
   isErpAlerfaContact?: true
   createdAt?: true
@@ -146,6 +151,7 @@ export type PersonnelCountAggregateInputType = {
   userType?: true
   canBeInstructor?: true
   canBeStudent?: true
+  canBePIC?: true
   isErpIncerfaContact?: true
   isErpAlerfaContact?: true
   createdAt?: true
@@ -242,6 +248,7 @@ export type PersonnelGroupByOutputType = {
   userType: string
   canBeInstructor: boolean
   canBeStudent: boolean
+  canBePIC: boolean
   isErpIncerfaContact: boolean
   isErpAlerfaContact: boolean
   createdAt: Date
@@ -286,6 +293,7 @@ export type PersonnelWhereInput = {
   userType?: Prisma.StringFilter<"Personnel"> | string
   canBeInstructor?: Prisma.BoolFilter<"Personnel"> | boolean
   canBeStudent?: Prisma.BoolFilter<"Personnel"> | boolean
+  canBePIC?: Prisma.BoolFilter<"Personnel"> | boolean
   isErpIncerfaContact?: Prisma.BoolFilter<"Personnel"> | boolean
   isErpAlerfaContact?: Prisma.BoolFilter<"Personnel"> | boolean
   createdAt?: Prisma.DateTimeFilter<"Personnel"> | Date | string
@@ -310,6 +318,7 @@ export type PersonnelOrderByWithRelationInput = {
   userType?: Prisma.SortOrder
   canBeInstructor?: Prisma.SortOrder
   canBeStudent?: Prisma.SortOrder
+  canBePIC?: Prisma.SortOrder
   isErpIncerfaContact?: Prisma.SortOrder
   isErpAlerfaContact?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
@@ -337,6 +346,7 @@ export type PersonnelWhereUniqueInput = Prisma.AtLeast<{
   userType?: Prisma.StringFilter<"Personnel"> | string
   canBeInstructor?: Prisma.BoolFilter<"Personnel"> | boolean
   canBeStudent?: Prisma.BoolFilter<"Personnel"> | boolean
+  canBePIC?: Prisma.BoolFilter<"Personnel"> | boolean
   isErpIncerfaContact?: Prisma.BoolFilter<"Personnel"> | boolean
   isErpAlerfaContact?: Prisma.BoolFilter<"Personnel"> | boolean
   createdAt?: Prisma.DateTimeFilter<"Personnel"> | Date | string
@@ -361,6 +371,7 @@ export type PersonnelOrderByWithAggregationInput = {
   userType?: Prisma.SortOrder
   canBeInstructor?: Prisma.SortOrder
   canBeStudent?: Prisma.SortOrder
+  canBePIC?: Prisma.SortOrder
   isErpIncerfaContact?: Prisma.SortOrder
   isErpAlerfaContact?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
@@ -390,6 +401,7 @@ export type PersonnelScalarWhereWithAggregatesInput = {
   userType?: Prisma.StringWithAggregatesFilter<"Personnel"> | string
   canBeInstructor?: Prisma.BoolWithAggregatesFilter<"Personnel"> | boolean
   canBeStudent?: Prisma.BoolWithAggregatesFilter<"Personnel"> | boolean
+  canBePIC?: Prisma.BoolWithAggregatesFilter<"Personnel"> | boolean
   isErpIncerfaContact?: Prisma.BoolWithAggregatesFilter<"Personnel"> | boolean
   isErpAlerfaContact?: Prisma.BoolWithAggregatesFilter<"Personnel"> | boolean
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"Personnel"> | Date | string
@@ -412,6 +424,7 @@ export type PersonnelCreateInput = {
   userType?: string
   canBeInstructor?: boolean
   canBeStudent?: boolean
+  canBePIC?: boolean
   isErpIncerfaContact?: boolean
   isErpAlerfaContact?: boolean
   createdAt?: Date | string
@@ -436,6 +449,7 @@ export type PersonnelUncheckedCreateInput = {
   userType?: string
   canBeInstructor?: boolean
   canBeStudent?: boolean
+  canBePIC?: boolean
   isErpIncerfaContact?: boolean
   isErpAlerfaContact?: boolean
   createdAt?: Date | string
@@ -458,6 +472,7 @@ export type PersonnelUpdateInput = {
   userType?: Prisma.StringFieldUpdateOperationsInput | string
   canBeInstructor?: Prisma.BoolFieldUpdateOperationsInput | boolean
   canBeStudent?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  canBePIC?: Prisma.BoolFieldUpdateOperationsInput | boolean
   isErpIncerfaContact?: Prisma.BoolFieldUpdateOperationsInput | boolean
   isErpAlerfaContact?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -482,6 +497,7 @@ export type PersonnelUncheckedUpdateInput = {
   userType?: Prisma.StringFieldUpdateOperationsInput | string
   canBeInstructor?: Prisma.BoolFieldUpdateOperationsInput | boolean
   canBeStudent?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  canBePIC?: Prisma.BoolFieldUpdateOperationsInput | boolean
   isErpIncerfaContact?: Prisma.BoolFieldUpdateOperationsInput | boolean
   isErpAlerfaContact?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -505,6 +521,7 @@ export type PersonnelCreateManyInput = {
   userType?: string
   canBeInstructor?: boolean
   canBeStudent?: boolean
+  canBePIC?: boolean
   isErpIncerfaContact?: boolean
   isErpAlerfaContact?: boolean
   createdAt?: Date | string
@@ -527,6 +544,7 @@ export type PersonnelUpdateManyMutationInput = {
   userType?: Prisma.StringFieldUpdateOperationsInput | string
   canBeInstructor?: Prisma.BoolFieldUpdateOperationsInput | boolean
   canBeStudent?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  canBePIC?: Prisma.BoolFieldUpdateOperationsInput | boolean
   isErpIncerfaContact?: Prisma.BoolFieldUpdateOperationsInput | boolean
   isErpAlerfaContact?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -550,6 +568,7 @@ export type PersonnelUncheckedUpdateManyInput = {
   userType?: Prisma.StringFieldUpdateOperationsInput | string
   canBeInstructor?: Prisma.BoolFieldUpdateOperationsInput | boolean
   canBeStudent?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  canBePIC?: Prisma.BoolFieldUpdateOperationsInput | boolean
   isErpIncerfaContact?: Prisma.BoolFieldUpdateOperationsInput | boolean
   isErpAlerfaContact?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -583,6 +602,7 @@ export type PersonnelCountOrderByAggregateInput = {
   userType?: Prisma.SortOrder
   canBeInstructor?: Prisma.SortOrder
   canBeStudent?: Prisma.SortOrder
+  canBePIC?: Prisma.SortOrder
   isErpIncerfaContact?: Prisma.SortOrder
   isErpAlerfaContact?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
@@ -603,6 +623,7 @@ export type PersonnelMaxOrderByAggregateInput = {
   userType?: Prisma.SortOrder
   canBeInstructor?: Prisma.SortOrder
   canBeStudent?: Prisma.SortOrder
+  canBePIC?: Prisma.SortOrder
   isErpIncerfaContact?: Prisma.SortOrder
   isErpAlerfaContact?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
@@ -623,6 +644,7 @@ export type PersonnelMinOrderByAggregateInput = {
   userType?: Prisma.SortOrder
   canBeInstructor?: Prisma.SortOrder
   canBeStudent?: Prisma.SortOrder
+  canBePIC?: Prisma.SortOrder
   isErpIncerfaContact?: Prisma.SortOrder
   isErpAlerfaContact?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
@@ -691,6 +713,7 @@ export type PersonnelCreateWithoutTenantInput = {
   userType?: string
   canBeInstructor?: boolean
   canBeStudent?: boolean
+  canBePIC?: boolean
   isErpIncerfaContact?: boolean
   isErpAlerfaContact?: boolean
   createdAt?: Date | string
@@ -713,6 +736,7 @@ export type PersonnelUncheckedCreateWithoutTenantInput = {
   userType?: string
   canBeInstructor?: boolean
   canBeStudent?: boolean
+  canBePIC?: boolean
   isErpIncerfaContact?: boolean
   isErpAlerfaContact?: boolean
   createdAt?: Date | string
@@ -765,6 +789,7 @@ export type PersonnelScalarWhereInput = {
   userType?: Prisma.StringFilter<"Personnel"> | string
   canBeInstructor?: Prisma.BoolFilter<"Personnel"> | boolean
   canBeStudent?: Prisma.BoolFilter<"Personnel"> | boolean
+  canBePIC?: Prisma.BoolFilter<"Personnel"> | boolean
   isErpIncerfaContact?: Prisma.BoolFilter<"Personnel"> | boolean
   isErpAlerfaContact?: Prisma.BoolFilter<"Personnel"> | boolean
   createdAt?: Prisma.DateTimeFilter<"Personnel"> | Date | string
@@ -787,6 +812,7 @@ export type PersonnelCreateManyTenantInput = {
   userType?: string
   canBeInstructor?: boolean
   canBeStudent?: boolean
+  canBePIC?: boolean
   isErpIncerfaContact?: boolean
   isErpAlerfaContact?: boolean
   createdAt?: Date | string
@@ -809,6 +835,7 @@ export type PersonnelUpdateWithoutTenantInput = {
   userType?: Prisma.StringFieldUpdateOperationsInput | string
   canBeInstructor?: Prisma.BoolFieldUpdateOperationsInput | boolean
   canBeStudent?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  canBePIC?: Prisma.BoolFieldUpdateOperationsInput | boolean
   isErpIncerfaContact?: Prisma.BoolFieldUpdateOperationsInput | boolean
   isErpAlerfaContact?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -831,6 +858,7 @@ export type PersonnelUncheckedUpdateWithoutTenantInput = {
   userType?: Prisma.StringFieldUpdateOperationsInput | string
   canBeInstructor?: Prisma.BoolFieldUpdateOperationsInput | boolean
   canBeStudent?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  canBePIC?: Prisma.BoolFieldUpdateOperationsInput | boolean
   isErpIncerfaContact?: Prisma.BoolFieldUpdateOperationsInput | boolean
   isErpAlerfaContact?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -853,6 +881,7 @@ export type PersonnelUncheckedUpdateManyWithoutTenantInput = {
   userType?: Prisma.StringFieldUpdateOperationsInput | string
   canBeInstructor?: Prisma.BoolFieldUpdateOperationsInput | boolean
   canBeStudent?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  canBePIC?: Prisma.BoolFieldUpdateOperationsInput | boolean
   isErpIncerfaContact?: Prisma.BoolFieldUpdateOperationsInput | boolean
   isErpAlerfaContact?: Prisma.BoolFieldUpdateOperationsInput | boolean
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -878,6 +907,7 @@ export type PersonnelSelect<ExtArgs extends runtime.Types.Extensions.InternalArg
   userType?: boolean
   canBeInstructor?: boolean
   canBeStudent?: boolean
+  canBePIC?: boolean
   isErpIncerfaContact?: boolean
   isErpAlerfaContact?: boolean
   createdAt?: boolean
@@ -902,6 +932,7 @@ export type PersonnelSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Ext
   userType?: boolean
   canBeInstructor?: boolean
   canBeStudent?: boolean
+  canBePIC?: boolean
   isErpIncerfaContact?: boolean
   isErpAlerfaContact?: boolean
   createdAt?: boolean
@@ -926,6 +957,7 @@ export type PersonnelSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Ext
   userType?: boolean
   canBeInstructor?: boolean
   canBeStudent?: boolean
+  canBePIC?: boolean
   isErpIncerfaContact?: boolean
   isErpAlerfaContact?: boolean
   createdAt?: boolean
@@ -950,13 +982,14 @@ export type PersonnelSelectScalar = {
   userType?: boolean
   canBeInstructor?: boolean
   canBeStudent?: boolean
+  canBePIC?: boolean
   isErpIncerfaContact?: boolean
   isErpAlerfaContact?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }
 
-export type PersonnelOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "tenantId" | "userNumber" | "firstName" | "lastName" | "email" | "contactNumber" | "organizationId" | "department" | "role" | "permissions" | "accessOverrides" | "documents" | "userType" | "canBeInstructor" | "canBeStudent" | "isErpIncerfaContact" | "isErpAlerfaContact" | "createdAt" | "updatedAt", ExtArgs["result"]["personnel"]>
+export type PersonnelOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "tenantId" | "userNumber" | "firstName" | "lastName" | "email" | "contactNumber" | "organizationId" | "department" | "role" | "permissions" | "accessOverrides" | "documents" | "userType" | "canBeInstructor" | "canBeStudent" | "canBePIC" | "isErpIncerfaContact" | "isErpAlerfaContact" | "createdAt" | "updatedAt", ExtArgs["result"]["personnel"]>
 export type PersonnelInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   tenant?: boolean | Prisma.TenantDefaultArgs<ExtArgs>
 }
@@ -989,6 +1022,7 @@ export type $PersonnelPayload<ExtArgs extends runtime.Types.Extensions.InternalA
     userType: string
     canBeInstructor: boolean
     canBeStudent: boolean
+    canBePIC: boolean
     isErpIncerfaContact: boolean
     isErpAlerfaContact: boolean
     createdAt: Date
@@ -1433,6 +1467,7 @@ export interface PersonnelFieldRefs {
   readonly userType: Prisma.FieldRef<"Personnel", 'String'>
   readonly canBeInstructor: Prisma.FieldRef<"Personnel", 'Boolean'>
   readonly canBeStudent: Prisma.FieldRef<"Personnel", 'Boolean'>
+  readonly canBePIC: Prisma.FieldRef<"Personnel", 'Boolean'>
   readonly isErpIncerfaContact: Prisma.FieldRef<"Personnel", 'Boolean'>
   readonly isErpAlerfaContact: Prisma.FieldRef<"Personnel", 'Boolean'>
   readonly createdAt: Prisma.FieldRef<"Personnel", 'DateTime'>

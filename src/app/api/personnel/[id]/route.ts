@@ -109,6 +109,7 @@ export async function PATCH(
     data.userType || existing.userType,
     typeof data.canBeInstructor === 'boolean' ? data.canBeInstructor : existing.canBeInstructor,
     typeof data.canBeStudent === 'boolean' ? data.canBeStudent : existing.canBeStudent,
+    typeof data.canBePIC === 'boolean' ? data.canBePIC : existing.canBePIC,
     data.role,
     data.department || null,
     data.organizationId || null,

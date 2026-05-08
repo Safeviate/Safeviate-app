@@ -843,6 +843,7 @@ function RouteLegDrawer({
   activeLegIndex,
   activeLegState,
   bookingLabel,
+  initialFuelOnBoard,
   onWaypointNotesChange,
 }: {
   open: boolean;
@@ -853,6 +854,7 @@ function RouteLegDrawer({
   activeLegIndex?: number;
   activeLegState?: ActiveLegState | null;
   bookingLabel?: string | null;
+  initialFuelOnBoard?: number;
   onWaypointNotesChange?: (legId: string, nextNotes: string) => void;
 }) {
   const segmentLegs = legs.filter((leg) => leg.latitude !== undefined && leg.longitude !== undefined).slice(1);
@@ -891,7 +893,7 @@ function RouteLegDrawer({
       </Button>
 
       {open ? (
-        <div className="pointer-events-auto fixed inset-x-3 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-[1200] flex h-[min(36dvh,calc(100dvh-18rem))] min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white/95 text-slate-900 shadow-2xl backdrop-blur sm:left-auto sm:right-8 sm:inset-x-auto sm:h-[min(40dvh,calc(100dvh-16rem))] sm:w-[min(340px,calc(100%-4rem))] lg:right-28 lg:w-[300px] xl:right-36 2xl:right-44">
+        <div className="pointer-events-auto fixed inset-x-3 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-[1200] flex h-[min(36dvh,calc(100dvh-18rem))] min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white/95 text-slate-900 shadow-2xl backdrop-blur sm:left-auto sm:right-8 sm:inset-x-auto sm:h-[min(40dvh,calc(100dvh-16rem))] sm:w-[min(340px,calc(100%-4rem))] lg:right-28 lg:w-[300px] xl:right-36 2xl:right-44">
           <div className="flex items-start justify-between gap-2 border-b border-slate-200 px-3 py-2">
             <div className="min-w-0">
               <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Route / Navlog</p>
@@ -936,6 +938,7 @@ function RouteLegDrawer({
                 emptyMessage="Load a booking or route to view the planned legs here."
                 activeLegIndex={activeLegIndex ?? undefined}
                 headingLabel="Route / Navlog"
+                initialFuelOnBoard={initialFuelOnBoard}
                 onWaypointNotesChange={onWaypointNotesChange}
               />
             </div>
@@ -948,6 +951,7 @@ function RouteLegDrawer({
 
 const OFFLINE_TILE_CACHE_PREFIX = 'safeviate-tiles-';
 const ACTIVE_FLIGHT_MAP_LAYER_SETTINGS_KEY = 'safeviate.active-flight-map-layer-settings';
+const ACTIVE_FLIGHT_ROUTE_DRAWER_OPEN_KEY = 'safeviate.active-flight-route-drawer-open';
 const MAP_MIN_ZOOM = 4;
 const MAP_MAX_ZOOM = 16;
 const AVAILABLE_ZOOM_LEVELS = [5, 6, 7, 8, 9, 10, 11, 12, 13, 14] as const;
@@ -1016,6 +1020,19 @@ const readStoredActiveFlightMapLayerSettings = (): ActiveFlightMapLayerSettings 
   }
 };
 
+const readStoredRouteDrawerOpen = () => {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  const stored = window.sessionStorage.getItem(ACTIVE_FLIGHT_ROUTE_DRAWER_OPEN_KEY);
+  if (stored === null) {
+    return false;
+  }
+
+  return stored !== 'false';
+};
+
 async function readOfflineTileSummary() {
   if (typeof window === 'undefined' || !('caches' in window)) {
     return {
@@ -1072,6 +1089,7 @@ export function ActiveFlightLiveMap({
   onWaypointNotesChange,
   fullscreen = false,
   showControls = true,
+  showRouteDrawer = true,
   followOwnship: followOwnshipProp,
   onFollowOwnshipChange,
   recenterSignal = 0,
@@ -1093,6 +1111,7 @@ export function ActiveFlightLiveMap({
   onWaypointNotesChange?: (legId: string, nextNotes: string) => void;
   fullscreen?: boolean;
   showControls?: boolean;
+  showRouteDrawer?: boolean;
   followOwnship?: boolean;
   onFollowOwnshipChange?: (followOwnship: boolean) => void;
   recenterSignal?: number;
@@ -1141,7 +1160,7 @@ export function ActiveFlightLiveMap({
   const [routeDownloadState, setRouteDownloadState] = useState<'idle' | 'downloading' | 'complete'>('idle');
   const [isDownloadingRoute, setIsDownloadingRoute] = useState(false);
   const [offlineManagerOpen, setOfflineManagerOpen] = useState(false);
-  const [isRouteDrawerOpen, setIsRouteDrawerOpen] = useState(false);
+  const [isRouteDrawerOpen, setIsRouteDrawerOpen] = useState(() => readStoredRouteDrawerOpen());
   const [isWaypointMoveMode, setIsWaypointMoveMode] = useState(false);
   const [offlineTileCount, setOfflineTileCount] = useState(0);
   const [offlineCacheCount, setOfflineCacheCount] = useState(0);
@@ -1238,6 +1257,11 @@ export function ActiveFlightLiveMap({
     showWaypointMarkers,
     showTrackLine,
   ]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.sessionStorage.setItem(ACTIVE_FLIGHT_ROUTE_DRAWER_OPEN_KEY, String(isRouteDrawerOpen));
+  }, [isRouteDrawerOpen]);
 
   useEffect(() => {
     setLocationCalibration(readLocationCalibration());
@@ -1813,17 +1837,20 @@ export function ActiveFlightLiveMap({
               onMoveWaypoint={onMoveWaypoint}
               isWaypointMoveMode={isWaypointMoveMode}
           />
-            <RouteLegDrawer
-              open={isRouteDrawerOpen}
-              onOpenChange={setIsRouteDrawerOpen}
-              isWaypointMoveMode={isWaypointMoveMode}
-              onWaypointMoveModeChange={setIsWaypointMoveMode}
-              legs={legs}
-              activeLegIndex={activeLegIndex}
-              activeLegState={activeLegState}
-              bookingLabel={booking?.bookingNumber || aircraftRegistration || null}
-              onWaypointNotesChange={onWaypointNotesChange}
-            />
+            {showRouteDrawer ? (
+              <RouteLegDrawer
+                open={isRouteDrawerOpen}
+                onOpenChange={setIsRouteDrawerOpen}
+                isWaypointMoveMode={isWaypointMoveMode}
+                onWaypointMoveModeChange={setIsWaypointMoveMode}
+                legs={legs}
+                activeLegIndex={activeLegIndex}
+                activeLegState={activeLegState}
+                bookingLabel={booking?.bookingNumber || aircraftRegistration || null}
+                initialFuelOnBoard={booking?.navlog?.globalFuelOnBoard}
+                onWaypointNotesChange={onWaypointNotesChange}
+              />
+            ) : null}
           </div>
         </div>
 
@@ -2280,16 +2307,19 @@ export function ActiveFlightLiveMap({
             onMoveWaypoint={onMoveWaypoint}
             isWaypointMoveMode={isWaypointMoveMode}
           />
-          <RouteLegDrawer
-            open={isRouteDrawerOpen}
-            onOpenChange={setIsRouteDrawerOpen}
-            isWaypointMoveMode={isWaypointMoveMode}
-            onWaypointMoveModeChange={setIsWaypointMoveMode}
-            legs={legs}
-            activeLegIndex={activeLegIndex}
-            activeLegState={activeLegState}
-            bookingLabel={booking?.bookingNumber || aircraftRegistration || null}
-          />
+          {showRouteDrawer ? (
+            <RouteLegDrawer
+              open={isRouteDrawerOpen}
+              onOpenChange={setIsRouteDrawerOpen}
+              isWaypointMoveMode={isWaypointMoveMode}
+              onWaypointMoveModeChange={setIsWaypointMoveMode}
+              legs={legs}
+              activeLegIndex={activeLegIndex}
+              activeLegState={activeLegState}
+              bookingLabel={booking?.bookingNumber || aircraftRegistration || null}
+              initialFuelOnBoard={booking?.navlog?.globalFuelOnBoard}
+            />
+          ) : null}
         </div>
         <style jsx>{`
           .nose-up-map :global(.active-flight-map-label),

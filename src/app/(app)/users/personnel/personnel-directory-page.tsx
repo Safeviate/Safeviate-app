@@ -25,6 +25,7 @@ export type PilotProfile = {
   userType: 'Student' | 'Private Pilot' | 'Instructor';
   canBeInstructor?: boolean;
   canBeStudent?: boolean;
+  canBePIC?: boolean;
   userNumber?: string;
   firstName: string;
   lastName: string;
@@ -72,6 +73,7 @@ export type Personnel = {
   userType: 'Personnel' | 'External';
   canBeInstructor?: boolean;
   canBeStudent?: boolean;
+  canBePIC?: boolean;
   userNumber?: string;
   firstName: string;
   lastName: string;

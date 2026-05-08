@@ -275,6 +275,7 @@ export function ViewBookingDetails({ booking }: ViewBookingDetailsProps) {
     const [workflowApprovals, setWorkflowApprovals] = useState<BookingWorkflowApprovals>(booking.workflowApprovals || {});
 
     const aircraft = useMemo(() => aircrafts?.find(a => a.id === booking.aircraftId), [aircrafts, booking.aircraftId]);
+    const isNonInstructorBooking = ['Rental', 'Charter', 'Ferry Flight', 'Maintenance'].includes(booking.type);
     const instructorLabel = useMemo(() => {
         if (!booking.instructorId) return 'N/A';
         const instructor = personnel.find((person) => person.id === booking.instructorId);
@@ -1194,8 +1195,8 @@ export function ViewBookingDetails({ booking }: ViewBookingDetailsProps) {
                                         <DetailItem label="Date" value={formatDateSafe(booking.start, 'PPP')} />
                                         <DetailItem label="Start Time" value={formatDateSafe(booking.start, 'p')} />
                                         <DetailItem label="End Time" value={formatDateSafe(booking.end, 'p')} />
-                                        <DetailItem label="Instructor" value={instructorLabel} />
-                                        <DetailItem label="Student" value={studentLabel} />
+                        {!isNonInstructorBooking ? <DetailItem label="Instructor" value={instructorLabel} /> : null}
+                        <DetailItem label={isNonInstructorBooking ? 'Pilot in command' : 'Student'} value={studentLabel} />
                                     </div>
                                 </div>
 
