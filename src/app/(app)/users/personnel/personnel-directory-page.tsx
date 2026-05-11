@@ -20,12 +20,21 @@ export type UserAccessOverrides = {
   hiddenTabs?: string[];
 };
 
+export type InstructorAssignmentRecord = {
+  instructorId: string | null;
+  changedAt: string;
+  effectiveDate?: string | null;
+  changedByEmail?: string | null;
+};
+
 export type PilotProfile = {
   id: string;
   userType: 'Student' | 'Private Pilot' | 'Instructor';
   canBeInstructor?: boolean;
   canBeStudent?: boolean;
   canBePIC?: boolean;
+  primaryInstructorId?: string | null;
+  instructorAssignmentHistory?: InstructorAssignmentRecord[];
   userNumber?: string;
   firstName: string;
   lastName: string;
@@ -74,6 +83,8 @@ export type Personnel = {
   canBeInstructor?: boolean;
   canBeStudent?: boolean;
   canBePIC?: boolean;
+  primaryInstructorId?: string | null;
+  instructorAssignmentHistory?: InstructorAssignmentRecord[];
   userNumber?: string;
   firstName: string;
   lastName: string;

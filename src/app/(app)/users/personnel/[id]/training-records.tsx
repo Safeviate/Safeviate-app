@@ -12,9 +12,10 @@ const parseLocalDate = (value: string) => {
   }
   return new Date(year, month - 1, day, 12);
 };
+const round1 = (value: number) => parseFloat(value.toFixed(1));
 import { Badge } from '@/components/ui/badge';
 import type { StudentProgressReport, StudentMilestoneSettings } from '@/types/training';
-import type { PilotProfile } from '../personnel-directory-page';
+import type { InstructorAssignmentRecord, PilotProfile } from '../personnel-directory-page';
 import type { Booking } from '@/types/booking';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
@@ -24,6 +25,16 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Star, TrendingDown, Target } from 'lucide-react';
 import { buildTrainingCompetencyAreas, type TrainingCompetencyArea } from '@/lib/training-competencies';
+import {
+    buildExerciseCurrencySummary,
+    buildExerciseProgressSummary,
+    buildExerciseReadinessFlags,
+    getExerciseStatusMeta,
+    getTrendMeta,
+    type ExerciseProgressSummary,
+    type ExerciseReadinessFlag,
+} from '@/lib/training-exercise-analytics';
+import { TRAINING_EXERCISE_TEMPLATES } from '@/lib/training-exercise-templates';
 
 interface TrainingRecordsProps {
     studentId: string;
@@ -215,6 +226,262 @@ function StrengthMeter({ areas }: { areas: TrainingCompetencyArea[] }) {
     );
 }
 
+function ReadinessSignalCard({ item }: { item: ExerciseReadinessFlag }) {
+    const tone = item.signal === 'ready'
+        ? 'border-emerald-200 bg-emerald-50/60 text-emerald-700'
+        : item.signal === 'blocked'
+            ? 'border-rose-200 bg-rose-50/60 text-rose-700'
+            : 'border-amber-200 bg-amber-50/60 text-amber-700';
+
+    return (
+        <div className={cn('rounded-xl border p-4 space-y-2', tone)}>
+            <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-black">{item.label}</p>
+                <Badge variant="outline" className="text-[10px] font-black uppercase tracking-[0.18em]">
+                    {item.signal}
+                </Badge>
+            </div>
+            <p className="text-xs font-medium">{item.detail}</p>
+        </div>
+    );
+}
+
+function ExerciseProgressMatrix({ summaries }: { summaries: ExerciseProgressSummary[] }) {
+    const activeSummaries = summaries.filter((summary) => summary.attemptCount > 0);
+    const highlights = activeSummaries
+        .filter((summary) => summary.status === 'needs_review' || summary.status === 'practising')
+        .slice(0, 3);
+    const strongest = activeSummaries
+        .filter((summary) => summary.status === 'competent' || summary.status === 'consolidating')
+        .sort((a, b) => (b.averageRating || 0) - (a.averageRating || 0))
+        .slice(0, 3);
+
+    return (
+        <section className="space-y-4">
+            <SectionHeader title="Exercise Progress Matrix" icon={Target} />
+            <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+                <div className="rounded-2xl border bg-background overflow-hidden">
+                    <div className="grid grid-cols-[minmax(0,1.8fr)_90px_84px_82px_98px] gap-3 border-b bg-muted/40 px-4 py-3 text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
+                        <span>Exercise</span>
+                        <span>Attempts</span>
+                        <span>Latest</span>
+                        <span>Average</span>
+                        <span>Status</span>
+                    </div>
+                    <div className="divide-y">
+                        {summaries.map((summary) => {
+                            const statusMeta = getExerciseStatusMeta(summary.status);
+                            const trendMeta = getTrendMeta(summary.trend);
+                            return (
+                                <div key={summary.templateKey} className="grid grid-cols-[minmax(0,1.8fr)_90px_84px_82px_98px] gap-3 px-4 py-3">
+                                    <div className="min-w-0">
+                                        <p className="truncate text-sm font-black">{summary.label}</p>
+                                        <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                                            {summary.lastFlown ? `Last flown ${formatLastSeen(summary.lastFlown)}` : 'No attempts yet'}
+                                        </p>
+                                        {summary.attemptCount > 0 ? (
+                                            <p className={cn('mt-1 text-[10px] font-black uppercase tracking-[0.16em]', trendMeta.tone)}>
+                                                {trendMeta.label}
+                                            </p>
+                                        ) : null}
+                                    </div>
+                                    <div className="text-sm font-black">{summary.attemptCount}</div>
+                                    <div className="text-sm font-black">{summary.latestRating ? `${summary.latestRating}/5` : '—'}</div>
+                                    <div className="text-sm font-black">{summary.averageRating ? `${summary.averageRating}/5` : '—'}</div>
+                                    <div>
+                                        <Badge variant="outline" className={cn('text-[10px] font-black uppercase tracking-[0.14em]', statusMeta.badge)}>
+                                            {statusMeta.label}
+                                        </Badge>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                <div className="space-y-4">
+                    <div className="rounded-2xl border bg-background p-5 space-y-3">
+                        <div className="flex items-center justify-between gap-3">
+                            <p className="text-sm font-black uppercase tracking-[0.18em]">Exercises to target</p>
+                            <Badge variant="outline" className="text-[10px] font-black uppercase tracking-[0.18em]">
+                                {highlights.length} priority
+                            </Badge>
+                        </div>
+                        <div className="space-y-3">
+                            {highlights.length > 0 ? highlights.map((summary) => (
+                                <div key={summary.templateKey} className="rounded-xl border border-rose-200 bg-rose-50/60 p-4 space-y-2">
+                                    <p className="text-sm font-black">{summary.label}</p>
+                                    <p className="text-xs text-muted-foreground">
+                                        {summary.focusCriteria[0]?.label
+                                            ? `Main weak point: ${summary.focusCriteria[0].label}`
+                                            : 'Exercise still needs more consolidation.'}
+                                    </p>
+                                </div>
+                            )) : (
+                                <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
+                                    No urgent exercise concerns are standing out right now.
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="rounded-2xl border bg-background p-5 space-y-3">
+                        <div className="flex items-center justify-between gap-3">
+                            <p className="text-sm font-black uppercase tracking-[0.18em]">Most stable exercises</p>
+                            <Badge variant="outline" className="text-[10px] font-black uppercase tracking-[0.18em]">
+                                {strongest.length} highlighted
+                            </Badge>
+                        </div>
+                        <div className="space-y-3">
+                            {strongest.length > 0 ? strongest.map((summary) => (
+                                <div key={summary.templateKey} className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4 space-y-2">
+                                    <p className="text-sm font-black">{summary.label}</p>
+                                    <p className="text-xs text-muted-foreground">
+                                        {summary.strengths[0]?.label
+                                            ? `Holding steady in ${summary.strengths[0].label}.`
+                                            : 'Recent ratings show stable control in this exercise.'}
+                                    </p>
+                                </div>
+                            )) : (
+                                <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
+                                    No stable exercise signal yet. More debrief entries will sharpen this picture.
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    );
+}
+
+function InstructorAssignmentTimeline({
+    currentInstructorName,
+    history,
+    reports,
+    instructorsMap,
+}: {
+    currentInstructorName: string;
+    history: InstructorAssignmentRecord[];
+    reports: StudentProgressReport[];
+    instructorsMap: Map<string, string>;
+}) {
+    const timelineItems = [...history]
+        .sort((a, b) => parseLocalDate(b.changedAt).getTime() - parseLocalDate(a.changedAt).getTime());
+
+    const instructorPerformance = Array.from(
+        reports.reduce((map, report) => {
+            const instructorId = report.instructorId || 'unknown';
+            const entryRatings = report.entries.map((entry) => entry.rating);
+            const average = entryRatings.length > 0
+                ? entryRatings.reduce((sum, value) => sum + value, 0) / entryRatings.length
+                : 0;
+            const existing = map.get(instructorId);
+            if (existing) {
+                existing.reportCount += 1;
+                existing.ratingTotal += average;
+                existing.lastDate = existing.lastDate && parseLocalDate(existing.lastDate).getTime() > parseLocalDate(report.date).getTime()
+                    ? existing.lastDate
+                    : report.date;
+                return map;
+            }
+            map.set(instructorId, {
+                instructorId,
+                reportCount: 1,
+                ratingTotal: average,
+                lastDate: report.date,
+            });
+            return map;
+        }, new Map<string, { instructorId: string; reportCount: number; ratingTotal: number; lastDate: string }>()),
+    )
+        .map(([, item]) => ({
+            ...item,
+            averageRating: round1(item.ratingTotal / item.reportCount),
+            instructorName: item.instructorId === 'unknown'
+                ? 'Unknown Instructor'
+                : instructorsMap.get(item.instructorId) || item.instructorId,
+        }))
+        .sort((a, b) => b.reportCount - a.reportCount || b.averageRating - a.averageRating);
+
+    return (
+        <section className="space-y-4">
+            <SectionHeader title="Instructor Timeline & Performance" icon={History} />
+            <div className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+                <div className="rounded-2xl border bg-background p-5 space-y-4">
+                    <div className="flex items-center justify-between gap-3">
+                        <div>
+                            <p className="text-sm font-black uppercase tracking-[0.18em]">Assigned Instructor</p>
+                            <p className="text-xs text-muted-foreground">Use this timeline to relate assessment changes to instructor handovers.</p>
+                        </div>
+                        <Badge variant="outline" className="text-[10px] font-black uppercase tracking-[0.18em]">
+                            {currentInstructorName}
+                        </Badge>
+                    </div>
+                    <div className="space-y-3">
+                        {timelineItems.length > 0 ? timelineItems.map((item, index) => {
+                            const instructorName = item.instructorId
+                                ? instructorsMap.get(item.instructorId) || item.instructorId
+                                : 'Unassigned';
+                            return (
+                                <div key={`${item.changedAt}-${index}`} className="rounded-xl border bg-muted/20 px-4 py-3">
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div>
+                                            <p className="text-sm font-black">{instructorName}</p>
+                                            <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                                                Changed {formatLastSeen(item.changedAt)}
+                                            </p>
+                                        </div>
+                                        <Badge variant="outline" className="text-[10px] font-black uppercase tracking-[0.16em]">
+                                            {item.instructorId ? 'Assigned' : 'Cleared'}
+                                        </Badge>
+                                    </div>
+                                </div>
+                            );
+                        }) : (
+                            <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
+                                No instructor assignment changes have been recorded yet.
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                <div className="rounded-2xl border bg-background p-5 space-y-4">
+                    <div className="flex items-center justify-between gap-3">
+                        <div>
+                            <p className="text-sm font-black uppercase tracking-[0.18em]">Assessment Performance by Instructor</p>
+                            <p className="text-xs text-muted-foreground">This helps show whether the student’s debrief pattern shifts under different instructors.</p>
+                        </div>
+                        <Badge variant="outline" className="text-[10px] font-black uppercase tracking-[0.18em]">
+                            {instructorPerformance.length} instructors
+                        </Badge>
+                    </div>
+                    <div className="space-y-3">
+                        {instructorPerformance.length > 0 ? instructorPerformance.map((item) => (
+                            <div key={item.instructorId} className="rounded-xl border bg-muted/20 px-4 py-3">
+                                <div className="flex items-start justify-between gap-3">
+                                    <div>
+                                        <p className="text-sm font-black">{item.instructorName}</p>
+                                        <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                                            {item.reportCount} debrief{item.reportCount === 1 ? '' : 's'} · Last seen {formatLastSeen(item.lastDate)}
+                                        </p>
+                                    </div>
+                                    <Badge variant="outline" className="text-[10px] font-black uppercase tracking-[0.16em]">
+                                        Avg {item.averageRating}/5
+                                    </Badge>
+                                </div>
+                            </div>
+                        )) : (
+                            <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
+                                No debriefs have been tied to instructors yet.
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </section>
+    );
+}
+
 export function TrainingRecords({ studentId, tenantId }: TrainingRecordsProps) {
     const [reports, setReports] = useState<StudentProgressReport[]>([]);
     const [bookings, setBookings] = useState<Booking[]>([]);
@@ -303,6 +570,31 @@ export function TrainingRecords({ studentId, tenantId }: TrainingRecordsProps) {
     }, [reports]);
 
     const competencyAreas = useMemo(() => buildTrainingCompetencyAreas(reports), [reports]);
+    const exerciseSummaries = useMemo(
+        () => buildExerciseProgressSummary(reports, TRAINING_EXERCISE_TEMPLATES),
+        [reports],
+    );
+    const readinessFlags = useMemo(
+        () => buildExerciseReadinessFlags(exerciseSummaries),
+        [exerciseSummaries],
+    );
+    const currencySummary = useMemo(
+        () => buildExerciseCurrencySummary(exerciseSummaries, [
+            'exer-13-circuit-approach-and-landing',
+            'exer-12-13e-emergencies',
+            'exer-18a-navigation',
+            'exer-19-basic-instrument-flight',
+        ]),
+        [exerciseSummaries],
+    );
+    const primaryInstructorName = useMemo(() => {
+        if (!student?.primaryInstructorId) return 'Unassigned';
+        return instructorsMap.get(student.primaryInstructorId) || student.primaryInstructorId;
+    }, [student?.primaryInstructorId, instructorsMap]);
+    const assignmentHistory = useMemo<InstructorAssignmentRecord[]>(
+        () => Array.isArray(student?.instructorAssignmentHistory) ? student.instructorAssignmentHistory : [],
+        [student?.instructorAssignmentHistory],
+    );
 
     if (isLoading) {
         return (
@@ -339,6 +631,66 @@ export function TrainingRecords({ studentId, tenantId }: TrainingRecordsProps) {
                         <Separator />
 
                         <StrengthMeter areas={competencyAreas} />
+
+                        <Separator />
+
+                        <section className="space-y-4">
+                            <SectionHeader title="Readiness & Currency" icon={Target} />
+                            <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
+                                <div className="rounded-2xl border bg-background p-5 space-y-3">
+                                    <div className="flex items-center justify-between gap-3">
+                                        <p className="text-sm font-black uppercase tracking-[0.18em]">Progression Signals</p>
+                                        <Badge variant="outline" className="text-[10px] font-black uppercase tracking-[0.18em]">
+                                            {readinessFlags.length} checks
+                                        </Badge>
+                                    </div>
+                                    <div className="space-y-3">
+                                        {readinessFlags.map((flag) => (
+                                            <ReadinessSignalCard key={flag.key} item={flag} />
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="rounded-2xl border bg-background p-5 space-y-3">
+                                    <div className="flex items-center justify-between gap-3">
+                                        <p className="text-sm font-black uppercase tracking-[0.18em]">Exercise Currency</p>
+                                        <Badge variant="outline" className="text-[10px] font-black uppercase tracking-[0.18em]">
+                                            4 watches
+                                        </Badge>
+                                    </div>
+                                    <div className="space-y-3">
+                                        {currencySummary.map((item) => (
+                                            <div key={item.key} className="rounded-xl border bg-muted/20 px-4 py-3">
+                                                <div className="flex items-start justify-between gap-3">
+                                                    <div>
+                                                        <p className="text-sm font-black">{item.label}</p>
+                                                        <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                                                            {item.lastFlown ? `Last flown ${formatLastSeen(item.lastFlown)}` : 'Not flown yet'}
+                                                        </p>
+                                                    </div>
+                                                    <Badge variant="outline" className="text-[10px] font-black uppercase tracking-[0.16em]">
+                                                        {item.daysSince === null ? 'N/A' : `${item.daysSince}d`}
+                                                    </Badge>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+
+                        <Separator />
+
+                        <ExerciseProgressMatrix summaries={exerciseSummaries} />
+
+                        <Separator />
+
+                        <InstructorAssignmentTimeline
+                            currentInstructorName={primaryInstructorName}
+                            history={assignmentHistory}
+                            reports={reports}
+                            instructorsMap={instructorsMap}
+                        />
 
                         <Separator />
 

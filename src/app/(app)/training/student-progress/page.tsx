@@ -14,11 +14,18 @@ import type { Booking } from '@/types/booking';
 import type { StudentMilestoneSettings, StudentProgressReport, MilestoneWarning } from '@/types/training';
 import { cn } from '@/lib/utils';
 import { buildTrainingCompetencyAreas, type TrainingCompetencyArea } from '@/lib/training-competencies';
+import {
+  buildExerciseProgressSummary,
+  buildExerciseReadinessFlags,
+  getExerciseStatusMeta,
+} from '@/lib/training-exercise-analytics';
+import { TRAINING_EXERCISE_TEMPLATES } from '@/lib/training-exercise-templates';
 
 type StudentProgressRow = {
   id: string;
   name: string;
   email?: string;
+  primaryInstructorId?: string | null;
   totalFlightHours: number;
   recentFlightHours: number;
   lastFlightDate: string | null;
@@ -35,6 +42,7 @@ type StudentProgressRow = {
 
 type SummaryPayload = {
   students?: PilotProfile[];
+  instructors?: PilotProfile[];
   bookings?: Array<Pick<Booking, 'studentId' | 'status'> & {
     date?: string;
     preFlightData?: { hobbs?: number };
@@ -246,6 +254,10 @@ export default function StudentProgressPage() {
   }, [summary.studentMilestones]);
 
   const competencyReports = useMemo(() => (Array.isArray(summary.studentProgressReports) ? summary.studentProgressReports : []), [summary.studentProgressReports]);
+  const instructorNameMap = useMemo(
+    () => new Map((Array.isArray(summary.instructors) ? summary.instructors : []).map((person) => [person.id, `${person.firstName || ''} ${person.lastName || ''}`.trim() || person.id])),
+    [summary.instructors],
+  );
 
   const studentRows = useMemo<StudentProgressRow[]>(() => {
     const bookings = Array.isArray(summary.bookings) ? summary.bookings : [];
@@ -308,6 +320,7 @@ export default function StudentProgressPage() {
         id: student.id,
         name: `${student.firstName || ''} ${student.lastName || ''}`.trim() || student.id,
         email: student.email,
+        primaryInstructorId: student.primaryInstructorId ?? null,
         totalFlightHours: parseFloat(totalFlightHours.toFixed(1)),
         recentFlightHours: parseFloat(recentFlightHours.toFixed(1)),
         lastFlightDate: lastFlightDate ? lastFlightDate.toISOString() : null,
@@ -401,6 +414,17 @@ export default function StudentProgressPage() {
                     const reports = Array.isArray(summary.studentProgressReports)
                       ? summary.studentProgressReports.filter((report) => report.studentId === student.id)
                       : [];
+                    const exerciseSummaries = buildExerciseProgressSummary(reports, TRAINING_EXERCISE_TEMPLATES);
+                    const readiness = buildExerciseReadinessFlags(exerciseSummaries);
+                    const nextExerciseFocus = exerciseSummaries.find((summary) => summary.status === 'needs_review' || summary.status === 'practising')
+                      || exerciseSummaries.find((summary) => summary.status === 'consolidating')
+                      || null;
+                    const strongestExercise = exerciseSummaries
+                      .filter((summary) => summary.attemptCount > 0)
+                      .sort((a, b) => (b.averageRating || 0) - (a.averageRating || 0))[0];
+                    const readinessHeadline = readiness.find((item) => item.signal === 'blocked')
+                      || readiness.find((item) => item.signal === 'watch')
+                      || readiness[0];
                     const lastFlight = student.lastFlightDate ? new Date(student.lastFlightDate) : null;
                     const lastDebrief = student.lastDebriefDate ? new Date(student.lastDebriefDate) : null;
                     const statusClass = student.status === 'over'
@@ -443,6 +467,33 @@ export default function StudentProgressPage() {
                               </p>
                             </div>
 
+                            <div className="rounded-xl border bg-background px-3 py-3">
+                              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Assigned Instructor</p>
+                              <p className="mt-1 text-sm font-semibold">
+                                {student.primaryInstructorId ? (instructorNameMap.get(student.primaryInstructorId) || student.primaryInstructorId) : 'Unassigned'}
+                              </p>
+                              <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                                Current profile assignment
+                              </p>
+                            </div>
+
+                            <div className="grid gap-3 md:grid-cols-2">
+                              <div className="rounded-xl border bg-background px-3 py-3">
+                                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Next Exercise Focus</p>
+                                <p className="mt-1 text-sm font-black">{nextExerciseFocus?.label || 'No exercise trend yet'}</p>
+                                <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                                  {nextExerciseFocus?.focusCriteria[0]?.label || 'Wait for more exercise data'}
+                                </p>
+                              </div>
+                              <div className="rounded-xl border bg-background px-3 py-3">
+                                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Strongest Exercise</p>
+                                <p className="mt-1 text-sm font-black">{strongestExercise?.label || 'Not enough data yet'}</p>
+                                <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                                  {strongestExercise?.strengths[0]?.label || 'Awaiting more exercise assessments'}
+                                </p>
+                              </div>
+                            </div>
+
                             <div className="grid gap-3 md:grid-cols-3">
                               <div className="rounded-xl border bg-background px-3 py-3">
                                 <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Total Hours</p>
@@ -459,6 +510,23 @@ export default function StudentProgressPage() {
                                 <p className="mt-1 text-sm font-black">{student.recommendedAction}</p>
                               </div>
                             </div>
+
+                            {readinessHeadline ? (
+                              <div className="rounded-xl border bg-muted/20 px-3 py-3">
+                                <div className="flex items-center justify-between gap-3">
+                                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Readiness Signal</p>
+                                  {nextExerciseFocus ? (
+                                    <Badge variant="outline" className={cn('text-[10px] font-black uppercase tracking-[0.14em]', getExerciseStatusMeta(nextExerciseFocus.status).badge)}>
+                                      {getExerciseStatusMeta(nextExerciseFocus.status).label}
+                                    </Badge>
+                                  ) : null}
+                                </div>
+                                <p className="mt-1 text-sm font-black">{readinessHeadline.label}</p>
+                                <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                                  {readinessHeadline.detail}
+                                </p>
+                              </div>
+                            ) : null}
                           </CardContent>
                         </Card>
                       </Link>

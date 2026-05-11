@@ -133,6 +133,8 @@ model Personnel {
   organizationId       String?  @map("organization_id")
   department           String?
   role                 String
+  primaryInstructorId  String?  @map("primary_instructor_id")
+  instructorAssignmentHistory Json @default("[]") @map("instructor_assignment_history")
   permissions          Json     @default("[]")
   accessOverrides      Json?    @map("access_overrides")
   documents            Json     @default("[]")

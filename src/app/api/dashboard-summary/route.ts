@@ -67,12 +67,14 @@ type SummaryBookingRecord = {
   } | null;
 };
 
-  type SummaryPersonRecord = {
+type SummaryPersonRecord = {
     id: string;
     userType: string;
     canBeInstructor: boolean | null;
     canBeStudent: boolean | null;
     canBePIC: boolean | null;
+    primaryInstructorId: string | null;
+    instructorAssignmentHistory: unknown;
     userNumber: string | null;
   firstName: string;
   lastName: string;
@@ -132,6 +134,8 @@ const projectBookingSummary = (value: unknown): SummaryBookingRecord => {
     canBeInstructor: person.canBeInstructor ?? undefined,
     canBeStudent: person.canBeStudent ?? undefined,
     canBePIC: person.canBePIC ?? undefined,
+    primaryInstructorId: person.primaryInstructorId ?? undefined,
+    instructorAssignmentHistory: Array.isArray(person.instructorAssignmentHistory) ? person.instructorAssignmentHistory : [],
     userNumber: person.userNumber ?? undefined,
   firstName: person.firstName,
   lastName: person.lastName,
@@ -235,6 +239,8 @@ export async function GET() {
               canBeInstructor: true,
               canBeStudent: true,
               canBePIC: true,
+              primaryInstructorId: true,
+              instructorAssignmentHistory: true,
               userNumber: true,
               firstName: true,
               lastName: true,

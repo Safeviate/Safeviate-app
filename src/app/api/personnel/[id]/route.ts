@@ -56,7 +56,7 @@ export async function PATCH(
 
   const currentUser = await prisma.user.findUnique({
     where: { email },
-    select: { tenantId: true },
+    select: { tenantId: true, id: true },
   });
   const tenantId = currentUser?.tenantId || 'safeviate';
 
@@ -80,6 +80,33 @@ export async function PATCH(
     tenantId,
   };
 
+  const incomingPrimaryInstructorId =
+    typeof data.primaryInstructorId === 'string' && data.primaryInstructorId.trim().length > 0
+      ? data.primaryInstructorId.trim()
+      : null;
+  const existingPrimaryInstructorId =
+    typeof existing.primaryInstructorId === 'string' && existing.primaryInstructorId.trim().length > 0
+      ? existing.primaryInstructorId.trim()
+      : null;
+  const baseAssignmentHistory = Array.isArray(data.instructorAssignmentHistory)
+    ? data.instructorAssignmentHistory
+    : Array.isArray(existing.instructorAssignmentHistory)
+      ? existing.instructorAssignmentHistory
+      : [];
+  const normalizedAssignmentHistory =
+    incomingPrimaryInstructorId !== existingPrimaryInstructorId
+      ? [
+          ...baseAssignmentHistory,
+          {
+            instructorId: incomingPrimaryInstructorId,
+            changedAt: new Date().toISOString(),
+            effectiveDate: new Date().toISOString(),
+            changedByEmail: email,
+            changedByUserId: currentUser?.id || null,
+          },
+        ]
+      : baseAssignmentHistory;
+
   const updatedRows = await prisma.$executeRawUnsafe(
     `UPDATE personnel
      SET user_number = $3,
@@ -89,15 +116,18 @@ export async function PATCH(
          user_type = $7,
          can_be_instructor = $8,
          can_be_student = $9,
-         role = $10,
-         department = $11,
-         organization_id = $12,
-         contact_number = $13,
-         is_erp_incerfa_contact = $14,
-         is_erp_alerfa_contact = $15,
-         permissions = $16::jsonb,
-         access_overrides = $17::jsonb,
-         documents = $18::jsonb,
+         can_be_pic = $10,
+         role = $11,
+         department = $12,
+         organization_id = $13,
+         contact_number = $14,
+         is_erp_incerfa_contact = $15,
+         is_erp_alerfa_contact = $16,
+         primary_instructor_id = $17,
+         instructor_assignment_history = $18::jsonb,
+         permissions = $19::jsonb,
+         access_overrides = $20::jsonb,
+         documents = $21::jsonb,
          updated_at = NOW()
      WHERE id = $1 AND tenant_id = $2`,
     id,
@@ -116,6 +146,8 @@ export async function PATCH(
     data.contactNumber || null,
     !!data.isErpIncerfaContact,
     !!data.isErpAlerfaContact,
+    incomingPrimaryInstructorId,
+    JSON.stringify(normalizedAssignmentHistory),
     JSON.stringify(data.permissions || []),
     JSON.stringify(data.accessOverrides || {}),
     JSON.stringify(data.documents || []),
@@ -138,5 +170,11 @@ export async function PATCH(
 
   invalidatePersonnelDirectoryCaches(tenantId);
 
-  return NextResponse.json({ personnel: data }, { status: 200 });
+  return NextResponse.json({
+    personnel: {
+      ...data,
+      primaryInstructorId: incomingPrimaryInstructorId,
+      instructorAssignmentHistory: normalizedAssignmentHistory,
+    },
+  }, { status: 200 });
 }

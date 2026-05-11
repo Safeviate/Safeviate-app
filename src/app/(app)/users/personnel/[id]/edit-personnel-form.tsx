@@ -21,6 +21,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import type { LogbookTemplate } from '@/app/(app)/development/logbook-parser/page';
 import { Switch } from '@/components/ui/switch';
 import { parseJsonResponse } from '@/lib/safe-json';
+import type { InstructorAssignmentRecord } from '../personnel-directory-page';
 
 type UserProfile = Personnel | PilotProfile;
 
@@ -42,6 +43,8 @@ type PersonnelFormState = {
   canBeInstructor?: boolean;
   canBeStudent?: boolean;
   canBePIC?: boolean;
+  primaryInstructorId?: string | null;
+  instructorAssignmentHistory?: InstructorAssignmentRecord[];
   isErpIncerfaContact?: boolean;
   isErpAlerfaContact?: boolean;
   emergencyContact?: {
@@ -95,6 +98,7 @@ export function EditPersonnelForm({ tenantId, user, roles, departments, logbookT
   const { toast } = useToast();
   
   const [organizations, setOrganizations] = useState<ExternalOrganization[]>([]);
+  const [instructors, setInstructors] = useState<PilotProfile[]>([]);
 
   useEffect(() => {
       try {
@@ -102,6 +106,17 @@ export function EditPersonnelForm({ tenantId, user, roles, departments, logbookT
             .then((response) => parseJsonResponse<{ organizations?: ExternalOrganization[] }>(response))
             .then((payload) => setOrganizations(Array.isArray(payload?.organizations) ? payload.organizations : []))
             .catch(() => setOrganizations([]));
+      } catch {
+          // ignore
+      }
+  }, []);
+
+  useEffect(() => {
+      try {
+          void fetch('/api/users', { cache: 'no-store' })
+            .then((response) => parseJsonResponse<{ instructors?: PilotProfile[] }>(response))
+            .then((payload) => setInstructors(Array.isArray(payload?.instructors) ? payload.instructors : []))
+            .catch(() => setInstructors([]));
       } catch {
           // ignore
       }
@@ -298,14 +313,37 @@ export function EditPersonnelForm({ tenantId, user, roles, departments, logbookT
                       <Label htmlFor="booking-student" className="cursor-pointer text-xs">Assignable as Student</Label>
                     </div>
 
-                    <div className="flex items-center space-x-2 p-3 border rounded-lg bg-muted/10">
-                      <Switch
-                        id="booking-pic"
-                        checked={!!formData?.canBePIC}
-                        onCheckedChange={(val) => handleInputChange('canBePIC', val)}
+                  <div className="flex items-center space-x-2 p-3 border rounded-lg bg-muted/10">
+                    <Switch
+                      id="booking-pic"
+                      checked={!!formData?.canBePIC}
+                      onCheckedChange={(val) => handleInputChange('canBePIC', val)}
                       />
                       <Label htmlFor="booking-pic" className="cursor-pointer text-xs">Assignable as PIC</Label>
                     </div>
+
+                    {formData?.userType === 'Student' && (
+                      <div className="space-y-2 md:col-span-2">
+                        <Label>Assigned Instructor</Label>
+                        <Select
+                          onValueChange={(value) => handleInputChange('primaryInstructorId', value === 'unassigned' ? null : value)}
+                          value={formData.primaryInstructorId || 'unassigned'}
+                        >
+                          <SelectTrigger><SelectValue placeholder="Select an instructor" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="unassigned">Unassigned</SelectItem>
+                            {instructors.map((instructor) => (
+                              <SelectItem key={instructor.id} value={instructor.id}>
+                                {instructor.firstName} {instructor.lastName}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">
+                          Changing the assigned instructor will be recorded in the student instruction timeline.
+                        </p>
+                      </div>
+                    )}
 
                     {formData && !isPilotProfile(formData) && (
                       <div className="space-y-2">

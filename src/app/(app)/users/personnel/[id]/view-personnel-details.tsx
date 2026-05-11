@@ -100,6 +100,7 @@ export function ViewPersonnelDetails({ user, role, department, actions }: ViewPe
   const firestore = null; // Mock
   const { hasPermission } = usePermissions();
   const { tenantId, userProfile } = useUserProfile();
+  const [instructorDirectory, setInstructorDirectory] = useState<PilotProfile[]>([]);
 
   const isCurrentUserSuperUser = MASTER_TENANT_EMAILS.includes((userProfile?.email || '').trim().toLowerCase());
   const canEdit = isCurrentUserSuperUser || hasPermission('users-edit');
@@ -115,6 +116,17 @@ export function ViewPersonnelDetails({ user, role, department, actions }: ViewPe
   useEffect(() => {
     setDocuments(user.documents || []);
   }, [user.id]);
+
+  useEffect(() => {
+      try {
+          void fetch('/api/users', { cache: 'no-store' })
+            .then((response) => parseJsonResponse<{ instructors?: PilotProfile[] }>(response))
+            .then((payload) => setInstructorDirectory(Array.isArray(payload?.instructors) ? payload.instructors : []))
+            .catch(() => setInstructorDirectory([]));
+      } catch {
+          // ignore
+      }
+  }, []);
 
   const [expirySettings, setExpirySettings] = useState<DocumentExpirySettings | null>(null);
 
@@ -422,6 +434,10 @@ export function ViewPersonnelDetails({ user, role, department, actions }: ViewPe
 
   const isStudent = isPilotProfile(user) && user.userType === 'Student';
   const isAnyPilot = isPilotProfile(user);
+  const currentAssignedInstructor = useMemo(() => {
+    if (!isStudent || !('primaryInstructorId' in user) || !user.primaryInstructorId) return null;
+    return instructorDirectory.find((person) => person.id === user.primaryInstructorId) || null;
+  }, [instructorDirectory, isStudent, user]);
 
   const availableTabs = useMemo(() => {
     const tabs = [
@@ -523,6 +539,12 @@ export function ViewPersonnelDetails({ user, role, department, actions }: ViewPe
                                             {!isPilotProfile(user) && <DetailItem label="Department" value={department?.name} />}
                                             {isPilotProfile(user) && (
                                                 <>
+                                                    {isStudent && (
+                                                      <DetailItem
+                                                        label="Assigned Instructor"
+                                                        value={currentAssignedInstructor ? `${currentAssignedInstructor.firstName} ${currentAssignedInstructor.lastName}` : 'Unassigned'}
+                                                      />
+                                                    )}
                                                     <DetailItem label="License Number" value={user.pilotLicense?.licenseNumber} />
                                                     <DetailItem label="Ratings">
                                                         <div className="flex flex-wrap gap-2 mt-1">

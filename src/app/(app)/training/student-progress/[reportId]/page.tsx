@@ -3,7 +3,7 @@
 import { use, useState, useEffect, useMemo } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, CalendarDays, Clock3, Target } from 'lucide-react';
+import { ArrowLeft, CalendarDays, Clock3, Target, Star, TrendingDown } from 'lucide-react';
 import Link from 'next/link';
 import type { PilotProfile } from '@/app/(app)/users/personnel/page';
 import { TrainingRecords } from '@/app/(app)/users/personnel/[id]/training-records';
@@ -14,6 +14,13 @@ import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import type { Booking } from '@/types/booking';
 import type { MilestoneWarning, StudentMilestoneSettings, StudentProgressReport } from '@/types/training';
+import {
+  buildExerciseCurrencySummary,
+  buildExerciseProgressSummary,
+  buildExerciseReadinessFlags,
+  getExerciseStatusMeta,
+} from '@/lib/training-exercise-analytics';
+import { TRAINING_EXERCISE_TEMPLATES } from '@/lib/training-exercise-templates';
 
 interface StudentDetailPageProps {
   params: Promise<{ reportId: string }>;
@@ -175,6 +182,118 @@ function ProgressSummary({
   );
 }
 
+function ExerciseSignalsSummary({ reports }: { reports: StudentProgressReport[] }) {
+  const summaries = useMemo(() => buildExerciseProgressSummary(reports, TRAINING_EXERCISE_TEMPLATES), [reports]);
+  const readiness = useMemo(() => buildExerciseReadinessFlags(summaries), [summaries]);
+  const currency = useMemo(
+    () => buildExerciseCurrencySummary(summaries, [
+      'exer-13-circuit-approach-and-landing',
+      'exer-12-13e-emergencies',
+      'exer-18a-navigation',
+      'exer-19-basic-instrument-flight',
+    ]),
+    [summaries],
+  );
+  const focusExercises = summaries
+    .filter((summary) => summary.status === 'needs_review' || summary.status === 'practising')
+    .slice(0, 3);
+  const strongestExercise = summaries
+    .filter((summary) => summary.attemptCount > 0)
+    .sort((a, b) => (b.averageRating || 0) - (a.averageRating || 0))[0];
+
+  return (
+    <Card className="overflow-hidden border shadow-none">
+      <CardHeader className="border-b bg-muted/5 px-4 py-3">
+        <CardTitle className="text-sm font-black uppercase tracking-tight">Exercise Readiness</CardTitle>
+        <CardDescription className="text-xs">Use the exercise syllabus data to decide what the next flight should actually do.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4 p-4">
+        <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
+          <div className="space-y-3">
+            {readiness.map((flag) => (
+              <div
+                key={flag.key}
+                className={cn(
+                  'rounded-xl border p-4 space-y-2',
+                  flag.signal === 'ready'
+                    ? 'border-emerald-200 bg-emerald-50/60'
+                    : flag.signal === 'blocked'
+                      ? 'border-rose-200 bg-rose-50/60'
+                      : 'border-amber-200 bg-amber-50/60',
+                )}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-black">{flag.label}</p>
+                  <Badge variant="outline" className="text-[10px] font-black uppercase tracking-[0.16em]">
+                    {flag.signal}
+                  </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground">{flag.detail}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="space-y-4">
+            <div className="rounded-xl border bg-muted/20 p-4">
+              <div className="flex items-center gap-2">
+                <Star className="h-4 w-4 text-emerald-600" />
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Strongest exercise</p>
+              </div>
+              <p className="mt-2 text-sm font-black">{strongestExercise?.label || 'No exercise trend yet'}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {strongestExercise?.strengths[0]?.label
+                  ? `Most consistent in ${strongestExercise.strengths[0].label}.`
+                  : 'More debrief detail will identify the student’s most stable exercise.'}
+              </p>
+            </div>
+
+            <div className="rounded-xl border bg-muted/20 p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <TrendingDown className="h-4 w-4 text-rose-600" />
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Priority exercises</p>
+              </div>
+              {focusExercises.length > 0 ? focusExercises.map((summary) => {
+                const status = getExerciseStatusMeta(summary.status);
+                return (
+                  <div key={summary.templateKey} className="rounded-lg border bg-background px-3 py-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-sm font-black">{summary.label}</p>
+                      <Badge variant="outline" className={cn('text-[10px] font-black uppercase tracking-[0.14em]', status.badge)}>
+                        {status.label}
+                      </Badge>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {summary.focusCriteria[0]?.label
+                        ? `Next focus: ${summary.focusCriteria[0].label}.`
+                        : summary.latestComment || 'Needs another structured attempt before progressing.'}
+                    </p>
+                  </div>
+                );
+              }) : (
+                <p className="text-sm text-muted-foreground">No urgent exercise concern is standing out right now.</p>
+              )}
+            </div>
+
+            <div className="rounded-xl border bg-muted/20 p-4 space-y-3">
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Exercise currency</p>
+              <div className="grid gap-2">
+                {currency.map((item) => (
+                  <div key={item.key} className="flex items-center justify-between gap-3 rounded-lg border bg-background px-3 py-2">
+                    <span className="text-xs font-semibold">{item.label}</span>
+                    <span className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
+                      {item.daysSince === null ? 'N/A' : `${item.daysSince}d`}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function StudentDetailPage({ params }: StudentDetailPageProps) {
   const resolvedParams = use(params);
   const { tenantId } = useUserProfile();
@@ -309,6 +428,9 @@ export default function StudentDetailPage({ params }: StudentDetailPageProps) {
       status,
     };
   })();
+  const studentReports = Array.isArray(summary.studentProgressReports)
+    ? summary.studentProgressReports.filter((report) => report.studentId === student.id)
+    : [];
 
   return (
     <Card className="mx-auto flex h-full min-h-0 w-full max-w-[1100px] flex-col overflow-hidden shadow-none border">
@@ -324,6 +446,7 @@ export default function StudentDetailPage({ params }: StudentDetailPageProps) {
       <ScrollArea className="min-h-0 flex-1">
         <CardContent className="space-y-4 p-4">
           <ProgressSummary student={student} progress={progress} />
+          <ExerciseSignalsSummary reports={studentReports} />
 
           <div className="flex-1 min-h-0 overflow-hidden px-1">
             <TrainingRecords studentId={studentId} tenantId={tenantId || ''} />

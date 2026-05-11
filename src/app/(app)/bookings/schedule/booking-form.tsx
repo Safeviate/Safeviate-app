@@ -17,6 +17,7 @@ import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { ResponsiveTabRow } from '@/components/responsive-tab-row';
 import { useToast } from '@/hooks/use-toast';
 import { useUserProfile } from '@/hooks/use-user-profile';
+import { useTenantConfig } from '@/hooks/use-tenant-config';
 import { DocumentUploader } from '@/components/document-uploader';
 import { format, addMinutes, isBefore } from 'date-fns';
 import type { Aircraft } from '@/types/aircraft';
@@ -33,6 +34,7 @@ import { cn } from '@/lib/utils';
 import { broadcastBookingUpdate } from '@/lib/booking-updates';
 import { getBlockingBookingForTracking, isBookingEligibleForTracking } from '@/lib/booking-tracking';
 import { getAircraftHourSnapshot } from '@/lib/aircraft-hours';
+import { DEFAULT_TRAINING_EXERCISE_TEMPLATE_KEY, getTrainingExerciseTemplate, getTrainingExerciseTemplateOptions, resolveTrainingExerciseTemplates } from '@/lib/training-exercise-templates';
 
 const parseLocalDate = (value?: string | null) => {
     if (!value) return undefined;
@@ -69,6 +71,7 @@ const bookingFormSchema = z.object({
     status: z.enum(['Tentative', 'Confirmed', 'Approved', 'Completed', 'Cancelled', 'Cancelled with Reason']).default('Confirmed'),
     cancellationReason: z.string().optional(),
     routeId: z.string().optional(),
+    trainingExerciseTemplateKey: z.string().optional(),
 })
 .refine(data => {
     const start = new Date(`${format(data.date, 'yyyy-MM-dd')}T${data.startTime}`);
@@ -112,6 +115,7 @@ export function BookingForm({ isOpen, setIsOpen, aircraft, startTime, tenantId, 
     const { toast } = useToast();
     const { hasPermission, isLoading: isPermissionsLoading } = usePermissions();
     const { userProfile } = useUserProfile();
+    const { tenant } = useTenantConfig();
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
     const canEditBooking = hasPermission('bookings-schedule-manage');
@@ -128,6 +132,14 @@ export function BookingForm({ isOpen, setIsOpen, aircraft, startTime, tenantId, 
     const [preFlightPhotos, setPreFlightPhotos] = useState<ChecklistPhoto[]>(((existingBooking?.preFlightData as { photos?: ChecklistPhoto[] } | undefined)?.photos || []) as ChecklistPhoto[]);
     const [postFlightPhotos, setPostFlightPhotos] = useState<ChecklistPhoto[]>(existingBooking?.postFlightData?.photos || []);
     const [requireWeatherPlanningNavlog, setRequireWeatherPlanningNavlog] = useState(!!existingBooking?.workflowCompletion?.weatherPlanningNavlogRequired);
+    const trainingExerciseTemplates = useMemo(
+        () => resolveTrainingExerciseTemplates((tenant as Record<string, unknown> | null | undefined) ?? null),
+        [tenant],
+    );
+    const trainingExerciseOptions = useMemo(
+        () => getTrainingExerciseTemplateOptions(trainingExerciseTemplates),
+        [trainingExerciseTemplates],
+    );
 
     // Fetch Training Routes
     const [trainingRoutes, setTrainingRoutes] = useState<TrainingRoute[]>([]);
@@ -179,6 +191,7 @@ export function BookingForm({ isOpen, setIsOpen, aircraft, startTime, tenantId, 
         notes: existingBooking?.notes || '',
         status: existingBooking?.status || 'Confirmed',
         cancellationReason: '',
+        trainingExerciseTemplateKey: existingBooking?.trainingExerciseTemplateKey || DEFAULT_TRAINING_EXERCISE_TEMPLATE_KEY,
     }), [existingBooking, startTime]);
     
     const form = useForm<z.infer<typeof bookingFormSchema>>({
@@ -318,6 +331,10 @@ export function BookingForm({ isOpen, setIsOpen, aircraft, startTime, tenantId, 
         const bookingData: BookingDraft = {
             aircraftId: aircraft.id,
             type: data.type,
+            trainingExerciseTemplateKey: data.type === 'Training Flight' ? data.trainingExerciseTemplateKey || DEFAULT_TRAINING_EXERCISE_TEMPLATE_KEY : undefined,
+            trainingExerciseLabel: data.type === 'Training Flight'
+                ? getTrainingExerciseTemplate(data.trainingExerciseTemplateKey || DEFAULT_TRAINING_EXERCISE_TEMPLATE_KEY, trainingExerciseTemplates)?.label
+                : undefined,
             date: format(data.date, 'yyyy-MM-dd'),
             startTime: data.startTime,
             endTime: data.endTime,
@@ -700,6 +717,28 @@ export function BookingForm({ isOpen, setIsOpen, aircraft, startTime, tenantId, 
                                             <p className="flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-emerald-700">
                                                  <MapIcon className="h-3.5 w-3.5" /> Mission Profile
                                             </p>
+                                            {watchType === 'Training Flight' ? (
+                                                <FormField control={form.control} name="trainingExerciseTemplateKey" render={({ field }) => (
+                                                    <FormItem>
+                                                        <FormLabel className="text-[8px] font-black uppercase">Training Exercise</FormLabel>
+                                                        <Select onValueChange={field.onChange} value={field.value || DEFAULT_TRAINING_EXERCISE_TEMPLATE_KEY} disabled={isLocked || !canEditBooking}>
+                                                            <FormControl>
+                                                                <SelectTrigger className="h-9 bg-background">
+                                                                    <SelectValue placeholder="Select the training exercise..." />
+                                                                </SelectTrigger>
+                                                            </FormControl>
+                                                            <SelectContent>
+                                                                {trainingExerciseOptions.map((option) => (
+                                                                    <SelectItem key={option.value} value={option.value}>
+                                                                        {option.label}
+                                                                    </SelectItem>
+                                                                ))}
+                                                            </SelectContent>
+                                                        </Select>
+                                                        <FormMessage />
+                                                    </FormItem>
+                                                )} />
+                                            ) : null}
                                             <FormField control={form.control} name="routeId" render={({ field }) => (
                                                 <FormItem>
                                                     <FormLabel className="text-[8px] font-black uppercase">Preset Training Route (Optional)</FormLabel>

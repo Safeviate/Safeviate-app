@@ -24,9 +24,10 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { BackNavButton } from '@/components/back-nav-button';
 import { MainPageHeader } from '@/components/page-header';
 import { DEFAULT_TRAINING_COMPETENCY_KEY, TRAINING_COMPETENCY_OPTIONS } from '@/lib/training-competencies';
-import { DEFAULT_TRAINING_EXERCISE_TEMPLATE_KEY, getTrainingExerciseTemplate, TRAINING_EXERCISE_TEMPLATE_OPTIONS } from '@/lib/training-exercise-templates';
+import { DEFAULT_TRAINING_EXERCISE_TEMPLATE_KEY, type TrainingExerciseTemplate, getTrainingExerciseTemplate, getTrainingExerciseTemplateOptions, resolveTrainingExerciseTemplates } from '@/lib/training-exercise-templates';
 import { Badge } from '@/components/ui/badge';
 import type { StudentProgressCriterionRating } from '@/types/training';
+import { useTenantConfig } from '@/hooks/use-tenant-config';
 
 const RATING_GUIDE = [
     { value: '1', label: 'Unsafe', hint: 'Instructor intervention required immediately.' },
@@ -62,8 +63,8 @@ const debriefSchema = z.object({
 
 type FormValues = z.infer<typeof debriefSchema>;
 
-const buildCriterionRatingsFromTemplate = (templateKey: string): StudentProgressCriterionRating[] => {
-    const template = getTrainingExerciseTemplate(templateKey);
+const buildCriterionRatingsFromTemplate = (templateKey: string, templates?: TrainingExerciseTemplate[]): StudentProgressCriterionRating[] => {
+    const template = getTrainingExerciseTemplate(templateKey, templates);
     if (!template) return [];
 
     return template.criteria.map((criterion) => ({
@@ -77,8 +78,8 @@ const buildCriterionRatingsFromTemplate = (templateKey: string): StudentProgress
     }));
 };
 
-const createDebriefEntry = () => {
-    const template = getTrainingExerciseTemplate(DEFAULT_TRAINING_EXERCISE_TEMPLATE_KEY);
+const createDebriefEntry = (templates?: TrainingExerciseTemplate[]) => {
+    const template = getTrainingExerciseTemplate(DEFAULT_TRAINING_EXERCISE_TEMPLATE_KEY, templates);
 
     return {
         id: uuidv4(),
@@ -88,7 +89,23 @@ const createDebriefEntry = () => {
         comment: '',
         competencyKey: template?.coreCompetencyKeys[0] || DEFAULT_TRAINING_COMPETENCY_KEY,
         competencySignal: 'growth' as const,
-        criteriaRatings: buildCriterionRatingsFromTemplate(DEFAULT_TRAINING_EXERCISE_TEMPLATE_KEY),
+        criteriaRatings: buildCriterionRatingsFromTemplate(DEFAULT_TRAINING_EXERCISE_TEMPLATE_KEY, templates),
+    };
+};
+
+const createDebriefEntryFromTemplate = (templateKey?: string | null, templates?: TrainingExerciseTemplate[]) => {
+    const resolvedTemplateKey = getTrainingExerciseTemplate(templateKey, templates)?.key || DEFAULT_TRAINING_EXERCISE_TEMPLATE_KEY;
+    const template = getTrainingExerciseTemplate(resolvedTemplateKey, templates);
+
+    return {
+        id: uuidv4(),
+        exercise: template?.label || '',
+        exerciseTemplateKey: resolvedTemplateKey,
+        rating: 4 as const,
+        comment: '',
+        competencyKey: template?.coreCompetencyKeys[0] || DEFAULT_TRAINING_COMPETENCY_KEY,
+        competencySignal: 'growth' as const,
+        criteriaRatings: buildCriterionRatingsFromTemplate(resolvedTemplateKey, templates),
     };
 };
 
@@ -98,11 +115,20 @@ function NewDebriefContent() {
     const bookingId = searchParams?.get('bookingId') ?? '';
     const { toast } = useToast();
     const tenantId = 'safeviate';
+    const { tenant } = useTenantConfig();
 
     const [booking, setBooking] = useState<Booking | null>(null);
     const [student, setStudent] = useState<PilotProfile | null>(null);
     const [instructor, setInstructor] = useState<PilotProfile | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const trainingExerciseTemplates = useMemo(
+        () => resolveTrainingExerciseTemplates((tenant as Record<string, unknown> | null | undefined) ?? null),
+        [tenant],
+    );
+    const trainingExerciseOptions = useMemo(
+        () => getTrainingExerciseTemplateOptions(trainingExerciseTemplates),
+        [trainingExerciseTemplates],
+    );
 
     useEffect(() => {
         let cancelled = false;
@@ -142,7 +168,7 @@ function NewDebriefContent() {
         resolver: zodResolver(debriefSchema),
         defaultValues: {
             overallComment: '',
-            entries: [createDebriefEntry()],
+            entries: [createDebriefEntry(trainingExerciseTemplates)],
             instructorSignatureUrl: '',
             studentSignatureUrl: '',
         },
@@ -155,8 +181,23 @@ function NewDebriefContent() {
 
     const watchedEntries = form.watch('entries');
 
+    useEffect(() => {
+        if (!booking?.trainingExerciseTemplateKey) return;
+
+        const currentEntries = form.getValues('entries');
+        const firstEntry = currentEntries[0];
+        if (
+            currentEntries.length === 1
+            && firstEntry
+            && firstEntry.exerciseTemplateKey === DEFAULT_TRAINING_EXERCISE_TEMPLATE_KEY
+            && !form.formState.isDirty
+        ) {
+            form.setValue('entries', [createDebriefEntryFromTemplate(booking.trainingExerciseTemplateKey, trainingExerciseTemplates)], { shouldDirty: false });
+        }
+    }, [booking?.trainingExerciseTemplateKey, form, trainingExerciseTemplates]);
+
     const handleExerciseTemplateChange = useCallback((index: number, templateKey: string) => {
-        const template = getTrainingExerciseTemplate(templateKey);
+        const template = getTrainingExerciseTemplate(templateKey, trainingExerciseTemplates);
         const existing = form.getValues(`entries.${index}`);
         const customCriteria = (existing.criteriaRatings || []).filter((criterion) => criterion.source === 'custom');
 
@@ -165,10 +206,10 @@ function NewDebriefContent() {
         form.setValue(`entries.${index}.competencyKey`, template?.coreCompetencyKeys[0] || DEFAULT_TRAINING_COMPETENCY_KEY, { shouldDirty: true });
         form.setValue(
             `entries.${index}.criteriaRatings`,
-            [...buildCriterionRatingsFromTemplate(templateKey), ...customCriteria],
+            [...buildCriterionRatingsFromTemplate(templateKey, trainingExerciseTemplates), ...customCriteria],
             { shouldDirty: true }
         );
-    }, [form]);
+    }, [form, trainingExerciseTemplates]);
 
     const handleCriterionChange = useCallback((entryIndex: number, criterionIndex: number, patch: Partial<StudentProgressCriterionRating>) => {
         const current = form.getValues(`entries.${entryIndex}.criteriaRatings`) || [];
@@ -325,7 +366,7 @@ function NewDebriefContent() {
                                                 type="button" 
                                                 variant="outline" 
                                                 size="sm" 
-                                                onClick={() => append(createDebriefEntry())}
+                                                onClick={() => append(createDebriefEntry(trainingExerciseTemplates))}
                                             >
                                                 <PlusCircle className="mr-2 h-4 w-4" /> Add Entry
                                             </Button>
@@ -335,7 +376,7 @@ function NewDebriefContent() {
                                             <div key={field.id} className="rounded-xl border bg-background p-4 space-y-4">
                                                 {(() => {
                                                     const entry = watchedEntries?.[index];
-                                                    const selectedTemplate = getTrainingExerciseTemplate(entry?.exerciseTemplateKey || DEFAULT_TRAINING_EXERCISE_TEMPLATE_KEY);
+                                                    const selectedTemplate = getTrainingExerciseTemplate(entry?.exerciseTemplateKey || DEFAULT_TRAINING_EXERCISE_TEMPLATE_KEY, trainingExerciseTemplates);
                                                     const criteriaRatings = entry?.criteriaRatings || [];
 
                                                     return (
@@ -370,7 +411,7 @@ function NewDebriefContent() {
                                                                             </SelectTrigger>
                                                                         </FormControl>
                                                                         <SelectContent>
-                                                                            {TRAINING_EXERCISE_TEMPLATE_OPTIONS.map((option) => (
+                                                                            {trainingExerciseOptions.map((option) => (
                                                                                 <SelectItem key={option.value} value={option.value}>
                                                                                     {option.label}
                                                                                 </SelectItem>

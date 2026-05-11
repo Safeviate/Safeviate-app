@@ -558,6 +558,16 @@ export async function ensurePersonnelSchema() {
     columnNames.add('access_overrides');
   }
 
+  if (!columnNames.has('primary_instructor_id')) {
+    await addColumn('primary_instructor_id VARCHAR(128)');
+    columnNames.add('primary_instructor_id');
+  }
+
+  if (!columnNames.has('instructor_assignment_history')) {
+    await addColumn(`instructor_assignment_history JSONB NOT NULL DEFAULT '[]'::jsonb`);
+    columnNames.add('instructor_assignment_history');
+  }
+
   if (!columnNames.has('documents')) {
     await addColumn(`documents JSONB NOT NULL DEFAULT '[]'::jsonb`);
     columnNames.add('documents');
@@ -576,6 +586,11 @@ export async function ensurePersonnelSchema() {
   if (!columnNames.has('can_be_student')) {
     await addColumn('can_be_student BOOLEAN NOT NULL DEFAULT FALSE');
     columnNames.add('can_be_student');
+  }
+
+  if (!columnNames.has('can_be_pic')) {
+    await addColumn('can_be_pic BOOLEAN NOT NULL DEFAULT FALSE');
+    columnNames.add('can_be_pic');
   }
 }
 

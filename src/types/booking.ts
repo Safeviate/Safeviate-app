@@ -139,6 +139,8 @@ export interface Booking {
   id: string;
   bookingNumber: string;
   type: string;
+  trainingExerciseTemplateKey?: string;
+  trainingExerciseLabel?: string;
   start: string; // ISO String
   end: string; // ISO String
   date: string; // "yyyy-MM-dd"

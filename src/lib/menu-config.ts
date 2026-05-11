@@ -359,6 +359,12 @@ export const menuConfig: MenuItem[] = [
         permissionId: 'admin-settings-manage',
       },
       {
+        href: '/admin/training-exercises',
+        label: 'Training Exercises',
+        description: 'Manage the default training exercise syllabus and assessment criteria.',
+        permissionId: 'admin-settings-manage',
+      },
+      {
         href: '/admin/document-dates',
         label: 'Thresholds & Expiry',
         description: 'Manage document expiration and inspection warnings.',

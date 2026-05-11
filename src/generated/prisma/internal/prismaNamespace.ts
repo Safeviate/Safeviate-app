@@ -412,6 +412,7 @@ export const ModelName = {
   ToolRecord: 'ToolRecord',
   ActiveFlightSessionRecord: 'ActiveFlightSessionRecord',
   ActiveFlightSessionBlock: 'ActiveFlightSessionBlock',
+  ActiveFlightTrackPointRecord: 'ActiveFlightTrackPointRecord',
   AlertRecord: 'AlertRecord'
 } as const
 
@@ -428,7 +429,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "tenant" | "user" | "passwordSetupInvite" | "betaNdaAcceptance" | "role" | "department" | "personnel" | "tenantConfig" | "managementOfChange" | "qualityAudit" | "safetyReport" | "correctiveActionPlan" | "risk" | "aircraftRecord" | "vehicleRecord" | "vehicleUsageRecord" | "bookingRecord" | "attendanceRecord" | "trainingRouteRecord" | "meetingRecord" | "companyDocument" | "externalOrganization" | "erpState" | "workpackRecord" | "maintenanceTaskCardRecord" | "toolRecord" | "activeFlightSessionRecord" | "activeFlightSessionBlock" | "alertRecord"
+    modelProps: "tenant" | "user" | "passwordSetupInvite" | "betaNdaAcceptance" | "role" | "department" | "personnel" | "tenantConfig" | "managementOfChange" | "qualityAudit" | "safetyReport" | "correctiveActionPlan" | "risk" | "aircraftRecord" | "vehicleRecord" | "vehicleUsageRecord" | "bookingRecord" | "attendanceRecord" | "trainingRouteRecord" | "meetingRecord" | "companyDocument" | "externalOrganization" | "erpState" | "workpackRecord" | "maintenanceTaskCardRecord" | "toolRecord" | "activeFlightSessionRecord" | "activeFlightSessionBlock" | "activeFlightTrackPointRecord" | "alertRecord"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -2504,6 +2505,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    ActiveFlightTrackPointRecord: {
+      payload: Prisma.$ActiveFlightTrackPointRecordPayload<ExtArgs>
+      fields: Prisma.ActiveFlightTrackPointRecordFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.ActiveFlightTrackPointRecordFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ActiveFlightTrackPointRecordPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.ActiveFlightTrackPointRecordFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ActiveFlightTrackPointRecordPayload>
+        }
+        findFirst: {
+          args: Prisma.ActiveFlightTrackPointRecordFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ActiveFlightTrackPointRecordPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.ActiveFlightTrackPointRecordFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ActiveFlightTrackPointRecordPayload>
+        }
+        findMany: {
+          args: Prisma.ActiveFlightTrackPointRecordFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ActiveFlightTrackPointRecordPayload>[]
+        }
+        create: {
+          args: Prisma.ActiveFlightTrackPointRecordCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ActiveFlightTrackPointRecordPayload>
+        }
+        createMany: {
+          args: Prisma.ActiveFlightTrackPointRecordCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.ActiveFlightTrackPointRecordCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ActiveFlightTrackPointRecordPayload>[]
+        }
+        delete: {
+          args: Prisma.ActiveFlightTrackPointRecordDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ActiveFlightTrackPointRecordPayload>
+        }
+        update: {
+          args: Prisma.ActiveFlightTrackPointRecordUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ActiveFlightTrackPointRecordPayload>
+        }
+        deleteMany: {
+          args: Prisma.ActiveFlightTrackPointRecordDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.ActiveFlightTrackPointRecordUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.ActiveFlightTrackPointRecordUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ActiveFlightTrackPointRecordPayload>[]
+        }
+        upsert: {
+          args: Prisma.ActiveFlightTrackPointRecordUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ActiveFlightTrackPointRecordPayload>
+        }
+        aggregate: {
+          args: Prisma.ActiveFlightTrackPointRecordAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateActiveFlightTrackPointRecord>
+        }
+        groupBy: {
+          args: Prisma.ActiveFlightTrackPointRecordGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.ActiveFlightTrackPointRecordGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.ActiveFlightTrackPointRecordCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.ActiveFlightTrackPointRecordCountAggregateOutputType> | number
+        }
+      }
+    }
     AlertRecord: {
       payload: Prisma.$AlertRecordPayload<ExtArgs>
       fields: Prisma.AlertRecordFieldRefs
@@ -2712,6 +2787,8 @@ export const PersonnelScalarFieldEnum = {
   organizationId: 'organizationId',
   department: 'department',
   role: 'role',
+  primaryInstructorId: 'primaryInstructorId',
+  instructorAssignmentHistory: 'instructorAssignmentHistory',
   permissions: 'permissions',
   accessOverrides: 'accessOverrides',
   documents: 'documents',
@@ -2962,6 +3039,24 @@ export const ActiveFlightSessionBlockScalarFieldEnum = {
 export type ActiveFlightSessionBlockScalarFieldEnum = (typeof ActiveFlightSessionBlockScalarFieldEnum)[keyof typeof ActiveFlightSessionBlockScalarFieldEnum]
 
 
+export const ActiveFlightTrackPointRecordScalarFieldEnum = {
+  id: 'id',
+  tenantId: 'tenantId',
+  aircraftId: 'aircraftId',
+  aircraftRegistration: 'aircraftRegistration',
+  sessionId: 'sessionId',
+  deviceId: 'deviceId',
+  recordedAt: 'recordedAt',
+  latitude: 'latitude',
+  longitude: 'longitude',
+  data: 'data',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type ActiveFlightTrackPointRecordScalarFieldEnum = (typeof ActiveFlightTrackPointRecordScalarFieldEnum)[keyof typeof ActiveFlightTrackPointRecordScalarFieldEnum]
+
+
 export const AlertRecordScalarFieldEnum = {
   id: 'id',
   tenantId: 'tenantId',
@@ -3073,6 +3168,20 @@ export type EnumQueryModeFieldRefInput<$PrismaModel> = FieldRefInputType<$Prisma
  * Reference to a field of type 'Boolean'
  */
 export type BooleanFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Boolean'>
+    
+
+
+/**
+ * Reference to a field of type 'Float'
+ */
+export type FloatFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Float'>
+    
+
+
+/**
+ * Reference to a field of type 'Float[]'
+ */
+export type ListFloatFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Float[]'>
     
 
 
@@ -3212,6 +3321,7 @@ export type GlobalOmitConfig = {
   toolRecord?: Prisma.ToolRecordOmit
   activeFlightSessionRecord?: Prisma.ActiveFlightSessionRecordOmit
   activeFlightSessionBlock?: Prisma.ActiveFlightSessionBlockOmit
+  activeFlightTrackPointRecord?: Prisma.ActiveFlightTrackPointRecordOmit
   alertRecord?: Prisma.AlertRecordOmit
 }
 
