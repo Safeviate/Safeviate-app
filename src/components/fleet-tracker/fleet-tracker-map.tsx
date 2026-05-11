@@ -5,7 +5,7 @@ import { FeatureGroup, GeoJSON, Marker, Polyline, Popup, TileLayer, Tooltip, use
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { SlidersHorizontal } from 'lucide-react';
-import type { FlightSession } from '@/types/flight-session';
+import type { FlightSession, FlightTrackPoint } from '@/types/flight-session';
 import type { NavlogLeg } from '@/types/booking';
 import { isFlightSessionStale } from '@/lib/flight-session-status';
 import { LeafletMapFrame } from '@/components/maps/leaflet-map-frame';
@@ -322,6 +322,18 @@ function RecenterMapControl({ sessions }: { sessions: FlightSession[] }) {
   );
 }
 
+function FitReplayBounds({ points }: { points: FlightTrackPoint[] }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (points.length < 2) return;
+    const bounds = L.latLngBounds(points.map((point) => [point.latitude, point.longitude] as [number, number]));
+    map.fitBounds(bounds.pad(0.2));
+  }, [map, points]);
+
+  return null;
+}
+
 function VisiblePointLoader({
   airportsEnabled,
   navaidsEnabled,
@@ -598,6 +610,9 @@ export function FleetTrackerMap({
   layerLevelsOpen = false,
   onLayerSelectorOpenChange,
   onLayerLevelsOpenChange,
+  replayPoints = [],
+  replayCursor = 0,
+  replayRegistration = null,
 }: {
   sessions: FlightSession[];
   navlogRoutesByBookingId?: Record<string, NavlogLeg[]>;
@@ -605,6 +620,9 @@ export function FleetTrackerMap({
   layerLevelsOpen?: boolean;
   onLayerSelectorOpenChange?: (open: boolean) => void;
   onLayerLevelsOpenChange?: (open: boolean) => void;
+  replayPoints?: FlightTrackPoint[];
+  replayCursor?: number;
+  replayRegistration?: string | null;
 }) {
   const initialSettings = useMemo(() => readStoredFleetTrackerMapSettings(), []);
   const { preferences: zoomPreferences, setZoomRange } = useMapZoomPreferences({
@@ -719,6 +737,7 @@ export function FleetTrackerMap({
     () => sessions.filter((session) => session.lastPosition?.latitude !== undefined && session.lastPosition?.longitude !== undefined),
     [sessions]
   );
+  const activeReplayPoint = replayPoints[replayCursor] || null;
   const center = positionedSessions[0]
     ? ([positionedSessions[0].lastPosition!.latitude, positionedSessions[0].lastPosition!.longitude] as [number, number])
     : ([-25.9, 27.9] as [number, number]);
@@ -826,6 +845,7 @@ export function FleetTrackerMap({
           attribution={selectedBaseLayer === 'light' ? '&copy; OpenStreetMap contributors' : '&copy; MapLibre / OpenStreetMap'}
         />
         <FitBounds sessions={positionedSessions} />
+        {replayPoints.length > 1 ? <FitReplayBounds points={replayPoints} /> : null}
         <MapZoomState onZoomChange={setMapZoom} />
         <RecenterMapControl sessions={positionedSessions} />
         <VisiblePointLoader
@@ -979,6 +999,50 @@ export function FleetTrackerMap({
               }}
             />
           </FeatureGroup>
+        ) : null}
+
+        {replayPoints.length > 1 ? (
+          <Polyline
+            positions={replayPoints.map((point) => [point.latitude, point.longitude] as [number, number])}
+            pathOptions={{ color: '#f97316', weight: 5, opacity: 0.9 }}
+          />
+        ) : null}
+
+        {activeReplayPoint ? (
+          <Marker
+            position={[activeReplayPoint.latitude, activeReplayPoint.longitude]}
+            icon={
+              createAircraftIcon(
+                replayRegistration ? `${replayRegistration} Replay` : 'Replay',
+                activeReplayPoint.data.headingTrue ?? null,
+                activeReplayPoint.data.onCourse ?? null,
+                false,
+                true
+              ) || DefaultIcon
+            }
+          >
+            <Popup>
+              <div className="space-y-1 text-xs">
+                <p className="font-black uppercase">{replayRegistration || activeReplayPoint.aircraftRegistration}</p>
+                <p className="font-medium text-muted-foreground">Replay point</p>
+                <p>{formatWaypointCoordinatesDms(activeReplayPoint.latitude, activeReplayPoint.longitude)}</p>
+                <p>Recorded: {new Date(activeReplayPoint.recordedAt).toLocaleString()}</p>
+                <p>
+                  Speed:{' '}
+                  {activeReplayPoint.data.groundSpeedKt != null
+                    ? `${activeReplayPoint.data.groundSpeedKt.toFixed(0)} kt`
+                    : activeReplayPoint.data.speedKt != null
+                      ? `${activeReplayPoint.data.speedKt.toFixed(0)} kt`
+                      : 'Unavailable'}
+                </p>
+                <p>Heading: {activeReplayPoint.data.headingTrue != null ? `${activeReplayPoint.data.headingTrue.toFixed(0)}°` : 'Unavailable'}</p>
+                <p>
+                  Distance next:{' '}
+                  {activeReplayPoint.data.distanceToNextNm != null ? `${activeReplayPoint.data.distanceToNextNm.toFixed(1)} NM` : 'Unavailable'}
+                </p>
+              </div>
+            </Popup>
+          </Marker>
         ) : null}
 
         {positionedSessions.map((session) => {

@@ -1,9 +1,121 @@
 import { authOptions } from '@/auth';
 import { prisma } from '@/lib/prisma';
-import { ensureFlightSessionBlocksSchema, ensureFlightSessionsSchema } from '@/lib/server/bootstrap-db';
+import { ensureFlightSessionBlocksSchema, ensureFlightSessionsSchema, ensureFlightTrackPointsSchema } from '@/lib/server/bootstrap-db';
 import { getServerSession } from 'next-auth';
 import { NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
+
+const TRACK_POINT_SAMPLE_MS = 15000;
+
+type FlightSessionPayload = {
+  id?: string;
+  deviceId?: string;
+  aircraftId?: string;
+  aircraftRegistration?: string;
+  bookingId?: string;
+  plannerRouteId?: string;
+  pilotId?: string;
+  pilotName?: string;
+  activeLegIndex?: number;
+  distanceToNextNm?: number;
+  bearingToNext?: number;
+  etaToNextWaypointMinutes?: number;
+  etaToNextMinutes?: number;
+  groundSpeedKt?: number;
+  crossTrackErrorNm?: number;
+  onCourse?: boolean;
+  lastPosition?: {
+    latitude?: number;
+    longitude?: number;
+    accuracy?: number;
+    altitude?: number | null;
+    speedKt?: number | null;
+    headingTrue?: number | null;
+    timestamp?: string;
+  } | null;
+};
+
+async function saveTrackPointIfDue(tenantId: string, session: FlightSessionPayload & { id: string }) {
+  const position = session.lastPosition;
+  if (
+    !position ||
+    typeof position.latitude !== 'number' ||
+    typeof position.longitude !== 'number' ||
+    !session.aircraftRegistration
+  ) {
+    return;
+  }
+
+  const recordedAt = position.timestamp ? new Date(position.timestamp) : new Date();
+  if (Number.isNaN(recordedAt.getTime())) return;
+
+  const latestRows = await prisma.$queryRawUnsafe<{ recorded_at: Date | string }[]>(
+    `SELECT recorded_at
+       FROM active_flight_track_points
+      WHERE tenant_id = $1
+        AND session_id = $2
+      ORDER BY recorded_at DESC
+      LIMIT 1`,
+    tenantId,
+    session.id
+  );
+
+  const latestRecordedAtRaw = latestRows[0]?.recorded_at;
+  const latestRecordedAt = latestRecordedAtRaw ? new Date(latestRecordedAtRaw) : null;
+  if (latestRecordedAt && !Number.isNaN(latestRecordedAt.getTime())) {
+    const elapsedMs = recordedAt.getTime() - latestRecordedAt.getTime();
+    if (elapsedMs < TRACK_POINT_SAMPLE_MS) {
+      return;
+    }
+  }
+
+  const pointData = {
+    bookingId: session.bookingId || null,
+    plannerRouteId: session.plannerRouteId || null,
+    pilotId: session.pilotId || null,
+    pilotName: session.pilotName || null,
+    activeLegIndex: session.activeLegIndex ?? null,
+    distanceToNextNm: session.distanceToNextNm ?? null,
+    bearingToNext: session.bearingToNext ?? null,
+    etaToNextWaypointMinutes: session.etaToNextWaypointMinutes ?? session.etaToNextMinutes ?? null,
+    groundSpeedKt: session.groundSpeedKt ?? position.speedKt ?? null,
+    crossTrackErrorNm: session.crossTrackErrorNm ?? null,
+    onCourse: session.onCourse ?? null,
+    accuracy: position.accuracy ?? null,
+    altitude: position.altitude ?? null,
+    speedKt: position.speedKt ?? null,
+    headingTrue: position.headingTrue ?? null,
+  };
+
+  await prisma.$executeRawUnsafe(
+    `INSERT INTO active_flight_track_points (
+        id,
+        tenant_id,
+        aircraft_id,
+        aircraft_registration,
+        session_id,
+        device_id,
+        recorded_at,
+        latitude,
+        longitude,
+        data,
+        created_at,
+        updated_at
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, NOW(), NOW()
+      )`,
+    randomUUID(),
+    tenantId,
+    session.aircraftId || null,
+    session.aircraftRegistration,
+    session.id,
+    session.deviceId || null,
+    recordedAt.toISOString(),
+    position.latitude,
+    position.longitude,
+    JSON.stringify(pointData)
+  );
+}
 
 async function getTenantId() {
   const session = await getServerSession(authOptions);
@@ -19,6 +131,7 @@ export async function GET() {
   try {
     await ensureFlightSessionBlocksSchema();
     await ensureFlightSessionsSchema();
+    await ensureFlightTrackPointsSchema();
     const tenantId = await getTenantId();
     if (!tenantId) return NextResponse.json({ sessions: [] }, { status: 200 });
     const rows = await prisma.$queryRawUnsafe<{ data: unknown }[]>(
@@ -36,6 +149,7 @@ export async function POST(request: Request) {
   try {
     await ensureFlightSessionBlocksSchema();
     await ensureFlightSessionsSchema();
+    await ensureFlightTrackPointsSchema();
     const tenantId = await getTenantId();
     if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const body = await request.json().catch(() => null);
@@ -57,6 +171,7 @@ export async function POST(request: Request) {
       tenantId,
       JSON.stringify(data)
     );
+    await saveTrackPointIfDue(tenantId, data as FlightSessionPayload & { id: string });
     return NextResponse.json({ session: data }, { status: 200 });
   } catch (error) {
     console.error('[flight-sessions] write failed:', error);

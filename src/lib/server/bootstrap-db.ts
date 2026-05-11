@@ -20,6 +20,7 @@ type TableName =
   | 'aircrafts'
   | 'active_flight_sessions'
   | 'active_flight_session_blocks'
+  | 'active_flight_track_points'
   | 'safety_reports'
   | 'quality_audits'
   | 'corrective_action_plans'
@@ -368,6 +369,39 @@ export async function ensureFlightSessionBlocksSchema() {
     )
   `);
   tableCache.set('active_flight_session_blocks', true);
+}
+
+export async function ensureFlightTrackPointsSchema() {
+  if (!(await isDatabaseAvailable())) return;
+  if (await hasTable('active_flight_track_points')) {
+    return;
+  }
+
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS active_flight_track_points (
+      id VARCHAR(128) PRIMARY KEY,
+      tenant_id VARCHAR(128) NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      aircraft_id VARCHAR(128),
+      aircraft_registration TEXT NOT NULL,
+      session_id VARCHAR(128) NOT NULL,
+      device_id VARCHAR(128),
+      recorded_at TIMESTAMPTZ(6) NOT NULL,
+      latitude DOUBLE PRECISION NOT NULL,
+      longitude DOUBLE PRECISION NOT NULL,
+      data JSONB NOT NULL DEFAULT '{}'::jsonb,
+      created_at TIMESTAMPTZ(6) NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ(6) NOT NULL DEFAULT NOW()
+    )
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE INDEX IF NOT EXISTS active_flight_track_points_registration_idx
+    ON active_flight_track_points (tenant_id, aircraft_registration, recorded_at DESC)
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE INDEX IF NOT EXISTS active_flight_track_points_session_idx
+    ON active_flight_track_points (tenant_id, session_id, recorded_at DESC)
+  `);
+  tableCache.set('active_flight_track_points', true);
 }
 
 export async function ensureSafetyReportsSchema() {

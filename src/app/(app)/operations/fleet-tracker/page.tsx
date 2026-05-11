@@ -2,7 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { useEffect, useMemo, useState } from 'react';
-import { Layers3, Loader2, RadioTower, RefreshCw, SlidersHorizontal } from 'lucide-react';
+import { Layers3, Loader2, Pause, Play, RadioTower, RefreshCw, SlidersHorizontal, TimerReset } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -11,7 +11,7 @@ import { DropdownMenuCheckboxItem, DropdownMenuItem } from '@/components/ui/drop
 import { useToast } from '@/hooks/use-toast';
 import { useTenantConfig } from '@/hooks/use-tenant-config';
 import type { Booking, NavlogLeg } from '@/types/booking';
-import type { FlightSession } from '@/types/flight-session';
+import type { FlightSession, FlightTrackHistorySummary, FlightTrackPoint } from '@/types/flight-session';
 import { getFlightSessionFreshnessLabel, isFlightSessionStale } from '@/lib/flight-session-status';
 import { isHrefEnabledForIndustry, shouldBypassIndustryRestrictions } from '@/lib/industry-access';
 import { HEADER_SECONDARY_BUTTON_CLASS } from '@/components/page-header';
@@ -30,6 +30,19 @@ const FleetTrackerMap = dynamic(() => import('@/components/fleet-tracker/fleet-t
   ),
 });
 
+const TRACK_REPLAY_WINDOW_OPTIONS = [
+  { label: '1H', value: 1 },
+  { label: '6H', value: 6 },
+  { label: '24H', value: 24 },
+] as const;
+
+const formatReplayTimestamp = (value?: string | null) => {
+  if (!value) return 'Waiting';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return 'Waiting';
+  return parsed.toLocaleString([], { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+};
+
 export default function FleetTrackerPage() {
   const { toast } = useToast();
   const { tenant, isLoading: isTenantLoading } = useTenantConfig();
@@ -39,8 +52,16 @@ export default function FleetTrackerPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isEndingStaleSessions, setIsEndingStaleSessions] = useState(false);
   const [activeBroadcastsOpen, setActiveBroadcastsOpen] = useState(false);
+  const [trackReplayPickerOpen, setTrackReplayPickerOpen] = useState(false);
   const [showLayerSelectorOpen, setShowLayerSelectorOpen] = useState(false);
   const [showLayerLevelsOpen, setShowLayerLevelsOpen] = useState(false);
+  const [replaySummaries, setReplaySummaries] = useState<FlightTrackHistorySummary[]>([]);
+  const [selectedReplayRegistration, setSelectedReplayRegistration] = useState('');
+  const [selectedReplayHours, setSelectedReplayHours] = useState<number>(6);
+  const [replayPoints, setReplayPoints] = useState<FlightTrackPoint[]>([]);
+  const [replayCursor, setReplayCursor] = useState(0);
+  const [isReplayLoading, setIsReplayLoading] = useState(false);
+  const [isReplayPlaying, setIsReplayPlaying] = useState(false);
   const operationalSessions = useMemo(() => sessions.filter((session) => session.status === 'active'), [sessions]);
   const activeSessionCount = useMemo(() => operationalSessions.filter((session) => !isFlightSessionStale(session)).length, [operationalSessions]);
   const staleSessionCount = useMemo(() => operationalSessions.filter((session) => isFlightSessionStale(session)).length, [operationalSessions]);
@@ -65,6 +86,52 @@ export default function FleetTrackerPage() {
       setLastRefreshedAt(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
     }
     setIsRefreshing(false);
+  };
+
+  const loadReplaySummaries = async () => {
+    const response = await fetch('/api/flight-sessions/history', { cache: 'no-store' });
+    if (!response.ok) {
+      throw new Error('Could not load replay history.');
+    }
+
+    const data = await response.json();
+    const summaries = Array.isArray(data.summaries) ? (data.summaries as FlightTrackHistorySummary[]) : [];
+    setReplaySummaries(summaries);
+    setSelectedReplayRegistration((current) => {
+      if (current && summaries.some((summary) => summary.aircraftRegistration === current)) {
+        return current;
+      }
+      return summaries[0]?.aircraftRegistration || '';
+    });
+  };
+
+  const loadReplayPoints = async (aircraftRegistration: string, hours: number) => {
+    if (!aircraftRegistration) return;
+    setIsReplayLoading(true);
+    try {
+      const response = await fetch(
+        `/api/flight-sessions/history?aircraftRegistration=${encodeURIComponent(aircraftRegistration)}&hours=${hours}`,
+        { cache: 'no-store' }
+      );
+      if (!response.ok) {
+        throw new Error('Could not load replay points.');
+      }
+
+      const data = await response.json();
+      const points = Array.isArray(data.points) ? (data.points as FlightTrackPoint[]) : [];
+      setReplayPoints(points);
+      setReplayCursor(points.length > 0 ? points.length - 1 : 0);
+      setIsReplayPlaying(false);
+
+      if (!points.length) {
+        toast({
+          title: 'No Replay Track Yet',
+          description: `${aircraftRegistration} has no stored track points in the selected window.`,
+        });
+      }
+    } finally {
+      setIsReplayLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -92,9 +159,42 @@ export default function FleetTrackerPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!trackReplayPickerOpen) return;
+    void loadReplaySummaries().catch(() => {
+      toast({
+        variant: 'destructive',
+        title: 'Replay Unavailable',
+        description: 'Track history could not be loaded right now.',
+      });
+    });
+  }, [trackReplayPickerOpen, toast]);
+
+  useEffect(() => {
+    if (!isReplayPlaying || replayPoints.length < 2) return;
+    const intervalId = window.setInterval(() => {
+      setReplayCursor((current) => {
+        if (current >= replayPoints.length - 1) {
+          window.clearInterval(intervalId);
+          setIsReplayPlaying(false);
+          return current;
+        }
+        return current + 1;
+      });
+    }, 900);
+
+    return () => window.clearInterval(intervalId);
+  }, [isReplayPlaying, replayPoints]);
+
   const sortedSessions = useMemo(
     () => [...operationalSessions].sort((a, b) => (a.aircraftRegistration || '').localeCompare(b.aircraftRegistration || '')),
     [operationalSessions]
+  );
+
+  const activeReplayPoint = replayPoints[replayCursor] || null;
+  const activeReplaySummary = useMemo(
+    () => replaySummaries.find((summary) => summary.aircraftRegistration === selectedReplayRegistration) ?? null,
+    [replaySummaries, selectedReplayRegistration]
   );
 
   const navlogRoutesByBookingId = useMemo(() => {
@@ -227,6 +327,15 @@ export default function FleetTrackerPage() {
                   type="button"
                   variant="outline"
                   className="h-8 gap-1.5 border bg-background/90 px-3 text-[9px] font-black uppercase tracking-[0.08em] shadow-sm backdrop-blur"
+                  onClick={() => setTrackReplayPickerOpen(true)}
+                >
+                  <TimerReset className="h-4 w-4" />
+                  Track Replay
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-8 gap-1.5 border bg-background/90 px-3 text-[9px] font-black uppercase tracking-[0.08em] shadow-sm backdrop-blur"
                   onClick={() => void clearAllStaleSessions()}
                   disabled={staleSessionCount === 0 || isEndingStaleSessions}
                 >
@@ -262,6 +371,10 @@ export default function FleetTrackerPage() {
                   <DropdownMenuItem onClick={() => setActiveBroadcastsOpen(true)} className={MOBILE_ACTION_MENU_ITEM_CLASS}>
                     <RadioTower className="h-4 w-4" />
                     Active Broadcasts
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setTrackReplayPickerOpen(true)} className={MOBILE_ACTION_MENU_ITEM_CLASS}>
+                    <TimerReset className="h-4 w-4" />
+                    Track Replay
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onClick={() => void clearAllStaleSessions()}
@@ -299,8 +412,107 @@ export default function FleetTrackerPage() {
                   layerLevelsOpen={showLayerLevelsOpen}
                   onLayerSelectorOpenChange={setShowLayerSelectorOpen}
                   onLayerLevelsOpenChange={setShowLayerLevelsOpen}
+                  replayPoints={replayPoints}
+                  replayCursor={replayCursor}
+                  replayRegistration={selectedReplayRegistration || null}
                 />
               </div>
+              {replayPoints.length > 0 ? (
+                <div className="pointer-events-auto absolute inset-x-2 bottom-2 z-[1200] md:inset-x-3">
+                  <div className="rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-xl backdrop-blur">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                      <div className="min-w-0 space-y-1">
+                        <div className="flex items-center gap-2">
+                          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Track Replay</p>
+                          <Badge variant="outline" className="text-[9px] font-black uppercase tracking-widest">
+                            {selectedReplayRegistration}
+                          </Badge>
+                        </div>
+                        <p className="text-xs font-bold text-slate-900">
+                          {activeReplayPoint
+                            ? `${formatReplayTimestamp(activeReplayPoint.recordedAt)} • ${replayCursor + 1}/${replayPoints.length}`
+                            : 'No point selected'}
+                        </p>
+                        <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                          {activeReplayPoint
+                            ? `GS ${activeReplayPoint.data.groundSpeedKt ?? activeReplayPoint.data.speedKt ?? 'N/A'} • HDG ${activeReplayPoint.data.headingTrue ?? 'N/A'} • LEG ${
+                                activeReplayPoint.data.activeLegIndex != null ? activeReplayPoint.data.activeLegIndex + 1 : 'N/A'
+                              }`
+                            : 'Waiting for replay point'}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="h-8 gap-1.5 px-3 text-[9px] font-black uppercase tracking-[0.08em]"
+                          onClick={() => setIsReplayPlaying((current) => !current)}
+                          disabled={replayPoints.length < 2}
+                        >
+                          {isReplayPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                          {isReplayPlaying ? 'Pause' : 'Play'}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="h-8 px-3 text-[9px] font-black uppercase tracking-[0.08em]"
+                          onClick={() => {
+                            setReplayPoints([]);
+                            setReplayCursor(0);
+                            setIsReplayPlaying(false);
+                          }}
+                        >
+                          Clear Replay
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="mt-3 space-y-2">
+                      <input
+                        type="range"
+                        min={0}
+                        max={Math.max(replayPoints.length - 1, 0)}
+                        step={1}
+                        value={Math.min(replayCursor, Math.max(replayPoints.length - 1, 0))}
+                        onChange={(event) => {
+                          setReplayCursor(Number(event.target.value));
+                          setIsReplayPlaying(false);
+                        }}
+                        className="h-2 w-full cursor-pointer accent-slate-900"
+                      />
+                      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-slate-200 bg-slate-200/80 md:grid-cols-4">
+                        {[
+                          {
+                            label: 'Lat / Lon',
+                            value: activeReplayPoint
+                              ? `${activeReplayPoint.latitude.toFixed(4)}, ${activeReplayPoint.longitude.toFixed(4)}`
+                              : 'N/A',
+                          },
+                          {
+                            label: 'Dist Next',
+                            value: activeReplayPoint?.data.distanceToNextNm != null ? `${activeReplayPoint.data.distanceToNextNm.toFixed(1)} NM` : 'N/A',
+                          },
+                          {
+                            label: 'Bearing',
+                            value: activeReplayPoint?.data.bearingToNext != null ? `${activeReplayPoint.data.bearingToNext.toFixed(0)}°` : 'N/A',
+                          },
+                          {
+                            label: 'ETA',
+                            value:
+                              activeReplayPoint?.data.etaToNextWaypointMinutes != null
+                                ? `${activeReplayPoint.data.etaToNextWaypointMinutes.toFixed(0)} min`
+                                : 'N/A',
+                          },
+                        ].map((item) => (
+                          <div key={item.label} className="bg-white px-2 py-1.5">
+                            <p className="text-[9px] font-black uppercase tracking-[0.14em] text-muted-foreground">{item.label}</p>
+                            <p className="truncate text-[10px] font-black text-foreground">{item.value}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
             </div>
           </CardContent>
         </Card>
@@ -343,6 +555,85 @@ export default function FleetTrackerPage() {
                 </div>
               ))
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={trackReplayPickerOpen} onOpenChange={setTrackReplayPickerOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-sm font-black uppercase tracking-widest">Track Replay</DialogTitle>
+            <DialogDescription>Choose an aircraft registration and time window to load its saved track onto the Fleet Tracker map.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-muted-foreground">Aircraft Registration</p>
+              <select
+                value={selectedReplayRegistration}
+                onChange={(event) => setSelectedReplayRegistration(event.target.value)}
+                className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none ring-0"
+              >
+                {replaySummaries.length === 0 ? <option value="">No track history yet</option> : null}
+                {replaySummaries.map((summary) => (
+                  <option key={summary.aircraftRegistration} value={summary.aircraftRegistration}>
+                    {summary.aircraftRegistration}
+                  </option>
+                ))}
+              </select>
+              {activeReplaySummary ? (
+                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                  {activeReplaySummary.pointCount} points • first {formatReplayTimestamp(activeReplaySummary.firstRecordedAt)} • latest{' '}
+                  {formatReplayTimestamp(activeReplaySummary.lastRecordedAt)}
+                </p>
+              ) : null}
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-muted-foreground">Replay Window</p>
+              <div className="flex flex-wrap gap-2">
+                {TRACK_REPLAY_WINDOW_OPTIONS.map((option) => (
+                  <Button
+                    key={option.value}
+                    type="button"
+                    variant="outline"
+                    className={`h-8 px-3 text-[9px] font-black uppercase tracking-[0.08em] ${
+                      selectedReplayHours === option.value ? 'border-slate-900 bg-slate-900 text-white hover:bg-slate-800' : ''
+                    }`}
+                    onClick={() => setSelectedReplayHours(option.value)}
+                  >
+                    {option.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                className="h-9 px-4 text-[10px] font-black uppercase tracking-[0.08em]"
+                onClick={() => setTrackReplayPickerOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                className="h-9 px-4 text-[10px] font-black uppercase tracking-[0.08em]"
+                disabled={!selectedReplayRegistration || isReplayLoading}
+                onClick={() => {
+                  void loadReplayPoints(selectedReplayRegistration, selectedReplayHours)
+                    .then(() => setTrackReplayPickerOpen(false))
+                    .catch(() =>
+                      toast({
+                        variant: 'destructive',
+                        title: 'Replay Unavailable',
+                        description: 'Track replay could not be loaded right now.',
+                      })
+                    );
+                }}
+              >
+                {isReplayLoading ? 'Loading Replay...' : 'Load Replay'}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

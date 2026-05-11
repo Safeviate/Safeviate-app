@@ -55,3 +55,41 @@ export interface ActiveLegState {
   onCourse?: boolean;
   hasArrived?: boolean;
 }
+
+export interface FlightTrackPointData {
+  bookingId?: string | null;
+  plannerRouteId?: string | null;
+  pilotId?: string | null;
+  pilotName?: string | null;
+  activeLegIndex?: number | null;
+  distanceToNextNm?: number | null;
+  bearingToNext?: number | null;
+  etaToNextWaypointMinutes?: number | null;
+  groundSpeedKt?: number | null;
+  crossTrackErrorNm?: number | null;
+  onCourse?: boolean | null;
+  accuracy?: number | null;
+  altitude?: number | null;
+  speedKt?: number | null;
+  headingTrue?: number | null;
+}
+
+export interface FlightTrackPoint {
+  id: string;
+  aircraftId?: string | null;
+  aircraftRegistration: string;
+  sessionId: string;
+  deviceId?: string | null;
+  recordedAt: string;
+  latitude: number;
+  longitude: number;
+  data: FlightTrackPointData;
+}
+
+export interface FlightTrackHistorySummary {
+  aircraftId?: string | null;
+  aircraftRegistration: string;
+  pointCount: number;
+  firstRecordedAt: string;
+  lastRecordedAt: string;
+}

@@ -38,6 +38,7 @@ model Tenant {
   tools                 ToolRecord[]
   activeFlightSessions  ActiveFlightSessionRecord[]
   activeFlightSessionBlocks ActiveFlightSessionBlock[]
+  activeFlightTrackPoints ActiveFlightTrackPointRecord[]
   alerts                AlertRecord[]
   passwordSetupInvites  PasswordSetupInvite[]
 
@@ -383,6 +384,26 @@ model ActiveFlightSessionBlock {
   tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@map("active_flight_session_blocks")
+}
+
+model ActiveFlightTrackPointRecord {
+  id                   String   @id @db.VarChar(128)
+  tenantId             String   @map("tenant_id") @db.VarChar(128)
+  aircraftId           String?  @map("aircraft_id") @db.VarChar(128)
+  aircraftRegistration String   @map("aircraft_registration")
+  sessionId            String   @map("session_id") @db.VarChar(128)
+  deviceId             String?  @map("device_id") @db.VarChar(128)
+  recordedAt           DateTime @map("recorded_at") @db.Timestamptz(6)
+  latitude             Float    @db.DoublePrecision
+  longitude            Float    @db.DoublePrecision
+  data                 Json     @default("{}")
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  tenant               Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, aircraftRegistration, recordedAt(sort: Desc)])
+  @@index([tenantId, sessionId, recordedAt(sort: Desc)])
+  @@map("active_flight_track_points")
 }
 
 model AlertRecord {
