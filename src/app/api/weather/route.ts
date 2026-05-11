@@ -13,7 +13,7 @@ async function fetchObservation(
   try {
     const response = await fetch(url, {
       headers,
-      next: { revalidate: 300 }
+      cache: 'no-store'
     });
 
     if (!response.ok) {
@@ -76,10 +76,16 @@ export async function GET(request: NextRequest) {
     ]);
 
     if (!metar && !taf) {
-      return NextResponse.json({ metar: null, taf: null, found: false, station: icao });
+      return NextResponse.json(
+        { metar: null, taf: null, found: false, station: icao },
+        { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' } }
+      );
     }
 
-    return NextResponse.json({ metar, taf, found: true, station: icao });
+    return NextResponse.json(
+      { metar, taf, found: true, station: icao },
+      { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' } }
+    );
   } catch (error: any) {
     console.error('[Weather API] Proxy Error:', error);
     return NextResponse.json({ error: 'Aviation Weather service error', details: error.message }, { status: 500 });

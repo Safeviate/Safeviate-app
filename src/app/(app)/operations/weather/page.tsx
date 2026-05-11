@@ -196,10 +196,10 @@ export default function WeatherPage() {
     try {
       // 1. Parallel Fetch for Aviation Sources
       const [mainRes, avwxRes, checkWxRes, vatsimRes] = await Promise.all([
-        fetch(`/api/weather?ids=${station}`).catch(() => null),
-        fetch(`/api/weather/avwx?icao=${station}`).catch(() => null),
-        fetch(`/api/weather/check-wx?icao=${station}`).catch(() => null),
-        fetch(`/api/weather/vatsim?icao=${station}`).catch(() => null)
+        fetch(`/api/weather?ids=${station}`, { cache: 'no-store' }).catch(() => null),
+        fetch(`/api/weather/avwx?icao=${station}`, { cache: 'no-store' }).catch(() => null),
+        fetch(`/api/weather/check-wx?icao=${station}`, { cache: 'no-store' }).catch(() => null),
+        fetch(`/api/weather/vatsim?icao=${station}`, { cache: 'no-store' }).catch(() => null)
       ]);
 
       const mainJson = mainRes?.ok ? await parseJsonResponse<{
@@ -222,8 +222,8 @@ export default function WeatherPage() {
 
       if (lat && lon) {
         const [omRes, mnRes] = await Promise.all([
-          fetch(`/api/weather/open-meteo?lat=${lat}&lon=${lon}`).catch(() => null),
-          fetch(`/api/weather/met-norway?lat=${lat}&lon=${lon}`).catch(() => null)
+          fetch(`/api/weather/open-meteo?lat=${lat}&lon=${lon}`, { cache: 'no-store' }).catch(() => null),
+          fetch(`/api/weather/met-norway?lat=${lat}&lon=${lon}`, { cache: 'no-store' }).catch(() => null)
         ]);
         if (omRes?.ok) setOpenMeteoData((await parseJsonResponse<OpenMeteoData>(omRes)) ?? null);
         if (mnRes?.ok) setMetNorwayData((await parseJsonResponse<MetNorwayData>(mnRes)) ?? null);

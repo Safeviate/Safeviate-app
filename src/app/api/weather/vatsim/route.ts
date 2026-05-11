@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
   try {
     const url = `https://metar.vatsim.net/metar.php?id=${icao.toUpperCase()}`;
     const response = await fetch(url, {
-        next: { revalidate: 300 } // 5 min cache
+        cache: 'no-store'
     });
     
     if (!response.ok) {
@@ -28,11 +28,14 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'No data returned from VATSIM' }, { status: 404 });
     }
 
-    return NextResponse.json({ 
+    return NextResponse.json(
+      {
         raw,
         source: 'VATSIM',
         timestamp: new Date().toISOString()
-    });
+      },
+      { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' } }
+    );
   } catch (error: any) {
     console.error('VATSIM Proxy Error:', error);
     return NextResponse.json({ error: 'Failed to fetch weather data from VATSIM' }, { status: 500 });
