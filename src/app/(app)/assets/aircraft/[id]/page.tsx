@@ -70,6 +70,7 @@ import { DocumentUploader } from '@/components/document-uploader';
 import { CustomCalendar } from '@/components/ui/custom-calendar';
 import type { Aircraft, AircraftComponent, AircraftDefect } from '@/types/aircraft';
 import type { MaintenanceLog } from '@/types/maintenance';
+import type { QuickReportWorkflowStatus, TechnicalQuickReport } from '@/types/quick-reports';
 import { Separator } from '@/components/ui/separator';
 import { useUserProfile } from '@/hooks/use-user-profile';
 import type { DocumentExpirySettings } from '@/app/(app)/admin/document-dates/page';
@@ -165,6 +166,24 @@ type UtilisationHealthTrendPoint = {
   defectCount: number;
   defectRate: number;
 };
+
+type TechnicalReportAssigneeOption = {
+  id: string;
+  name: string;
+};
+
+type TechnicalReportDraft = {
+  assignedToId: string;
+  workflowStatus: QuickReportWorkflowStatus;
+  managementNotes: string;
+};
+
+const TECHNICAL_REPORT_WORKFLOW_STATUSES: QuickReportWorkflowStatus[] = [
+  'Preliminary',
+  'Under Review',
+  'Assigned',
+  'Closed',
+];
 
 type DefectCategory = {
   id: string;
@@ -310,6 +329,7 @@ export default function AircraftDetailPage({ params }: AircraftDetailPageProps) 
   const resolvedParams = use(params);
   const isMobile = useIsMobile();
   const { tenantId } = useUserProfile();
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('overview');
   const [selectedDefectComponentId, setSelectedDefectComponentId] = useState<string | null>(null);
   const [selectedDefectId, setSelectedDefectId] = useState<string | null>(null);
@@ -337,24 +357,61 @@ export default function AircraftDetailPage({ params }: AircraftDetailPageProps) 
   const [logs, setLogs] = useState<MaintenanceLog[]>([]);
   const [inspectionSettings, setInspectionSettings] = useState<AircraftInspectionWarningSettings | null>(null);
   const [usageSummary, setUsageSummary] = useState<UsageSummaryPayload>({});
+  const [technicalReports, setTechnicalReports] = useState<TechnicalQuickReport[]>([]);
+  const [technicalReportDrafts, setTechnicalReportDrafts] = useState<Record<string, TechnicalReportDraft>>({});
+  const [technicalReportAssignees, setTechnicalReportAssignees] = useState<TechnicalReportAssigneeOption[]>([]);
+  const [savingTechnicalReportId, setSavingTechnicalReportId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-        const response = await fetch(`/api/aircraft/${aircraftId}`, { cache: 'no-store' });
+        const [response, configResponse, summaryResponse, technicalReportsResponse] = await Promise.all([
+          fetch(`/api/aircraft/${aircraftId}`, { cache: 'no-store' }),
+          fetch('/api/tenant-config', { cache: 'no-store' }),
+          fetch('/api/dashboard-summary', { cache: 'no-store' }),
+          fetch('/api/technical-reports', { cache: 'no-store' }),
+        ]);
         const payload = await response.json().catch(() => ({ aircraft: null }));
         const normalizedAircraft = normalizeAircraftComponentReferences((payload.aircraft as Aircraft | null) || null);
         setAircraft(normalizedAircraft);
         setLogs(((normalizedAircraft as Aircraft | null)?.maintenanceLogs as MaintenanceLog[] | undefined || []).slice().sort((a, b) => b.date.localeCompare(a.date)));
 
-        const configResponse = await fetch('/api/tenant-config', { cache: 'no-store' });
         const configPayload = await configResponse.json().catch(() => ({ config: null }));
         setInspectionSettings((configPayload?.config?.['inspection-warning-settings'] as AircraftInspectionWarningSettings | undefined) || null);
 
-        const summaryResponse = await fetch('/api/dashboard-summary', { cache: 'no-store' });
         const summaryPayload = await summaryResponse.json().catch(() => ({ bookings: [] }));
         setUsageSummary(summaryPayload as UsageSummaryPayload);
+
+        const summaryPersonnel: Array<{ id?: string; firstName?: string; lastName?: string }> = Array.isArray(summaryPayload?.personnel)
+          ? summaryPayload.personnel
+          : [];
+        setTechnicalReportAssignees(
+          summaryPersonnel
+            .map((person) => ({
+              id: typeof person?.id === 'string' ? person.id : '',
+              name: `${typeof person?.firstName === 'string' ? person.firstName : ''} ${typeof person?.lastName === 'string' ? person.lastName : ''}`.trim(),
+            }))
+            .filter((person) => person.id && person.name)
+        );
+
+        const technicalPayload = await technicalReportsResponse.json().catch(() => ({ reports: [] }));
+        const nextTechnicalReports = Array.isArray(technicalPayload?.reports)
+          ? (technicalPayload.reports as TechnicalQuickReport[])
+          : [];
+        setTechnicalReports(nextTechnicalReports);
+        setTechnicalReportDrafts(
+          Object.fromEntries(
+            nextTechnicalReports.map((report) => [
+              report.id,
+              {
+                assignedToId: report.assignedToId || '',
+                workflowStatus: report.workflowStatus || 'Preliminary',
+                managementNotes: report.managementNotes || '',
+              },
+            ])
+          )
+        );
     } catch (e) {
         console.error("Failed to load aircraft details", e);
     } finally {
@@ -521,6 +578,91 @@ export default function AircraftDetailPage({ params }: AircraftDetailPageProps) 
       };
     });
   }, [utilisationChartBookings, utilisationChartDefects, utilisationChartNow, utilisationChartWindowEnd, utilisationChartWindowStart]);
+
+  const technicalReportsForAircraft = useMemo(
+    () =>
+      technicalReports
+        .filter((report) => report.aircraftId === aircraft?.id)
+        .sort((left, right) => `${right.eventDate}T${right.eventTime}`.localeCompare(`${left.eventDate}T${left.eventTime}`)),
+    [technicalReports, aircraft?.id]
+  );
+
+  const setTechnicalReportDraftValue = useCallback(
+    (reportId: string, patch: Partial<TechnicalReportDraft>) => {
+      setTechnicalReportDrafts((current) => {
+        const existing = current[reportId] || {
+          assignedToId: '',
+          workflowStatus: 'Preliminary' as QuickReportWorkflowStatus,
+          managementNotes: '',
+        };
+        return {
+          ...current,
+          [reportId]: {
+            ...existing,
+            ...patch,
+          },
+        };
+      });
+    },
+    []
+  );
+
+  const saveTechnicalReportManagement = useCallback(
+    async (report: TechnicalQuickReport) => {
+      const draft = technicalReportDrafts[report.id] || {
+        assignedToId: report.assignedToId || '',
+        workflowStatus: report.workflowStatus || 'Preliminary',
+        managementNotes: report.managementNotes || '',
+      };
+      const assignedPerson =
+        technicalReportAssignees.find((person) => person.id === draft.assignedToId) || null;
+      setSavingTechnicalReportId(report.id);
+      try {
+        const nextReport: TechnicalQuickReport = {
+          ...report,
+          assignedToId: draft.assignedToId || null,
+          assignedToName: assignedPerson?.name || null,
+          workflowStatus: draft.workflowStatus,
+          managementNotes: draft.managementNotes.trim() || null,
+          status: draft.workflowStatus === 'Closed' ? 'Closed' : 'Open',
+        };
+        const response = await fetch('/api/technical-reports', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ report: nextReport }),
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(payload?.error || 'Failed to update technical report.');
+        }
+
+        setTechnicalReports((current) =>
+          current.map((entry) => (entry.id === report.id ? (payload.report as TechnicalQuickReport) : entry))
+        );
+        setTechnicalReportDrafts((current) => ({
+          ...current,
+          [report.id]: {
+            assignedToId: payload.report?.assignedToId || '',
+            workflowStatus: payload.report?.workflowStatus || 'Preliminary',
+            managementNotes: payload.report?.managementNotes || '',
+          },
+        }));
+        toast({
+          title: 'Technical Report Updated',
+          description: `${report.reportNumber} is now managed against ${aircraft?.tailNumber || 'this aircraft'}.`,
+        });
+      } catch (error) {
+        toast({
+          variant: 'destructive',
+          title: 'Update Failed',
+          description: error instanceof Error ? error.message : 'Failed to update technical report.',
+        });
+      } finally {
+        setSavingTechnicalReportId(null);
+      }
+    },
+    [aircraft?.tailNumber, technicalReportAssignees, technicalReportDrafts, toast]
+  );
 
   const utilisationHealthRecommendation = useMemo(() => {
     const recent = utilisationHealthTrend.slice(-3);
@@ -1582,6 +1724,160 @@ export default function AircraftDetailPage({ params }: AircraftDetailPageProps) 
 
               <TabsContent value="defects" className={cn("mt-0 outline-none", isMobile ? "min-h-0" : "h-full overflow-y-auto no-scrollbar")}>
                 <CardContent className="p-4 sm:p-6">
+                  <Card className="mb-4 overflow-hidden border shadow-none">
+                    <CardHeader className="border-b bg-muted/20 px-4 py-3">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="min-w-0">
+                          <h3 className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-primary">
+                            <FileText className="h-3.5 w-3.5" />
+                            Technical Quick Reports
+                          </h3>
+                          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
+                            Linked preliminary technical reports for this aircraft can be assigned and managed here.
+                          </p>
+                        </div>
+                        <Badge variant="outline" className="h-6 px-2 text-[10px] font-black uppercase tracking-widest">
+                          {technicalReportsForAircraft.length} linked
+                        </Badge>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                      {technicalReportsForAircraft.length > 0 ? (
+                        <div className="divide-y">
+                          {technicalReportsForAircraft.map((report) => {
+                            const draft = technicalReportDrafts[report.id] || {
+                              assignedToId: report.assignedToId || '',
+                              workflowStatus: report.workflowStatus || 'Preliminary',
+                              managementNotes: report.managementNotes || '',
+                            };
+
+                            return (
+                              <div key={report.id} className="space-y-4 px-4 py-4">
+                                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                  <div className="min-w-0">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <span className="text-[10px] font-black uppercase tracking-[0.18em] text-primary">{report.reportNumber}</span>
+                                      <Badge variant={report.urgency === 'High' ? 'destructive' : report.urgency === 'Medium' ? 'secondary' : 'outline'} className="text-[10px] uppercase tracking-widest">
+                                        {report.urgency}
+                                      </Badge>
+                                      <Badge variant={draft.workflowStatus === 'Closed' ? 'default' : 'outline'} className="text-[10px] uppercase tracking-widest">
+                                        {draft.workflowStatus}
+                                      </Badge>
+                                      {report.grounded ? (
+                                        <Badge variant="destructive" className="text-[10px] uppercase tracking-widest">
+                                          Grounding recommended
+                                        </Badge>
+                                      ) : null}
+                                    </div>
+                                    <div className="mt-2 text-sm font-black text-foreground">{report.title}</div>
+                                    <div className="mt-1 flex flex-wrap items-center gap-3 text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
+                                      <span>{format(parseLocalDate(report.eventDate) || new Date(report.eventDate), 'dd MMM yyyy')}</span>
+                                      <span>{report.eventTime}</span>
+                                      <span>{report.location}</span>
+                                      <span>Filed by {report.submittedByName}</span>
+                                      {report.systemOrComponent ? <span>{report.systemOrComponent}</span> : null}
+                                    </div>
+                                  </div>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    className="h-8 px-3 text-[10px] font-black uppercase"
+                                    disabled={savingTechnicalReportId === report.id}
+                                    onClick={() => void saveTechnicalReportManagement(report)}
+                                  >
+                                    {savingTechnicalReportId === report.id ? 'Saving...' : 'Save Management Update'}
+                                  </Button>
+                                </div>
+
+                                <p className="text-sm font-medium text-foreground">{report.summary}</p>
+                                {report.immediateAction ? (
+                                  <div className="rounded-lg border bg-muted/5 px-3 py-2">
+                                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Immediate Action</p>
+                                    <p className="mt-1 text-sm font-medium text-foreground">{report.immediateAction}</p>
+                                  </div>
+                                ) : null}
+
+                                <div className="grid gap-4 md:grid-cols-2">
+                                  <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Assigned To</label>
+                                    <Select
+                                      value={draft.assignedToId || 'unassigned'}
+                                      onValueChange={(value) =>
+                                        setTechnicalReportDraftValue(report.id, {
+                                          assignedToId: value === 'unassigned' ? '' : value,
+                                        })
+                                      }
+                                    >
+                                      <SelectTrigger className="h-10 font-bold">
+                                        <SelectValue placeholder="Assign report" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="unassigned">Unassigned</SelectItem>
+                                        {technicalReportAssignees.map((person) => (
+                                          <SelectItem key={person.id} value={person.id}>
+                                            {person.name}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Workflow Status</label>
+                                    <Select
+                                      value={draft.workflowStatus}
+                                      onValueChange={(value) =>
+                                        setTechnicalReportDraftValue(report.id, {
+                                          workflowStatus: value as QuickReportWorkflowStatus,
+                                        })
+                                      }
+                                    >
+                                      <SelectTrigger className="h-10 font-bold">
+                                        <SelectValue placeholder="Select workflow status" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {TECHNICAL_REPORT_WORKFLOW_STATUSES.map((status) => (
+                                          <SelectItem key={status} value={status}>
+                                            {status}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                  <label className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Management Notes</label>
+                                  <Textarea
+                                    value={draft.managementNotes}
+                                    onChange={(event) =>
+                                      setTechnicalReportDraftValue(report.id, {
+                                        managementNotes: event.target.value,
+                                      })
+                                    }
+                                    className="min-h-[88px] p-3"
+                                    placeholder="Capture assignment notes, engineering direction, or follow-up actions."
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="flex min-h-[180px] flex-col items-center justify-center gap-4 bg-muted/5 px-6 py-10 text-center">
+                          <div className="flex h-12 w-12 items-center justify-center rounded-md border bg-background">
+                            <FileText className="h-5 w-5 text-muted-foreground/60" />
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-sm font-bold uppercase tracking-wider text-foreground">No linked technical quick reports</p>
+                            <p className="text-[10px] font-bold uppercase tracking-widest italic text-muted-foreground">
+                              Preliminary technical reports tied to this aircraft will appear here for engineering management.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
                   <Card className="shadow-none border overflow-hidden">
                     <CardHeader className="border-b bg-muted/20 px-4 py-3">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

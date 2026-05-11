@@ -98,4 +98,6 @@ export interface SafetyReport {
     mitigatedHazards?: ReportHazard[];
     // Closure Fields
     signatures?: ReportSignature[];
+    sourceQuickReportId?: string;
+    sourceQuickReportNumber?: string;
 }

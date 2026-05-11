@@ -1,0 +1,403 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { format } from 'date-fns';
+import { AlertTriangle, CalendarIcon, FileWarning, Wrench } from 'lucide-react';
+import { MainPageHeader } from '@/components/page-header';
+import { BackNavButton } from '@/components/back-nav-button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { CustomCalendar } from '@/components/ui/custom-calendar';
+import { useToast } from '@/hooks/use-toast';
+import type { Aircraft } from '@/types/aircraft';
+import { cn } from '@/lib/utils';
+
+const technicalReportSchema = z.object({
+  reportType: z.string().min(1, 'Technical report type is required.'),
+  aircraftId: z.string().optional(),
+  eventDate: z.date({ required_error: 'Date is required.' }),
+  eventTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, { message: 'Invalid time format (HH:mm).' }),
+  location: z.string().min(1, 'Location is required.'),
+  title: z.string().min(3, 'Short title is required.'),
+  systemOrComponent: z.string().optional(),
+  grounded: z.boolean().default(false),
+  urgency: z.enum(['Low', 'Medium', 'High']),
+  summary: z.string().min(10, 'Please provide a useful summary.'),
+  immediateAction: z.string().optional(),
+});
+
+type TechnicalReportValues = z.infer<typeof technicalReportSchema>;
+
+const reportTypes = ['Aircraft Defect', 'Maintenance Concern', 'Technical Observation', 'Deferred Snag'] as const;
+
+export default function QuickTechnicalReportPage() {
+  const router = useRouter();
+  const { toast } = useToast();
+  const [aircrafts, setAircrafts] = useState<Aircraft[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadAircraft = async () => {
+      try {
+        const response = await fetch('/api/schedule-data', { cache: 'no-store' });
+        const payload = await response.json().catch(() => ({ aircraft: [] }));
+        if (!cancelled) {
+          setAircrafts(Array.isArray(payload?.aircraft) ? payload.aircraft : []);
+        }
+      } catch {
+        if (!cancelled) setAircrafts([]);
+      }
+    };
+
+    void loadAircraft();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const form = useForm<TechnicalReportValues>({
+    resolver: zodResolver(technicalReportSchema),
+    defaultValues: {
+      reportType: '',
+      aircraftId: '',
+      eventDate: new Date(),
+      eventTime: format(new Date(), 'HH:mm'),
+      location: '',
+      title: '',
+      systemOrComponent: '',
+      grounded: false,
+      urgency: 'Medium',
+      summary: '',
+      immediateAction: '',
+    },
+  });
+
+  const onSubmit = async (values: TechnicalReportValues) => {
+    setIsSubmitting(true);
+    try {
+      const selectedAircraft = aircrafts.find((aircraft) => aircraft.id === values.aircraftId);
+      const response = await fetch('/api/technical-reports', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          report: {
+            reportNumber: `TECH-${String(Date.now()).slice(-6)}`,
+            reportType: values.reportType,
+            eventDate: format(values.eventDate, 'yyyy-MM-dd'),
+            eventTime: values.eventTime,
+            location: values.location,
+            title: values.title,
+            systemOrComponent: values.systemOrComponent || null,
+            grounded: values.grounded,
+            urgency: values.urgency,
+            summary: values.summary,
+            immediateAction: values.immediateAction || null,
+            aircraftId: values.aircraftId && values.aircraftId !== 'unassigned' ? values.aircraftId : null,
+            aircraftLabel: selectedAircraft ? `${selectedAircraft.tailNumber} (${selectedAircraft.model})` : null,
+          },
+        }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Failed to submit technical report.');
+      }
+
+      toast({
+        title: 'Technical Report Submitted',
+        description: 'The preliminary technical report has been captured for management follow-up.',
+      });
+
+      router.push('/quick-reports');
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Submission Failed',
+        description: error instanceof Error ? error.message : 'Failed to submit technical report.',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-6 p-4">
+      <MainPageHeader
+        title="Technical Report"
+        description="Capture a quick preliminary technical report that management can analyze, assign, and escalate later."
+        actions={<BackNavButton href="/quick-reports" text="Back to Quick Reports" />}
+      />
+
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          <Card className="overflow-hidden border shadow-none">
+            <CardHeader className="border-b bg-muted/5">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full border bg-background">
+                  <FileWarning className="h-5 w-5 text-primary" />
+                </div>
+                <div className="min-w-0">
+                  <CardTitle>Preliminary Technical Report</CardTitle>
+                  <CardDescription>
+                    Use this for early technical reporting before engineering or management completes deeper analysis and assignment.
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6 p-6">
+              <div className="grid gap-6 md:grid-cols-2">
+                <FormField
+                  control={form.control}
+                  name="reportType"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Report Type</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a technical report type" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {reportTypes.map((type) => (
+                            <SelectItem key={type} value={type}>
+                              {type}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="aircraftId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Aircraft Involved</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select an aircraft if relevant" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="unassigned">Not aircraft-specific</SelectItem>
+                          {aircrafts.map((aircraft) => (
+                            <SelectItem key={aircraft.id} value={aircraft.id}>
+                              {aircraft.tailNumber} ({aircraft.model})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="grid gap-6 md:grid-cols-3">
+                <FormField
+                  control={form.control}
+                  name="eventDate"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-col">
+                      <FormLabel>Date</FormLabel>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <FormControl>
+                            <Button
+                              variant="outline"
+                              className={cn('w-full justify-between pl-3 text-left font-normal', !field.value && 'text-muted-foreground')}
+                            >
+                              {field.value ? format(field.value, 'PPP') : <span>Pick a date</span>}
+                              <CalendarIcon className="h-4 w-4 opacity-50" />
+                            </Button>
+                          </FormControl>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <CustomCalendar selectedDate={field.value} onDateSelect={field.onChange} />
+                        </PopoverContent>
+                      </Popover>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="eventTime"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Time</FormLabel>
+                      <FormControl>
+                        <Input type="time" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="location"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Location</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g. Hangar, Apron, Workshop" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="grid gap-6 md:grid-cols-2">
+                <FormField
+                  control={form.control}
+                  name="title"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Short Title</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g. Nose wheel shimmy after landing" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="systemOrComponent"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>System / Component</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g. Brakes, Avionics, Landing light" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="grid gap-6 md:grid-cols-2">
+                <FormField
+                  control={form.control}
+                  name="urgency"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Urgency</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select urgency" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="Low">Low</SelectItem>
+                          <SelectItem value="Medium">Medium</SelectItem>
+                          <SelectItem value="High">High</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="grounded"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-col rounded-lg border p-3 justify-center bg-muted/10">
+                      <FormLabel className="text-xs">Ground Aircraft</FormLabel>
+                      <div className="flex items-center space-x-2 pt-2">
+                        <FormControl>
+                          <Switch checked={field.value} onCheckedChange={field.onChange} />
+                        </FormControl>
+                        <span className="text-[10px] font-medium text-muted-foreground">
+                          {field.value ? 'This report indicates the aircraft should not be dispatched.' : 'No grounding recommendation recorded.'}
+                        </span>
+                      </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <FormField
+                control={form.control}
+                name="summary"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Technical Summary</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        className="min-h-32"
+                        placeholder="Describe what was found, under what conditions, and what the immediate concern is."
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="immediateAction"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Immediate Action Taken</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        className="min-h-24"
+                        placeholder="Capture any action already taken, temporary controls, or dispatch restriction applied."
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="rounded-xl border bg-amber-50/50 p-4">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full border bg-background">
+                    <AlertTriangle className="h-4 w-4 text-amber-600" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-800">Preliminary Capture</p>
+                    <p className="text-sm text-amber-900/90">
+                      This tool is intended for fast first capture. Management and engineering can analyze, assign, and escalate the report further after submission.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <div className="flex justify-end gap-2 pb-8">
+            <Button type="button" variant="outline" onClick={() => router.push('/quick-reports')} disabled={isSubmitting}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? <Wrench className="mr-2 h-4 w-4 animate-pulse" /> : <Wrench className="mr-2 h-4 w-4" />}
+              Submit Technical Report
+            </Button>
+          </div>
+        </form>
+      </Form>
+    </div>
+  );
+}

@@ -43,6 +43,28 @@ const parseLocalDate = (value?: string | null) => {
     return new Date(year, month - 1, day, 12);
 };
 
+const combineLocalDateAndTime = (date: Date, time: string) => {
+    return new Date(`${format(date, 'yyyy-MM-dd')}T${time}`);
+};
+
+const getBookingRange = (booking: Pick<Booking, 'date' | 'startTime' | 'endTime' | 'start' | 'end' | 'isOvernight' | 'overnightBookingDate' | 'overnightEndTime'>) => {
+    const fallbackStart = booking.date && booking.startTime ? new Date(`${booking.date}T${booking.startTime}`) : new Date(booking.start || '');
+    const fallbackEnd = booking.date && booking.endTime ? new Date(`${booking.date}T${booking.endTime}`) : new Date(booking.end || '');
+
+    if (booking.isOvernight && booking.overnightBookingDate && booking.overnightEndTime) {
+        const overnightEnd = new Date(`${booking.overnightBookingDate}T${booking.overnightEndTime}`);
+        return {
+            start: fallbackStart,
+            end: Number.isNaN(overnightEnd.getTime()) ? fallbackEnd : overnightEnd,
+        };
+    }
+
+    return {
+        start: fallbackStart,
+        end: fallbackEnd,
+    };
+};
+
 const BOOKING_STATUS_OPTIONS = [
     { value: 'Tentative', label: 'Tentative' },
     { value: 'Confirmed', label: 'Confirmed' },
@@ -234,11 +256,16 @@ export function BookingForm({ isOpen, setIsOpen, aircraft, startTime, tenantId, 
         }
         setIsSubmitting(true);
 
-        const startIso = new Date(`${format(data.date, 'yyyy-MM-dd')}T${data.startTime}`).toISOString();
-        const endIso = new Date(`${format(data.date, 'yyyy-MM-dd')}T${data.endTime}`).toISOString();
+        const newStart = combineLocalDateAndTime(data.date, data.startTime);
+        const sameDayEnd = combineLocalDateAndTime(data.date, data.endTime);
+        const overnightReturnDate = data.isOvernight && data.overnightBookingDate ? data.overnightBookingDate : null;
+        const overnightReturnTime = data.isOvernight ? data.overnightEndTime || null : null;
+        const newEnd = overnightReturnDate && overnightReturnTime
+            ? combineLocalDateAndTime(overnightReturnDate, overnightReturnTime)
+            : sameDayEnd;
 
-        const newStart = new Date(startIso);
-        const newEnd = new Date(endIso);
+        const startIso = newStart.toISOString();
+        const endIso = newEnd.toISOString();
 
         if (data.type === 'Maintenance') {
             const toDate = data.overnightBookingDate ? format(data.overnightBookingDate, 'yyyy-MM-dd') : format(data.date, 'yyyy-MM-dd');
@@ -312,8 +339,7 @@ export function BookingForm({ isOpen, setIsOpen, aircraft, startTime, tenantId, 
             if (other.id === existingBooking?.id) return false;
             if (other.status === 'Cancelled' || other.status === 'Cancelled with Reason') return false;
             
-            const otherStart = new Date(other.start);
-            const otherEnd = new Date(other.end);
+            const { start: otherStart, end: otherEnd } = getBookingRange(other);
             
             return newStart < otherEnd && newEnd > otherStart;
         });
@@ -541,7 +567,7 @@ export function BookingForm({ isOpen, setIsOpen, aircraft, startTime, tenantId, 
 
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
-                        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain pr-1 pb-24">
+                        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain pr-1 pb-8">
                         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'details' | 'checks')} className="space-y-3">
                             <ResponsiveTabRow
                                 value={activeTab}

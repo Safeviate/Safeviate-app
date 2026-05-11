@@ -16,6 +16,7 @@ import { useToast } from '@/hooks/use-toast';
 import { callAiFlow } from '@/lib/ai-client';
 import type { SafetyReport } from '@/types/safety-report';
 import type { ExternalOrganization } from '@/types/quality';
+import type { QuickSafetyReport } from '@/types/quick-reports';
 import { EditReportDialog } from './edit-report-dialog';
 import { cn } from '@/lib/utils';
 import {
@@ -86,6 +87,13 @@ interface ReportsTableProps {
     canManage: boolean;
 }
 
+interface QuickSafetyInboxProps {
+    reports: QuickSafetyReport[];
+    canManage: boolean;
+    classifyingReportId: string | null;
+    onClassify: (report: QuickSafetyReport) => Promise<void>;
+}
+
 function ReportsTable({ reports, tenantId, canManage }: ReportsTableProps) {
     return (
         <ResponsiveCardGrid
@@ -139,6 +147,111 @@ function ReportsTable({ reports, tenantId, canManage }: ReportsTableProps) {
             )}
             emptyState={<div className="text-center p-12 text-muted-foreground text-sm italic">No safety reports found for this context.</div>}
         />
+    );
+}
+
+function QuickSafetyInbox({ reports, canManage, classifyingReportId, onClassify }: QuickSafetyInboxProps) {
+    return (
+        <div className="border-b bg-muted/5 p-4">
+            <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-primary">Quick Safety Intake</p>
+                    <p className="text-xs font-medium text-muted-foreground">
+                        Preliminary safety reports can be classified here into the formal safety register.
+                    </p>
+                </div>
+                <Badge variant="outline" className="h-6 px-2 text-[10px] font-black uppercase tracking-widest">
+                    {reports.length} awaiting review
+                </Badge>
+            </div>
+
+            {reports.length > 0 ? (
+                <ResponsiveCardGrid
+                    items={reports}
+                    isLoading={false}
+                    gridClassName="sm:grid-cols-2 xl:grid-cols-3"
+                    renderItem={(report) => (
+                        <Card key={report.id} className="overflow-hidden border-slate-200 shadow-none">
+                            <CardHeader className="flex flex-row items-center justify-between space-y-0 border-b bg-background px-4 py-3">
+                                <div className="flex flex-col">
+                                    <span className="text-[10px] font-black uppercase tracking-[0.18em] text-primary">{report.reportNumber}</span>
+                                    <span className="mt-1 text-sm font-black">{report.reportType}</span>
+                                </div>
+                                <Badge variant={report.workflowStatus === 'Classified' ? 'default' : 'outline'} className="text-[9px] font-black uppercase">
+                                    {report.workflowStatus}
+                                </Badge>
+                            </CardHeader>
+                            <CardContent className="space-y-3 p-4">
+                                <div className="flex flex-wrap items-center gap-3 text-xs font-medium text-muted-foreground">
+                                    <span className="flex items-center gap-1.5">
+                                        <Clock className="h-3.5 w-3.5" />
+                                        {format(parseLocalDate(report.eventDate), 'dd MMM yyyy')}
+                                    </span>
+                                    <span className="flex items-center gap-1.5">
+                                        <MapPin className="h-3.5 w-3.5" />
+                                        {report.location}
+                                    </span>
+                                </div>
+                                <div className="flex items-center gap-2 text-xs font-bold">
+                                    <User className="h-3.5 w-3.5 text-muted-foreground" />
+                                    Filed by: {report.submittedByName}
+                                </div>
+                                {report.aircraftLabel ? (
+                                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
+                                        Aircraft {report.aircraftLabel}
+                                    </div>
+                                ) : null}
+                                {report.recommendedClassification ? (
+                                    <div className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
+                                        Recommended {report.recommendedClassification}
+                                    </div>
+                                ) : null}
+                                <p className="text-sm font-medium text-foreground">{report.summary}</p>
+                                {report.immediateAction ? (
+                                    <div className="rounded-lg border bg-muted/5 px-3 py-2">
+                                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Immediate Action</p>
+                                        <p className="mt-1 text-xs font-medium text-foreground">{report.immediateAction}</p>
+                                    </div>
+                                ) : null}
+                            </CardContent>
+                            <div className="flex flex-wrap gap-2 border-t bg-muted/5 p-2">
+                                {report.linkedSafetyReportId ? (
+                                    <Button asChild variant="outline" size="sm" className="h-8 flex-1 justify-between px-3 text-[10px] font-black uppercase">
+                                        <Link href={`/safety/safety-reports/${report.linkedSafetyReportId}`}>
+                                            View {report.linkedSafetyReportNumber || 'Safety Report'}
+                                            <ArrowRight className="ml-2 h-3.5 w-3.5" />
+                                        </Link>
+                                    </Button>
+                                ) : canManage ? (
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        className="h-8 flex-1 justify-between px-3 text-[10px] font-black uppercase"
+                                        disabled={classifyingReportId === report.id}
+                                        onClick={() => void onClassify(report)}
+                                    >
+                                        {classifyingReportId === report.id ? 'Classifying...' : 'Classify into Safety'}
+                                        <ArrowRight className="ml-2 h-3.5 w-3.5" />
+                                    </Button>
+                                ) : (
+                                    <div className="px-2 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
+                                        Awaiting management classification
+                                    </div>
+                                )}
+                            </div>
+                        </Card>
+                    )}
+                    emptyState={null}
+                />
+            ) : (
+                <div className="rounded-xl border border-dashed bg-background px-4 py-8 text-center">
+                    <p className="text-sm font-bold uppercase tracking-wider text-foreground">No quick safety reports waiting</p>
+                    <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.16em] italic text-muted-foreground">
+                        New preliminary safety reports will appear here for classification.
+                    </p>
+                </div>
+            )}
+        </div>
     );
 }
 
@@ -226,11 +339,14 @@ export default function SafetyReportsPage() {
   const { tenantId } = useUserProfile();
   const { hasPermission } = usePermissions();
   const { scopedOrganizationId, shouldShowOrganizationTabs } = useOrganizationScope({ viewAllPermissionId: 'safety-reports-manage' });
+  const { toast } = useToast();
   const isMobile = useIsMobile();
   const [activeOrgTab, setActiveOrgTab] = useState('internal');
   const [allReports, setAllReports] = useState<SafetyReport[]>([]);
+  const [quickSafetyReports, setQuickSafetyReports] = useState<QuickSafetyReport[]>([]);
   const [organizations, setOrganizations] = useState<ExternalOrganization[]>([]);
   const [isLoadingReports, setIsLoadingReports] = useState(true);
+  const [classifyingQuickReportId, setClassifyingQuickReportId] = useState<string | null>(null);
 
   const canManageAll = hasPermission('safety-reports-manage');
 
@@ -245,10 +361,15 @@ export default function SafetyReportsPage() {
 
       setIsLoadingReports(true);
       try {
-        const response = await fetch('/api/safety-reports', { cache: 'no-store' });
+        const [response, quickResponse] = await Promise.all([
+            fetch('/api/safety-reports', { cache: 'no-store' }),
+            fetch('/api/quick-safety-reports', { cache: 'no-store' }),
+        ]);
         const payload = await response.json();
+        const quickPayload = await quickResponse.json().catch(() => ({ reports: [] }));
         if (!cancelled) {
           setAllReports(payload.reports ?? []);
+          setQuickSafetyReports(Array.isArray(quickPayload?.reports) ? quickPayload.reports : []);
         }
       } finally {
         if (!cancelled) setIsLoadingReports(false);
@@ -281,10 +402,101 @@ export default function SafetyReportsPage() {
 
   const isLoading = isLoadingReports;
 
+  const handleClassifyQuickReport = async (report: QuickSafetyReport) => {
+    setClassifyingQuickReportId(report.id);
+    try {
+      const newSafetyReportId = crypto.randomUUID();
+      const newSafetyReportNumber = `SR-${String(Date.now()).slice(-6)}`;
+      const eventClassification =
+        report.recommendedClassification && report.recommendedClassification !== 'General Concern'
+          ? report.recommendedClassification
+          : undefined;
+      const description = report.immediateAction
+        ? `${report.summary}\n\nImmediate action taken:\n${report.immediateAction}`
+        : report.summary;
+
+      const safetyResponse = await fetch('/api/safety-reports', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          report: {
+            id: newSafetyReportId,
+            reportNumber: newSafetyReportNumber,
+            reportType: report.reportType,
+            status: 'Open',
+            submittedBy: report.submittedByEmail || report.submittedById || 'quick-safety-report',
+            submittedByName: report.submittedByName,
+            submittedAt: new Date().toISOString(),
+            isAnonymous: false,
+            eventDate: report.eventDate,
+            eventTime: report.eventTime,
+            location: report.location,
+            description,
+            occurrenceCategory: 'Quick Safety Report',
+            eventClassification,
+            sourceQuickReportId: report.id,
+            sourceQuickReportNumber: report.reportNumber,
+          },
+        }),
+      });
+      const safetyPayload = await safetyResponse.json().catch(() => ({}));
+      if (!safetyResponse.ok) {
+        throw new Error(safetyPayload?.error || 'Failed to create the formal safety report.');
+      }
+
+      const quickResponse = await fetch('/api/quick-safety-reports', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          report: {
+            ...report,
+            workflowStatus: 'Classified',
+            status: 'Closed',
+            linkedSafetyReportId: newSafetyReportId,
+            linkedSafetyReportNumber: newSafetyReportNumber,
+          },
+        }),
+      });
+      const quickPayload = await quickResponse.json().catch(() => ({}));
+      if (!quickResponse.ok) {
+        throw new Error(quickPayload?.error || 'Failed to link the quick safety report.');
+      }
+
+      setAllReports((current) => [safetyPayload.report as SafetyReport, ...current]);
+      setQuickSafetyReports((current) =>
+        current.map((entry) =>
+          entry.id === report.id
+            ? {
+                ...entry,
+                workflowStatus: 'Classified',
+                status: 'Closed',
+                linkedSafetyReportId: newSafetyReportId,
+                linkedSafetyReportNumber: newSafetyReportNumber,
+              }
+            : entry
+        )
+      );
+
+      toast({
+        title: 'Quick Safety Report Classified',
+        description: `${report.reportNumber} is now linked to formal safety report ${newSafetyReportNumber}.`,
+      });
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Classification Failed',
+        description: error instanceof Error ? error.message : 'Failed to classify the quick safety report.',
+      });
+    } finally {
+      setClassifyingQuickReportId(null);
+    }
+  };
+
   const renderOrgCard = (orgId: string | 'internal') => {
     const filteredReports = (allReports || []).filter(r => 
         orgId === 'internal' ? !r.organizationId : r.organizationId === orgId
     );
+    const internalQuickSafetyReports = (quickSafetyReports || []).filter((report) => !report.linkedSafetyReportId);
     const headerBandBorderStyle = { borderBottomColor: 'hsl(var(--card-border))' };
     const fileReportButton = (
       <Button
@@ -334,6 +546,14 @@ export default function SafetyReportsPage() {
                 </div>
             </div>
             <CardContent className="flex-1 p-0 bg-background overflow-y-auto">
+                {orgId === 'internal' ? (
+                    <QuickSafetyInbox
+                        reports={internalQuickSafetyReports}
+                        canManage={canManageAll}
+                        classifyingReportId={classifyingQuickReportId}
+                        onClassify={handleClassifyQuickReport}
+                    />
+                ) : null}
                 <ReportsTable reports={filteredReports} tenantId={tenantId || ''} canManage={canManageAll} />
             </CardContent>
         </Card>

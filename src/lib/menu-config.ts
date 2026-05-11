@@ -15,6 +15,7 @@ import {
   Calculator,
   FileSpreadsheet,
   FileText,
+  ClipboardPlus,
   Eye,
   Settings2,
   FileEdit,
@@ -134,6 +135,25 @@ export const menuConfig: MenuItem[] = [
         label: 'Route Planner',
         description: 'Manage training and general aviation routes for planning and import.',
         permissionId: 'operations-view',
+      },
+    ],
+  },
+  {
+    href: '/quick-reports',
+    label: 'Quick Reports',
+    icon: ClipboardPlus,
+    subItems: [
+      {
+        href: '/quick-reports/technical-report',
+        label: 'Technical Report',
+        description: 'Log a preliminary technical report for engineering follow-up.',
+        permissionId: 'maintenance-view',
+      },
+      {
+        href: '/quick-reports/safety-report',
+        label: 'Safety Report',
+        description: 'File a preliminary safety report for management review.',
+        permissionId: 'safety-view',
       },
     ],
   },

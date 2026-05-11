@@ -63,6 +63,70 @@ const combineDateAndTime = (dateStr: string, timeStr: string): Date => {
     return parse(`${dateStr} ${timeStr}`, 'yyyy-MM-dd HH:mm', new Date());
 };
 
+const getDatesInRangeInclusive = (fromDate: string, toDate: string) => {
+    const start = parse(fromDate, 'yyyy-MM-dd', new Date());
+    const end = parse(toDate, 'yyyy-MM-dd', new Date());
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) return [] as string[];
+
+    const dates: string[] = [];
+    let cursor = start;
+    while (cursor <= end) {
+        dates.push(format(cursor, 'yyyy-MM-dd'));
+        cursor = addDays(cursor, 1);
+    }
+    return dates;
+};
+
+const getBookingDateSegments = (booking: Booking) => {
+    const startDate = booking.date;
+    if (!startDate) return [] as Array<{ date: string; startTime: string; endTime: string }>;
+
+    if (!(booking.isOvernight && booking.overnightBookingDate && booking.overnightEndTime)) {
+        return [
+            {
+                date: startDate,
+                startTime: booking.startTime,
+                endTime: booking.endTime,
+            },
+        ];
+    }
+
+    const dates = getDatesInRangeInclusive(startDate, booking.overnightBookingDate);
+    if (dates.length === 0) {
+        return [
+            {
+                date: startDate,
+                startTime: booking.startTime,
+                endTime: booking.endTime,
+            },
+        ];
+    }
+
+    return dates.map((date, index) => {
+        if (index === 0) {
+            return {
+                date,
+                startTime: booking.startTime,
+                endTime: '23:59',
+            };
+        }
+
+        if (index === dates.length - 1) {
+            return {
+                date,
+                startTime: '00:00',
+                endTime: booking.overnightEndTime!,
+            };
+        }
+
+        return {
+            date,
+            startTime: '00:00',
+            endTime: '23:59',
+        };
+    });
+};
+
 const isDateWithinWindow = (date: string, window: Pick<AircraftMaintenanceWindow, 'fromDate' | 'toDate'>) =>
   date >= window.fromDate && date <= window.toDate;
 
@@ -97,21 +161,7 @@ const BookingItem = ({
     const compactCrewLabel = isNonInstructorBooking
         ? `PIC ${booking.studentId ? (peopleMap.get(booking.studentId) || booking.studentId) : 'N/A'}`
         : `Inst ${booking.instructorId ? (peopleMap.get(booking.instructorId) || booking.instructorId) : 'N/A'} · Stud ${booking.studentId ? (peopleMap.get(booking.studentId) || booking.studentId) : 'N/A'}`;
-    const segments = [];
-
-    segments.push({
-        date: booking.date,
-        startTime: booking.startTime,
-        endTime: booking.isOvernight ? '23:59' : booking.endTime
-    });
-    
-    if (booking.isOvernight && booking.overnightBookingDate && booking.overnightEndTime) {
-        segments.push({
-            date: booking.overnightBookingDate,
-            startTime: '00:00',
-            endTime: booking.overnightEndTime
-        });
-    }
+    const segments = getBookingDateSegments(booking);
 
     const formattedSelectedDate = format(selectedDate, 'yyyy-MM-dd');
     return (
@@ -240,19 +290,7 @@ const RoomBookingItem = ({
     allBookingsForRoom: Booking[];
     compact?: boolean;
 }) => {
-    const segments = [{
-        date: booking.date,
-        startTime: booking.startTime,
-        endTime: booking.isOvernight ? '23:59' : booking.endTime
-    }];
-
-    if (booking.isOvernight && booking.overnightBookingDate && booking.overnightEndTime) {
-        segments.push({
-            date: booking.overnightBookingDate,
-            startTime: '00:00',
-            endTime: booking.overnightEndTime
-        });
-    }
+    const segments = getBookingDateSegments(booking);
 
     const formattedSelectedDate = format(selectedDate, 'yyyy-MM-dd');
     return (
@@ -670,9 +708,7 @@ export default function SchedulePage() {
   const briefingRoomBookings = useMemo(() => {
     return (bookings || []).filter((booking) => {
       if (!booking.briefingRoomId) return false;
-      if (booking.date === selectedDateKey) return true;
-      if (booking.isOvernight && booking.overnightBookingDate === selectedDateKey) return true;
-      return false;
+      return getBookingDateSegments(booking).some((segment) => segment.date === selectedDateKey);
     });
   }, [bookings, selectedDateKey]);
 
@@ -1015,12 +1051,9 @@ export default function SchedulePage() {
 
                                 {(aircraft || []).map((ac) => {
                                     const selectedDateKey = format(selectedDate, 'yyyy-MM-dd');
-                                    const relevantBookings = (bookings || []).filter((b) => {
-                                        if (b.isOvernight) {
-                                            return (b.aircraftId === ac.id) && (b.date === selectedDateKey || b.overnightBookingDate === selectedDateKey);
-                                        }
-                                        return (b.aircraftId === ac.id) && (b.date === selectedDateKey);
-                                    });
+                                    const relevantBookings = (bookings || []).filter((b) =>
+                                        b.aircraftId === ac.id && getBookingDateSegments(b).some((segment) => segment.date === selectedDateKey)
+                                    );
                                     const activeMaintenance = (ac.maintenanceWindows || []).filter((window) => isDateWithinWindow(selectedDateKey, window));
                                     const isAircraftInMaintenance = activeMaintenance.length > 0;
 

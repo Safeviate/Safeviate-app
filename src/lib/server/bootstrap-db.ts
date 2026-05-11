@@ -22,6 +22,8 @@ type TableName =
   | 'active_flight_session_blocks'
   | 'active_flight_track_points'
   | 'safety_reports'
+  | 'quick_safety_reports'
+  | 'technical_reports'
   | 'quality_audits'
   | 'corrective_action_plans'
   | 'risks'
@@ -420,6 +422,42 @@ export async function ensureSafetyReportsSchema() {
     )
   `);
   tableCache.set('safety_reports', true);
+}
+
+export async function ensureTechnicalReportsSchema() {
+  if (!(await isDatabaseAvailable())) return;
+  if (await hasTable('technical_reports')) {
+    return;
+  }
+
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS technical_reports (
+      id VARCHAR(128) PRIMARY KEY,
+      tenant_id VARCHAR(128) NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      data JSONB NOT NULL,
+      created_at TIMESTAMPTZ(6) NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ(6) NOT NULL DEFAULT NOW()
+    )
+  `);
+  tableCache.set('technical_reports', true);
+}
+
+export async function ensureQuickSafetyReportsSchema() {
+  if (!(await isDatabaseAvailable())) return;
+  if (await hasTable('quick_safety_reports')) {
+    return;
+  }
+
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS quick_safety_reports (
+      id VARCHAR(128) PRIMARY KEY,
+      tenant_id VARCHAR(128) NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      data JSONB NOT NULL,
+      created_at TIMESTAMPTZ(6) NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ(6) NOT NULL DEFAULT NOW()
+    )
+  `);
+  tableCache.set('quick_safety_reports', true);
 }
 
 export async function ensureQualityAuditsSchema() {
