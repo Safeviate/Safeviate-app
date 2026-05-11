@@ -123,6 +123,8 @@ export interface Navlog {
     departureLongitude?: number;
     arrivalLatitude?: number;
     arrivalLongitude?: number;
+    departureNotamNotes?: string;
+    arrivalNotamNotes?: string;
     globalTas?: number;
     globalWindDirection?: number;
     globalWindSpeed?: number;

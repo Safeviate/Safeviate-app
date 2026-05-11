@@ -11,6 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { isPointInPolygon } from '@/lib/utils';
 import { Save, AlertTriangle, Map as MapIcon, Loader2, X, RotateCcw, Trash2, FileText, Settings2, Scale, Map as NavIcon, ClipboardCheck, CheckCircle2, PlaneTakeoff, Lock, Radio, Wind, Eye, Thermometer, Clock, Activity } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -242,7 +243,21 @@ const WeatherCard = ({ icao, title, onHide }: { icao?: string, title: string, on
     );
 };
 
-const NotamCard = ({ icao, title }: { icao?: string; title: string }) => {
+const NotamCard = ({
+    icao,
+    title,
+    selectedNotams,
+    onSelectedNotamsChange,
+    onSaveSelectedNotams,
+    isSaving,
+}: {
+    icao?: string;
+    title: string;
+    selectedNotams: string;
+    onSelectedNotamsChange: (value: string) => void;
+    onSaveSelectedNotams: () => void;
+    isSaving?: boolean;
+}) => {
     const normalizedIcao = icao?.trim().toUpperCase() || '';
     const notamSearchUrl = normalizedIcao
         ? `${FAA_NOTAM_SEARCH_URL}?${new URLSearchParams({
@@ -275,6 +290,41 @@ const NotamCard = ({ icao, title }: { icao?: string; title: string }) => {
                         {normalizedIcao ? `Open ${normalizedIcao} NOTAMs` : 'Open FAA NOTAM Search'}
                     </a>
                 </Button>
+                <div className="rounded-xl border bg-background/70 p-3 space-y-3">
+                    <div className="flex items-center justify-between border-b pb-2">
+                        <p className="text-[9px] font-black uppercase tracking-[0.18em] text-muted-foreground">Selected NOTAMs</p>
+                        {selectedNotams.trim() ? <Badge variant="secondary" className="text-[9px] font-black uppercase">Saved</Badge> : null}
+                    </div>
+                    {selectedNotams.trim() ? (
+                        <div className="rounded-lg border bg-muted/30 p-3 space-y-1.5">
+                            <p className="text-[9px] font-black uppercase tracking-[0.18em] text-muted-foreground">Saved Summary</p>
+                            <p className="whitespace-pre-wrap text-[10px] font-medium leading-5 text-foreground">{selectedNotams}</p>
+                        </div>
+                    ) : (
+                        <div className="rounded-lg border border-dashed bg-muted/20 p-3 text-[10px] font-medium leading-5 text-muted-foreground">
+                            No NOTAM summary has been saved for this airport yet.
+                        </div>
+                    )}
+                    <p className="text-[10px] font-medium leading-5 text-foreground">
+                        Capture the NOTAMs you selected from the FAA page here, then save them into this booking.
+                    </p>
+                    <Textarea
+                        value={selectedNotams}
+                        onChange={(event) => onSelectedNotamsChange(event.target.value)}
+                        placeholder={normalizedIcao ? `Paste or summarize the selected NOTAMs for ${normalizedIcao} here...` : 'Paste or summarize the selected NOTAMs here...'}
+                        className="min-h-[110px] resize-y text-[10px] font-medium leading-5"
+                    />
+                    <Button
+                        type="button"
+                        variant="outline"
+                        className="h-8 rounded-md border-input bg-background px-3 text-[10px] font-medium shadow-sm hover:bg-accent"
+                        onClick={onSaveSelectedNotams}
+                        disabled={isSaving}
+                    >
+                        {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                        Save Selected NOTAMs
+                    </Button>
+                </div>
             </div>
         </div>
     );
@@ -366,6 +416,8 @@ export function ViewBookingDetails({ booking }: ViewBookingDetailsProps) {
     const [depLon, setDepLon] = useState(booking.navlog?.departureLongitude?.toString() || '');
     const [arrLat, setArrLat] = useState(booking.navlog?.arrivalLatitude?.toString() || '');
     const [arrLon, setArrLon] = useState(booking.navlog?.arrivalLongitude?.toString() || '');
+    const [depNotamNotes, setDepNotamNotes] = useState(booking.navlog?.departureNotamNotes || '');
+    const [arrNotamNotes, setArrNotamNotes] = useState(booking.navlog?.arrivalNotamNotes || '');
     const [showDepWeather, setShowDepWeather] = useState(true);
     const [showArrWeather, setShowArrWeather] = useState(true);
     const [isLookingUpDep, setIsLookingUpDep] = useState(false);
@@ -557,6 +609,8 @@ export function ViewBookingDetails({ booking }: ViewBookingDetailsProps) {
                         departureLongitude: depLon ? parseFloat(depLon) : null,
                         arrivalLatitude: arrLat ? parseFloat(arrLat) : null,
                         arrivalLongitude: arrLon ? parseFloat(arrLon) : null,
+                        departureNotamNotes: depNotamNotes.trim() || undefined,
+                        arrivalNotamNotes: arrNotamNotes.trim() || undefined,
                     },
                     workflowCompletion: {
                         ...workflowCompletion,
@@ -575,6 +629,55 @@ export function ViewBookingDetails({ booking }: ViewBookingDetailsProps) {
             toast({ variant: 'destructive', title: 'Save Failed', description: error instanceof Error ? error.message : 'Save failed.' });
         });
     };
+
+    const handleSaveSelectedNotams = useCallback(async (type: 'dep' | 'arr') => {
+        setIsSaving(true);
+        try {
+            const res = await fetch('/api/bookings', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    booking: {
+                        ...booking,
+                        navlog: {
+                            ...(booking.navlog || {}),
+                            departureIcao: depIcao,
+                            arrivalIcao: arrIcao,
+                            departureLatitude: depLat ? parseFloat(depLat) : null,
+                            departureLongitude: depLon ? parseFloat(depLon) : null,
+                            arrivalLatitude: arrLat ? parseFloat(arrLat) : null,
+                            arrivalLongitude: arrLon ? parseFloat(arrLon) : null,
+                            departureNotamNotes: depNotamNotes.trim() || undefined,
+                            arrivalNotamNotes: arrNotamNotes.trim() || undefined,
+                        },
+                        workflowCompletion: {
+                            ...workflowCompletion,
+                            flightDetails: true,
+                        },
+                    },
+                }),
+            });
+
+            if (!res.ok) {
+                const payload = await res.json().catch(() => ({}));
+                throw new Error(payload.error || 'Failed to save selected NOTAMs.');
+            }
+
+            setWorkflowCompletion((current) => ({ ...current, flightDetails: true }));
+            toast({
+                title: 'Selected NOTAMs saved',
+                description: type === 'dep' ? 'Departure NOTAM notes were saved to the booking.' : 'Arrival NOTAM notes were saved to the booking.',
+            });
+        } catch (error) {
+            toast({
+                variant: 'destructive',
+                title: 'NOTAM save failed',
+                description: error instanceof Error ? error.message : 'Failed to save selected NOTAMs.',
+            });
+        } finally {
+            setIsSaving(false);
+        }
+    }, [arrIcao, arrLat, arrLon, arrNotamNotes, booking, depIcao, depLat, depLon, depNotamNotes, toast, workflowCompletion]);
 
     const lookupAirport = async (icao: string, type: 'dep' | 'arr') => {
         if (!icao) return;
@@ -758,6 +861,8 @@ export function ViewBookingDetails({ booking }: ViewBookingDetailsProps) {
                             departureLongitude: depLon ? parseFloat(depLon) : null,
                             arrivalLatitude: arrLat ? parseFloat(arrLat) : null,
                             arrivalLongitude: arrLon ? parseFloat(arrLon) : null,
+                            departureNotamNotes: depNotamNotes.trim() || undefined,
+                            arrivalNotamNotes: arrNotamNotes.trim() || undefined,
                         },
                     },
                 }),
@@ -904,7 +1009,14 @@ export function ViewBookingDetails({ booking }: ViewBookingDetailsProps) {
                                                     </Button>
                                                 </div>
                                             </div>
-                                            <NotamCard title="Departure NOTAMs" icao={depIcao} />
+                                            <NotamCard
+                                                title="Departure NOTAMs"
+                                                icao={depIcao}
+                                                selectedNotams={depNotamNotes}
+                                                onSelectedNotamsChange={setDepNotamNotes}
+                                                onSaveSelectedNotams={() => void handleSaveSelectedNotams('dep')}
+                                                isSaving={isSaving}
+                                            />
                                             {showDepWeather && <WeatherCard title="Departure Weather" icao={depIcao} onHide={() => setShowDepWeather(false)} />}
                                             {!showDepWeather && <Button variant="ghost" size="sm" onClick={() => setShowDepWeather(true)} className="text-sm font-medium uppercase">Show Departure Weather</Button>}
                                         </div>
@@ -923,7 +1035,14 @@ export function ViewBookingDetails({ booking }: ViewBookingDetailsProps) {
                                                     </Button>
                                                 </div>
                                             </div>
-                                            <NotamCard title="Arrival NOTAMs" icao={arrIcao} />
+                                            <NotamCard
+                                                title="Arrival NOTAMs"
+                                                icao={arrIcao}
+                                                selectedNotams={arrNotamNotes}
+                                                onSelectedNotamsChange={setArrNotamNotes}
+                                                onSaveSelectedNotams={() => void handleSaveSelectedNotams('arr')}
+                                                isSaving={isSaving}
+                                            />
                                             {showArrWeather && <WeatherCard title="Arrival Weather" icao={arrIcao} onHide={() => setShowArrWeather(false)} />}
                                             {!showArrWeather && <Button variant="ghost" size="sm" onClick={() => setShowArrWeather(true)} className="text-sm font-medium uppercase">Show Arrival Weather</Button>}
                                         </div>
