@@ -44,7 +44,9 @@ type EnrichedBooking = Booking & {
 type BookingBuckets = {
   all: EnrichedBooking[];
   training: EnrichedBooking[];
-  private: EnrichedBooking[];
+  rental: EnrichedBooking[];
+  charter: EnrichedBooking[];
+  ferry: EnrichedBooking[];
   maintenance: EnrichedBooking[];
   cancelled: EnrichedBooking[];
 };
@@ -279,8 +281,10 @@ export default function BookingsHistoryPage() {
     return {
       all: enrichedBookings,
       training: activeBookings.filter((booking) => booking.type === 'Training Flight'),
-      private: activeBookings.filter((booking) => booking.type === 'Private Flight'),
-      maintenance: activeBookings.filter((booking) => booking.type === 'Maintenance Flight'),
+      rental: activeBookings.filter((booking) => booking.type === 'Rental'),
+      charter: activeBookings.filter((booking) => booking.type === 'Charter'),
+      ferry: activeBookings.filter((booking) => booking.type === 'Ferry Flight'),
+      maintenance: activeBookings.filter((booking) => booking.type === 'Maintenance'),
       cancelled: enrichedBookings.filter(
         (booking) => booking.status === 'Cancelled' || booking.status === 'Cancelled with Reason'
       ),
@@ -293,7 +297,9 @@ export default function BookingsHistoryPage() {
   const tabs = [
     { value: 'all', label: 'All' },
     { value: 'training', label: 'Training' },
-    { value: 'private', label: 'Private' },
+    { value: 'rental', label: 'Rental' },
+    { value: 'charter', label: 'Charter' },
+    { value: 'ferry', label: 'Ferry Flight' },
     { value: 'maintenance', label: 'Maintenance' },
     { value: 'cancelled', label: 'Cancelled' },
   ];
@@ -318,7 +324,9 @@ export default function BookingsHistoryPage() {
                 <div className={cn("flex-1 min-h-0 overflow-auto pb-4", isMobile ? "h-full" : "h-full")}>
                     <TabsContent value="all" className='m-0 h-full min-h-0'><BookingsTable bookings={bookingBuckets.all} tenantId={tenantId || ''} canDeleteBookings={canDeleteBookings} canDeleteCompletedBookings={canDeleteCompletedBookings} isLoading={isLoadingBookings} /></TabsContent>
                     <TabsContent value="training" className='m-0 h-full min-h-0'><BookingsTable bookings={bookingBuckets.training} tenantId={tenantId || ''} canDeleteBookings={canDeleteBookings} canDeleteCompletedBookings={canDeleteCompletedBookings} isLoading={isLoadingBookings} /></TabsContent>
-                    <TabsContent value="private" className='m-0 h-full min-h-0'><BookingsTable bookings={bookingBuckets.private} tenantId={tenantId || ''} canDeleteBookings={canDeleteBookings} canDeleteCompletedBookings={canDeleteCompletedBookings} isLoading={isLoadingBookings} /></TabsContent>
+                    <TabsContent value="rental" className='m-0 h-full min-h-0'><BookingsTable bookings={bookingBuckets.rental} tenantId={tenantId || ''} canDeleteBookings={canDeleteBookings} canDeleteCompletedBookings={canDeleteCompletedBookings} isLoading={isLoadingBookings} /></TabsContent>
+                    <TabsContent value="charter" className='m-0 h-full min-h-0'><BookingsTable bookings={bookingBuckets.charter} tenantId={tenantId || ''} canDeleteBookings={canDeleteBookings} canDeleteCompletedBookings={canDeleteCompletedBookings} isLoading={isLoadingBookings} /></TabsContent>
+                    <TabsContent value="ferry" className='m-0 h-full min-h-0'><BookingsTable bookings={bookingBuckets.ferry} tenantId={tenantId || ''} canDeleteBookings={canDeleteBookings} canDeleteCompletedBookings={canDeleteCompletedBookings} isLoading={isLoadingBookings} /></TabsContent>
                     <TabsContent value="maintenance" className='m-0 h-full min-h-0'><BookingsTable bookings={bookingBuckets.maintenance} tenantId={tenantId || ''} canDeleteBookings={canDeleteBookings} canDeleteCompletedBookings={canDeleteCompletedBookings} isLoading={isLoadingBookings} /></TabsContent>
                     <TabsContent value="cancelled" className='m-0 h-full min-h-0'><BookingsTable bookings={bookingBuckets.cancelled} tenantId={tenantId || ''} canDeleteBookings={canDeleteBookings} canDeleteCompletedBookings={canDeleteCompletedBookings} isLoading={isLoadingBookings} /></TabsContent>
                 </div>

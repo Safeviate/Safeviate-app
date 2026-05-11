@@ -93,6 +93,10 @@ const BookingItem = ({
     allBookingsForAircraft: Booking[];
     compact?: boolean;
 }) => {
+    const isNonInstructorBooking = ['Rental', 'Charter', 'Ferry Flight', 'Maintenance'].includes(booking.type);
+    const compactCrewLabel = isNonInstructorBooking
+        ? `PIC ${booking.studentId ? (peopleMap.get(booking.studentId) || booking.studentId) : 'N/A'}`
+        : `Inst ${booking.instructorId ? (peopleMap.get(booking.instructorId) || booking.instructorId) : 'N/A'} · Stud ${booking.studentId ? (peopleMap.get(booking.studentId) || booking.studentId) : 'N/A'}`;
     const segments = [];
 
     segments.push({
@@ -156,15 +160,17 @@ const BookingItem = ({
                         </p>
                         {compact ? (
                           <p className="w-full truncate text-[7px] font-normal leading-tight opacity-90">
-                              Inst {booking.instructorId ? (peopleMap.get(booking.instructorId) || booking.instructorId) : 'N/A'} · Stud {booking.studentId ? (peopleMap.get(booking.studentId) || booking.studentId) : 'N/A'}
+                              {compactCrewLabel}
                           </p>
                         ) : (
                           <>
+                            {!isNonInstructorBooking ? (
+                                <p className="w-full truncate text-[8px] font-normal leading-tight opacity-90">
+                                    Inst: {booking.instructorId ? (peopleMap.get(booking.instructorId) || booking.instructorId) : 'N/A'}
+                                </p>
+                            ) : null}
                             <p className="w-full truncate text-[8px] font-normal leading-tight opacity-90">
-                                Inst: {booking.instructorId ? (peopleMap.get(booking.instructorId) || booking.instructorId) : 'N/A'}
-                            </p>
-                            <p className="w-full truncate text-[8px] font-normal leading-tight opacity-90">
-                                Stud: {booking.studentId ? (peopleMap.get(booking.studentId) || booking.studentId) : 'N/A'}
+                                {isNonInstructorBooking ? 'PIC' : 'Stud'}: {booking.studentId ? (peopleMap.get(booking.studentId) || booking.studentId) : 'N/A'}
                             </p>
                           </>
                         )}
@@ -1428,3 +1434,4 @@ export default function SchedulePage() {
     </div>
   );
 }
+
