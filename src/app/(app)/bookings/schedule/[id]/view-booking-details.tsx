@@ -9,7 +9,7 @@ import type { Booking, BookingWorkflowCompletion, NavlogLeg, ChecklistPhoto } fr
 import type { Aircraft } from '@/types/aircraft';
 import { Skeleton } from '@/components/ui/skeleton';
 import { isPointInPolygon } from '@/lib/utils';
-import { Save, AlertTriangle, Map as MapIcon, Loader2, X, RotateCcw, Trash2, FileText, Settings2, Scale, Map as NavIcon, ClipboardCheck, CheckCircle2, PlaneTakeoff, Lock } from 'lucide-react';
+import { Save, AlertTriangle, Map as MapIcon, Loader2, X, RotateCcw, Trash2, FileText, Settings2, Scale, Map as NavIcon, ClipboardCheck, CheckCircle2, PlaneTakeoff, Lock, Radio, Wind, Eye, Thermometer, Clock, Activity } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
@@ -73,6 +73,8 @@ const DEFAULT_STATIONS = [
     { id: 5, name: 'Baggage', weight: 0, arm: 142.8, type: 'standard' },
  ] satisfies NonNullable<NonNullable<Booking['massAndBalance']>['stations']>;
 
+const FAA_NOTAM_SEARCH_URL = 'https://notams.aim.faa.gov/notamSearch/nsapp.html';
+
 type BookingPerson = { id: string; firstName: string; lastName: string };
 type BookingStation = NonNullable<NonNullable<Booking['massAndBalance']>['stations']>[number];
 type BookingStationState = Omit<BookingStation, 'weight' | 'gallons'> & {
@@ -83,6 +85,22 @@ type BookingStationState = Omit<BookingStation, 'weight' | 'gallons'> & {
 interface ViewBookingDetailsProps {
     booking: Booking;
 }
+
+type WeatherCardData = {
+    metar?: {
+        rawOb?: string;
+        raw?: string;
+        wspd?: string | number;
+        wdir?: string | number;
+        visib?: string | number;
+        temp?: string | number;
+        dewp?: string | number;
+    };
+    taf?: {
+        rawTAF?: string;
+        raw?: string;
+    };
+};
 
 
 const DetailItem = ({ label, value, children }: { label: string, value?: string | undefined | null, children?: React.ReactNode }) => (
@@ -120,6 +138,147 @@ function stripUndefinedDeep<T>(value: T): T {
 }
 
 const getStatusLabel = (status: Booking['status']) => (status === 'Completed' ? 'Complete' : status);
+
+const WeatherCard = ({ icao, title, onHide }: { icao?: string, title: string, onHide: () => void }) => {
+    const [data, setData] = useState<WeatherCardData | null>(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    const fetchWeather = useCallback(async () => {
+        if (!icao || icao.length < 3) return;
+        setLoading(true);
+        setError(null);
+        try {
+            const res = await fetch(`/api/weather?ids=${icao}`);
+            const weather = await res.json().catch(() => null);
+
+            if (res.status === 404) {
+                setData({});
+                return;
+            }
+
+            if (!res.ok) throw new Error('Fetch failed');
+            setData(weather);
+        } catch (e: unknown) {
+            setError(e instanceof Error ? e.message : 'Failed to load booking.');
+        } finally {
+            setLoading(false);
+        }
+    }, [icao]);
+
+    useEffect(() => {
+        fetchWeather();
+    }, [fetchWeather]);
+
+    return (
+        <div className="rounded-xl border bg-muted/20 p-4 space-y-4">
+            <div className="flex items-center justify-between border-b pb-2">
+                <p className="text-[9px] font-black uppercase tracking-[0.18em] text-muted-foreground">{title}</p>
+                <div className="flex items-center gap-2">
+                    {icao && <Badge variant="outline" className="text-[9px] font-black uppercase">{icao}</Badge>}
+                    <Button variant="ghost" size="sm" className="h-8 px-3 text-[9px] font-medium uppercase tracking-[0.16em]" onClick={onHide}>Hide</Button>
+                </div>
+            </div>
+
+            {loading ? (
+                <div className="flex items-center gap-2 text-muted-foreground animate-pulse py-4">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span className="text-xs font-bold uppercase">Fetching METAR/TAF...</span>
+                </div>
+            ) : error ? (
+                <div className="space-y-2 py-2">
+                    <p className="text-xs text-destructive font-bold">{error}</p>
+                    <Button variant="ghost" className="h-10 px-4 text-sm font-medium uppercase hover:bg-transparent" onClick={fetchWeather}>Retry</Button>
+                </div>
+            ) : data ? (
+                <div className="space-y-4">
+                    {data.metar && (
+                        <div className="space-y-2">
+                            <div className="flex items-center gap-2 text-[10px] font-black uppercase text-emerald-600">
+                                <Activity className="h-3 w-3" /> METAR
+                            </div>
+                            <p className="text-[10px] font-mono font-bold leading-tight bg-background/50 p-2 rounded border border-border/50">
+                                {data.metar.rawOb || data.metar.raw}
+                            </p>
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 pt-1">
+                                <div className="flex items-center gap-2">
+                                    <Wind className="h-3 w-3 text-sky-500" />
+                                    <span className="text-[10px] font-black uppercase">{data.metar.wspd || 0}KT @ {data.metar.wdir || '0'}°</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <Eye className="h-3 w-3 text-sky-500" />
+                                    <span className="text-[10px] font-black uppercase">{data.metar.visib || 'N/A'} SM</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <Thermometer className="h-3 w-3 text-sky-500" />
+                                    <span className="text-[10px] font-black uppercase">{data.metar.temp}°C / {data.metar.dewp}°C</span>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {data.taf && (
+                        <div className="space-y-2 pt-2 border-t">
+                            <div className="flex items-center gap-2 text-[10px] font-black uppercase text-amber-600">
+                                <Clock className="h-3 w-3" /> TAF
+                            </div>
+                            <p className="text-[10px] font-mono font-medium leading-relaxed whitespace-pre-line opacity-80">
+                                {data.taf.rawTAF || data.taf.raw}
+                            </p>
+                        </div>
+                    )}
+
+                    {!data.metar && !data.taf && <p className="text-xs italic text-muted-foreground">No reports available for this station.</p>}
+
+                    <Button variant="ghost" className="h-10 w-full mt-2 px-4 text-sm font-medium uppercase border border-dashed hover:bg-background/50" onClick={fetchWeather}>Refresh Weather</Button>
+                </div>
+            ) : (
+                <div className="py-4 text-center">
+                    <p className="text-[10px] text-muted-foreground font-medium italic mb-4">No weather briefing loaded yet.</p>
+                    <Button variant="outline" className="h-8 rounded-md border-input bg-background px-3 text-[10px] font-medium shadow-sm hover:bg-accent" onClick={fetchWeather}>Fetch Weather</Button>
+                </div>
+            )}
+        </div>
+    );
+};
+
+const NotamCard = ({ icao, title }: { icao?: string; title: string }) => {
+    const normalizedIcao = icao?.trim().toUpperCase() || '';
+    const notamSearchUrl = normalizedIcao
+        ? `${FAA_NOTAM_SEARCH_URL}?${new URLSearchParams({
+            ACTIONTYPE: 'NOTAMRETRIEVALBYICAOS',
+            FORMATTYPE: 'DOMESTIC',
+            METHOD: 'DISPLAYBYICAOS',
+            REPORTTYPE: 'RAW',
+            RETRIEVELOCID: normalizedIcao,
+        }).toString()}#/results`
+        : FAA_NOTAM_SEARCH_URL;
+
+    return (
+        <div className="rounded-xl border bg-muted/20 p-4 space-y-4">
+            <div className="flex items-center justify-between border-b pb-2">
+                <p className="text-[9px] font-black uppercase tracking-[0.18em] text-muted-foreground">{title}</p>
+                {normalizedIcao ? <Badge variant="outline" className="text-[9px] font-black uppercase">{normalizedIcao}</Badge> : null}
+            </div>
+            <div className="space-y-3">
+                <p className="text-[10px] font-medium leading-5 text-foreground">
+                    {normalizedIcao
+                        ? `Open the official FAA NOTAM Search for ${normalizedIcao} to review the latest published NOTAMs. Safeviate is not rendering the FAA result content inline yet.`
+                        : 'Enter an ICAO code above to open the official FAA NOTAM Search for the latest airport NOTAMs.'}
+                </p>
+                <div className="rounded-xl border border-dashed bg-background/60 p-3 text-[10px] font-medium leading-5 text-muted-foreground">
+                    Use the button below to open the FAA result for this airport. If no notices are listed there, then there are no active NOTAMs returned for that location.
+                </div>
+                <Button asChild variant="outline" className="h-8 rounded-md border-input bg-background px-3 text-[10px] font-medium shadow-sm hover:bg-accent">
+                    <a href={notamSearchUrl} target="_blank" rel="noreferrer">
+                        <FileText className="h-3.5 w-3.5" />
+                        {normalizedIcao ? `Open ${normalizedIcao} NOTAMs` : 'Open FAA NOTAM Search'}
+                    </a>
+                </Button>
+            </div>
+        </div>
+    );
+};
 
 export function ViewBookingDetails({ booking }: ViewBookingDetailsProps) {
     const isMobile = useIsMobile();
@@ -207,6 +366,10 @@ export function ViewBookingDetails({ booking }: ViewBookingDetailsProps) {
     const [depLon, setDepLon] = useState(booking.navlog?.departureLongitude?.toString() || '');
     const [arrLat, setArrLat] = useState(booking.navlog?.arrivalLatitude?.toString() || '');
     const [arrLon, setArrLon] = useState(booking.navlog?.arrivalLongitude?.toString() || '');
+    const [showDepWeather, setShowDepWeather] = useState(true);
+    const [showArrWeather, setShowArrWeather] = useState(true);
+    const [isLookingUpDep, setIsLookingUpDep] = useState(false);
+    const [isLookingUpArr, setIsLookingUpArr] = useState(false);
 
     useEffect(() => {
         let cancelled = false;
@@ -411,6 +574,36 @@ export function ViewBookingDetails({ booking }: ViewBookingDetailsProps) {
         }).catch((error: unknown) => {
             toast({ variant: 'destructive', title: 'Save Failed', description: error instanceof Error ? error.message : 'Save failed.' });
         });
+    };
+
+    const lookupAirport = async (icao: string, type: 'dep' | 'arr') => {
+        if (!icao) return;
+        type === 'dep' ? setIsLookingUpDep(true) : setIsLookingUpArr(true);
+        try {
+            const res = await fetch(`/api/openaip?resource=airports&icaoCode=${icao}`);
+            const data = await res.json();
+            const airport = data.items?.[0];
+            if (airport && airport.geometry?.coordinates) {
+                const [lon, lat] = airport.geometry.coordinates;
+                if (type === 'dep') {
+                    setDepLat(lat.toString());
+                    setDepLon(lon.toString());
+                } else {
+                    setArrLat(lat.toString());
+                    setArrLon(lon.toString());
+                }
+            } else {
+                throw new Error('Airport not found');
+            }
+        } catch {
+            toast({
+                variant: 'destructive',
+                title: 'Lookup failed',
+                description: `Could not find airport data for ${icao}.`,
+            });
+        } finally {
+            type === 'dep' ? setIsLookingUpDep(false) : setIsLookingUpArr(false);
+        }
     };
 
     const handleSaveToBooking = () => {
@@ -689,6 +882,51 @@ export function ViewBookingDetails({ booking }: ViewBookingDetailsProps) {
                                         <DetailItem label="Date" value={formatDateSafe(booking.start, 'PPP')} />
                                         <DetailItem label="Start Time" value={formatDateSafe(booking.start, 'p')} />
                                         <DetailItem label="End Time" value={formatDateSafe(booking.end, 'p')} />
+                                    </div>
+                                </div>
+                                <div className="space-y-3">
+                                    <DetailItem label="Notes" value={booking.notes || 'No notes provided.'} />
+                                </div>
+                                <div className="border-t pt-6">
+                                    <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
+                                        <div className="space-y-4">
+                                            <div className="space-y-1.5">
+                                                <UILabel className="text-[9px] font-black uppercase tracking-[0.18em] text-muted-foreground">Departure ICAO</UILabel>
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    <Input value={depIcao} onChange={(e) => setDepIcao(e.target.value.toUpperCase())} placeholder="ICAO" className="h-10 w-full min-w-0 text-[10px] font-semibold" />
+                                                    <Button
+                                                        variant="outline"
+                                                        className="h-10 w-full min-w-0 justify-center rounded-md border-input bg-background px-3 text-[10px] font-medium shadow-sm hover:bg-accent"
+                                                        onClick={() => lookupAirport(depIcao, 'dep')}
+                                                        disabled={isLookingUpDep}
+                                                    >
+                                                        {isLookingUpDep ? <Loader2 className="h-3 w-3 animate-spin" /> : <Radio className="h-3 w-3" />} Lookup
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                            <NotamCard title="Departure NOTAMs" icao={depIcao} />
+                                            {showDepWeather && <WeatherCard title="Departure Weather" icao={depIcao} onHide={() => setShowDepWeather(false)} />}
+                                            {!showDepWeather && <Button variant="ghost" size="sm" onClick={() => setShowDepWeather(true)} className="text-sm font-medium uppercase">Show Departure Weather</Button>}
+                                        </div>
+                                        <div className="space-y-4">
+                                            <div className="space-y-1.5">
+                                                <UILabel className="text-[9px] font-black uppercase tracking-[0.18em] text-muted-foreground">Arrival ICAO</UILabel>
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    <Input value={arrIcao} onChange={(e) => setArrIcao(e.target.value.toUpperCase())} placeholder="ICAO" className="h-10 w-full min-w-0 text-[10px] font-semibold" />
+                                                    <Button
+                                                        variant="outline"
+                                                        className="h-10 w-full min-w-0 justify-center rounded-md border-input bg-background px-3 text-[10px] font-medium shadow-sm hover:bg-accent"
+                                                        onClick={() => lookupAirport(arrIcao, 'arr')}
+                                                        disabled={isLookingUpArr}
+                                                    >
+                                                        {isLookingUpArr ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Radio className="h-3.5 w-3.5" />} Lookup
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                            <NotamCard title="Arrival NOTAMs" icao={arrIcao} />
+                                            {showArrWeather && <WeatherCard title="Arrival Weather" icao={arrIcao} onHide={() => setShowArrWeather(false)} />}
+                                            {!showArrWeather && <Button variant="ghost" size="sm" onClick={() => setShowArrWeather(true)} className="text-sm font-medium uppercase">Show Arrival Weather</Button>}
+                                        </div>
                                     </div>
                                 </div>
                             </CardContent>

@@ -112,6 +112,8 @@ const BOOKING_PLANNING_PRIMARY_BUTTON_CLASS =
 const BOOKING_PLANNING_STATUS_BUTTON_CLASS =
     "h-8 rounded-md px-2.5 text-[10px] font-medium uppercase tracking-[0.14em] shadow-sm";
 
+const FAA_NOTAM_SEARCH_URL = 'https://notams.aim.faa.gov/notamSearch/nsapp.html';
+
 const DetailItem = ({ label, value, children }: { label: string, value?: string | undefined | null, children?: React.ReactNode }) => (
     <div>
         <p className="mb-1 text-[9px] font-black uppercase tracking-[0.18em] text-muted-foreground">{label}</p>
@@ -252,6 +254,44 @@ const WeatherCard = ({ icao, title, onHide }: { icao?: string, title: string, on
                     <Button variant="outline" className={HEADER_SECONDARY_BUTTON_CLASS} onClick={fetchWeather}>Fetch Weather</Button>
                 </div>
             )}
+        </div>
+    );
+};
+
+const NotamCard = ({ icao, title }: { icao?: string; title: string }) => {
+    const normalizedIcao = icao?.trim().toUpperCase() || '';
+    const notamSearchUrl = normalizedIcao
+        ? `${FAA_NOTAM_SEARCH_URL}?${new URLSearchParams({
+            ACTIONTYPE: 'NOTAMRETRIEVALBYICAOS',
+            FORMATTYPE: 'DOMESTIC',
+            METHOD: 'DISPLAYBYICAOS',
+            REPORTTYPE: 'RAW',
+            RETRIEVELOCID: normalizedIcao,
+        }).toString()}#/results`
+        : FAA_NOTAM_SEARCH_URL;
+
+    return (
+        <div className="rounded-xl border bg-muted/20 p-4 space-y-4">
+            <div className="flex items-center justify-between border-b pb-2">
+                <p className="text-[9px] font-black uppercase tracking-[0.18em] text-muted-foreground">{title}</p>
+                {normalizedIcao ? <Badge variant="outline" className="text-[9px] font-black uppercase">{normalizedIcao}</Badge> : null}
+            </div>
+            <div className="space-y-3">
+                <p className="text-[10px] font-medium leading-5 text-foreground">
+                    {normalizedIcao
+                        ? `Open the official FAA NOTAM Search for ${normalizedIcao} to review the latest published NOTAMs. Safeviate is not rendering the FAA result content inline yet.`
+                        : 'Enter an ICAO code above to open the official FAA NOTAM Search for the latest airport NOTAMs.'}
+                </p>
+                <div className="rounded-xl border border-dashed bg-background/60 p-3 text-[10px] font-medium leading-5 text-muted-foreground">
+                    Use the button below to open the FAA result for this airport. If no notices are listed there, then there are no active NOTAMs returned for that location.
+                </div>
+                <Button asChild variant="outline" className={HEADER_SECONDARY_BUTTON_CLASS}>
+                    <a href={notamSearchUrl} target="_blank" rel="noreferrer">
+                        <FileText className="h-3.5 w-3.5" />
+                        {normalizedIcao ? `Open ${normalizedIcao} NOTAMs` : 'Open FAA NOTAM Search'}
+                    </a>
+                </Button>
+            </div>
         </div>
     );
 };
@@ -1218,10 +1258,7 @@ export function ViewBookingDetails({ booking }: ViewBookingDetailsProps) {
                                                     </Button>
                                                 </div>
                                             </div>
-                                            <div className="grid grid-cols-2 gap-2">
-                                                <Input value={depLat} onChange={(e) => setDepLat(e.target.value)} placeholder="Lat" className="h-10 text-[10px] font-semibold" />
-                                                <Input value={depLon} onChange={(e) => setDepLon(e.target.value)} placeholder="Lon" className="h-10 text-[10px] font-semibold" />
-                                            </div>
+                                            <NotamCard title="Departure NOTAMs" icao={depIcao} />
                                             {showDepWeather && <WeatherCard title="Departure Weather" icao={depIcao} onHide={() => setShowDepWeather(false)} />}
                                             {!showDepWeather && <Button variant="ghost" size="sm" onClick={() => setShowDepWeather(true)} className="text-sm font-medium uppercase">Show Departure Weather</Button>}
                                         </div>
@@ -1235,10 +1272,7 @@ export function ViewBookingDetails({ booking }: ViewBookingDetailsProps) {
                                                     </Button>
                                                 </div>
                                             </div>
-                                            <div className="grid grid-cols-2 gap-2">
-                                                <Input value={arrLat} onChange={(e) => setArrLat(e.target.value)} placeholder="Lat" className="h-10 text-[10px] font-semibold" />
-                                                <Input value={arrLon} onChange={(e) => setArrLon(e.target.value)} placeholder="Lon" className="h-10 text-[10px] font-semibold" />
-                                            </div>
+                                            <NotamCard title="Arrival NOTAMs" icao={arrIcao} />
                                             {showArrWeather && <WeatherCard title="Arrival Weather" icao={arrIcao} onHide={() => setShowArrWeather(false)} />}
                                             {!showArrWeather && <Button variant="ghost" size="sm" onClick={() => setShowArrWeather(true)} className="text-sm font-medium uppercase">Show Arrival Weather</Button>}
                                         </div>
