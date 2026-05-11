@@ -364,6 +364,23 @@ export function TrainingRecords({ studentId, tenantId }: TrainingRecordsProps) {
                                                                 <p className="font-bold text-xs">{entry.exercise}</p>
                                                                 <Badge className={cn(getRatingColor(entry.rating), "text-white text-[10px] h-5")}>{entry.rating}/5</Badge>
                                                             </div>
+                                                            {Array.isArray(entry.criteriaRatings) && entry.criteriaRatings.length > 0 ? (
+                                                                <div className="mb-3 space-y-2">
+                                                                    {entry.criteriaRatings.map((criterion) => (
+                                                                        <div key={criterion.id} className="rounded-md border bg-muted/30 px-2.5 py-2">
+                                                                            <div className="flex items-center justify-between gap-2">
+                                                                                <p className="text-[11px] font-semibold">{criterion.label}</p>
+                                                                                <Badge variant="outline" className="h-5 text-[10px] font-black">
+                                                                                    {criterion.rating}/5
+                                                                                </Badge>
+                                                                            </div>
+                                                                            {criterion.comment ? (
+                                                                                <p className="mt-1 text-[11px] text-muted-foreground italic">{criterion.comment}</p>
+                                                                            ) : null}
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            ) : null}
                                                             <p className="text-xs text-muted-foreground italic">{entry.comment || 'No specific notes.'}</p>
                                                         </div>
                                                     ))}

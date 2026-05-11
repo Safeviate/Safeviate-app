@@ -191,6 +191,22 @@ export const resolveTrainingCompetencies = (entry: StudentProgressEntry) => {
   );
 };
 
+const expandEntryObservations = (entry: StudentProgressEntry) => {
+  const criteriaRatings = Array.isArray(entry.criteriaRatings) ? entry.criteriaRatings : [];
+
+  if (criteriaRatings.length === 0) {
+    return [entry];
+  }
+
+  return criteriaRatings.map((criterion) => ({
+    ...entry,
+    exercise: criterion.label || entry.exercise,
+    rating: criterion.rating,
+    comment: criterion.comment || entry.comment,
+    competencyKey: criterion.competencyKey || entry.competencyKey,
+  }));
+};
+
 export const getTrainingCompetencySignal = (
   rating: PerformanceRating,
   storedSignal?: CompetencySignal
@@ -234,26 +250,28 @@ export const buildTrainingCompetencyAreas = (
   sortedReports.forEach((report, reportIndex) => {
     const reportWeight = Math.max(0.4, 1 - reportIndex * 0.12);
     report.entries.forEach((entry) => {
-      const matches = resolveTrainingCompetencies(entry);
-      if (matches.length === 0) return;
+      expandEntryObservations(entry).forEach((observation) => {
+        const matches = resolveTrainingCompetencies(observation);
+        if (matches.length === 0) return;
 
-      matches.forEach((definition) => {
-        const bucket = buckets.get(definition.key);
-        if (!bucket) return;
-        const normalizedRating = Math.max(0, Math.min(1, (entry.rating - 1) / 4));
-        bucket.scoreTotal +=
-          normalizedRating *
-          100 *
-          reportWeight *
-          (entry.rating >= 4 ? definition.strengthBias : definition.growthBias);
-        bucket.trendTotal += entry.rating;
-        bucket.sampleCount += 1;
-        const signal = getTrainingCompetencySignal(entry.rating, entry.competencySignal);
-        bucket.signalVotes[signal] += reportWeight;
-        bucket.lastSeen =
-          bucket.lastSeen && new Date(bucket.lastSeen).getTime() > new Date(report.date).getTime()
-            ? bucket.lastSeen
-            : report.date;
+        matches.forEach((definition) => {
+          const bucket = buckets.get(definition.key);
+          if (!bucket) return;
+          const normalizedRating = Math.max(0, Math.min(1, (observation.rating - 1) / 4));
+          bucket.scoreTotal +=
+            normalizedRating *
+            100 *
+            reportWeight *
+            (observation.rating >= 4 ? definition.strengthBias : definition.growthBias);
+          bucket.trendTotal += observation.rating;
+          bucket.sampleCount += 1;
+          const signal = getTrainingCompetencySignal(observation.rating, observation.competencySignal);
+          bucket.signalVotes[signal] += reportWeight;
+          bucket.lastSeen =
+            bucket.lastSeen && new Date(bucket.lastSeen).getTime() > new Date(report.date).getTime()
+              ? bucket.lastSeen
+              : report.date;
+        });
       });
     });
   });

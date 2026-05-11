@@ -3,13 +3,25 @@ export type PerformanceRating = 1 | 2 | 3 | 4 | 5;
 
 export type CompetencySignal = 'strength' | 'growth' | 'watch';
 
+export interface StudentProgressCriterionRating {
+    id: string;
+    key?: string;
+    label: string;
+    rating: PerformanceRating;
+    comment?: string;
+    competencyKey?: string;
+    source?: 'template' | 'custom';
+}
+
 export interface StudentProgressEntry {
     id: string;
     exercise: string;
     rating: PerformanceRating;
     comment: string;
+    exerciseTemplateKey?: string;
     competencyKey?: string;
     competencySignal?: CompetencySignal;
+    criteriaRatings?: StudentProgressCriterionRating[];
 }
 
 export interface StudentProgressReport {
