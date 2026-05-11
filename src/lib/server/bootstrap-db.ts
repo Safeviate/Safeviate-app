@@ -661,4 +661,19 @@ export async function ensureRolesSchema() {
     await addColumn('required_documents JSONB');
     columnNames.add('required_documents');
   }
+
+  await prisma.$executeRawUnsafe(`
+    UPDATE roles
+    SET permissions = permissions || '["training-student-instructors-manage"]'::jsonb,
+        updated_at = NOW()
+    WHERE NOT (permissions ? 'training-student-instructors-manage')
+      AND (
+        permissions ? 'training-exams-manage'
+        OR permissions ? 'admin-settings-manage'
+        OR permissions ? 'admin-permissions-manage'
+        OR LOWER(name) LIKE '%chief instructor%'
+        OR LOWER(name) LIKE '%head of training%'
+        OR LOWER(name) LIKE '%training manager%'
+      )
+  `).catch(() => null);
 }

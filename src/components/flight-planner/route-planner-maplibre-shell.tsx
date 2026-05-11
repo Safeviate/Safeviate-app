@@ -113,6 +113,8 @@ export type RoutePlannerMapLibreShellProps = {
   className?: string;
   legs: NavlogLeg[];
   hazards?: Hazard[];
+  baseStyle?: 'light' | 'satellite';
+  onBaseStyleChange?: (style: 'light' | 'satellite') => void;
   center?: Point;
   minZoom?: number;
   maxZoom?: number;
@@ -403,6 +405,8 @@ export function RoutePlannerMapLibreShell({
   className,
   legs,
   hazards = [],
+  baseStyle = 'light',
+  onBaseStyleChange,
   center,
   minZoom = 4,
   maxZoom = 16,
@@ -486,6 +490,9 @@ export function RoutePlannerMapLibreShell({
   const routeGeoJson = useMemo(() => makeLineFeatureCollection(routePoints), [routePoints]);
   const hazardGeoJson = useMemo(() => makeHazardFeatureCollection(hazards), [hazards]);
   const mapCenter = center ?? routePoints[0] ?? ([-25.9, 27.9] as Point);
+  const compactLayerToggleClass = 'rounded-md border px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em]';
+  const compactLayerToggleActiveClass = 'border-slate-900 bg-slate-900 text-white hover:bg-slate-800';
+  const compactLayerToggleInactiveClass = 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50';
 
   useEffect(() => {
     isInteractiveEditModeRef.current = isInteractiveEditMode;
@@ -576,7 +583,7 @@ export function RoutePlannerMapLibreShell({
 
     const map = new maplibregl.Map({
       container: containerRef.current,
-      style: MAPLIBRE_BASE_STYLES.light,
+      style: MAPLIBRE_BASE_STYLES[baseStyle],
       center: [mapCenter[1], mapCenter[0]],
       zoom: 8,
       minZoom,
@@ -1004,7 +1011,7 @@ export function RoutePlannerMapLibreShell({
       mapRef.current = null;
       setIsMapReady(false);
     };
-  }, [buildLayerInfo, maxZoom, minZoom, onCenterChange, onZoomChange]);
+  }, [baseStyle, buildLayerInfo, maxZoom, minZoom, onCenterChange, onZoomChange]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -1583,186 +1590,75 @@ export function RoutePlannerMapLibreShell({
 
           <ScrollArea className="min-h-0 flex-1 overscroll-contain">
             <div className="space-y-2 p-2 pb-2.5">
-              <Button
-                type="button"
-                variant="outline"
-                aria-pressed={showRouteLineState}
-                className={[
-                  'justify-start rounded-md border px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em]',
-                  showRouteLineState ? 'border-slate-900 bg-slate-900 text-white hover:bg-slate-800' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
-                ].join(' ')}
-                onClick={() => setShowRouteLineState((current) => !current)}
-              >
-                Route
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                aria-pressed={showWaypointMarkersState}
-                className={[
-                  'justify-start rounded-md border px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em]',
-                  showWaypointMarkersState ? 'border-slate-900 bg-slate-900 text-white hover:bg-slate-800' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
-                ].join(' ')}
-                onClick={() => setShowWaypointMarkersState((current) => !current)}
-              >
-                Waypoints
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                aria-pressed={showHazardsState}
-                className={[
-                  'justify-start rounded-md border px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em]',
-                  showHazardsState ? 'border-slate-900 bg-slate-900 text-white hover:bg-slate-800' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
-                ].join(' ')}
-                onClick={() => setShowHazardsState((current) => !current)}
-              >
-                Hazards
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                aria-pressed={showAirspacesState}
-                className={[
-                  'justify-start rounded-md border px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em]',
-                  showAirspacesState ? 'border-slate-900 bg-slate-900 text-white hover:bg-slate-800' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
-                ].join(' ')}
-                onClick={() => setShowAirspacesState((current) => !current)}
-              >
-                CTR
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                aria-pressed={showMilitaryState}
-                className={[
-                  'justify-start rounded-md border px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em]',
-                  showMilitaryState ? 'border-slate-900 bg-slate-900 text-white hover:bg-slate-800' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
-                ].join(' ')}
-                onClick={() => setShowMilitaryState((current) => !current)}
-              >
-                Military
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                aria-pressed={showTrainingState}
-                className={[
-                  'justify-start rounded-md border px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em]',
-                  showTrainingState ? 'border-slate-900 bg-slate-900 text-white hover:bg-slate-800' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
-                ].join(' ')}
-                onClick={() => setShowTrainingState((current) => !current)}
-              >
-                Training
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                aria-pressed={showGlidingState}
-                className={[
-                  'justify-start rounded-md border px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em]',
-                  showGlidingState ? 'border-slate-900 bg-slate-900 text-white hover:bg-slate-800' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
-                ].join(' ')}
-                onClick={() => setShowGlidingState((current) => !current)}
-              >
-                Gliding
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                aria-pressed={showHangGlidingState}
-                className={[
-                  'justify-start rounded-md border px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em]',
-                  showHangGlidingState ? 'border-slate-900 bg-slate-900 text-white hover:bg-slate-800' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
-                ].join(' ')}
-                onClick={() => setShowHangGlidingState((current) => !current)}
-              >
-                Hang
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                aria-pressed={showClassEState}
-                className={[
-                  'justify-start rounded-md border px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em]',
-                  showClassEState ? 'border-slate-900 bg-slate-900 text-white hover:bg-slate-800' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
-                ].join(' ')}
-                onClick={() => setShowClassEState((current) => !current)}
-              >
-                Class E
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                aria-pressed={showClassFState}
-                className={[
-                  'justify-start rounded-md border px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em]',
-                  showClassFState ? 'border-slate-900 bg-slate-900 text-white hover:bg-slate-800' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
-                ].join(' ')}
-                onClick={() => setShowClassFState((current) => !current)}
-              >
-                Class F
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                aria-pressed={showClassGState}
-                className={[
-                  'justify-start rounded-md border px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em]',
-                  showClassGState ? 'border-slate-900 bg-slate-900 text-white hover:bg-slate-800' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
-                ].join(' ')}
-                onClick={() => setShowClassGState((current) => !current)}
-              >
-                Class G
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                aria-pressed={showObstaclesState}
-                className={[
-                  'justify-start rounded-md border px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em]',
-                  showObstaclesState ? 'border-slate-900 bg-slate-900 text-white hover:bg-slate-800' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
-                ].join(' ')}
-                onClick={() => setShowObstaclesState((current) => !current)}
-              >
-                Obstacles
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                aria-pressed={showAirportsState}
-                className={[
-                  'justify-start rounded-md border px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em]',
-                  showAirportsState ? 'border-slate-900 bg-slate-900 text-white hover:bg-slate-800' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
-                ].join(' ')}
-                onClick={() => setShowAirportsState((current) => !current)}
-              >
-                Airports
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                aria-pressed={showNavaidsState}
-                className={[
-                  'justify-start rounded-md border px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em]',
-                  showNavaidsState ? 'border-slate-900 bg-slate-900 text-white hover:bg-slate-800' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
-                ].join(' ')}
-                onClick={() => setShowNavaidsState((current) => !current)}
-              >
-                Navaids
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                aria-pressed={showReportingState}
-                className={[
-                  'justify-start rounded-md border px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em]',
-                  showReportingState ? 'border-slate-900 bg-slate-900 text-white hover:bg-slate-800' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50',
-                ].join(' ')}
-                onClick={() => setShowReportingState((current) => !current)}
-              >
-                Reporting
-              </Button>
+              <div className="space-y-1.5">
+                <p className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-500">Base Style</p>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {[
+                    { key: 'light', label: 'Light' },
+                    { key: 'satellite', label: 'Satellite' },
+                  ].map((style) => {
+                    const active = baseStyle === style.key;
+                    return (
+                      <Button
+                        key={style.key}
+                        type="button"
+                        variant="outline"
+                        aria-pressed={active}
+                        className={[
+                          compactLayerToggleClass,
+                          active ? compactLayerToggleActiveClass : compactLayerToggleInactiveClass,
+                        ].join(' ')}
+                        onClick={() => {
+                          if (style.key !== baseStyle) {
+                            onLayersPanelOpenChange?.(false);
+                            onBaseStyleChange?.(style.key as 'light' | 'satellite');
+                          }
+                        }}
+                      >
+                        {style.label}
+                      </Button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <p className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-500">Map Layers</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    ['Route', showRouteLineState, setShowRouteLineState],
+                    ['Waypoints', showWaypointMarkersState, setShowWaypointMarkersState],
+                    ['Hazards', showHazardsState, setShowHazardsState],
+                    ['CTR', showAirspacesState, setShowAirspacesState],
+                    ['Military', showMilitaryState, setShowMilitaryState],
+                    ['Training', showTrainingState, setShowTrainingState],
+                    ['Gliding', showGlidingState, setShowGlidingState],
+                    ['Hang', showHangGlidingState, setShowHangGlidingState],
+                    ['Class E', showClassEState, setShowClassEState],
+                    ['Class F', showClassFState, setShowClassFState],
+                    ['Class G', showClassGState, setShowClassGState],
+                    ['Obstacles', showObstaclesState, setShowObstaclesState],
+                    ['Airports', showAirportsState, setShowAirportsState],
+                    ['Navaids', showNavaidsState, setShowNavaidsState],
+                    ['Reporting', showReportingState, setShowReportingState],
+                  ].map(([label, checked, setter]) => (
+                    <Button
+                      key={label as string}
+                      type="button"
+                      variant="outline"
+                      aria-pressed={checked as boolean}
+                      className={[
+                        compactLayerToggleClass,
+                        'h-9 w-auto flex-none justify-center px-4',
+                        (checked as boolean) ? compactLayerToggleActiveClass : compactLayerToggleInactiveClass,
+                      ].join(' ')}
+                      onClick={() => (setter as (value: boolean) => void)(!(checked as boolean))}
+                    >
+                      {label as string}
+                    </Button>
+                  ))}
+                </div>
+              </div>
             </div>
           </ScrollArea>
         </div>

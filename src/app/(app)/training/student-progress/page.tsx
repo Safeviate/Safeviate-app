@@ -2,13 +2,15 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { GraduationCap, ArrowRight, Clock3, CalendarDays, Target, Star, TrendingDown } from 'lucide-react';
+import { GraduationCap, ArrowRight, Clock3, CalendarDays, Star, TrendingDown } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { MainPageHeader } from '@/components/page-header';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { PilotProfile } from '../../users/personnel/page';
 import type { Booking } from '@/types/booking';
 import type { StudentMilestoneSettings, StudentProgressReport, MilestoneWarning } from '@/types/training';
@@ -20,6 +22,8 @@ import {
   getExerciseStatusMeta,
 } from '@/lib/training-exercise-analytics';
 import { TRAINING_EXERCISE_TEMPLATES } from '@/lib/training-exercise-templates';
+import { usePermissions } from '@/hooks/use-permissions';
+import { useToast } from '@/hooks/use-toast';
 
 type StudentProgressRow = {
   id: string;
@@ -208,10 +212,14 @@ function CompetencyStrip({ reports }: { reports: StudentProgressReport[] }) {
 }
 
 export default function StudentProgressPage() {
+  const { hasPermission } = usePermissions();
+  const { toast } = useToast();
   const [students, setStudents] = useState<PilotProfile[]>([]);
   const [summary, setSummary] = useState<SummaryPayload>({});
   const [isLoading, setIsLoading] = useState(true);
   const [activePeriod, setActivePeriod] = useState<'week' | 'month' | 'all'>('month');
+  const [instructorDrafts, setInstructorDrafts] = useState<Record<string, string>>({});
+  const [savingStudentId, setSavingStudentId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -258,6 +266,7 @@ export default function StudentProgressPage() {
     () => new Map((Array.isArray(summary.instructors) ? summary.instructors : []).map((person) => [person.id, `${person.firstName || ''} ${person.lastName || ''}`.trim() || person.id])),
     [summary.instructors],
   );
+  const canManageStudentInstructors = hasPermission('training-student-instructors-manage');
 
   const studentRows = useMemo<StudentProgressRow[]>(() => {
     const bookings = Array.isArray(summary.bookings) ? summary.bookings : [];
@@ -349,6 +358,68 @@ export default function StudentProgressPage() {
   const stagnatingCount = studentRows.filter((row) => row.daysSinceFlight !== null && row.daysSinceFlight >= 30).length;
   const forecastCount = studentRows.filter((row) => row.forecastDaysToNextMilestone !== null && row.forecastDaysToNextMilestone <= 30).length;
 
+  const updateStudentInstructor = async (student: PilotProfile) => {
+    const nextInstructorId = instructorDrafts[student.id] === 'unassigned'
+      ? null
+      : (instructorDrafts[student.id] ?? student.primaryInstructorId ?? null);
+
+    setSavingStudentId(student.id);
+    try {
+      const response = await fetch(`/api/personnel/${student.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          personnel: {
+            primaryInstructorId: nextInstructorId,
+          },
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Failed to update assigned instructor.');
+      }
+
+      const updatedPersonnel = payload?.personnel as PilotProfile | undefined;
+      if (updatedPersonnel) {
+        setStudents((current) =>
+          current.map((entry) =>
+            entry.id === student.id
+              ? { ...entry, primaryInstructorId: updatedPersonnel.primaryInstructorId ?? null }
+              : entry
+          )
+        );
+        setSummary((current) => ({
+          ...current,
+          students: Array.isArray(current.students)
+            ? current.students.map((entry) =>
+                entry.id === student.id
+                  ? { ...entry, primaryInstructorId: updatedPersonnel.primaryInstructorId ?? null }
+                  : entry
+              )
+            : current.students,
+        }));
+      }
+
+      setInstructorDrafts((current) => ({
+        ...current,
+        [student.id]: nextInstructorId || 'unassigned',
+      }));
+
+      toast({
+        title: 'Assigned Instructor Updated',
+        description: `${student.firstName || student.id} now reflects the updated instructor assignment in student progress.`,
+      });
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Update Failed',
+        description: error instanceof Error ? error.message : 'Failed to update assigned instructor.',
+      });
+    } finally {
+      setSavingStudentId(null);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="max-w-[1100px] mx-auto w-full h-full overflow-hidden space-y-6 px-1">
@@ -411,31 +482,26 @@ export default function StudentProgressPage() {
               {studentRows.length > 0 ? (
                 <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
                   {studentRows.map((student) => {
+                    const studentProfile = (students || []).find((entry) => entry.id === student.id);
                     const reports = Array.isArray(summary.studentProgressReports)
                       ? summary.studentProgressReports.filter((report) => report.studentId === student.id)
                       : [];
                     const exerciseSummaries = buildExerciseProgressSummary(reports, TRAINING_EXERCISE_TEMPLATES);
                     const readiness = buildExerciseReadinessFlags(exerciseSummaries);
-                    const nextExerciseFocus = exerciseSummaries.find((summary) => summary.status === 'needs_review' || summary.status === 'practising')
-                      || exerciseSummaries.find((summary) => summary.status === 'consolidating')
-                      || null;
-                    const strongestExercise = exerciseSummaries
-                      .filter((summary) => summary.attemptCount > 0)
-                      .sort((a, b) => (b.averageRating || 0) - (a.averageRating || 0))[0];
                     const readinessHeadline = readiness.find((item) => item.signal === 'blocked')
                       || readiness.find((item) => item.signal === 'watch')
                       || readiness[0];
                     const lastFlight = student.lastFlightDate ? new Date(student.lastFlightDate) : null;
-                    const lastDebrief = student.lastDebriefDate ? new Date(student.lastDebriefDate) : null;
                     const statusClass = student.status === 'over'
                       ? 'border-red-200 bg-red-50 text-red-700'
                       : student.status === 'watch'
                         ? 'border-amber-200 bg-amber-50 text-amber-700'
                         : 'border-emerald-200 bg-emerald-50 text-emerald-700';
 
+                    const selectedInstructorValue = instructorDrafts[student.id] ?? student.primaryInstructorId ?? 'unassigned';
+
                     return (
-                      <Link key={student.id} href={`/training/student-progress/${student.id}`}>
-                        <Card className="h-full overflow-hidden border shadow-none transition-colors hover:bg-muted/40">
+                        <Card key={student.id} className="h-full overflow-hidden border shadow-none transition-colors hover:bg-muted/40">
                           <CardHeader className="border-b bg-muted/5 px-4 py-3">
                             <div className="flex items-start justify-between gap-3">
                               <div className="min-w-0">
@@ -450,21 +516,9 @@ export default function StudentProgressPage() {
                             </div>
                           </CardHeader>
                           <CardContent className="space-y-3 p-4">
-                            <CompetencyStrip reports={reports} />
-
                             <div className="grid gap-3 sm:grid-cols-2">
                               <InfoPill icon={<Clock3 className="h-3.5 w-3.5" />} label="Last Flight" value={lastFlight ? formatDateLabel(lastFlight) : 'None'} />
                               <InfoPill icon={<CalendarDays className="h-3.5 w-3.5" />} label="Days Since Flight" value={formatDaysSince(student.daysSinceFlight)} />
-                              <InfoPill icon={<Target className="h-3.5 w-3.5" />} label="Pace" value={formatPace(student.pacePerWeek)} />
-                              <InfoPill icon={<Clock3 className="h-3.5 w-3.5" />} label="Recent Hours" value={formatHours(student.recentFlightHours)} />
-                            </div>
-
-                            <div className="rounded-xl border bg-background px-3 py-3">
-                              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Last Debrief</p>
-                              <p className="mt-1 text-sm font-semibold">{lastDebrief ? formatDateLabel(lastDebrief) : 'None'}</p>
-                              <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                                {student.daysSinceDebrief !== null ? `${student.daysSinceDebrief} days since debrief` : 'No debrief yet'}
-                              </p>
                             </div>
 
                             <div className="rounded-xl border bg-background px-3 py-3">
@@ -475,51 +529,81 @@ export default function StudentProgressPage() {
                               <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
                                 Current profile assignment
                               </p>
+                              {canManageStudentInstructors ? (
+                                <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+                                  <Select
+                                    value={selectedInstructorValue}
+                                    onValueChange={(value) =>
+                                      setInstructorDrafts((current) => ({
+                                        ...current,
+                                        [student.id]: value,
+                                      }))
+                                    }
+                                  >
+                                    <SelectTrigger className="h-9 text-xs font-bold">
+                                      <SelectValue placeholder="Assign instructor" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="unassigned">Unassigned</SelectItem>
+                                      {(Array.isArray(summary.instructors) ? summary.instructors : []).map((instructor) => (
+                                        <SelectItem key={instructor.id} value={instructor.id}>
+                                          {`${instructor.firstName || ''} ${instructor.lastName || ''}`.trim() || instructor.id}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      className="h-9 text-[10px] font-black uppercase"
+                                      disabled={
+                                        !studentProfile ||
+                                        savingStudentId === student.id ||
+                                        selectedInstructorValue === (student.primaryInstructorId ?? 'unassigned')
+                                      }
+                                      onClick={() => {
+                                        if (studentProfile) {
+                                          void updateStudentInstructor(studentProfile);
+                                        }
+                                      }}
+                                    >
+                                      {savingStudentId === student.id ? 'Saving...' : 'Change Instructor'}
+                                    </Button>
+                                </div>
+                              ) : null}
                             </div>
 
                             <div className="grid gap-3 md:grid-cols-2">
                               <div className="rounded-xl border bg-background px-3 py-3">
-                                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Next Exercise Focus</p>
-                                <p className="mt-1 text-sm font-black">{nextExerciseFocus?.label || 'No exercise trend yet'}</p>
+                                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Hours Flown</p>
+                                <p className="mt-1 text-sm font-black">{formatHours(student.totalFlightHours)}</p>
                                 <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                                  {nextExerciseFocus?.focusCriteria[0]?.label || 'Wait for more exercise data'}
+                                  {student.recentFlightHours > 0 ? `${formatHours(student.recentFlightHours)} in this period` : 'No hours flown in this period'}
                                 </p>
                               </div>
                               <div className="rounded-xl border bg-background px-3 py-3">
-                                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Strongest Exercise</p>
-                                <p className="mt-1 text-sm font-black">{strongestExercise?.label || 'Not enough data yet'}</p>
+                                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Hour Milestone</p>
+                                <p className="mt-1 text-sm font-black">
+                                  {student.milestoneHours !== null ? `${student.milestoneHours.toFixed(0)}h next` : 'Milestones complete'}
+                                </p>
                                 <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                                  {strongestExercise?.strengths[0]?.label || 'Awaiting more exercise assessments'}
+                                  {student.warningHours !== null ? `Warning from ${student.warningHours.toFixed(0)}h` : 'No further milestone configured'}
                                 </p>
                               </div>
                             </div>
 
-                            <div className="grid gap-3 md:grid-cols-3">
-                              <div className="rounded-xl border bg-background px-3 py-3">
-                                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Total Hours</p>
-                                <p className="mt-1 text-sm font-black">{formatHours(student.totalFlightHours)}</p>
-                              </div>
-                              <div className="rounded-xl border bg-background px-3 py-3">
-                                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Forecast</p>
-                                <p className="mt-1 text-sm font-black">
-                                  {student.forecastDaysToNextMilestone !== null ? `${student.forecastDaysToNextMilestone} days` : 'N/A'}
-                                </p>
-                              </div>
-                              <div className={cn('rounded-xl border px-3 py-3', statusClass)}>
-                                <p className="text-[10px] font-black uppercase tracking-[0.16em]">Action</p>
-                                <p className="mt-1 text-sm font-black">{student.recommendedAction}</p>
-                              </div>
+                            <div className={cn('rounded-xl border px-3 py-3', statusClass)}>
+                              <p className="text-[10px] font-black uppercase tracking-[0.16em]">Action</p>
+                              <p className="mt-1 text-sm font-black">{student.recommendedAction}</p>
                             </div>
 
                             {readinessHeadline ? (
                               <div className="rounded-xl border bg-muted/20 px-3 py-3">
                                 <div className="flex items-center justify-between gap-3">
                                   <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Readiness Signal</p>
-                                  {nextExerciseFocus ? (
-                                    <Badge variant="outline" className={cn('text-[10px] font-black uppercase tracking-[0.14em]', getExerciseStatusMeta(nextExerciseFocus.status).badge)}>
-                                      {getExerciseStatusMeta(nextExerciseFocus.status).label}
-                                    </Badge>
-                                  ) : null}
+                                  <Badge variant="outline" className="text-[10px] font-black uppercase tracking-[0.14em]">
+                                    {readinessHeadline.signal === 'blocked' ? 'Blocked' : readinessHeadline.signal === 'watch' ? 'Watch' : 'Ready'}
+                                  </Badge>
                                 </div>
                                 <p className="mt-1 text-sm font-black">{readinessHeadline.label}</p>
                                 <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
@@ -528,8 +612,15 @@ export default function StudentProgressPage() {
                               </div>
                             ) : null}
                           </CardContent>
+                          <div className="border-t bg-muted/5 p-2">
+                            <Button asChild variant="ghost" size="sm" className="h-8 w-full justify-between px-3 text-[10px] font-black uppercase">
+                              <Link href={`/training/student-progress/${student.id}`}>
+                                Open Student Progress
+                                <ArrowRight className="ml-2 h-3.5 w-3.5" />
+                              </Link>
+                            </Button>
+                          </div>
                         </Card>
-                      </Link>
                     );
                   })}
                 </div>

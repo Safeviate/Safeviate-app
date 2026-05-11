@@ -55,6 +55,7 @@ export default function TrainingRoutesPage() {
   const [search, setSearch] = useState('');
   const [isMapZoomPanelOpen, setIsMapZoomPanelOpen] = useState(false);
   const [isMapLayersPanelOpen, setIsMapLayersPanelOpen] = useState(false);
+  const [routePlannerBaseStyle, setRoutePlannerBaseStyle] = useState<'light' | 'satellite'>('light');
   const isModern = uiMode === 'modern';
   const routePlannerCompactButtonClass =
     'h-8 rounded-md px-3 text-[9px] font-black uppercase tracking-[0.08em] shadow-none gap-1.5 shrink-0';
@@ -67,8 +68,8 @@ export default function TrainingRoutesPage() {
     'border border-slate-900 bg-slate-900 text-white hover:bg-slate-800',
   );
 
-    useEffect(() => {
-      const loadRoutes = async () => {
+  useEffect(() => {
+    const loadRoutes = async () => {
         try {
           const res = await fetch('/api/training-routes', { cache: 'no-store' });
           const data = await res.json();
@@ -253,8 +254,11 @@ export default function TrainingRoutesPage() {
           <div className={cn('grid h-full min-h-0 grid-cols-1 grid-rows-[42svh_minmax(0,1fr)] overflow-hidden lg:grid-cols-[minmax(0,1fr)_350px] lg:grid-rows-none lg:h-full', OPERATIONS_MAP_SURFACE_HEIGHT_CLASS)}>
               <div className={cn('relative order-1 z-20 flex h-full min-h-0 flex-col overflow-hidden bg-slate-900', isModern && 'bg-white')}>
                 <RoutePlannerMapLibreShell
+                  key={`route-planner-${routePlannerBaseStyle}`}
                   legs={activeRoute?.legs || []}
                   hazards={activeRoute?.hazards || []}
+                  baseStyle={routePlannerBaseStyle}
+                  onBaseStyleChange={setRoutePlannerBaseStyle}
                   isEditing={isEditing}
                   onAddWaypoint={handleAddWaypoint}
                   onMoveWaypoint={handleMoveWaypoint}
