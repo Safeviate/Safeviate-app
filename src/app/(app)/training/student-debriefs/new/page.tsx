@@ -26,7 +26,7 @@ import { MainPageHeader } from '@/components/page-header';
 import { DEFAULT_TRAINING_COMPETENCY_KEY, TRAINING_COMPETENCY_OPTIONS } from '@/lib/training-competencies';
 import { DEFAULT_TRAINING_EXERCISE_TEMPLATE_KEY, type TrainingExerciseTemplate, getTrainingExerciseTemplate, getTrainingExerciseTemplateOptions, resolveTrainingExerciseTemplates } from '@/lib/training-exercise-templates';
 import { Badge } from '@/components/ui/badge';
-import type { StudentProgressCriterionRating } from '@/types/training';
+import type { InstructorRecommendationAction, StudentProgressCriterionRating } from '@/types/training';
 import { useTenantConfig } from '@/hooks/use-tenant-config';
 
 const RATING_GUIDE = [
@@ -37,14 +37,27 @@ const RATING_GUIDE = [
     { value: '5', label: 'Strong / Independent', hint: 'Confident, disciplined, and largely self-directed.' },
 ] as const;
 
+const INSTRUCTOR_RECOMMENDATION_OPTIONS: Array<{
+    value: InstructorRecommendationAction;
+    label: string;
+    hint: string;
+}> = [
+    { value: 'repeat_exercise', label: 'Repeat Exercise', hint: 'Keep working this exercise before moving on.' },
+    { value: 'continue_current_phase', label: 'Continue Current Phase', hint: 'Stay in the current phase and consolidate performance.' },
+    { value: 'recommend_next_phase', label: 'Recommend Next Phase', hint: 'Instructor feels the student is ready to progress.' },
+    { value: 'recommend_solo_review', label: 'Recommend Solo Review', hint: 'Escalate for a solo-readiness review by training management.' },
+];
+
 const debriefSchema = z.object({
-    overallComment: z.string().min(1, "Please provide an overall comment."),
+    overallComment: z.string().optional(),
     entries: z.array(z.object({
         id: z.string(),
         exercise: z.string().min(1, "Exercise name is required."),
         exerciseTemplateKey: z.string().optional(),
         rating: z.coerce.number().min(1).max(5),
         comment: z.string().optional(),
+        instructorRecommendationAction: z.enum(['repeat_exercise', 'continue_current_phase', 'recommend_next_phase', 'recommend_solo_review']).optional(),
+        instructorRecommendationComment: z.string().optional(),
         competencyKey: z.string().optional(),
         competencySignal: z.enum(['strength', 'growth', 'watch']).optional(),
         criteriaRatings: z.array(z.object({
@@ -87,6 +100,8 @@ const createDebriefEntry = (templates?: TrainingExerciseTemplate[]) => {
         exerciseTemplateKey: DEFAULT_TRAINING_EXERCISE_TEMPLATE_KEY,
         rating: 4 as const,
         comment: '',
+        instructorRecommendationAction: 'continue_current_phase' as const,
+        instructorRecommendationComment: '',
         competencyKey: template?.coreCompetencyKeys[0] || DEFAULT_TRAINING_COMPETENCY_KEY,
         competencySignal: 'growth' as const,
         criteriaRatings: buildCriterionRatingsFromTemplate(DEFAULT_TRAINING_EXERCISE_TEMPLATE_KEY, templates),
@@ -103,6 +118,8 @@ const createDebriefEntryFromTemplate = (templateKey?: string | null, templates?:
         exerciseTemplateKey: resolvedTemplateKey,
         rating: 4 as const,
         comment: '',
+        instructorRecommendationAction: 'continue_current_phase' as const,
+        instructorRecommendationComment: '',
         competencyKey: template?.coreCompetencyKeys[0] || DEFAULT_TRAINING_COMPETENCY_KEY,
         competencySignal: 'growth' as const,
         criteriaRatings: buildCriterionRatingsFromTemplate(resolvedTemplateKey, templates),
@@ -362,13 +379,19 @@ function NewDebriefContent() {
                                                 <h3 className="text-lg font-semibold">Assessment Entries</h3>
                                                 <p className="text-sm text-muted-foreground">Log each observed exercise, competency, and instructor signal from the flight.</p>
                                             </div>
-                                            <Button 
-                                                type="button" 
-                                                variant="outline" 
-                                                size="sm" 
-                                                onClick={() => append(createDebriefEntry(trainingExerciseTemplates))}
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() =>
+                                                    append(
+                                                        booking?.trainingExerciseTemplateKey
+                                                            ? createDebriefEntryFromTemplate(booking.trainingExerciseTemplateKey, trainingExerciseTemplates)
+                                                            : createDebriefEntry(trainingExerciseTemplates)
+                                                    )
+                                                }
                                             >
-                                                <PlusCircle className="mr-2 h-4 w-4" /> Add Entry
+                                                <PlusCircle className="mr-2 h-4 w-4" /> Add Exercise
                                             </Button>
                                         </div>
 
@@ -382,9 +405,9 @@ function NewDebriefContent() {
                                                     return (
                                                         <>
                                                             <div className="flex items-center justify-between gap-3">
-                                                                <div>
+                                                                <div className="space-y-1">
                                                                     <p className="text-[10px] font-black uppercase tracking-[0.12em] text-muted-foreground">Entry {index + 1}</p>
-                                                                    <p className="text-sm font-semibold">Observed exercise, core competencies, and instructor feedback</p>
+                                                                    <p className="text-sm font-semibold">Exercise, focus areas, and instructor feedback</p>
                                                                 </div>
                                                                 <Button 
                                                                     type="button" 
@@ -398,73 +421,41 @@ function NewDebriefContent() {
                                                                 </Button>
                                                             </div>
 
-                                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                                                                <FormItem>
-                                                                    <FormLabel className="text-[10px] font-black uppercase tracking-[0.12em] text-muted-foreground">Exercise Template</FormLabel>
-                                                                    <Select
-                                                                        value={entry?.exerciseTemplateKey || DEFAULT_TRAINING_EXERCISE_TEMPLATE_KEY}
-                                                                        onValueChange={(value) => handleExerciseTemplateChange(index, value)}
-                                                                    >
-                                                                        <FormControl>
-                                                                            <SelectTrigger>
-                                                                                <SelectValue />
-                                                                            </SelectTrigger>
-                                                                        </FormControl>
-                                                                        <SelectContent>
-                                                                            {trainingExerciseOptions.map((option) => (
-                                                                                <SelectItem key={option.value} value={option.value}>
-                                                                                    {option.label}
-                                                                                </SelectItem>
-                                                                            ))}
-                                                                        </SelectContent>
-                                                                    </Select>
-                                                                </FormItem>
-                                                                <FormField 
-                                                                    control={form.control} 
-                                                                    name={`entries.${index}.exercise`} 
-                                                                    render={({ field }) => (
-                                                                        <FormItem>
-                                                                            <FormLabel className="text-[10px] font-black uppercase tracking-[0.12em] text-muted-foreground">Exercise / Observation</FormLabel>
-                                                                            <FormControl><Input placeholder="e.g., Circuit rejoin, general handling, arrival and landing" {...field} /></FormControl>
-                                                                            <FormMessage />
-                                                                        </FormItem>
-                                                                    )} 
-                                                                />
-                                                                <FormField 
-                                                                    control={form.control} 
-                                                                    name={`entries.${index}.rating`} 
-                                                                    render={({ field }) => (
-                                                                        <FormItem>
-                                                                            <FormLabel className="text-[10px] font-black uppercase tracking-[0.12em] text-muted-foreground">Overall Entry Rating</FormLabel>
-                                                                            <Select onValueChange={field.onChange} value={String(field.value)}>
-                                                                                <FormControl>
-                                                                                    <SelectTrigger>
-                                                                                        <SelectValue />
-                                                                                    </SelectTrigger>
-                                                                                </FormControl>
-                                                                                <SelectContent>
-                                                                                    {RATING_GUIDE.map((item) => (
-                                                                                        <SelectItem key={item.value} value={item.value}>
-                                                                                            {item.value} - {item.label}
-                                                                                        </SelectItem>
-                                                                                    ))}
-                                                                                </SelectContent>
-                                                                            </Select>
-                                                                            <FormMessage />
-                                                                        </FormItem>
-                                                                    )} 
-                                                                />
-                                                                <div className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground md:col-span-3">
-                                                                    Use the guide above
+                                                            {booking?.trainingExerciseTemplateKey ? (
+                                                                <div className="rounded-xl border bg-muted/5 px-4 py-3">
+                                                                    <p className="text-[10px] font-black uppercase tracking-[0.12em] text-muted-foreground">Booked Exercise</p>
+                                                                    <p className="mt-1 text-sm font-semibold">{selectedTemplate?.label || entry?.exercise || 'Training exercise selected in booking'}</p>
                                                                 </div>
-                                                            </div>
+                                                            ) : (
+                                                                <div className="grid grid-cols-1 gap-4">
+                                                                    <FormItem>
+                                                                        <FormLabel className="text-[10px] font-black uppercase tracking-[0.12em] text-muted-foreground">Exercise</FormLabel>
+                                                                        <Select
+                                                                            value={entry?.exerciseTemplateKey || DEFAULT_TRAINING_EXERCISE_TEMPLATE_KEY}
+                                                                            onValueChange={(value) => handleExerciseTemplateChange(index, value)}
+                                                                        >
+                                                                            <FormControl>
+                                                                                <SelectTrigger>
+                                                                                    <SelectValue />
+                                                                                </SelectTrigger>
+                                                                            </FormControl>
+                                                                            <SelectContent>
+                                                                                {trainingExerciseOptions.map((option) => (
+                                                                                    <SelectItem key={option.value} value={option.value}>
+                                                                                        {option.label}
+                                                                                    </SelectItem>
+                                                                                ))}
+                                                                            </SelectContent>
+                                                                        </Select>
+                                                                    </FormItem>
+                                                                </div>
+                                                            )}
 
                                                             {selectedTemplate ? (
-                                                                <div className="rounded-xl border bg-muted/5 p-4 space-y-3">
+                                                                <div className="rounded-xl border bg-muted/5 px-4 py-3 space-y-2">
                                                                     <div className="space-y-1">
                                                                         <p className="text-[10px] font-black uppercase tracking-[0.12em] text-muted-foreground">Exercise Focus</p>
                                                                         <p className="text-sm font-semibold">{selectedTemplate.label}</p>
-                                                                        <p className="text-xs text-muted-foreground">{selectedTemplate.description}</p>
                                                                     </div>
                                                                     <div className="flex flex-wrap gap-2">
                                                                         {selectedTemplate.coreCompetencyKeys.map((key) => {
@@ -479,72 +470,19 @@ function NewDebriefContent() {
                                                                 </div>
                                                             ) : null}
 
-                                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                                <FormField
-                                                                    control={form.control}
-                                                                    name={`entries.${index}.competencyKey`}
-                                                                    render={({ field }) => (
-                                                                        <FormItem>
-                                                                            <FormLabel className="text-[10px] font-black uppercase tracking-[0.12em] text-muted-foreground">Primary Competency Focus</FormLabel>
-                                                                            <Select onValueChange={field.onChange} value={field.value || DEFAULT_TRAINING_COMPETENCY_KEY}>
-                                                                                <FormControl>
-                                                                                    <SelectTrigger>
-                                                                                        <SelectValue placeholder="Select area" />
-                                                                                    </SelectTrigger>
-                                                                                </FormControl>
-                                                                                <SelectContent>
-                                                                                    {TRAINING_COMPETENCY_OPTIONS.map((option) => (
-                                                                                        <SelectItem key={option.value} value={option.value}>
-                                                                                            {option.label}
-                                                                                        </SelectItem>
-                                                                                    ))}
-                                                                                </SelectContent>
-                                                                            </Select>
-                                                                            <FormMessage />
-                                                                        </FormItem>
-                                                                    )}
-                                                                />
-
-                                                                <FormField
-                                                                    control={form.control}
-                                                                    name={`entries.${index}.competencySignal`}
-                                                                    render={({ field }) => (
-                                                                        <FormItem>
-                                                                            <FormLabel className="text-[10px] font-black uppercase tracking-[0.12em] text-muted-foreground">Instructor Signal</FormLabel>
-                                                                            <Select onValueChange={field.onChange} value={field.value || 'growth'}>
-                                                                                <FormControl>
-                                                                                    <SelectTrigger>
-                                                                                        <SelectValue placeholder="Select signal" />
-                                                                                    </SelectTrigger>
-                                                                                </FormControl>
-                                                                                <SelectContent>
-                                                                                    <SelectItem value="strength">Strength</SelectItem>
-                                                                                    <SelectItem value="growth">Growth</SelectItem>
-                                                                                    <SelectItem value="watch">Watch</SelectItem>
-                                                                                </SelectContent>
-                                                                            </Select>
-                                                                            <FormMessage />
-                                                                        </FormItem>
-                                                                    )}
-                                                                />
-                                                            </div>
-
                                                             <div className="rounded-xl border bg-muted/5 p-4 space-y-4">
                                                                 <div className="flex items-start justify-between gap-4">
                                                                     <div>
-                                                                        <p className="text-sm font-semibold">Exercise Competency Ratings</p>
-                                                                        <p className="text-sm text-muted-foreground">Rate the exercise criteria that matter on this flight, then add any custom instructor-specific ratings you need.</p>
+                                                                        <p className="text-sm font-semibold">Exercise Focus Areas</p>
+                                                                        <p className="text-sm text-muted-foreground">Capture the focus areas that mattered on this flight. Add another one if the instructor wants to include more.</p>
                                                                     </div>
                                                                     <Button type="button" variant="outline" size="sm" onClick={() => handleAddCustomCriterion(index)}>
-                                                                        <PlusCircle className="mr-2 h-4 w-4" /> Add Custom Criterion
+                                                                        <PlusCircle className="mr-2 h-4 w-4" /> Add Focus Area
                                                                     </Button>
                                                                 </div>
 
                                                                 <div className="space-y-3">
                                                                     {criteriaRatings.map((criterion, criterionIndex) => {
-                                                                        const option = criterion.competencyKey
-                                                                            ? TRAINING_COMPETENCY_OPTIONS.find((candidate) => candidate.value === criterion.competencyKey)
-                                                                            : null;
                                                                         const isCustom = criterion.source === 'custom';
 
                                                                         return (
@@ -552,20 +490,22 @@ function NewDebriefContent() {
                                                                                 <div className="flex items-start justify-between gap-3">
                                                                                     <div className="space-y-2 flex-1">
                                                                                         {isCustom ? (
-                                                                                            <Input
-                                                                                                value={criterion.label}
-                                                                                                placeholder="Custom criterion label"
-                                                                                                onChange={(event) => handleCriterionChange(index, criterionIndex, { label: event.target.value })}
-                                                                                            />
+                                                                                            <div className="space-y-2">
+                                                                                                <Input
+                                                                                                    value={criterion.label}
+                                                                                                    placeholder="Additional focus area"
+                                                                                                    onChange={(event) => handleCriterionChange(index, criterionIndex, { label: event.target.value })}
+                                                                                                />
+                                                                                                <p className="text-[10px] font-black uppercase tracking-[0.12em] text-muted-foreground">Additional focus</p>
+                                                                                            </div>
                                                                                         ) : (
                                                                                             <div>
                                                                                                 <p className="text-sm font-semibold">{criterion.label}</p>
-                                                                                                {option ? <p className="text-[10px] font-black uppercase tracking-[0.12em] text-muted-foreground">{option.label}</p> : null}
+                                                                                                <p className="text-[10px] font-black uppercase tracking-[0.12em] text-muted-foreground">Focus area</p>
                                                                                             </div>
                                                                                         )}
                                                                                     </div>
                                                                                     <div className="flex items-center gap-2">
-                                                                                        {isCustom && option ? <Badge variant="outline" className="text-[10px] font-black uppercase">{option.label}</Badge> : null}
                                                                                         {isCustom ? (
                                                                                             <Button type="button" variant="ghost" size="icon" className="text-destructive" onClick={() => handleRemoveCriterion(index, criterionIndex)}>
                                                                                                 <Trash2 className="h-4 w-4" />
@@ -573,7 +513,27 @@ function NewDebriefContent() {
                                                                                         ) : null}
                                                                                     </div>
                                                                                 </div>
-                                                                                <div className="grid grid-cols-1 md:grid-cols-[170px_minmax(0,1fr)_220px] gap-3">
+                                                                                <Input
+                                                                                    value={criterion.comment || ''}
+                                                                                    placeholder="Add a short note for this focus area"
+                                                                                    onChange={(event) => handleCriterionChange(index, criterionIndex, { comment: event.target.value })}
+                                                                                />
+                                                                                <div className="grid grid-cols-1 md:grid-cols-[220px_170px] gap-3">
+                                                                                    <Select
+                                                                                        value={criterion.competencyKey || DEFAULT_TRAINING_COMPETENCY_KEY}
+                                                                                        onValueChange={(value) => handleCriterionChange(index, criterionIndex, { competencyKey: value })}
+                                                                                    >
+                                                                                        <SelectTrigger>
+                                                                                            <SelectValue placeholder="Select focus" />
+                                                                                        </SelectTrigger>
+                                                                                        <SelectContent>
+                                                                                            {TRAINING_COMPETENCY_OPTIONS.map((option) => (
+                                                                                                <SelectItem key={option.value} value={option.value}>
+                                                                                                    {option.label}
+                                                                                                </SelectItem>
+                                                                                            ))}
+                                                                                        </SelectContent>
+                                                                                    </Select>
                                                                                     <Select value={String(criterion.rating)} onValueChange={(value) => handleCriterionChange(index, criterionIndex, { rating: Number(value) as 1 | 2 | 3 | 4 | 5 })}>
                                                                                         <SelectTrigger>
                                                                                             <SelectValue />
@@ -582,26 +542,6 @@ function NewDebriefContent() {
                                                                                             {RATING_GUIDE.map((item) => (
                                                                                                 <SelectItem key={item.value} value={item.value}>
                                                                                                     {item.value} - {item.label}
-                                                                                                </SelectItem>
-                                                                                            ))}
-                                                                                        </SelectContent>
-                                                                                    </Select>
-                                                                                    <Input
-                                                                                        value={criterion.comment || ''}
-                                                                                        placeholder="Criterion-specific note"
-                                                                                        onChange={(event) => handleCriterionChange(index, criterionIndex, { comment: event.target.value })}
-                                                                                    />
-                                                                                    <Select
-                                                                                        value={criterion.competencyKey || DEFAULT_TRAINING_COMPETENCY_KEY}
-                                                                                        onValueChange={(value) => handleCriterionChange(index, criterionIndex, { competencyKey: value })}
-                                                                                    >
-                                                                                        <SelectTrigger>
-                                                                                            <SelectValue placeholder="Map to competency" />
-                                                                                        </SelectTrigger>
-                                                                                        <SelectContent>
-                                                                                            {TRAINING_COMPETENCY_OPTIONS.map((option) => (
-                                                                                                <SelectItem key={option.value} value={option.value}>
-                                                                                                    {option.label}
                                                                                                 </SelectItem>
                                                                                             ))}
                                                                                         </SelectContent>
@@ -624,32 +564,66 @@ function NewDebriefContent() {
                                                                     </FormItem>
                                                                 )} 
                                                             />
+
+                                                            <div className="rounded-xl border bg-muted/5 p-4 space-y-4">
+                                                                <div className="space-y-1">
+                                                                    <p className="text-sm font-semibold">Instructor Recommendation</p>
+                                                                    <p className="text-sm text-muted-foreground">Record the instructor handoff so the CFI / HoT can see what the instructor recommends for this exercise next.</p>
+                                                                </div>
+
+                                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                                    <FormField
+                                                                        control={form.control}
+                                                                        name={`entries.${index}.instructorRecommendationAction`}
+                                                                        render={({ field }) => (
+                                                                            <FormItem>
+                                                                                <FormLabel className="text-[10px] font-black uppercase tracking-[0.12em] text-muted-foreground">Recommended Action</FormLabel>
+                                                                                <Select value={field.value || 'continue_current_phase'} onValueChange={field.onChange}>
+                                                                                    <FormControl>
+                                                                                        <SelectTrigger>
+                                                                                            <SelectValue />
+                                                                                        </SelectTrigger>
+                                                                                    </FormControl>
+                                                                                    <SelectContent>
+                                                                                        {INSTRUCTOR_RECOMMENDATION_OPTIONS.map((option) => (
+                                                                                            <SelectItem key={option.value} value={option.value}>
+                                                                                                {option.label}
+                                                                                            </SelectItem>
+                                                                                        ))}
+                                                                                    </SelectContent>
+                                                                                </Select>
+                                                                                <p className="text-xs text-muted-foreground">
+                                                                                    {INSTRUCTOR_RECOMMENDATION_OPTIONS.find((option) => option.value === (field.value || 'continue_current_phase'))?.hint}
+                                                                                </p>
+                                                                                <FormMessage />
+                                                                            </FormItem>
+                                                                        )}
+                                                                    />
+
+                                                                    <FormField
+                                                                        control={form.control}
+                                                                        name={`entries.${index}.instructorRecommendationComment`}
+                                                                        render={({ field }) => (
+                                                                            <FormItem>
+                                                                                <FormLabel className="text-[10px] font-black uppercase tracking-[0.12em] text-muted-foreground">Recommendation Note</FormLabel>
+                                                                                <FormControl>
+                                                                                    <Textarea
+                                                                                        placeholder="Capture why the instructor recommends repeating, continuing, progressing, or escalating this exercise."
+                                                                                        {...field}
+                                                                                    />
+                                                                                </FormControl>
+                                                                                <FormMessage />
+                                                                            </FormItem>
+                                                                        )}
+                                                                    />
+                                                                </div>
+                                                            </div>
                                                         </>
                                                     );
                                                 })()}
                                             </div>
                                         ))}
                                     </div>
-
-                                    <Separator />
-
-                                    <FormField 
-                                        control={form.control} 
-                                        name="overallComment" 
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel className="text-lg font-semibold">Overall Instructor Debrief</FormLabel>
-                                                <FormControl>
-                                                    <Textarea 
-                                                        className="min-h-[120px]" 
-                                                        placeholder="Summarize the student's overall performance, key risks, strengths, and the focus for the next lesson..." 
-                                                        {...field} 
-                                                    />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )} 
-                                    />
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pb-6">
                                         <FormField 

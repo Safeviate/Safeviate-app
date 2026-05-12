@@ -3,6 +3,12 @@ export type PerformanceRating = 1 | 2 | 3 | 4 | 5;
 
 export type CompetencySignal = 'strength' | 'growth' | 'watch';
 
+export type InstructorRecommendationAction =
+    | 'repeat_exercise'
+    | 'continue_current_phase'
+    | 'recommend_next_phase'
+    | 'recommend_solo_review';
+
 export interface StudentProgressCriterionRating {
     id: string;
     key?: string;
@@ -18,6 +24,8 @@ export interface StudentProgressEntry {
     exercise: string;
     rating: PerformanceRating;
     comment: string;
+    instructorRecommendationAction?: InstructorRecommendationAction;
+    instructorRecommendationComment?: string;
     exerciseTemplateKey?: string;
     competencyKey?: string;
     competencySignal?: CompetencySignal;

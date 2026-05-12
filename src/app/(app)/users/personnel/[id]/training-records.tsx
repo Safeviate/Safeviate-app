@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
+import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { format } from 'date-fns';
@@ -13,7 +14,6 @@ const parseLocalDate = (value: string) => {
   return new Date(year, month - 1, day, 12);
 };
 const round1 = (value: number) => parseFloat(value.toFixed(1));
-import { Badge } from '@/components/ui/badge';
 import type { StudentProgressReport, StudentMilestoneSettings } from '@/types/training';
 import type { InstructorAssignmentRecord, PilotProfile } from '../personnel-directory-page';
 import type { Booking } from '@/types/booking';
@@ -24,15 +24,13 @@ import { Trophy, History, CheckCircle2 } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Star, TrendingDown, Target } from 'lucide-react';
-import { buildTrainingCompetencyAreas, type TrainingCompetencyArea } from '@/lib/training-competencies';
+import type { TrainingCompetencyArea } from '@/lib/training-competencies';
+import { Badge } from '@/components/ui/badge';
 import {
-    buildExerciseCurrencySummary,
     buildExerciseProgressSummary,
-    buildExerciseReadinessFlags,
     getExerciseStatusMeta,
     getTrendMeta,
     type ExerciseProgressSummary,
-    type ExerciseReadinessFlag,
 } from '@/lib/training-exercise-analytics';
 import { TRAINING_EXERCISE_TEMPLATES } from '@/lib/training-exercise-templates';
 
@@ -226,56 +224,36 @@ function StrengthMeter({ areas }: { areas: TrainingCompetencyArea[] }) {
     );
 }
 
-function ReadinessSignalCard({ item }: { item: ExerciseReadinessFlag }) {
-    const tone = item.signal === 'ready'
-        ? 'border-emerald-200 bg-emerald-50/60 text-emerald-700'
-        : item.signal === 'blocked'
-            ? 'border-rose-200 bg-rose-50/60 text-rose-700'
-            : 'border-amber-200 bg-amber-50/60 text-amber-700';
-
-    return (
-        <div className={cn('rounded-xl border p-4 space-y-2', tone)}>
-            <div className="flex items-center justify-between gap-3">
-                <p className="text-sm font-black">{item.label}</p>
-                <Badge variant="outline" className="text-[10px] font-black uppercase tracking-[0.18em]">
-                    {item.signal}
-                </Badge>
-            </div>
-            <p className="text-xs font-medium">{item.detail}</p>
-        </div>
-    );
-}
-
-function ExerciseProgressMatrix({ summaries }: { summaries: ExerciseProgressSummary[] }) {
-    const activeSummaries = summaries.filter((summary) => summary.attemptCount > 0);
-    const highlights = activeSummaries
-        .filter((summary) => summary.status === 'needs_review' || summary.status === 'practising')
-        .slice(0, 3);
-    const strongest = activeSummaries
-        .filter((summary) => summary.status === 'competent' || summary.status === 'consolidating')
-        .sort((a, b) => (b.averageRating || 0) - (a.averageRating || 0))
-        .slice(0, 3);
-
+function ExerciseProgressMatrix({ summaries, studentId }: { summaries: ExerciseProgressSummary[]; studentId: string }) {
     return (
         <section className="space-y-4">
             <SectionHeader title="Exercise Progress Matrix" icon={Target} />
-            <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+            <div className="space-y-4">
                 <div className="rounded-2xl border bg-background overflow-hidden">
-                    <div className="grid grid-cols-[minmax(0,1.8fr)_90px_84px_82px_98px] gap-3 border-b bg-muted/40 px-4 py-3 text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
+                    <div className="grid grid-cols-[minmax(0,1.8fr)_90px_84px_82px_98px_112px] gap-3 border-b bg-muted/40 px-4 py-3 text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
                         <span>Exercise</span>
                         <span>Attempts</span>
                         <span>Latest</span>
                         <span>Average</span>
                         <span>Status</span>
+                        <span>Review</span>
                     </div>
                     <div className="divide-y">
                         {summaries.map((summary) => {
                             const statusMeta = getExerciseStatusMeta(summary.status);
                             const trendMeta = getTrendMeta(summary.trend);
+                            const handoff = summary.latestComment?.includes('Instructor recommendation')
+                              ? 'Handoff'
+                              : summary.latestComment ? 'Debrief' : 'Open';
                             return (
-                                <div key={summary.templateKey} className="grid grid-cols-[minmax(0,1.8fr)_90px_84px_82px_98px] gap-3 px-4 py-3">
+                                <div key={summary.templateKey} className="grid grid-cols-[minmax(0,1.8fr)_90px_84px_82px_98px_112px] gap-3 px-4 py-3">
                                     <div className="min-w-0">
-                                        <p className="truncate text-sm font-black">{summary.label}</p>
+                                        <Link
+                                            href={`/training/student-progress/${studentId}/exercise/${summary.templateKey}`}
+                                            className="truncate text-sm font-black underline-offset-4 hover:underline"
+                                        >
+                                            {summary.label}
+                                        </Link>
                                         <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
                                             {summary.lastFlown ? `Last flown ${formatLastSeen(summary.lastFlown)}` : 'No attempts yet'}
                                         </p>
@@ -284,6 +262,9 @@ function ExerciseProgressMatrix({ summaries }: { summaries: ExerciseProgressSumm
                                                 {trendMeta.label}
                                             </p>
                                         ) : null}
+                                        <Badge variant="outline" className="mt-2 text-[10px] font-black uppercase tracking-[0.14em]">
+                                            {handoff}
+                                        </Badge>
                                     </div>
                                     <div className="text-sm font-black">{summary.attemptCount}</div>
                                     <div className="text-sm font-black">{summary.latestRating ? `${summary.latestRating}/5` : '—'}</div>
@@ -293,63 +274,20 @@ function ExerciseProgressMatrix({ summaries }: { summaries: ExerciseProgressSumm
                                             {statusMeta.label}
                                         </Badge>
                                     </div>
+                                    <div>
+                                        <Link
+                                            href={`/training/student-progress/${studentId}/exercise/${summary.templateKey}`}
+                                            className="inline-flex h-8 items-center rounded-md border px-3 text-[10px] font-black uppercase tracking-[0.16em] hover:bg-muted/40"
+                                        >
+                                            Open
+                                        </Link>
+                                    </div>
                                 </div>
                             );
                         })}
                     </div>
                 </div>
 
-                <div className="space-y-4">
-                    <div className="rounded-2xl border bg-background p-5 space-y-3">
-                        <div className="flex items-center justify-between gap-3">
-                            <p className="text-sm font-black uppercase tracking-[0.18em]">Exercises to target</p>
-                            <Badge variant="outline" className="text-[10px] font-black uppercase tracking-[0.18em]">
-                                {highlights.length} priority
-                            </Badge>
-                        </div>
-                        <div className="space-y-3">
-                            {highlights.length > 0 ? highlights.map((summary) => (
-                                <div key={summary.templateKey} className="rounded-xl border border-rose-200 bg-rose-50/60 p-4 space-y-2">
-                                    <p className="text-sm font-black">{summary.label}</p>
-                                    <p className="text-xs text-muted-foreground">
-                                        {summary.focusCriteria[0]?.label
-                                            ? `Main weak point: ${summary.focusCriteria[0].label}`
-                                            : 'Exercise still needs more consolidation.'}
-                                    </p>
-                                </div>
-                            )) : (
-                                <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
-                                    No urgent exercise concerns are standing out right now.
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    <div className="rounded-2xl border bg-background p-5 space-y-3">
-                        <div className="flex items-center justify-between gap-3">
-                            <p className="text-sm font-black uppercase tracking-[0.18em]">Most stable exercises</p>
-                            <Badge variant="outline" className="text-[10px] font-black uppercase tracking-[0.18em]">
-                                {strongest.length} highlighted
-                            </Badge>
-                        </div>
-                        <div className="space-y-3">
-                            {strongest.length > 0 ? strongest.map((summary) => (
-                                <div key={summary.templateKey} className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4 space-y-2">
-                                    <p className="text-sm font-black">{summary.label}</p>
-                                    <p className="text-xs text-muted-foreground">
-                                        {summary.strengths[0]?.label
-                                            ? `Holding steady in ${summary.strengths[0].label}.`
-                                            : 'Recent ratings show stable control in this exercise.'}
-                                    </p>
-                                </div>
-                            )) : (
-                                <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
-                                    No stable exercise signal yet. More debrief entries will sharpen this picture.
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
             </div>
         </section>
     );
@@ -569,23 +507,9 @@ export function TrainingRecords({ studentId, tenantId }: TrainingRecordsProps) {
         return [...reports].sort((a, b) => parseLocalDate(b.date).getTime() - parseLocalDate(a.date).getTime());
     }, [reports]);
 
-    const competencyAreas = useMemo(() => buildTrainingCompetencyAreas(reports), [reports]);
     const exerciseSummaries = useMemo(
         () => buildExerciseProgressSummary(reports, TRAINING_EXERCISE_TEMPLATES),
         [reports],
-    );
-    const readinessFlags = useMemo(
-        () => buildExerciseReadinessFlags(exerciseSummaries),
-        [exerciseSummaries],
-    );
-    const currencySummary = useMemo(
-        () => buildExerciseCurrencySummary(exerciseSummaries, [
-            'exer-13-circuit-approach-and-landing',
-            'exer-12-13e-emergencies',
-            'exer-18a-navigation',
-            'exer-19-basic-instrument-flight',
-        ]),
-        [exerciseSummaries],
     );
     const primaryInstructorName = useMemo(() => {
         if (!student?.primaryInstructorId) return 'Unassigned';
@@ -609,7 +533,7 @@ export function TrainingRecords({ studentId, tenantId }: TrainingRecordsProps) {
         <Card className="flex flex-col h-full overflow-hidden shadow-none border">
             <CardHeader className="shrink-0 border-b bg-muted/5">
                 <CardTitle>{student ? `${student.firstName} ${student.lastName} - ` : ''}Training Progress & History</CardTitle>
-                <CardDescription>Comprehensive overview of flight hour milestones and instructor debriefs.</CardDescription>
+                <CardDescription>At-a-glance milestones, exercise progress, instructor changes, and debrief evidence.</CardDescription>
             </CardHeader>
             <CardContent className="flex-1 p-0 overflow-hidden">
                 <ScrollArea className="h-full">
@@ -629,59 +553,7 @@ export function TrainingRecords({ studentId, tenantId }: TrainingRecordsProps) {
                         </section>
 
                         <Separator />
-
-                        <StrengthMeter areas={competencyAreas} />
-
-                        <Separator />
-
-                        <section className="space-y-4">
-                            <SectionHeader title="Readiness & Currency" icon={Target} />
-                            <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
-                                <div className="rounded-2xl border bg-background p-5 space-y-3">
-                                    <div className="flex items-center justify-between gap-3">
-                                        <p className="text-sm font-black uppercase tracking-[0.18em]">Progression Signals</p>
-                                        <Badge variant="outline" className="text-[10px] font-black uppercase tracking-[0.18em]">
-                                            {readinessFlags.length} checks
-                                        </Badge>
-                                    </div>
-                                    <div className="space-y-3">
-                                        {readinessFlags.map((flag) => (
-                                            <ReadinessSignalCard key={flag.key} item={flag} />
-                                        ))}
-                                    </div>
-                                </div>
-
-                                <div className="rounded-2xl border bg-background p-5 space-y-3">
-                                    <div className="flex items-center justify-between gap-3">
-                                        <p className="text-sm font-black uppercase tracking-[0.18em]">Exercise Currency</p>
-                                        <Badge variant="outline" className="text-[10px] font-black uppercase tracking-[0.18em]">
-                                            4 watches
-                                        </Badge>
-                                    </div>
-                                    <div className="space-y-3">
-                                        {currencySummary.map((item) => (
-                                            <div key={item.key} className="rounded-xl border bg-muted/20 px-4 py-3">
-                                                <div className="flex items-start justify-between gap-3">
-                                                    <div>
-                                                        <p className="text-sm font-black">{item.label}</p>
-                                                        <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                                                            {item.lastFlown ? `Last flown ${formatLastSeen(item.lastFlown)}` : 'Not flown yet'}
-                                                        </p>
-                                                    </div>
-                                                    <Badge variant="outline" className="text-[10px] font-black uppercase tracking-[0.16em]">
-                                                        {item.daysSince === null ? 'N/A' : `${item.daysSince}d`}
-                                                    </Badge>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-                        </section>
-
-                        <Separator />
-
-                        <ExerciseProgressMatrix summaries={exerciseSummaries} />
+                        <ExerciseProgressMatrix summaries={exerciseSummaries} studentId={studentId} />
 
                         <Separator />
 
