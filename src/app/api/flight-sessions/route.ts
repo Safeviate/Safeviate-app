@@ -35,8 +35,22 @@ type FlightSessionPayload = {
   } | null;
 };
 
-async function saveTrackPointIfDue(tenantId: string, session: FlightSessionPayload & { id: string }) {
-  const position = session.lastPosition;
+type FlightTrackPointPayload = {
+  latitude?: number;
+  longitude?: number;
+  accuracy?: number;
+  altitude?: number | null;
+  speedKt?: number | null;
+  headingTrue?: number | null;
+  timestamp?: string;
+};
+
+async function saveTrackPointIfDue(
+  tenantId: string,
+  session: FlightSessionPayload & { id: string },
+  positionOverride?: FlightTrackPointPayload | null
+) {
+  const position = positionOverride ?? session.lastPosition;
   if (
     !position ||
     typeof position.latitude !== 'number' ||
@@ -117,6 +131,25 @@ async function saveTrackPointIfDue(tenantId: string, session: FlightSessionPaylo
   );
 }
 
+async function saveQueuedTrackPoints(
+  tenantId: string,
+  session: FlightSessionPayload & { id: string },
+  queuedTrackPoints: FlightTrackPointPayload[]
+) {
+  const sortedPoints = [...queuedTrackPoints]
+    .filter(
+      (point) =>
+        typeof point?.latitude === 'number' &&
+        typeof point?.longitude === 'number' &&
+        typeof point?.timestamp === 'string'
+    )
+    .sort((left, right) => new Date(left.timestamp!).getTime() - new Date(right.timestamp!).getTime());
+
+  for (const point of sortedPoints) {
+    await saveTrackPointIfDue(tenantId, session, point);
+  }
+}
+
 async function getTenantId() {
   const session = await getServerSession(authOptions);
   const email = session?.user?.email?.trim().toLowerCase();
@@ -154,6 +187,7 @@ export async function POST(request: Request) {
     if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const body = await request.json().catch(() => null);
     const session = body?.session;
+    const queuedTrackPoints = Array.isArray(body?.trackPoints) ? (body.trackPoints as FlightTrackPointPayload[]) : [];
     if (!session || typeof session !== 'object') return NextResponse.json({ error: 'Invalid session payload.' }, { status: 400 });
     const id = session.id || randomUUID();
     const blocked = await prisma.$queryRawUnsafe<{ id: string }[]>(
@@ -171,6 +205,7 @@ export async function POST(request: Request) {
       tenantId,
       JSON.stringify(data)
     );
+    await saveQueuedTrackPoints(tenantId, data as FlightSessionPayload & { id: string }, queuedTrackPoints);
     await saveTrackPointIfDue(tenantId, data as FlightSessionPayload & { id: string });
     return NextResponse.json({ session: data }, { status: 200 });
   } catch (error) {

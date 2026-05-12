@@ -38,6 +38,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 const BREADCRUMB_SAMPLE_MS = 15000;
 const MAX_BREADCRUMB_POINTS = 60;
 const FLIGHT_SESSION_OUTBOX_PREFIX = 'safeviate:active-flight-session-outbox:';
+const FLIGHT_TRACK_POINT_OUTBOX_PREFIX = 'safeviate:active-flight-track-point-outbox:';
 const ACTIVE_TRACKING_STATE_PREFIX = 'safeviate:active-flight-tracking-state:';
 const ACTIVE_TRACKING_SELECTION_PREFIX = 'safeviate:active-flight-selection:';
 const ACTIVE_TRACKING_LOCATION_CALIBRATION_PREFIX = 'safeviate:active-flight-location-calibration:';
@@ -76,6 +77,7 @@ const ActiveFlightLiveMap = dynamic(() => import('@/components/active-flight/act
 });
 
 const getFlightSessionOutboxKey = (deviceId: string) => `${FLIGHT_SESSION_OUTBOX_PREFIX}${deviceId}`;
+const getFlightTrackPointOutboxKey = (deviceId: string) => `${FLIGHT_TRACK_POINT_OUTBOX_PREFIX}${deviceId}`;
 const getActiveTrackingStateKey = (deviceId: string) => `${ACTIVE_TRACKING_STATE_PREFIX}${deviceId}`;
 const getActiveTrackingSelectionKey = (deviceId: string) => `${ACTIVE_TRACKING_SELECTION_PREFIX}${deviceId}`;
 
@@ -101,6 +103,55 @@ const queueFlightSessionSave = (session: FlightSession) => {
 const clearQueuedFlightSession = (deviceId: string) => {
   if (typeof window === 'undefined') return;
   window.localStorage.removeItem(getFlightSessionOutboxKey(deviceId));
+};
+
+const readQueuedTrackPoints = (deviceId: string) => {
+  if (typeof window === 'undefined') return [] as FlightPosition[];
+
+  const raw = window.localStorage.getItem(getFlightTrackPointOutboxKey(deviceId));
+  if (!raw) return [] as FlightPosition[];
+
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as FlightPosition[]) : [];
+  } catch {
+    window.localStorage.removeItem(getFlightTrackPointOutboxKey(deviceId));
+    return [] as FlightPosition[];
+  }
+};
+
+const saveQueuedTrackPoints = (deviceId: string, points: FlightPosition[]) => {
+  if (typeof window === 'undefined') return;
+  if (points.length === 0) {
+    window.localStorage.removeItem(getFlightTrackPointOutboxKey(deviceId));
+    return;
+  }
+  window.localStorage.setItem(getFlightTrackPointOutboxKey(deviceId), JSON.stringify(points));
+};
+
+const clearQueuedTrackPoints = (deviceId: string) => {
+  if (typeof window === 'undefined') return;
+  window.localStorage.removeItem(getFlightTrackPointOutboxKey(deviceId));
+};
+
+const queueTrackPointSample = (deviceId: string, point: FlightPosition | null) => {
+  if (!point) return;
+
+  const queued = readQueuedTrackPoints(deviceId);
+  const lastPoint = queued[queued.length - 1];
+  if (lastPoint?.timestamp === point.timestamp) {
+    return;
+  }
+
+  if (lastPoint?.timestamp) {
+    const lastTime = new Date(lastPoint.timestamp).getTime();
+    const nextTime = new Date(point.timestamp).getTime();
+    if (!Number.isNaN(lastTime) && !Number.isNaN(nextTime) && nextTime - lastTime < BREADCRUMB_SAMPLE_MS) {
+      return;
+    }
+  }
+
+  saveQueuedTrackPoints(deviceId, [...queued, point]);
 };
 
 const readActiveTrackingState = (deviceId: string) => {
@@ -198,6 +249,7 @@ export default function ActiveFlightPage() {
   const [isFullscreenMapOpen, setIsFullscreenMapOpen] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
   const [hasQueuedSession, setHasQueuedSession] = useState(false);
+  const [queuedTrackPointCount, setQueuedTrackPointCount] = useState(0);
   const [followOwnship, setFollowOwnship] = useState(true);
   const [mapRecenterSignal, setMapRecenterSignal] = useState(0);
   const [loadedBookingId, setLoadedBookingId] = useState('');
@@ -280,10 +332,13 @@ export default function ActiveFlightPage() {
       const binding = getOrCreateDeviceBinding();
       if (!binding?.deviceId) {
         setHasQueuedSession(false);
+        setQueuedTrackPointCount(0);
         return;
       }
 
-      setHasQueuedSession(Boolean(readQueuedFlightSession(binding.deviceId)));
+      const queuedPoints = readQueuedTrackPoints(binding.deviceId);
+      setQueuedTrackPointCount(queuedPoints.length);
+      setHasQueuedSession(Boolean(readQueuedFlightSession(binding.deviceId)) || queuedPoints.length > 0);
     };
 
     syncConnectivityState();
@@ -460,7 +515,13 @@ export default function ActiveFlightPage() {
           .slice(1, activeLegState.activeLegIndex + 1)
           .reduce((sum, leg) => sum + (leg.tripFuel ?? 0), 0)
       : null;
-  const syncStatusLabel = hasQueuedSession ? 'Queued for Sync' : isOnline ? 'Online' : 'Offline';
+  const syncStatusLabel = hasQueuedSession
+    ? queuedTrackPointCount > 0
+      ? `Queued for Sync (${queuedTrackPointCount} pts)`
+      : 'Queued for Sync'
+    : isOnline
+      ? 'Online'
+      : 'Offline';
   const syncStatusClassName = hasQueuedSession
     ? 'border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-50'
     : isOnline
@@ -713,17 +774,22 @@ export default function ActiveFlightPage() {
       if (!navigator.onLine) return;
 
       const queuedSession = readQueuedFlightSession(deviceBinding.deviceId);
+      const queuedTrackPoints = readQueuedTrackPoints(deviceBinding.deviceId);
+      if (!queuedSession && queuedTrackPoints.length === 0) return;
       if (!queuedSession) return;
 
       try {
         const response = await fetch('/api/flight-sessions', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ session: queuedSession }),
+          body: JSON.stringify({ session: queuedSession, trackPoints: queuedTrackPoints }),
         });
 
         if (response.ok) {
           clearQueuedFlightSession(deviceBinding.deviceId);
+          clearQueuedTrackPoints(deviceBinding.deviceId);
+          setHasQueuedSession(false);
+          setQueuedTrackPointCount(0);
         }
       } catch {
         // Keep the queued session until the browser regains connectivity.
@@ -791,6 +857,9 @@ export default function ActiveFlightPage() {
         stopWatching();
         if (deviceBinding?.deviceId) {
           clearActiveTrackingState(deviceBinding.deviceId);
+          clearQueuedTrackPoints(deviceBinding.deviceId);
+          clearQueuedFlightSession(deviceBinding.deviceId);
+          setQueuedTrackPointCount(0);
         }
         toast({ variant: 'destructive', title: 'Tracking Ended By Ops', description: 'This device was cleared from fleet operations. Start tracking again to rejoin.' });
         await reloadFlightSessions();
@@ -799,14 +868,20 @@ export default function ActiveFlightPage() {
 
       if (!response.ok) {
         queueFlightSessionSave(current);
+        queueTrackPointSample(current.deviceId, current.lastPosition || null);
+        setQueuedTrackPointCount(readQueuedTrackPoints(current.deviceId).length);
         setHasQueuedSession(true);
         return;
       }
 
       clearQueuedFlightSession(current.deviceId);
+      clearQueuedTrackPoints(current.deviceId);
+      setQueuedTrackPointCount(0);
       setHasQueuedSession(false);
     } catch {
       queueFlightSessionSave(current);
+      queueTrackPointSample(current.deviceId, current.lastPosition || null);
+      setQueuedTrackPointCount(readQueuedTrackPoints(current.deviceId).length);
       setHasQueuedSession(true);
     }
   };
