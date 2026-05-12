@@ -75,6 +75,8 @@ type SummaryPersonRecord = {
     canBePIC: boolean | null;
     primaryInstructorId: string | null;
     instructorAssignmentHistory: unknown;
+    progressionRecommendation: unknown;
+    progressionReviewHistory: unknown;
     userNumber: string | null;
   firstName: string;
   lastName: string;
@@ -136,6 +138,11 @@ const projectBookingSummary = (value: unknown): SummaryBookingRecord => {
     canBePIC: person.canBePIC ?? undefined,
     primaryInstructorId: person.primaryInstructorId ?? undefined,
     instructorAssignmentHistory: Array.isArray(person.instructorAssignmentHistory) ? person.instructorAssignmentHistory : [],
+    progressionRecommendation:
+      person.progressionRecommendation && typeof person.progressionRecommendation === 'object'
+        ? person.progressionRecommendation
+        : undefined,
+    progressionReviewHistory: Array.isArray(person.progressionReviewHistory) ? person.progressionReviewHistory : [],
     userNumber: person.userNumber ?? undefined,
   firstName: person.firstName,
   lastName: person.lastName,
@@ -231,30 +238,33 @@ export async function GET() {
       safeFindMany('aircrafts', prisma.aircraftRecord.findMany({ where: { tenantId: resolvedTenantId }, select: { data: true } })),
       safeFindMany(
         'personnel',
-        prisma.personnel.findMany({
-          where: { tenantId: resolvedTenantId },
-            select: {
-              id: true,
-              userType: true,
-              canBeInstructor: true,
-              canBeStudent: true,
-              canBePIC: true,
-              primaryInstructorId: true,
-              instructorAssignmentHistory: true,
-              userNumber: true,
-              firstName: true,
-              lastName: true,
-            email: true,
-            role: true,
-            department: true,
-            organizationId: true,
-            permissions: true,
-            accessOverrides: true,
-            contactNumber: true,
-            isErpIncerfaContact: true,
-            isErpAlerfaContact: true,
-          },
-        })
+        prisma.$queryRawUnsafe<SummaryPersonRecord[]>(
+          `SELECT
+             id,
+             user_type AS "userType",
+             can_be_instructor AS "canBeInstructor",
+             can_be_student AS "canBeStudent",
+             can_be_pic AS "canBePIC",
+             primary_instructor_id AS "primaryInstructorId",
+             instructor_assignment_history AS "instructorAssignmentHistory",
+             progression_recommendation AS "progressionRecommendation",
+             progression_review_history AS "progressionReviewHistory",
+             user_number AS "userNumber",
+             first_name AS "firstName",
+             last_name AS "lastName",
+             email,
+             role,
+             department,
+             organization_id AS "organizationId",
+             permissions,
+             access_overrides AS "accessOverrides",
+             contact_number AS "contactNumber",
+             is_erp_incerfa_contact AS "isErpIncerfaContact",
+             is_erp_alerfa_contact AS "isErpAlerfaContact"
+           FROM personnel
+           WHERE tenant_id = $1`,
+          resolvedTenantId
+        )
       ),
       safeFindMany('management_of_change', prisma.managementOfChange.findMany({ where: { tenantId: resolvedTenantId }, select: { data: true } })),
       safeFindMany('quality_audits', prisma.qualityAudit.findMany({ where: { tenantId: resolvedTenantId }, select: { data: true } })),

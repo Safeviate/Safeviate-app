@@ -72,6 +72,18 @@ export async function PATCH(
   if (!existing) {
     return NextResponse.json({ error: 'User not found.' }, { status: 404 });
   }
+  const progressionRow = await prisma.$queryRawUnsafe<{ progression_recommendation: unknown; progression_review_history: unknown }[]>(
+    `SELECT progression_recommendation, progression_review_history FROM personnel WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+    id,
+    tenantId,
+  );
+  const existingProgressionRecommendation =
+    progressionRow[0]?.progression_recommendation && typeof progressionRow[0].progression_recommendation === 'object'
+      ? progressionRow[0].progression_recommendation
+      : {};
+  const existingProgressionReviewHistory = Array.isArray(progressionRow[0]?.progression_review_history)
+    ? progressionRow[0]?.progression_review_history
+    : [];
 
   const data = {
     ...existing,
@@ -106,6 +118,27 @@ export async function PATCH(
           },
         ]
       : baseAssignmentHistory;
+  const nextProgressionRecommendation = data.progressionRecommendation || existingProgressionRecommendation || {};
+  const progressionChanged = JSON.stringify(nextProgressionRecommendation) !== JSON.stringify(existingProgressionRecommendation || {});
+  const normalizedProgressionReviewHistory = progressionChanged
+    ? [
+        ...existingProgressionReviewHistory,
+        {
+          id: crypto.randomUUID(),
+          currentPhase: typeof nextProgressionRecommendation.currentPhase === 'string' ? nextProgressionRecommendation.currentPhase : '',
+          exerciseUnderReview: typeof nextProgressionRecommendation.exerciseUnderReview === 'string' ? nextProgressionRecommendation.exerciseUnderReview : '',
+          status: nextProgressionRecommendation.status || 'continue',
+          recommendedNextPhase: typeof nextProgressionRecommendation.recommendedNextPhase === 'string' ? nextProgressionRecommendation.recommendedNextPhase : '',
+          recommendationComment: typeof nextProgressionRecommendation.recommendationComment === 'string' ? nextProgressionRecommendation.recommendationComment : '',
+          recommendedAt: new Date().toISOString(),
+          recommendedByEmail: email,
+          recommendedByUserId: currentUser?.id || null,
+          reviewedAt: new Date().toISOString(),
+          reviewedByEmail: email,
+          reviewedByUserId: currentUser?.id || null,
+        },
+      ]
+    : existingProgressionReviewHistory;
 
   const updatedRows = await prisma.$executeRawUnsafe(
     `UPDATE personnel
@@ -125,9 +158,11 @@ export async function PATCH(
          is_erp_alerfa_contact = $16,
          primary_instructor_id = $17,
          instructor_assignment_history = $18::jsonb,
-         permissions = $19::jsonb,
-         access_overrides = $20::jsonb,
-         documents = $21::jsonb,
+         progression_recommendation = $19::jsonb,
+         progression_review_history = $20::jsonb,
+         permissions = $21::jsonb,
+         access_overrides = $22::jsonb,
+         documents = $23::jsonb,
          updated_at = NOW()
      WHERE id = $1 AND tenant_id = $2`,
     id,
@@ -148,6 +183,8 @@ export async function PATCH(
     !!data.isErpAlerfaContact,
     incomingPrimaryInstructorId,
     JSON.stringify(normalizedAssignmentHistory),
+    JSON.stringify(nextProgressionRecommendation),
+    JSON.stringify(normalizedProgressionReviewHistory),
     JSON.stringify(data.permissions || []),
     JSON.stringify(data.accessOverrides || {}),
     JSON.stringify(data.documents || []),
@@ -175,6 +212,8 @@ export async function PATCH(
       ...data,
       primaryInstructorId: incomingPrimaryInstructorId,
       instructorAssignmentHistory: normalizedAssignmentHistory,
+      progressionRecommendation: nextProgressionRecommendation,
+      progressionReviewHistory: normalizedProgressionReviewHistory,
     },
   }, { status: 200 });
 }

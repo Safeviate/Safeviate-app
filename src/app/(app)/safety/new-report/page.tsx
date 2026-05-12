@@ -9,6 +9,7 @@ import { useUserProfile } from '@/hooks/use-user-profile';
 import type { Aircraft } from '@/types/aircraft';
 import { useEffect, useState as useReactState } from 'react';
 import { parseJsonResponse } from '@/lib/safe-json';
+import { dispatchSafeviateEvent, SAFEVIATE_SAFETY_REPORTS_UPDATED } from '@/lib/client-events';
 
 const getReportTypePrefix = (type: NewSafetyReportValues['reportType']): string => {
     switch (type) {
@@ -95,6 +96,7 @@ export default function NewSafetyReportPage() {
         description: 'Your safety report has been successfully filed.',
       });
 
+      dispatchSafeviateEvent(SAFEVIATE_SAFETY_REPORTS_UPDATED);
       router.push(`/safety/safety-reports/${newReportId}`);
 
     } catch (error) {

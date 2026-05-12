@@ -4,6 +4,7 @@ export interface FlightPosition {
   latitude: number;
   longitude: number;
   accuracy?: number;
+  hdop?: number;
   altitude?: number | null;
   speedKt?: number | null;
   headingTrue?: number | null;
@@ -69,6 +70,7 @@ export interface FlightTrackPointData {
   crossTrackErrorNm?: number | null;
   onCourse?: boolean | null;
   accuracy?: number | null;
+  hdop?: number | null;
   altitude?: number | null;
   speedKt?: number | null;
   headingTrue?: number | null;

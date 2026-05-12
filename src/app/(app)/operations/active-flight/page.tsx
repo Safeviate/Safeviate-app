@@ -488,6 +488,7 @@ export default function ActiveFlightPage() {
     speed: activeLegState?.groundSpeedKt ?? effectivePosition?.speedKt ?? null,
     altitude: effectivePosition?.altitude ?? null,
     heading: effectivePosition?.headingTrue ?? null,
+    hdop: effectivePosition?.hdop ?? null,
     trailPoints: currentDeviceSession?.breadcrumb?.length ?? (effectivePosition ? 1 : 0),
   };
   const rawAccuracyMeters = position?.accuracy != null && !Number.isNaN(position.accuracy) ? Math.round(position.accuracy) : null;
@@ -984,6 +985,10 @@ export default function ActiveFlightPage() {
               <div className="rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2">
                 <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">ALT</p>
                 <p className="mt-1 text-sm font-black text-slate-100">{liveTelemetry.altitude != null ? `${Math.round(liveTelemetry.altitude)} m` : 'N/A'}</p>
+              </div>
+              <div className="rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">HDOP</p>
+                <p className="mt-1 text-sm font-black text-slate-100">{liveTelemetry.hdop != null ? liveTelemetry.hdop.toFixed(1) : 'N/A'}</p>
               </div>
               <div className="rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2">
                 <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">TRK</p>

@@ -180,7 +180,7 @@ function CompetencyStrip({ reports }: { reports: StudentProgressReport[] }) {
   const tone = getCompetencyTone(snapshot.signal);
 
   return (
-    <div className={cn('rounded-xl border p-3 space-y-3', tone.border, tone.bg)}>
+    <div className={cn('rounded-xl border p-2.5 space-y-2.5', tone.border, tone.bg)}>
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
@@ -191,19 +191,19 @@ function CompetencyStrip({ reports }: { reports: StudentProgressReport[] }) {
             )}
             <p className="text-[10px] font-black uppercase tracking-[0.16em]">Strength / Growth</p>
           </div>
-          <p className="mt-1 text-xs font-semibold">{snapshot.headline}</p>
+          <p className="mt-1 text-[11px] font-semibold leading-snug">{snapshot.headline}</p>
         </div>
         <Badge variant="outline" className={cn('text-[10px] font-black uppercase tracking-[0.16em]', tone.pill)}>
           {tone.label}
         </Badge>
       </div>
-      <div className="space-y-1.5">
+      <div className="space-y-1.25">
         <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
           <span>Average skill score</span>
           <span>{Math.round(snapshot.score)} / 100</span>
         </div>
-        <Progress value={Math.min(Math.max(snapshot.score, 0), 100)} indicatorClassName={tone.bar} className="h-1.5" />
-        <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+        <Progress value={Math.min(Math.max(snapshot.score, 0), 100)} indicatorClassName={tone.bar} className="h-1" />
+        <p className="text-[9px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
           {snapshot.nextFocus}
         </p>
       </div>
@@ -445,24 +445,24 @@ export default function StudentProgressPage() {
         <CardContent className="min-h-0 flex-1 overflow-hidden p-0">
           <ScrollArea className="h-full">
             <div className="space-y-6 p-4 lg:p-6">
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <div className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-4">
                 <StatTile label="Active Students" value={String(activeCount)} hint="Students flown in the period" />
                 <StatTile label="Stagnant" value={String(stagnatingCount)} hint="30+ days since last flight" />
                 <StatTile label="Forecast Due" value={String(forecastCount)} hint="Next milestone within 30 days" />
                 <StatTile label="Period" value={activePeriod === 'week' ? '7 Days' : activePeriod === 'month' ? '30 Days' : 'All Time'} hint="Current view window" />
               </div>
 
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center gap-1.5">
                 <PeriodButton active={activePeriod === 'week'} label="7 Days" onClick={() => setActivePeriod('week')} />
                 <PeriodButton active={activePeriod === 'month'} label="30 Days" onClick={() => setActivePeriod('month')} />
                 <PeriodButton active={activePeriod === 'all'} label="All Time" onClick={() => setActivePeriod('all')} />
               </div>
 
-              <div className="rounded-2xl border bg-muted/5 p-4 space-y-3">
+              <div className="rounded-2xl border bg-muted/5 p-3 space-y-2.5">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-sm font-black uppercase tracking-tight">Student Competency Overview</p>
-                    <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                    <p className="text-[11px] font-black uppercase tracking-tight">Student Competency Overview</p>
+                    <p className="text-[9px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
                       A separate read on the current student pool, before you open any individual card.
                     </p>
                   </div>
@@ -473,7 +473,7 @@ export default function StudentProgressPage() {
                 {competencyReports.length > 0 ? (
                   <CompetencyStrip reports={competencyReports} />
                 ) : (
-                  <div className="rounded-xl border border-dashed bg-background p-4 text-sm text-muted-foreground">
+                  <div className="rounded-xl border border-dashed bg-background p-3 text-sm text-muted-foreground">
                     No competency data has been captured yet. The overview will populate once instructors tag strengths and growth areas in the debrief form.
                   </div>
                 )}
@@ -502,7 +502,7 @@ export default function StudentProgressPage() {
 
                     return (
                         <Card key={student.id} className="h-full overflow-hidden border shadow-none transition-colors hover:bg-muted/40">
-                          <CardHeader className="border-b bg-muted/5 px-4 py-3">
+                          <CardHeader className="border-b bg-muted/5 px-4 py-2.5">
                             <div className="flex items-start justify-between gap-3">
                               <div className="min-w-0">
                                 <CardTitle className="truncate text-sm font-black uppercase tracking-tight">{student.name}</CardTitle>
@@ -515,22 +515,22 @@ export default function StudentProgressPage() {
                               </Badge>
                             </div>
                           </CardHeader>
-                          <CardContent className="space-y-3 p-4">
-                            <div className="grid gap-3 sm:grid-cols-2">
+                          <CardContent className="space-y-2.5 p-3.5">
+                            <div className="grid gap-2.5 sm:grid-cols-2">
                               <InfoPill icon={<Clock3 className="h-3.5 w-3.5" />} label="Last Flight" value={lastFlight ? formatDateLabel(lastFlight) : 'None'} />
                               <InfoPill icon={<CalendarDays className="h-3.5 w-3.5" />} label="Days Since Flight" value={formatDaysSince(student.daysSinceFlight)} />
                             </div>
 
-                            <div className="rounded-xl border bg-background px-3 py-3">
+                            <div className="rounded-xl border bg-background px-3 py-2">
                               <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Assigned Instructor</p>
-                              <p className="mt-1 text-sm font-semibold">
+                              <p className="mt-0.5 text-sm font-semibold leading-tight">
                                 {student.primaryInstructorId ? (instructorNameMap.get(student.primaryInstructorId) || student.primaryInstructorId) : 'Unassigned'}
                               </p>
-                              <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                              <p className="mt-0.5 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
                                 Current profile assignment
                               </p>
                               {canManageStudentInstructors ? (
-                                <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+                                <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
                                   <Select
                                     value={selectedInstructorValue}
                                     onValueChange={(value) =>
@@ -555,7 +555,7 @@ export default function StudentProgressPage() {
                                     <Button
                                       type="button"
                                       size="sm"
-                                      className="h-9 text-[10px] font-black uppercase"
+                                      className="h-8.5 text-[10px] font-black uppercase"
                                       disabled={
                                         !studentProfile ||
                                         savingStudentId === student.id ||
@@ -573,32 +573,32 @@ export default function StudentProgressPage() {
                               ) : null}
                             </div>
 
-                            <div className="grid gap-3 md:grid-cols-2">
-                              <div className="rounded-xl border bg-background px-3 py-3">
+                            <div className="grid gap-2.5 md:grid-cols-2">
+                              <div className="rounded-xl border bg-background px-3 py-2">
                                 <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Hours Flown</p>
-                                <p className="mt-1 text-sm font-black">{formatHours(student.totalFlightHours)}</p>
-                                <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                                <p className="mt-0.5 text-sm font-black leading-tight">{formatHours(student.totalFlightHours)}</p>
+                                <p className="mt-0.5 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
                                   {student.recentFlightHours > 0 ? `${formatHours(student.recentFlightHours)} in this period` : 'No hours flown in this period'}
                                 </p>
                               </div>
-                              <div className="rounded-xl border bg-background px-3 py-3">
+                              <div className="rounded-xl border bg-background px-3 py-2">
                                 <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Hour Milestone</p>
-                                <p className="mt-1 text-sm font-black">
+                                <p className="mt-0.5 text-sm font-black leading-tight">
                                   {student.milestoneHours !== null ? `${student.milestoneHours.toFixed(0)}h next` : 'Milestones complete'}
                                 </p>
-                                <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                                <p className="mt-0.5 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
                                   {student.warningHours !== null ? `Warning from ${student.warningHours.toFixed(0)}h` : 'No further milestone configured'}
                                 </p>
                               </div>
                             </div>
 
-                            <div className={cn('rounded-xl border px-3 py-3', statusClass)}>
+                            <div className={cn('rounded-xl border px-3 py-2', statusClass)}>
                               <p className="text-[10px] font-black uppercase tracking-[0.16em]">Action</p>
-                              <p className="mt-1 text-sm font-black">{student.recommendedAction}</p>
+                              <p className="mt-0.5 text-sm font-black leading-tight">{student.recommendedAction}</p>
                             </div>
 
                             {readinessHeadline ? (
-                              <div className="rounded-xl border bg-muted/20 px-3 py-3">
+                              <div className="rounded-xl border bg-muted/20 px-3 py-2">
                                 <div className="flex items-center justify-between gap-3">
                                   <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Readiness Signal</p>
                                   <Badge variant="outline" className="text-[10px] font-black uppercase tracking-[0.14em]">
@@ -645,10 +645,10 @@ export default function StudentProgressPage() {
 
 function StatTile({ label, value, hint }: { label: string; value: string; hint: string }) {
   return (
-    <div className="flex min-h-[128px] flex-col justify-between rounded-2xl border bg-muted/5 p-4">
+    <div className="flex min-h-[108px] flex-col justify-between rounded-2xl border bg-muted/5 p-3.5">
       <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">{label}</p>
-      <p className="mt-3 text-2xl font-black">{value}</p>
-      <p className="mt-2 text-[10px] font-medium uppercase text-muted-foreground">{hint}</p>
+      <p className="mt-2 text-xl font-black leading-none">{value}</p>
+      <p className="mt-1.5 text-[10px] font-medium uppercase leading-snug text-muted-foreground">{hint}</p>
     </div>
   );
 }
@@ -671,7 +671,7 @@ function PeriodButton({ active, label, onClick }: { active: boolean; label: stri
       type="button"
       onClick={onClick}
       className={cn(
-        'h-8 rounded-md border px-3 text-[9px] font-black uppercase tracking-[0.08em] shadow-none transition-colors',
+        'h-7 rounded-md border px-2.5 text-[9px] font-black uppercase tracking-[0.08em] shadow-none transition-colors',
         active ? 'border-foreground text-foreground' : 'border-input bg-background text-muted-foreground'
       )}
     >

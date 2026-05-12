@@ -30,13 +30,6 @@ const cloneTemplates = (templates: TrainingExerciseTemplate[]) =>
     criteria: template.criteria.map((criterion) => ({ ...criterion })),
   }));
 
-const slugify = (value: string) =>
-  value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '') || `exercise-${Date.now()}`;
-
 export default function AdminTrainingExercisesPage() {
   const { toast } = useToast();
   const isMobile = useIsMobile();
@@ -308,10 +301,12 @@ export default function AdminTrainingExercisesPage() {
                       <div className="grid gap-4 lg:grid-cols-2">
                         <div className="space-y-2">
                           <Label className="text-[10px] font-black uppercase tracking-[0.12em] text-muted-foreground">Exercise Key</Label>
-                          <Input
-                            value={template.key}
-                            onChange={(event) => updateTemplate(templateIndex, { key: slugify(event.target.value) })}
-                          />
+                          <div className="rounded-md border bg-muted/40 px-3 py-2">
+                            <p className="font-mono text-sm text-slate-700">{template.key}</p>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Technical ID used by booking, debrief, and analytics. Keep this stable once the exercise is in use.
+                          </p>
                         </div>
                         <div className="space-y-2">
                           <Label className="text-[10px] font-black uppercase tracking-[0.12em] text-muted-foreground">Exercise Label</Label>
@@ -371,13 +366,15 @@ export default function AdminTrainingExercisesPage() {
 
                         <div className="space-y-3">
                           {template.criteria.map((criterion, criterionIndex) => (
-                            <div key={`${criterion.key}-${criterionIndex}`} className="grid gap-3 rounded-lg border p-3 lg:grid-cols-[1.2fr_1.4fr_auto]">
+                            <div key={`${criterion.key}-${criterionIndex}`} className="grid gap-3 rounded-lg border p-3 lg:grid-cols-[1fr_1.4fr_auto]">
                               <div className="space-y-2">
                                 <Label className="text-[10px] font-black uppercase tracking-[0.12em] text-muted-foreground">Criterion Key</Label>
-                                <Input
-                                  value={criterion.key}
-                                  onChange={(event) => updateCriterion(templateIndex, criterionIndex, { key: slugify(event.target.value) })}
-                                />
+                                <div className="rounded-md border bg-muted/40 px-3 py-2">
+                                  <p className="font-mono text-sm text-slate-700">{criterion.key}</p>
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                  Technical ID used by the debrief and analytics. Keep this stable once in use.
+                                </p>
                               </div>
                               <div className="space-y-2">
                                 <Label className="text-[10px] font-black uppercase tracking-[0.12em] text-muted-foreground">Criterion Label</Label>

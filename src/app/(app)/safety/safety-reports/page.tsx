@@ -34,6 +34,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { OrganizationTabsRow } from '@/components/responsive-tab-row';
 import { DeleteActionButton, ViewActionButton } from '@/components/record-action-buttons';
 import { ResponsiveCardGrid } from '@/components/responsive-card-grid';
+import { dispatchSafeviateEvent, SAFEVIATE_QUICK_SAFETY_REPORTS_UPDATED, SAFEVIATE_SAFETY_REPORTS_UPDATED } from '@/lib/client-events';
 
 const parseLocalDate = (value: string) => {
     const [year, month, day] = value.split('-').map(Number);
@@ -69,6 +70,7 @@ function DeleteReportButton({ reportId, reportNumber }: { reportId: string, repo
             const payload = await response.json().catch(() => null);
             throw new Error(payload?.error || 'Unable to delete this report right now.');
         }
+        dispatchSafeviateEvent(SAFEVIATE_SAFETY_REPORTS_UPDATED);
         toast({ title: 'Report Deleted', description: `Safety Report #${reportNumber} is being deleted.` });
     };
 
@@ -127,6 +129,22 @@ function ReportsTable({ reports, tenantId, canManage }: ReportsTableProps) {
                             <User className="h-3.5 w-3.5 text-muted-foreground" />
                             Filed by: {report.submittedByName}
                         </div>
+                        {report.sourceQuickReportNumber ? (
+                            <div className="flex flex-wrap items-center gap-2">
+                                <Badge variant="outline" className="h-5 text-[9px] font-black uppercase">
+                                    From Quick Intake
+                                </Badge>
+                                <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
+                                    Source {report.sourceQuickReportNumber}
+                                </span>
+                            </div>
+                        ) : null}
+                        {report.immediateAction ? (
+                            <div className="rounded-lg border bg-muted/5 px-3 py-2">
+                                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Immediate Action</p>
+                                <p className="mt-1 text-xs font-medium text-foreground line-clamp-3 whitespace-pre-wrap">{report.immediateAction}</p>
+                            </div>
+                        ) : null}
                         <p className="text-xs text-muted-foreground line-clamp-2 italic font-medium">&quot;{report.description}&quot;</p>
                     </CardContent>
                     <div className="p-2 border-t bg-muted/5 flex gap-2">
@@ -208,9 +226,14 @@ function QuickSafetyInbox({ reports, canManage, classifyingReportId, onClassify 
                                 ) : null}
                                 <p className="text-sm font-medium text-foreground">{report.summary}</p>
                                 {report.immediateAction ? (
-                                    <div className="rounded-lg border bg-muted/5 px-3 py-2">
-                                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Immediate Action</p>
-                                        <p className="mt-1 text-xs font-medium text-foreground">{report.immediateAction}</p>
+                                    <div className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2">
+                                        <div className="flex items-center gap-2">
+                                            <Badge variant="secondary" className="h-5 px-2 text-[9px] font-black uppercase tracking-widest">
+                                                Action Logged
+                                            </Badge>
+                                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-primary">Immediate Action</p>
+                                        </div>
+                                        <p className="mt-1 text-xs font-semibold text-foreground whitespace-pre-wrap">{report.immediateAction}</p>
                                     </div>
                                 ) : null}
                             </CardContent>
@@ -383,6 +406,38 @@ export default function SafetyReportsPage() {
   }, [tenantId]);
 
   useEffect(() => {
+    const refreshReports = () => {
+      if (!tenantId) return;
+
+      void (async () => {
+        try {
+          const [response, quickResponse] = await Promise.all([
+            fetch('/api/safety-reports', { cache: 'no-store' }),
+            fetch('/api/quick-safety-reports', { cache: 'no-store' }),
+          ]);
+
+          const payload = await response.json().catch(() => ({ reports: [] }));
+          const quickPayload = await quickResponse.json().catch(() => ({ reports: [] }));
+
+          setAllReports(Array.isArray(payload.reports) ? payload.reports : []);
+          setQuickSafetyReports(Array.isArray(quickPayload?.reports) ? quickPayload.reports : []);
+        } catch {
+          setAllReports([]);
+          setQuickSafetyReports([]);
+        }
+      })();
+    };
+
+    window.addEventListener(SAFEVIATE_SAFETY_REPORTS_UPDATED, refreshReports);
+    window.addEventListener(SAFEVIATE_QUICK_SAFETY_REPORTS_UPDATED, refreshReports);
+
+    return () => {
+      window.removeEventListener(SAFEVIATE_SAFETY_REPORTS_UPDATED, refreshReports);
+      window.removeEventListener(SAFEVIATE_QUICK_SAFETY_REPORTS_UPDATED, refreshReports);
+    };
+  }, [tenantId]);
+
+  useEffect(() => {
     const loadOrganizations = async () => {
       try {
         const response = await fetch('/api/external-organizations', { cache: 'no-store' });
@@ -432,6 +487,7 @@ export default function SafetyReportsPage() {
             eventTime: report.eventTime,
             location: report.location,
             description,
+            immediateAction: report.immediateAction || null,
             occurrenceCategory: 'Quick Safety Report',
             eventClassification,
             sourceQuickReportId: report.id,
@@ -476,6 +532,8 @@ export default function SafetyReportsPage() {
             : entry
         )
       );
+      dispatchSafeviateEvent(SAFEVIATE_SAFETY_REPORTS_UPDATED);
+      dispatchSafeviateEvent(SAFEVIATE_QUICK_SAFETY_REPORTS_UPDATED);
 
       toast({
         title: 'Quick Safety Report Classified',

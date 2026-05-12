@@ -79,6 +79,7 @@ export interface SafetyReport {
     eventTime: string;
     location: string;
     description: string;
+    immediateAction?: string | null;
     organizationId?: string | null; // Associated external company ID
     // Conditional Fields
     phaseOfFlight?: string;

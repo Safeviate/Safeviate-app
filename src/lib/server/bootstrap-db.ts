@@ -606,6 +606,16 @@ export async function ensurePersonnelSchema() {
     columnNames.add('instructor_assignment_history');
   }
 
+  if (!columnNames.has('progression_recommendation')) {
+    await addColumn(`progression_recommendation JSONB NOT NULL DEFAULT '{}'::jsonb`);
+    columnNames.add('progression_recommendation');
+  }
+
+  if (!columnNames.has('progression_review_history')) {
+    await addColumn(`progression_review_history JSONB NOT NULL DEFAULT '[]'::jsonb`);
+    columnNames.add('progression_review_history');
+  }
+
   if (!columnNames.has('documents')) {
     await addColumn(`documents JSONB NOT NULL DEFAULT '[]'::jsonb`);
     columnNames.add('documents');
@@ -667,6 +677,21 @@ export async function ensureRolesSchema() {
     SET permissions = permissions || '["training-student-instructors-manage"]'::jsonb,
         updated_at = NOW()
     WHERE NOT (permissions ? 'training-student-instructors-manage')
+      AND (
+        permissions ? 'training-exams-manage'
+        OR permissions ? 'admin-settings-manage'
+        OR permissions ? 'admin-permissions-manage'
+        OR LOWER(name) LIKE '%chief instructor%'
+        OR LOWER(name) LIKE '%head of training%'
+        OR LOWER(name) LIKE '%training manager%'
+      )
+  `).catch(() => null);
+
+  await prisma.$executeRawUnsafe(`
+    UPDATE roles
+    SET permissions = permissions || '["training-student-progression-manage"]'::jsonb,
+        updated_at = NOW()
+    WHERE NOT (permissions ? 'training-student-progression-manage')
       AND (
         permissions ? 'training-exams-manage'
         OR permissions ? 'admin-settings-manage'

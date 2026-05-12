@@ -5,7 +5,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, CalendarDays, Clock3 } from 'lucide-react';
 import Link from 'next/link';
-import type { PilotProfile, StudentProgressionRecommendation, StudentProgressionReviewRecord } from '@/app/(app)/users/personnel/personnel-directory-page';
+import type { PilotProfile, StudentProgressionRecommendation } from '@/app/(app)/users/personnel/personnel-directory-page';
 import { TrainingRecords } from '@/app/(app)/users/personnel/[id]/training-records';
 import { useUserProfile } from '@/hooks/use-user-profile';
 import { usePermissions } from '@/hooks/use-permissions';
@@ -182,18 +182,12 @@ function ProgressSummary({
 
 function ProgressionDecisionCard({
   recommendation,
-  reviewHistory,
   canManage,
   onSave,
-  reports,
-  instructorNameById,
 }: {
   recommendation?: StudentProgressionRecommendation;
-  reviewHistory?: StudentProgressionReviewRecord[];
   canManage: boolean;
   onSave: (next: StudentProgressionRecommendation) => Promise<void>;
-  reports: StudentProgressReport[];
-  instructorNameById: Map<string, string>;
 }) {
   const [draft, setDraft] = useState<StudentProgressionRecommendation>({
     currentPhase: recommendation?.currentPhase || '',
@@ -222,22 +216,6 @@ function ProgressionDecisionCard({
   const lastUpdatedLabel = recommendation?.recommendedAt
     ? new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(recommendation.recommendedAt))
     : 'No CFI / HoT entry yet';
-  const latestInstructorRecommendation = useMemo(() => {
-    if (!draft.currentPhase) return null;
-    return reports
-      .flatMap((report) =>
-        report.entries
-          .filter((entry) => entry.exerciseTemplateKey === draft.currentPhase)
-          .map((entry) => ({
-            date: report.date,
-            instructorId: report.instructorId,
-            action: entry.instructorRecommendationAction,
-            comment: entry.instructorRecommendationComment,
-          })),
-      )
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0] || null;
-  }, [draft.currentPhase, reports]);
-
   const handleSave = async () => {
     setIsSaving(true);
     try {
@@ -255,8 +233,8 @@ function ProgressionDecisionCard({
       <CardHeader className="border-b bg-muted/5 px-4 py-3">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <CardTitle className="text-sm font-black uppercase tracking-tight">Training Progression Decision</CardTitle>
-            <CardDescription className="text-xs">Chief Flight Instructor or Head of Training recommendation for the student&apos;s next approved training step.</CardDescription>
+            <CardTitle className="text-sm font-black uppercase tracking-tight">Progression Review</CardTitle>
+            <CardDescription className="text-xs">Current phase, next phase recommendation, and the review trail for the student.</CardDescription>
           </div>
           <Badge variant="outline" className={cn('text-[10px] font-black uppercase tracking-[0.16em]', statusMeta.badge)}>
             {statusMeta.label}
@@ -266,7 +244,7 @@ function ProgressionDecisionCard({
       <CardContent className="space-y-4 p-4">
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
-            <Label htmlFor="current-phase">Current phase</Label>
+            <Label htmlFor="current-phase">Current training phase</Label>
             <Select
               value={draft.currentPhase || ''}
               onValueChange={(value) => setDraft((current) => ({ ...current, currentPhase: value }))}
@@ -286,7 +264,7 @@ function ProgressionDecisionCard({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="recommended-next-phase">Recommended next phase</Label>
+            <Label htmlFor="recommended-next-phase">Next phase recommendation</Label>
             <Select
               value={draft.recommendedNextPhase || ''}
               onValueChange={(value) => setDraft((current) => ({ ...current, recommendedNextPhase: value }))}
@@ -308,7 +286,7 @@ function ProgressionDecisionCard({
 
         <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
-            <Label htmlFor="progression-status">Progression status</Label>
+            <Label htmlFor="progression-status">Review outcome</Label>
             <Select
               value={draft.status || 'continue'}
               onValueChange={(value) => setDraft((current) => ({ ...current, status: value as StudentProgressionRecommendation['status'] }))}
@@ -330,7 +308,7 @@ function ProgressionDecisionCard({
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="progression-comment">Chief instructor recommendation</Label>
+          <Label htmlFor="progression-comment">Review note</Label>
           <Textarea
             id="progression-comment"
             value={draft.recommendationComment || ''}
@@ -341,279 +319,23 @@ function ProgressionDecisionCard({
           />
         </div>
 
-        <div className="rounded-xl border bg-muted/20 p-4 space-y-3">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Latest instructor handoff</p>
-              <p className="mt-1 text-sm font-black">
-                {latestInstructorRecommendation
-                  ? getInstructorRecommendationMeta(latestInstructorRecommendation.action).label
-                  : 'No instructor recommendation yet'}
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {latestInstructorRecommendation?.instructorId
-                  ? `${instructorNameById.get(latestInstructorRecommendation.instructorId) || latestInstructorRecommendation.instructorId} · ${formatLongDate(latestInstructorRecommendation.date)}`
-                  : 'Save debrief recommendations on this phase to show the latest instructor handoff here.'}
-              </p>
-            </div>
-            {latestInstructorRecommendation ? (
-              <Badge
-                variant="outline"
-                className={cn(
-                  'text-[10px] font-black uppercase tracking-[0.16em]',
-                  getInstructorRecommendationMeta(latestInstructorRecommendation.action).badge,
-                )}
-              >
-                {getInstructorRecommendationMeta(latestInstructorRecommendation.action).label}
-              </Badge>
-            ) : null}
-          </div>
-          {latestInstructorRecommendation?.comment ? (
-            <p className="text-sm text-muted-foreground">{latestInstructorRecommendation.comment}</p>
-          ) : null}
-        </div>
-
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-muted/20 px-4 py-3">
           <div className="space-y-1">
-            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Latest CFI / HoT entry</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Latest review</p>
             <p className="text-sm font-black">{lastUpdatedLabel}</p>
             <p className="text-xs text-muted-foreground">
-              {recommendation?.recommendedByEmail || 'No CFI / HoT review has been recorded yet.'}
+              {recommendation?.recommendedByEmail || 'No review has been recorded yet.'}
             </p>
           </div>
           {canManage ? (
             <Button onClick={() => void handleSave()} disabled={isSaving}>
-              {isSaving ? 'Saving...' : 'Save progression decision'}
-            </Button>
-          ) : (
-            <p className="text-xs text-muted-foreground">Only Chief Flight Instructor or Head of Training roles can edit this decision.</p>
+              {isSaving ? 'Saving...' : 'Save review'}
+          </Button>
+        ) : (
+            <p className="text-xs text-muted-foreground">Only training-management roles can edit this review.</p>
           )}
         </div>
 
-        <div className="space-y-3">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">CFI / HoT review entries</p>
-            <Badge variant="outline" className="text-[10px] font-black uppercase tracking-[0.16em]">
-              {Array.isArray(reviewHistory) ? reviewHistory.length : 0} reviews
-            </Badge>
-          </div>
-          {Array.isArray(reviewHistory) && reviewHistory.length > 0 ? (
-            reviewHistory
-              .slice()
-              .sort((a, b) => new Date(b.reviewedAt).getTime() - new Date(a.reviewedAt).getTime())
-              .slice(0, 5)
-              .map((item) => {
-                const itemStatus = getProgressionStatusMeta(item.status);
-                return (
-                  <div key={item.id} className="rounded-xl border bg-background p-4 space-y-2">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-black">
-                          {PHASE_OPTIONS.find((option) => option.value === item.currentPhase)?.label || item.currentPhase || 'Phase not recorded'}
-                        </p>
-                        <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                          Reviewed {formatLongDate(item.reviewedAt)} by {item.reviewedByEmail || 'Unknown reviewer'}
-                        </p>
-                      </div>
-                      <Badge variant="outline" className={cn('text-[10px] font-black uppercase tracking-[0.16em]', itemStatus.badge)}>
-                        {itemStatus.label}
-                      </Badge>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Next phase: {item.recommendedNextPhase || 'Not recorded'}
-                    </p>
-                    {item.recommendationComment ? (
-                      <p className="text-sm text-muted-foreground">{item.recommendationComment}</p>
-                    ) : null}
-                  </div>
-                );
-              })
-          ) : (
-            <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
-              No CFI / HoT review entries have been recorded yet.
-            </div>
-          )}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function ExerciseEvidencePanel({
-  reports,
-  instructorNameById,
-  studentId,
-}: {
-  reports: StudentProgressReport[];
-  instructorNameById: Map<string, string>;
-  studentId: string;
-}) {
-  const exerciseOptions = useMemo(
-    () => TRAINING_EXERCISE_TEMPLATES.map((template) => ({
-      value: template.key,
-      label: template.label,
-    })),
-    [],
-  );
-
-  const availableExerciseKeys = useMemo(() => {
-    const keys = new Set<string>();
-    reports.forEach((report) => {
-      report.entries.forEach((entry) => {
-        if (entry.exerciseTemplateKey) keys.add(entry.exerciseTemplateKey);
-      });
-    });
-    return keys;
-  }, [reports]);
-
-  const defaultExerciseKey = useMemo(() => {
-    for (const report of reports) {
-      for (const entry of report.entries) {
-        if (entry.exerciseTemplateKey) return entry.exerciseTemplateKey;
-      }
-    }
-    return TRAINING_EXERCISE_TEMPLATES[0]?.key || '';
-  }, [reports]);
-
-  const [selectedExerciseKey, setSelectedExerciseKey] = useState(defaultExerciseKey);
-
-  useEffect(() => {
-    setSelectedExerciseKey(defaultExerciseKey);
-  }, [defaultExerciseKey]);
-
-  const matchingEvidence = useMemo(() => {
-    return reports
-      .flatMap((report) =>
-        report.entries
-          .filter((entry) => entry.exerciseTemplateKey === selectedExerciseKey)
-          .map((entry) => ({
-            reportId: report.id,
-            date: report.date,
-            instructorId: report.instructorId,
-            bookingNumber: report.bookingNumber,
-            summary: entry.comment,
-            rating: entry.rating,
-            criteria: Array.isArray(entry.criteriaRatings) ? entry.criteriaRatings : [],
-          })),
-      )
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [reports, selectedExerciseKey]);
-
-  const latestEvidence = matchingEvidence[0];
-  const exerciseLabel = exerciseOptions.find((option) => option.value === selectedExerciseKey)?.label || 'Selected exercise';
-
-  return (
-    <Card className="overflow-hidden border shadow-none">
-      <CardHeader className="border-b bg-muted/5 px-4 py-3">
-        <CardTitle className="text-sm font-black uppercase tracking-tight">Review Exercise Evidence</CardTitle>
-        <CardDescription className="text-xs">Review the debrief evidence for one exercise before approving or holding the next phase.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4 p-4">
-        <div className="grid gap-4 lg:grid-cols-[300px_1fr]">
-          <div className="space-y-2">
-            <Label htmlFor="exercise-under-review">Exercise under review</Label>
-            <Select value={selectedExerciseKey} onValueChange={setSelectedExerciseKey}>
-              <SelectTrigger id="exercise-under-review" className="h-10">
-                <SelectValue placeholder="Select exercise" />
-              </SelectTrigger>
-              <SelectContent>
-                {exerciseOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="grid gap-3 md:grid-cols-3">
-            <div className="rounded-xl border bg-muted/5 px-3 py-3">
-              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Debriefs logged</p>
-              <p className="mt-1 text-sm font-black">{matchingEvidence.length}</p>
-            </div>
-            <div className="rounded-xl border bg-muted/5 px-3 py-3">
-              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Last reviewed flight</p>
-              <p className="mt-1 text-sm font-black">{formatLongDate(latestEvidence?.date)}</p>
-            </div>
-            <div className="rounded-xl border bg-muted/5 px-3 py-3">
-              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Latest exercise rating</p>
-              <p className="mt-1 text-sm font-black">{latestEvidence ? `${latestEvidence.rating}/5` : 'N/A'}</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-xl border bg-muted/20 p-4">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Selected exercise</p>
-              <p className="mt-1 text-sm font-black">{exerciseLabel}</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Badge variant="outline" className="text-[10px] font-black uppercase tracking-[0.16em]">
-                {availableExerciseKeys.has(selectedExerciseKey) ? 'Evidence available' : 'No evidence yet'}
-              </Badge>
-              <Button asChild variant="outline" size="sm" className="h-8 text-[10px] font-black uppercase tracking-[0.16em]">
-                <Link href={`/training/student-progress/${studentId}/exercise/${selectedExerciseKey}`}>
-                  Open Full Review
-                </Link>
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Latest debriefs for this exercise</p>
-            <Badge variant="outline" className="text-[10px] font-black uppercase tracking-[0.16em]">
-              {Math.min(matchingEvidence.length, 3)} shown
-            </Badge>
-          </div>
-
-          {matchingEvidence.length > 0 ? (
-            matchingEvidence.slice(0, 3).map((item) => (
-              <div key={`${item.reportId}-${item.date}`} className="rounded-xl border bg-background p-4 space-y-3">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-black">{formatLongDate(item.date)}</p>
-                    <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                      {item.instructorId ? (instructorNameById.get(item.instructorId) || item.instructorId) : 'Unknown instructor'}
-                      {item.bookingNumber ? ` · Booking #${item.bookingNumber}` : ''}
-                    </p>
-                  </div>
-                  <Badge variant="outline" className="text-[10px] font-black uppercase tracking-[0.16em]">
-                    {item.rating}/5
-                  </Badge>
-                </div>
-
-                <p className="text-sm text-muted-foreground">
-                  {item.summary || 'No exercise-level instructor summary captured for this debrief.'}
-                </p>
-
-                {item.criteria.length > 0 ? (
-                  <div className="grid gap-2 md:grid-cols-2">
-                    {item.criteria.map((criterion) => (
-                      <div key={criterion.id} className="rounded-lg border bg-muted/20 px-3 py-2">
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="text-xs font-semibold">{criterion.label}</p>
-                          <span className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
-                            {criterion.rating}/5
-                          </span>
-                        </div>
-                        {criterion.comment ? (
-                          <p className="mt-1 text-xs text-muted-foreground">{criterion.comment}</p>
-                        ) : null}
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            ))
-          ) : (
-            <div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
-              No debrief evidence has been recorded for this exercise yet.
-            </div>
-          )}
-        </div>
       </CardContent>
     </Card>
   );
@@ -776,10 +498,6 @@ export default function StudentDetailPage({ params }: StudentDetailPageProps) {
     }
   };
 
-  const studentReports = Array.isArray(summary.studentProgressReports)
-    ? summary.studentProgressReports.filter((report) => report.studentId === student.id)
-    : [];
-
   return (
     <Card className="mx-auto flex h-full min-h-0 w-full max-w-[1100px] flex-col overflow-hidden shadow-none border">
       <CardHeader className="shrink-0 border-b bg-muted/5 px-4 py-3">
@@ -806,13 +524,9 @@ export default function StudentDetailPage({ params }: StudentDetailPageProps) {
           <ProgressSummary student={student} progress={progress} />
           <ProgressionDecisionCard
             recommendation={student.progressionRecommendation}
-            reviewHistory={student.progressionReviewHistory}
             canManage={canManageProgression}
             onSave={handleSaveProgressionRecommendation}
-            reports={studentReports}
-            instructorNameById={instructorNameById}
           />
-          <ExerciseEvidencePanel reports={studentReports} instructorNameById={instructorNameById} studentId={studentId} />
 
           <div className="flex-1 min-h-0 overflow-hidden px-1">
             <TrainingRecords studentId={studentId} tenantId={tenantId || ''} />

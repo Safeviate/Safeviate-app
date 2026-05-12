@@ -27,6 +27,24 @@ export type InstructorAssignmentRecord = {
   changedByEmail?: string | null;
 };
 
+export type StudentProgressionRecommendation = {
+  currentPhase?: string;
+  exerciseUnderReview?: string;
+  status?: 'hold' | 'continue' | 'ready_to_progress' | 'ready_for_first_solo' | 'needs_review';
+  recommendedNextPhase?: string;
+  recommendationComment?: string;
+  recommendedAt?: string | null;
+  recommendedByEmail?: string | null;
+  recommendedByUserId?: string | null;
+};
+
+export type StudentProgressionReviewRecord = StudentProgressionRecommendation & {
+  id: string;
+  reviewedAt: string;
+  reviewedByEmail?: string | null;
+  reviewedByUserId?: string | null;
+};
+
 export type PilotProfile = {
   id: string;
   userType: 'Student' | 'Private Pilot' | 'Instructor';
@@ -35,6 +53,8 @@ export type PilotProfile = {
   canBePIC?: boolean;
   primaryInstructorId?: string | null;
   instructorAssignmentHistory?: InstructorAssignmentRecord[];
+  progressionRecommendation?: StudentProgressionRecommendation;
+  progressionReviewHistory?: StudentProgressionReviewRecord[];
   userNumber?: string;
   firstName: string;
   lastName: string;
@@ -85,6 +105,8 @@ export type Personnel = {
   canBePIC?: boolean;
   primaryInstructorId?: string | null;
   instructorAssignmentHistory?: InstructorAssignmentRecord[];
+  progressionRecommendation?: StudentProgressionRecommendation;
+  progressionReviewHistory?: StudentProgressionReviewRecord[];
   userNumber?: string;
   firstName: string;
   lastName: string;

@@ -16,6 +16,7 @@ import type { SafetyReport } from '@/types/safety-report';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { CustomCalendar } from '@/components/ui/custom-calendar';
 import { cn } from '@/lib/utils';
+import { dispatchSafeviateEvent, SAFEVIATE_SAFETY_REPORTS_UPDATED } from '@/lib/client-events';
 
 const parseLocalDate = (value: string) => {
   const [year, month, day] = value.split('-').map(Number);
@@ -84,6 +85,7 @@ export function EditReportDialog({ report, tenantId, trigger }: EditReportDialog
         throw new Error(payload?.error || 'Unable to update this report right now.');
       }
       toast({ title: 'Report Updated', description: `Safety Report #${report.reportNumber} has been updated.` });
+      dispatchSafeviateEvent(SAFEVIATE_SAFETY_REPORTS_UPDATED);
       setIsOpen(false);
     } catch (error) {
       toast({

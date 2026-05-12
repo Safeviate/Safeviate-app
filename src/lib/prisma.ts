@@ -1,14 +1,13 @@
 import { PrismaClient } from '@/generated/prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { assertRequiredEnv } from '@/lib/server/env';
+import { normalizePostgresConnectionString } from '@/lib/server/postgres-url';
 
-if (!process.env.DATABASE_URL && process.env.DATABASE_URL_UNPOOLED) {
-  process.env.DATABASE_URL = process.env.DATABASE_URL_UNPOOLED.trim();
-}
+const normalizedDatabaseUrl = normalizePostgresConnectionString(process.env.DATABASE_URL);
+const normalizedUnpooledDatabaseUrl = normalizePostgresConnectionString(process.env.DATABASE_URL_UNPOOLED);
 
-if (!process.env.DATABASE_URL_UNPOOLED && process.env.DATABASE_URL) {
-  process.env.DATABASE_URL_UNPOOLED = process.env.DATABASE_URL.trim();
-}
+process.env.DATABASE_URL = normalizedDatabaseUrl || normalizedUnpooledDatabaseUrl;
+process.env.DATABASE_URL_UNPOOLED = normalizedUnpooledDatabaseUrl || normalizedDatabaseUrl;
 
 assertRequiredEnv(
   [['DATABASE_URL', 'DATABASE_URL_UNPOOLED']],

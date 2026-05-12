@@ -31,7 +31,7 @@ This repo now includes Prisma alongside existing Drizzle code during migration.
 3. Push schema to the Azure database from local `.env.local`:
 `npm run prisma:push:local`
 
-Keep local auth URLs on `http://localhost:9002`, and set both `DATABASE_URL` and `DATABASE_URL_UNPOOLED` in `.env.local` to the Azure PostgreSQL connection string with `sslmode=require`.
+Keep local auth URLs on `http://localhost:9002`, and set both `DATABASE_URL` and `DATABASE_URL_UNPOOLED` in `.env.local` to the Azure PostgreSQL connection string with `sslmode=verify-full`.
 
 ## Card Layout Standard
 

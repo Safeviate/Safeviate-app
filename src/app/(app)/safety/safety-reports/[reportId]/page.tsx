@@ -146,6 +146,22 @@ export default function SafetyReportDetailPage({ params }: SafetyReportDetailPag
                   <CardDescription className="mt-1 text-xs font-medium">
                     Filed on {format(new Date(report.submittedAt), 'PPP')} by <span className="text-foreground font-semibold">{report.submittedByName}</span>
                   </CardDescription>
+                  {report.sourceQuickReportNumber ? (
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <Badge variant="outline" className="h-6 px-2 text-[10px] font-black uppercase tracking-widest">
+                        Quick Intake
+                      </Badge>
+                      <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
+                        Originated from {report.sourceQuickReportNumber}
+                      </span>
+                    </div>
+                  ) : null}
+                  {report.immediateAction ? (
+                    <div className="mt-3 rounded-lg border bg-muted/5 px-3 py-2">
+                      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Immediate Action</p>
+                      <p className="mt-1 text-sm font-medium text-foreground whitespace-pre-wrap">{report.immediateAction}</p>
+                    </div>
+                  ) : null}
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
                   <EditReportDialog 

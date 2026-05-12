@@ -1458,6 +1458,7 @@ export function ActiveFlightLiveMap({
       ? ((position.headingTrue % 360) + 360) % 360
       : null;
   const rawAccuracyMeters = position?.accuracy != null && !Number.isNaN(position.accuracy) ? Math.round(position.accuracy) : null;
+  const rawHdopValue = position?.hdop != null && !Number.isNaN(position.hdop) ? position.hdop : null;
   const isCoarseFix = rawAccuracyMeters != null && rawAccuracyMeters > 500;
   const locationStatusLabel = locationCalibration
     ? 'Calibrated'
@@ -1580,7 +1581,7 @@ export function ActiveFlightLiveMap({
             </tbody>
           </table>
           <div className="border-t border-slate-200 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
-            Mode: {followOwnship ? 'Track Up' : 'North Up'} · {locationStatusLabel}{rawAccuracyMeters != null ? ` · ${rawAccuracyMeters} m` : ''}
+            Mode: {followOwnship ? 'Track Up' : 'North Up'} · {locationStatusLabel}{rawAccuracyMeters != null ? ` · ${rawAccuracyMeters} m` : ''}{rawHdopValue != null ? ` · HDOP ${rawHdopValue.toFixed(1)}` : ''}
           </div>
           <div className="border-t border-slate-200 px-3 py-1.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-500">
             {locationSourceLabel}
@@ -1951,6 +1952,7 @@ export function ActiveFlightLiveMap({
             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
               {locationStatusLabel}
               {rawAccuracyMeters != null ? ` • ${rawAccuracyMeters} m` : ''}
+              {rawHdopValue != null ? ` • HDOP ${rawHdopValue.toFixed(1)}` : ''}
             </p>
           </div>
         </div>

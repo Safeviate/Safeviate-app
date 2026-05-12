@@ -24,6 +24,7 @@ import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import React from 'react';
+import { dispatchSafeviateEvent, SAFEVIATE_SAFETY_REPORTS_UPDATED } from '@/lib/client-events';
 
 // --- Helper Functions ---
 const getRiskLevel = (score: number): 'Low' | 'Medium' | 'High' | 'Critical' => {
@@ -124,6 +125,7 @@ export function FinalReview({ report, tenantId, personnel, riskMatrixColors, isS
         throw new Error(payload?.error || 'Unable to save final review.');
       }
       toast({ title: 'Final Review Saved' });
+      dispatchSafeviateEvent(SAFEVIATE_SAFETY_REPORTS_UPDATED);
     } catch (error) {
       toast({
         variant: 'destructive',
@@ -160,6 +162,7 @@ export function FinalReview({ report, tenantId, personnel, riskMatrixColors, isS
         throw new Error(payload?.error || 'Unable to sign this report right now.');
       }
       toast({title: "Report Signed"});
+      dispatchSafeviateEvent(SAFEVIATE_SAFETY_REPORTS_UPDATED);
     } catch (error) {
       toast({
         variant: 'destructive',

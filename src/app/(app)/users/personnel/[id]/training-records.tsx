@@ -230,7 +230,7 @@ function ExerciseProgressMatrix({ summaries, studentId }: { summaries: ExerciseP
             <SectionHeader title="Exercise Progress Matrix" icon={Target} />
             <div className="space-y-4">
                 <div className="rounded-2xl border bg-background overflow-hidden">
-                    <div className="grid grid-cols-[minmax(0,1.8fr)_90px_84px_82px_98px_112px] gap-3 border-b bg-muted/40 px-4 py-3 text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
+                    <div className="grid grid-cols-[minmax(0,1.8fr)_90px_84px_82px_98px_112px] gap-2 border-b bg-muted/30 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
                         <span>Exercise</span>
                         <span>Attempts</span>
                         <span>Latest</span>
@@ -246,38 +246,36 @@ function ExerciseProgressMatrix({ summaries, studentId }: { summaries: ExerciseP
                               ? 'Handoff'
                               : summary.latestComment ? 'Debrief' : 'Open';
                             return (
-                                <div key={summary.templateKey} className="grid grid-cols-[minmax(0,1.8fr)_90px_84px_82px_98px_112px] gap-3 px-4 py-3">
+                                <div key={summary.templateKey} className="grid grid-cols-[minmax(0,1.8fr)_90px_84px_82px_98px_112px] gap-2 px-4 py-2.5">
                                     <div className="min-w-0">
                                         <Link
                                             href={`/training/student-progress/${studentId}/exercise/${summary.templateKey}`}
-                                            className="truncate text-sm font-black underline-offset-4 hover:underline"
+                                            className="block truncate text-sm font-black leading-tight underline-offset-4 hover:underline"
                                         >
                                             {summary.label}
                                         </Link>
-                                        <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                                        <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground leading-none">
                                             {summary.lastFlown ? `Last flown ${formatLastSeen(summary.lastFlown)}` : 'No attempts yet'}
                                         </p>
-                                        {summary.attemptCount > 0 ? (
-                                            <p className={cn('mt-1 text-[10px] font-black uppercase tracking-[0.16em]', trendMeta.tone)}>
-                                                {trendMeta.label}
-                                            </p>
-                                        ) : null}
-                                        <Badge variant="outline" className="mt-2 text-[10px] font-black uppercase tracking-[0.14em]">
-                                            {handoff}
-                                        </Badge>
+                                        <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-[0.14em] leading-none">
+                                            {summary.attemptCount > 0 ? (
+                                                <span className={cn(trendMeta.tone)}>
+                                                    {trendMeta.label}
+                                                </span>
+                                            ) : null}
+                                            <span className="text-muted-foreground">{handoff}</span>
+                                        </div>
                                     </div>
-                                    <div className="text-sm font-black">{summary.attemptCount}</div>
-                                    <div className="text-sm font-black">{summary.latestRating ? `${summary.latestRating}/5` : '—'}</div>
-                                    <div className="text-sm font-black">{summary.averageRating ? `${summary.averageRating}/5` : '—'}</div>
-                                    <div>
-                                        <Badge variant="outline" className={cn('text-[10px] font-black uppercase tracking-[0.14em]', statusMeta.badge)}>
-                                            {statusMeta.label}
-                                        </Badge>
+                                    <div className="flex items-center text-sm font-black">{summary.attemptCount}</div>
+                                    <div className="flex items-center text-sm font-black">{summary.latestRating ? `${summary.latestRating}/5` : '—'}</div>
+                                    <div className="flex items-center text-sm font-black">{summary.averageRating ? `${summary.averageRating}/5` : '—'}</div>
+                                    <div className="flex items-center text-[10px] font-black uppercase tracking-[0.14em] text-muted-foreground">
+                                        {statusMeta.label}
                                     </div>
-                                    <div>
+                                    <div className="flex items-center">
                                         <Link
                                             href={`/training/student-progress/${studentId}/exercise/${summary.templateKey}`}
-                                            className="inline-flex h-8 items-center rounded-md border px-3 text-[10px] font-black uppercase tracking-[0.16em] hover:bg-muted/40"
+                                            className="text-[10px] font-black uppercase tracking-[0.16em] text-primary underline-offset-4 hover:underline"
                                         >
                                             Open
                                         </Link>
@@ -351,9 +349,9 @@ function InstructorAssignmentTimeline({
                             <p className="text-sm font-black uppercase tracking-[0.18em]">Assigned Instructor</p>
                             <p className="text-xs text-muted-foreground">Use this timeline to relate assessment changes to instructor handovers.</p>
                         </div>
-                        <Badge variant="outline" className="text-[10px] font-black uppercase tracking-[0.18em]">
+                        <span className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">
                             {currentInstructorName}
-                        </Badge>
+                        </span>
                     </div>
                     <div className="space-y-3">
                         {timelineItems.length > 0 ? timelineItems.map((item, index) => {
@@ -362,16 +360,16 @@ function InstructorAssignmentTimeline({
                                 : 'Unassigned';
                             return (
                                 <div key={`${item.changedAt}-${index}`} className="rounded-xl border bg-muted/20 px-4 py-3">
-                                    <div className="flex items-start justify-between gap-3">
+                                    <div className="flex items-center justify-between gap-3">
                                         <div>
                                             <p className="text-sm font-black">{instructorName}</p>
                                             <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
                                                 Changed {formatLastSeen(item.changedAt)}
                                             </p>
                                         </div>
-                                        <Badge variant="outline" className="text-[10px] font-black uppercase tracking-[0.16em]">
+                                        <span className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
                                             {item.instructorId ? 'Assigned' : 'Cleared'}
-                                        </Badge>
+                                        </span>
                                     </div>
                                 </div>
                             );
@@ -389,23 +387,23 @@ function InstructorAssignmentTimeline({
                             <p className="text-sm font-black uppercase tracking-[0.18em]">Assessment Performance by Instructor</p>
                             <p className="text-xs text-muted-foreground">This helps show whether the student’s debrief pattern shifts under different instructors.</p>
                         </div>
-                        <Badge variant="outline" className="text-[10px] font-black uppercase tracking-[0.18em]">
+                        <span className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">
                             {instructorPerformance.length} instructors
-                        </Badge>
+                        </span>
                     </div>
                     <div className="space-y-3">
                         {instructorPerformance.length > 0 ? instructorPerformance.map((item) => (
                             <div key={item.instructorId} className="rounded-xl border bg-muted/20 px-4 py-3">
-                                <div className="flex items-start justify-between gap-3">
+                                <div className="flex items-center justify-between gap-3">
                                     <div>
                                         <p className="text-sm font-black">{item.instructorName}</p>
                                         <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
                                             {item.reportCount} debrief{item.reportCount === 1 ? '' : 's'} · Last seen {formatLastSeen(item.lastDate)}
                                         </p>
                                     </div>
-                                    <Badge variant="outline" className="text-[10px] font-black uppercase tracking-[0.16em]">
+                                    <span className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
                                         Avg {item.averageRating}/5
-                                    </Badge>
+                                    </span>
                                 </div>
                             </div>
                         )) : (

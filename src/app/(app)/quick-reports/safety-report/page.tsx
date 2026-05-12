@@ -21,6 +21,7 @@ import { useToast } from '@/hooks/use-toast';
 import type { Aircraft } from '@/types/aircraft';
 import type { QuickReportPhotoAttachment } from '@/types/quick-reports';
 import { cn } from '@/lib/utils';
+import { dispatchSafeviateEvent, SAFEVIATE_QUICK_SAFETY_REPORTS_UPDATED } from '@/lib/client-events';
 
 const quickSafetySchema = z.object({
   eventDate: z.date({ required_error: 'Date is required.' }),
@@ -109,6 +110,7 @@ export default function QuickSafetyReportPage() {
         description: 'The preliminary safety report has been captured for classification.',
       });
 
+      dispatchSafeviateEvent(SAFEVIATE_QUICK_SAFETY_REPORTS_UPDATED);
       router.push('/quick-reports');
     } catch (error) {
       toast({

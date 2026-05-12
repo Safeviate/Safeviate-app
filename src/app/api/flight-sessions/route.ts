@@ -28,6 +28,7 @@ type FlightSessionPayload = {
     latitude?: number;
     longitude?: number;
     accuracy?: number;
+    hdop?: number;
     altitude?: number | null;
     speedKt?: number | null;
     headingTrue?: number | null;
@@ -39,6 +40,7 @@ type FlightTrackPointPayload = {
   latitude?: number;
   longitude?: number;
   accuracy?: number;
+  hdop?: number;
   altitude?: number | null;
   speedKt?: number | null;
   headingTrue?: number | null;
@@ -96,6 +98,7 @@ async function saveTrackPointIfDue(
     crossTrackErrorNm: session.crossTrackErrorNm ?? null,
     onCourse: session.onCourse ?? null,
     accuracy: position.accuracy ?? null,
+    hdop: position.hdop ?? null,
     altitude: position.altitude ?? null,
     speedKt: position.speedKt ?? null,
     headingTrue: position.headingTrue ?? null,

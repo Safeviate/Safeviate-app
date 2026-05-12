@@ -1,6 +1,9 @@
 import type { Config } from 'drizzle-kit';
+import { normalizePostgresConnectionString } from './src/lib/server/postgres-url';
 
-const databaseUrl = process.env.NEON2_DATABASE_URL?.trim() || process.env.DATABASE_URL?.trim();
+const databaseUrl =
+  normalizePostgresConnectionString(process.env.NEON2_DATABASE_URL) ||
+  normalizePostgresConnectionString(process.env.DATABASE_URL);
 
 if (!databaseUrl) {
   throw new Error('DATABASE_URL is missing.');
