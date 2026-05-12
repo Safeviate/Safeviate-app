@@ -1,5 +1,12 @@
 export type QuickReportWorkflowStatus = 'Preliminary' | 'Under Review' | 'Assigned' | 'Closed' | 'Classified';
 
+export interface QuickReportPhotoAttachment {
+  id: string;
+  name: string;
+  mimeType: string;
+  dataUrl: string;
+}
+
 export interface TechnicalQuickReport {
   id: string;
   reportNumber: string;
@@ -19,6 +26,7 @@ export interface TechnicalQuickReport {
   urgency: 'Low' | 'Medium' | 'High';
   summary: string;
   immediateAction?: string | null;
+  photoAttachments?: QuickReportPhotoAttachment[] | null;
   aircraftId?: string | null;
   aircraftLabel?: string | null;
   assignedToId?: string | null;
@@ -43,6 +51,7 @@ export interface QuickSafetyReport {
   aircraftLabel?: string | null;
   summary: string;
   immediateAction?: string | null;
+  photoAttachments?: QuickReportPhotoAttachment[] | null;
   recommendedClassification?: 'Hazard' | 'Incident' | 'Accident' | 'General Concern';
   linkedSafetyReportId?: string | null;
   linkedSafetyReportNumber?: string | null;

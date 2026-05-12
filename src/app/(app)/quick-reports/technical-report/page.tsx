@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { ChangeEvent, useMemo, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { format } from 'date-fns';
-import { AlertTriangle, CalendarIcon, FileWarning, Wrench } from 'lucide-react';
+import { AlertTriangle, CalendarIcon, FileWarning, ImagePlus, Trash2, Wrench } from 'lucide-react';
 import { MainPageHeader } from '@/components/page-header';
 import { BackNavButton } from '@/components/back-nav-button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,10 +20,10 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { CustomCalendar } from '@/components/ui/custom-calendar';
 import { useToast } from '@/hooks/use-toast';
 import type { Aircraft } from '@/types/aircraft';
+import type { QuickReportPhotoAttachment } from '@/types/quick-reports';
 import { cn } from '@/lib/utils';
 
 const technicalReportSchema = z.object({
-  reportType: z.string().min(1, 'Technical report type is required.'),
   aircraftId: z.string().optional(),
   eventDate: z.date({ required_error: 'Date is required.' }),
   eventTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, { message: 'Invalid time format (HH:mm).' }),
@@ -38,13 +38,16 @@ const technicalReportSchema = z.object({
 
 type TechnicalReportValues = z.infer<typeof technicalReportSchema>;
 
-const reportTypes = ['Aircraft Defect', 'Maintenance Concern', 'Technical Observation', 'Deferred Snag'] as const;
-
 export default function QuickTechnicalReportPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [aircrafts, setAircrafts] = useState<Aircraft[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [photoAttachments, setPhotoAttachments] = useState<QuickReportPhotoAttachment[]>([]);
+  const photoHelperText = useMemo(
+    () => `${photoAttachments.length}/5 photos attached. Use this only for quick visual evidence.`,
+    [photoAttachments.length]
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -69,7 +72,6 @@ export default function QuickTechnicalReportPage() {
   const form = useForm<TechnicalReportValues>({
     resolver: zodResolver(technicalReportSchema),
     defaultValues: {
-      reportType: '',
       aircraftId: '',
       eventDate: new Date(),
       eventTime: format(new Date(), 'HH:mm'),
@@ -93,7 +95,7 @@ export default function QuickTechnicalReportPage() {
         body: JSON.stringify({
           report: {
             reportNumber: `TECH-${String(Date.now()).slice(-6)}`,
-            reportType: values.reportType,
+            reportType: 'Preliminary Technical Report',
             eventDate: format(values.eventDate, 'yyyy-MM-dd'),
             eventTime: values.eventTime,
             location: values.location,
@@ -103,6 +105,7 @@ export default function QuickTechnicalReportPage() {
             urgency: values.urgency,
             summary: values.summary,
             immediateAction: values.immediateAction || null,
+            photoAttachments: photoAttachments.length > 0 ? photoAttachments : null,
             aircraftId: values.aircraftId && values.aircraftId !== 'unassigned' ? values.aircraftId : null,
             aircraftLabel: selectedAircraft ? `${selectedAircraft.tailNumber} (${selectedAircraft.model})` : null,
           },
@@ -131,6 +134,50 @@ export default function QuickTechnicalReportPage() {
     }
   };
 
+  const handlePhotoSelection = async (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    if (!files.length) return;
+
+    const availableSlots = Math.max(0, 5 - photoAttachments.length);
+    const nextFiles = files.slice(0, availableSlots);
+
+    try {
+      const nextAttachments = await Promise.all(
+        nextFiles.map(
+          (file) =>
+            new Promise<QuickReportPhotoAttachment>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () =>
+                resolve({
+                  id: crypto.randomUUID(),
+                  name: file.name,
+                  mimeType: file.type || 'image/jpeg',
+                  dataUrl: typeof reader.result === 'string' ? reader.result : '',
+                });
+              reader.onerror = () => reject(new Error(`Failed to read ${file.name}`));
+              reader.readAsDataURL(file);
+            })
+        )
+      );
+
+      setPhotoAttachments((current) => [...current, ...nextAttachments.filter((item) => item.dataUrl)]);
+      if (files.length > availableSlots) {
+        toast({
+          title: 'Photo Limit Reached',
+          description: 'Only the first five photos were attached to this quick report.',
+        });
+      }
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Photo Capture Failed',
+        description: error instanceof Error ? error.message : 'Failed to read the selected photo.',
+      });
+    }
+
+    event.target.value = '';
+  };
+
   return (
     <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-6 p-4">
       <MainPageHeader
@@ -156,31 +203,7 @@ export default function QuickTechnicalReportPage() {
               </div>
             </CardHeader>
             <CardContent className="space-y-6 p-6">
-              <div className="grid gap-6 md:grid-cols-2">
-                <FormField
-                  control={form.control}
-                  name="reportType"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Report Type</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select a technical report type" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {reportTypes.map((type) => (
-                            <SelectItem key={type} value={type}>
-                              {type}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+              <div className="grid gap-6 md:grid-cols-1">
                 <FormField
                   control={form.control}
                   name="aircraftId"
@@ -189,7 +212,7 @@ export default function QuickTechnicalReportPage() {
                       <FormLabel>Aircraft Involved</FormLabel>
                       <Select onValueChange={field.onChange} defaultValue={field.value}>
                         <FormControl>
-                          <SelectTrigger>
+                          <SelectTrigger className="h-10">
                             <SelectValue placeholder="Select an aircraft if relevant" />
                           </SelectTrigger>
                         </FormControl>
@@ -213,14 +236,17 @@ export default function QuickTechnicalReportPage() {
                   control={form.control}
                   name="eventDate"
                   render={({ field }) => (
-                    <FormItem className="flex flex-col">
+                    <FormItem>
                       <FormLabel>Date</FormLabel>
                       <Popover>
                         <PopoverTrigger asChild>
                           <FormControl>
                             <Button
                               variant="outline"
-                              className={cn('w-full justify-between pl-3 text-left font-normal', !field.value && 'text-muted-foreground')}
+                              className={cn(
+                                'h-10 w-full justify-between rounded-md border border-input bg-background px-3 text-left text-sm font-normal shadow-sm hover:bg-background',
+                                !field.value && 'text-muted-foreground'
+                              )}
                             >
                               {field.value ? format(field.value, 'PPP') : <span>Pick a date</span>}
                               <CalendarIcon className="h-4 w-4 opacity-50" />
@@ -242,7 +268,7 @@ export default function QuickTechnicalReportPage() {
                     <FormItem>
                       <FormLabel>Time</FormLabel>
                       <FormControl>
-                        <Input type="time" {...field} />
+                        <Input type="time" className="h-10" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -255,7 +281,7 @@ export default function QuickTechnicalReportPage() {
                     <FormItem>
                       <FormLabel>Location</FormLabel>
                       <FormControl>
-                        <Input placeholder="e.g. Hangar, Apron, Workshop" {...field} />
+                        <Input className="h-10" placeholder="e.g. Hangar, Apron, Workshop" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -301,7 +327,7 @@ export default function QuickTechnicalReportPage() {
                       <FormLabel>Urgency</FormLabel>
                       <Select onValueChange={field.onChange} defaultValue={field.value}>
                         <FormControl>
-                          <SelectTrigger>
+                          <SelectTrigger className="h-10">
                             <SelectValue placeholder="Select urgency" />
                           </SelectTrigger>
                         </FormControl>
@@ -368,8 +394,54 @@ export default function QuickTechnicalReportPage() {
                     </FormControl>
                     <FormMessage />
                   </FormItem>
-                )}
-              />
+                  )}
+                />
+
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">Photos</p>
+                  <p className="text-xs text-muted-foreground">{photoHelperText}</p>
+                </div>
+                <label
+                  className={cn(
+                    'inline-flex h-10 cursor-pointer items-center gap-2 rounded-md border border-input bg-background px-4 text-sm font-medium shadow-sm transition-colors hover:bg-accent/40',
+                    photoAttachments.length >= 5 && 'cursor-not-allowed opacity-60'
+                  )}
+                >
+                  <ImagePlus className="h-4 w-4" />
+                  <span>Add Photos</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    multiple
+                    className="sr-only"
+                    disabled={photoAttachments.length >= 5}
+                    onChange={handlePhotoSelection}
+                  />
+                </label>
+                {photoAttachments.length > 0 ? (
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {photoAttachments.map((photo) => (
+                      <div key={photo.id} className="overflow-hidden rounded-lg border bg-muted/5">
+                        <img src={photo.dataUrl} alt={photo.name} className="h-32 w-full object-cover" />
+                        <div className="flex items-center justify-between gap-2 border-t px-3 py-2">
+                          <p className="min-w-0 truncate text-xs font-medium">{photo.name}</p>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 shrink-0"
+                            onClick={() => setPhotoAttachments((current) => current.filter((item) => item.id !== photo.id))}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
 
               <div className="rounded-xl border bg-amber-50/50 p-4">
                 <div className="flex items-start gap-3">
