@@ -54,6 +54,10 @@ const mergeTenantConfig = (
       ? {
           ...(localTheme || {}),
           ...(serverTheme || {}),
+          sidebarLogoImage:
+            typeof localTheme?.sidebarLogoImage === 'string' && localTheme.sidebarLogoImage.trim()
+              ? localTheme.sidebarLogoImage
+              : (typeof serverTheme?.sidebarLogoImage === 'string' ? serverTheme.sidebarLogoImage : ''),
         }
       : undefined,
   };
@@ -136,7 +140,7 @@ export const useTenantConfig = () => {
     if (typeof window === 'undefined') return;
 
     const syncOverride = () => {
-        try {
+      try {
         const stored = window.localStorage.getItem(INDUSTRY_OVERRIDE_KEY);
         setIndustryOverride(normalizeIndustry(stored));
         const tenantConfigStored = window.localStorage.getItem(LOCAL_TENANT_CONFIG_KEY);

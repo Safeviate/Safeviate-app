@@ -78,6 +78,8 @@ export type SavedTheme = {
   sidebarColors: SidebarThemeColors;
   sidebarBackgroundImage?: string;
   sidebarBackgroundOpacity?: number;
+  sidebarLogoImage?: string;
+  sidebarLogoBackgroundColor?: string;
   headerColors: HeaderThemeColors;
   headerBackgroundImage?: string;
   headerBackgroundOpacity?: number;
@@ -104,6 +106,10 @@ type ThemeContextType = {
   setSidebarBackgroundImage: (value: string) => void;
   sidebarBackgroundOpacity: number;
   setSidebarBackgroundOpacity: (value: number) => void;
+  sidebarLogoImage: string;
+  setSidebarLogoImage: (value: string) => void;
+  sidebarLogoBackgroundColor: string;
+  setSidebarLogoBackgroundColor: (value: string) => void;
   headerTheme: HeaderThemeColors;
   setHeaderThemeValue: (key: keyof HeaderThemeColors, value: string) => void;
   headerBackgroundImage: string;
@@ -132,6 +138,7 @@ export const CARD_THEME_KEY = 'safeviate-card-theme';
 export const POPOVER_THEME_KEY = 'safeviate-popover-theme';
 export const SIDEBAR_THEME_KEY = 'safeviate-sidebar-theme';
 export const SIDEBAR_BACKGROUND_IMAGE_KEY = 'safeviate-sidebar-background-image';
+export const SIDEBAR_LOGO_IMAGE_KEY = 'safeviate-sidebar-logo-image';
 export const HEADER_BACKGROUND_IMAGE_KEY = 'safeviate-header-background-image';
 export const HEADER_THEME_KEY = 'safeviate-header-theme';
 export const SWIMLANE_THEME_KEY = 'safeviate-swimlane-theme';
@@ -317,6 +324,12 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
   const [sidebarBackgroundOpacity, setSidebarBackgroundOpacityState] = useState<number>(
     () => (getBootstrapThemeSnapshot()?.theme?.sidebarBackgroundOpacity as number | undefined) ?? 0.2
   );
+  const [sidebarLogoImage, setSidebarLogoImageState] = useState<string>(
+    () => (getBootstrapThemeSnapshot()?.theme?.sidebarLogoImage as string | undefined) || ''
+  );
+  const [sidebarLogoBackgroundColor, setSidebarLogoBackgroundColorState] = useState<string>(
+    () => (getBootstrapThemeSnapshot()?.theme?.sidebarLogoBackgroundColor as string | undefined) || ''
+  );
   const [headerTheme, setHeaderTheme] = useState<HeaderThemeColors>(() => ({
     ...defaultHeaderColors,
     ...(getBootstrapThemeSnapshot()?.theme?.header || {}),
@@ -345,6 +358,16 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
   const { tenant, tenantId } = useTenantConfig();
 
   const resolveSidebarBackgroundImage = (value: string | null | undefined) => {
+    if (!value) return '';
+    return value;
+  };
+
+  const resolveSidebarLogoImage = (value: string | null | undefined) => {
+    if (!value) return '';
+    return value;
+  };
+
+  const resolveSidebarLogoBackgroundColor = (value: string | null | undefined) => {
     if (!value) return '';
     return value;
   };
@@ -415,6 +438,9 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
       tenant?.theme?.sidebarBackgroundOpacity,
       0.2
     );
+    const nextSidebarLogoBackgroundColor = resolveSidebarLogoBackgroundColor(
+      tenant?.theme?.sidebarLogoBackgroundColor
+    );
     const nextHeaderBackgroundOpacity = resolveOpacity(
       tenant?.theme?.headerBackgroundOpacity,
       0.22
@@ -447,6 +473,10 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
     setSidebarTheme(nextSidebarTheme);
     setSidebarBackgroundImageState(nextSidebarBackgroundImage);
     setSidebarBackgroundOpacityState(nextSidebarBackgroundOpacity);
+    setSidebarLogoImageState(
+      resolveSidebarLogoImage(tenant?.theme?.sidebarLogoImage)
+    );
+    setSidebarLogoBackgroundColorState(nextSidebarLogoBackgroundColor);
     setHeaderTheme(nextHeaderTheme);
     setHeaderBackgroundImageState(nextHeaderBackgroundImage);
     setHeaderBackgroundOpacityState(nextHeaderBackgroundOpacity);
@@ -519,6 +549,12 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
     setSidebarBackgroundOpacityState(value);
     applyCssNumberToDOM('--sidebar-background-opacity', value);
   };
+  const setSidebarLogoImage = (value: string) => {
+    setSidebarLogoImageState(value);
+  };
+  const setSidebarLogoBackgroundColor = (value: string) => {
+    setSidebarLogoBackgroundColorState(value);
+  };
   const setHeaderThemeValue = (prop: keyof HeaderThemeColors, value: string) => updateTheme(headerTheme, setHeaderTheme, prop, value);
   const setHeaderBackgroundImage = (value: string) => {
     setHeaderBackgroundImageState(value);
@@ -554,6 +590,10 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
       themeToApply.sidebarBackgroundOpacity,
       0.2
     );
+    const newSidebarLogoImage = '';
+    const newSidebarLogoBackgroundColor = resolveSidebarLogoBackgroundColor(
+      themeToApply.sidebarLogoBackgroundColor
+    );
     const newHeaderBackgroundImage = resolveHeaderBackgroundImage(
       themeToApply.headerBackgroundImage
     );
@@ -574,6 +614,8 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
     setSidebarTheme(newSidebarTheme);
     setSidebarBackgroundImageState(newSidebarBackgroundImage);
     setSidebarBackgroundOpacityState(newSidebarBackgroundOpacity);
+    setSidebarLogoImageState(newSidebarLogoImage);
+    setSidebarLogoBackgroundColorState(newSidebarLogoBackgroundColor);
     setHeaderTheme(newHeaderTheme);
     setHeaderBackgroundImageState(newHeaderBackgroundImage);
     setHeaderBackgroundOpacityState(newHeaderBackgroundOpacity);
@@ -607,6 +649,8 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
       sidebarColors: sidebarTheme,
       sidebarBackgroundImage,
       sidebarBackgroundOpacity,
+      sidebarLogoImage,
+      sidebarLogoBackgroundColor,
       headerColors: headerTheme,
       headerBackgroundImage,
       headerBackgroundOpacity,
@@ -660,6 +704,12 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
     setSidebarBackgroundOpacityState(
       resolveOpacity(tenant?.theme?.sidebarBackgroundOpacity, 0.2)
     );
+    setSidebarLogoImageState(
+      resolveSidebarLogoImage(tenant?.theme?.sidebarLogoImage)
+    );
+    setSidebarLogoBackgroundColorState(
+      resolveSidebarLogoBackgroundColor(tenant?.theme?.sidebarLogoBackgroundColor)
+    );
     setHeaderTheme({
       ...defaultHeaderColors,
       ...(tenant?.theme?.header || {}),
@@ -701,6 +751,10 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
     setSidebarBackgroundImage,
     sidebarBackgroundOpacity,
     setSidebarBackgroundOpacity,
+    sidebarLogoImage,
+    setSidebarLogoImage,
+    sidebarLogoBackgroundColor,
+    setSidebarLogoBackgroundColor,
     headerTheme,
     setHeaderThemeValue,
     headerBackgroundImage,

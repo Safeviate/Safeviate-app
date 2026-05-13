@@ -64,7 +64,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const localUrlPath = `/${blobPath}`;
+  const localUrlPath = buildUploadViewUrl(blobPath);
   const uploadsRoot = path.join(process.cwd(), 'public');
   const localFilePath = path.join(uploadsRoot, blobPath);
   await mkdir(path.dirname(localFilePath), { recursive: true });

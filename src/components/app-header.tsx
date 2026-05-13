@@ -4,12 +4,20 @@ import { usePathname, useRouter } from 'next/navigation';
 import { menuConfig } from '@/lib/menu-config';
 import type { MenuItem, SubMenuItem } from '@/lib/menu-config';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import { useIsMobile } from '@/hooks/use-mobile';
 import { Button } from '@/components/ui/button';
-import { Bell, Search, ChevronDown } from 'lucide-react';
+import { Bell, Search, ChevronDown, LogOut } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useUserProfile } from '@/hooks/use-user-profile';
 import React, { useState, useEffect } from 'react';
+import { signOut, useSession } from 'next-auth/react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 const findCurrentItem = (
   items: (MenuItem | SubMenuItem)[],
@@ -55,8 +63,8 @@ const getTitle = (pathname: string): string => {
 export function AppHeader() {
   const pathname = usePathname();
   const router = useRouter();
-  const isMobile = useIsMobile();
   const { userProfile } = useUserProfile();
+  const { data: session } = useSession();
   const currentPathname = pathname ?? '';
   const title = getTitle(currentPathname);
   const [headerOpacity, setHeaderOpacity] = useState(0.8);
@@ -81,6 +89,9 @@ export function AppHeader() {
 
   const userDisplayName = userProfile ? `${userProfile.firstName} ${userProfile.lastName}` : 'User';
   const userFallback = userDisplayName.charAt(0).toUpperCase();
+  const handleSignOut = () => {
+    void signOut({ callbackUrl: '/login' });
+  };
 
   return (
     <header 
@@ -107,16 +118,49 @@ export function AppHeader() {
         <Button variant="ghost" size="icon" className="app-topbar-icon h-8 w-8">
           <Bell className="h-4 w-4" />
         </Button>
-        <div className="app-topbar-profile flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.06] px-1.5 py-0.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-          <Avatar className="h-6 w-6 ring-1 ring-white/10">
-            <AvatarImage
-              src={`https://picsum.photos/seed/${userDisplayName}/64/64`}
-              alt={`${userDisplayName} profile avatar`}
-            />
-            <AvatarFallback>{userFallback}</AvatarFallback>
-          </Avatar>
-          <ChevronDown className="hidden h-3.5 w-3.5 opacity-60 md:block" />
-        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              className="app-topbar-profile flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-1.5 py-0.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] hover:bg-white/[0.1]"
+            >
+              <Avatar className="h-6 w-6 ring-1 ring-white/10">
+                <AvatarImage
+                  src={`https://picsum.photos/seed/${userDisplayName}/64/64`}
+                  alt={`${userDisplayName} profile avatar`}
+                />
+                <AvatarFallback>{userFallback}</AvatarFallback>
+              </Avatar>
+              <div className="hidden max-w-[9rem] flex-col items-start leading-none md:flex">
+                <span className="truncate text-[11px] font-semibold text-header-foreground/95">
+                  {userDisplayName}
+                </span>
+                <span className="truncate text-[9px] text-header-foreground/65">
+                  {session?.user?.email ?? 'Signed in'}
+                </span>
+              </div>
+              <ChevronDown className="hidden h-3.5 w-3.5 opacity-60 md:block" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            side="bottom"
+            align="end"
+            className="w-56 rounded-2xl border border-sidebar-border/70 bg-sidebar shadow-[0_18px_50px_rgba(0,0,0,0.35)] backdrop-blur-md"
+          >
+            <DropdownMenuLabel className="text-xs font-semibold uppercase tracking-[0.08em] text-sidebar-foreground/70">
+              My Account
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={handleSignOut}>
+              <LogOut className="mr-2 h-4 w-4" />
+              <span>Log out</span>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel className="text-[9px] font-mono uppercase tracking-tighter text-sidebar-foreground/45">
+              Project: Vercel
+            </DropdownMenuLabel>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </header>
   );

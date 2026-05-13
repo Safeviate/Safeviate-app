@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import { getServerSession } from 'next-auth';
 import { cookies } from 'next/headers';
-import { Inter } from 'next/font/google';
 import 'leaflet/dist/leaflet.css';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './globals.css';
@@ -16,8 +15,6 @@ import {
   TENANT_OVERRIDE_COOKIE,
   isMasterTenantEmail,
 } from '@/lib/server/tenant-access';
-
-const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
 assertRequiredEnv(
   [['DATABASE_URL', 'DATABASE_URL_UNPOOLED'], 'NEXTAUTH_SECRET', 'OPENAI_API_KEY'],
@@ -260,6 +257,14 @@ function buildThemeBootstrapScript(bootstrap: TenantBootstrapConfig) {
       localTheme && typeof localTheme.headerBackgroundImage === 'string'
         ? localTheme.headerBackgroundImage
         : (serverTheme && typeof serverTheme.headerBackgroundImage === 'string' ? serverTheme.headerBackgroundImage : '');
+    const sidebarLogoImage =
+      localTheme && typeof localTheme.sidebarLogoImage === 'string' && localTheme.sidebarLogoImage.trim()
+        ? localTheme.sidebarLogoImage
+        : (serverTheme && typeof serverTheme.sidebarLogoImage === 'string' ? serverTheme.sidebarLogoImage : '');
+    const sidebarLogoBackgroundColor =
+      localTheme && typeof localTheme.sidebarLogoBackgroundColor === 'string'
+        ? localTheme.sidebarLogoBackgroundColor
+        : (serverTheme && typeof serverTheme.sidebarLogoBackgroundColor === 'string' ? serverTheme.sidebarLogoBackgroundColor : '');
     const sidebarBackgroundOpacity =
       typeof (localTheme && localTheme.sidebarBackgroundOpacity) === 'number'
         ? localTheme.sidebarBackgroundOpacity
@@ -301,6 +306,8 @@ function buildThemeBootstrapScript(bootstrap: TenantBootstrapConfig) {
         matrix: { ...defaults.matrix, ...(serverTheme && serverTheme.matrix ? serverTheme.matrix : {}), ...(localTheme && localTheme.matrix ? localTheme.matrix : {}) },
         sidebarBackgroundImage,
         headerBackgroundImage,
+        sidebarLogoImage,
+        sidebarLogoBackgroundColor,
         sidebarBackgroundOpacity,
         headerBackgroundOpacity,
         scale,
@@ -411,7 +418,7 @@ export default async function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: buildThemeBootstrapScript(initialTenantBootstrap) }} />
       </head>
-      <body className={`${inter.variable} font-body antialiased`}>
+      <body className="font-body antialiased">
         <AppProviders>
           {children}
           <Toaster />

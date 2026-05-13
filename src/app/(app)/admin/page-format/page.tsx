@@ -16,7 +16,7 @@ export default function PageFormatPage() {
 
   if ((!canManage && isPermissionsLoading) || isProfileLoading || !userProfile) {
     return (
-      <div className="lg:max-w-[1100px] mx-auto w-full flex flex-col gap-6 min-h-0 overflow-y-auto px-1 pb-4">
+      <div className="lg:max-w-[1100px] mx-auto flex flex-1 min-h-0 w-full flex-col gap-6 overflow-hidden px-1 pb-4">
         <Skeleton className="h-20 w-full" />
         <Skeleton className="h-[600px] w-full" />
       </div>
@@ -32,13 +32,13 @@ export default function PageFormatPage() {
   }
 
   return (
-    <div className="lg:max-w-[1100px] mx-auto w-full flex flex-col gap-6 min-h-0 overflow-y-auto px-1 pb-4">
-      <Card className="flex flex-col overflow-hidden border shadow-none">
+    <div className="lg:max-w-[1100px] mx-auto flex flex-1 min-h-0 w-full flex-col gap-6 overflow-hidden px-1 pb-4">
+      <Card className="flex flex-1 min-h-0 flex-col overflow-hidden border shadow-none">
         <MainPageHeader
           title="Page Formatting"
           description="Refine the tenant look from one place. Start with quick palettes, then tune the advanced component colors only if needed."
         />
-        <div className="bg-background">
+        <div className="flex flex-1 min-h-0 overflow-hidden bg-background">
           <ColorThemeForm showHeader={false} />
         </div>
       </Card>

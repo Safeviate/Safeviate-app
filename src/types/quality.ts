@@ -141,6 +141,8 @@ export interface Tenant {
         sidebar?: Record<string, string>;
         sidebarBackgroundImage?: string;
         sidebarBackgroundOpacity?: number;
+        sidebarLogoImage?: string;
+        sidebarLogoBackgroundColor?: string;
         header?: Record<string, string>;
         headerBackgroundImage?: string;
         headerBackgroundOpacity?: number;

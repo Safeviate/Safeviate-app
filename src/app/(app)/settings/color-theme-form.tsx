@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -36,6 +36,7 @@ type PalettePreset = {
 
 const HEADER_BANNER_RECOMMENDED_SIZE = '1600 x 240 px';
 const SIDEBAR_BANNER_RECOMMENDED_SIZE = '900 x 1600 px';
+const SIDEBAR_LOGO_RECOMMENDED_SIZE = '204.1 x 112.8 px';
 const PAGE_FORMAT_PRIMARY_BUTTON_CLASS = 'h-10 rounded-xl px-6 text-[10px] font-black uppercase tracking-widest shadow-sm';
 const PAGE_FORMAT_SECONDARY_BUTTON_CLASS = 'h-10 rounded-xl border-slate-200 bg-white px-6 text-[10px] font-black uppercase tracking-widest text-slate-800 shadow-sm hover:bg-slate-50';
 const PAGE_FORMAT_ICON_BUTTON_CLASS = 'h-8 w-8 rounded-lg border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50';
@@ -155,6 +156,10 @@ export function ColorThemeForm({ showHeader = true }: ColorThemeFormProps) {
     setSidebarBackgroundImage,
     sidebarBackgroundOpacity,
     setSidebarBackgroundOpacity,
+    sidebarLogoImage,
+    setSidebarLogoImage,
+    sidebarLogoBackgroundColor,
+    setSidebarLogoBackgroundColor,
     headerTheme, 
     setHeaderThemeValue,
     headerBackgroundImage,
@@ -177,13 +182,56 @@ export function ColorThemeForm({ showHeader = true }: ColorThemeFormProps) {
   const [themeName, setThemeName] = useState('');
   const [isMounted, setIsMounted] = useState(false);
   const [isUploadingSidebarImage, setIsUploadingSidebarImage] = useState(false);
+  const [isUploadingSidebarLogoImage, setIsUploadingSidebarLogoImage] = useState(false);
   const [isUploadingHeaderImage, setIsUploadingHeaderImage] = useState(false);
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [isLoadingTenants, setIsLoadingTenants] = useState(true);
   const [isSavingOrganization, setIsSavingOrganization] = useState(false);
-  const [openAdvancedSections, setOpenAdvancedSections] = useState<string[]>(['buttons', 'headers']);
+  const [isSidebarLogoSaved, setIsSidebarLogoSaved] = useState(false);
+  const [openAdvancedSections, setOpenAdvancedSections] = useState<string[]>(['buttons', 'headers', 'sidebar']);
+  const sidebarLogoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const canManageOrganization = hasPermission('admin-settings-manage');
+
+  const buildOrganizationTheme = useCallback((overrides?: {
+    sidebarLogoImage?: string;
+    sidebarLogoBackgroundColor?: string;
+  }) => ({
+    primaryColour: theme.primary,
+    backgroundColour: theme.background,
+    accentColour: theme.accent,
+    scale,
+    main: theme,
+    button: buttonTheme,
+    card: cardTheme,
+    popover: popoverTheme,
+    sidebar: sidebarTheme,
+    sidebarBackgroundImage,
+    sidebarBackgroundOpacity,
+    sidebarLogoImage: overrides?.sidebarLogoImage ?? sidebarLogoImage,
+    sidebarLogoBackgroundColor: overrides?.sidebarLogoBackgroundColor ?? sidebarLogoBackgroundColor,
+    header: headerTheme,
+    headerBackgroundImage,
+    headerBackgroundOpacity,
+    swimlane: swimlaneTheme,
+    matrix: matrixTheme,
+  }), [
+    theme,
+    buttonTheme,
+    cardTheme,
+    popoverTheme,
+    sidebarTheme,
+    sidebarBackgroundImage,
+    sidebarBackgroundOpacity,
+    sidebarLogoImage,
+    sidebarLogoBackgroundColor,
+    headerTheme,
+    headerBackgroundImage,
+    headerBackgroundOpacity,
+    swimlaneTheme,
+    matrixTheme,
+    scale,
+  ]);
 
   const loadTenants = useCallback(() => {
     setIsLoadingTenants(true);
@@ -221,58 +269,39 @@ export function ColorThemeForm({ showHeader = true }: ColorThemeFormProps) {
     void load();
   }, []);
 
-  const handleSaveToOrganization = async () => {
+  const persistOrganizationTheme = useCallback(async (updatedTheme: Record<string, unknown>) => {
     setIsSavingOrganization(true);
-    const updatedTheme = {
-      primaryColour: theme.primary,
-      backgroundColour: theme.background,
-      accentColour: theme.accent,
-      scale,
-      main: theme,
-      button: buttonTheme,
-      card: cardTheme,
-      popover: popoverTheme,
-      sidebar: sidebarTheme,
-      sidebarBackgroundImage,
-      sidebarBackgroundOpacity,
-      header: headerTheme,
-      headerBackgroundImage,
-      headerBackgroundOpacity,
-      swimlane: swimlaneTheme,
-      matrix: matrixTheme,
-    };
-
     const configUpdate = {
-        id: tenantId || 'safeviate',
-        theme: updatedTheme
+      id: tenantId || 'safeviate',
+      theme: updatedTheme,
     };
 
     try {
-        const response = await fetch('/api/tenant-config', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ config: configUpdate }),
-        });
+      const response = await fetch('/api/tenant-config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ config: configUpdate }),
+      });
 
-        if (!response.ok) {
-          const payload = await response.json().catch(() => null);
-          throw new Error(payload?.error || 'Could not save tenant configuration.');
-        }
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw new Error(payload?.error || 'Could not save tenant configuration.');
+      }
 
-        try {
-          window.localStorage.setItem(LOCAL_TENANT_CONFIG_KEY, JSON.stringify(configUpdate));
-          window.dispatchEvent(new Event('storage'));
-        } catch {
-          // Ignore browser storage failures and rely on the server copy.
-        }
+      try {
+        window.localStorage.setItem(LOCAL_TENANT_CONFIG_KEY, JSON.stringify(configUpdate));
+        window.dispatchEvent(new Event('storage'));
+      } catch {
+        // Ignore browser storage failures and rely on the server copy.
+      }
 
-        window.dispatchEvent(new Event('safeviate-tenant-config-updated'));
-        loadTenants();
+      window.dispatchEvent(new Event('safeviate-tenant-config-updated'));
+      loadTenants();
 
-        toast({
-            title: "Branding Saved to Cloud",
-            description: "Organization default colors have been synchronized with the database for all users."
-        });
+      toast({
+        title: "Branding Saved to Cloud",
+        description: "Organization default colors have been synchronized with the database for all users.",
+      });
     } catch (e) {
       try {
         window.localStorage.setItem(LOCAL_TENANT_CONFIG_KEY, JSON.stringify(configUpdate));
@@ -288,9 +317,34 @@ export function ColorThemeForm({ showHeader = true }: ColorThemeFormProps) {
         description: e instanceof Error ? `${e.message} The branding was kept in this browser.` : "The organization branding could not be saved to the server, but the changes were kept in this browser.",
       });
     } finally {
-        setIsSavingOrganization(false);
+      setIsSavingOrganization(false);
     }
+  }, [loadTenants, tenantId, toast]);
+
+  const handleSaveToOrganization = async () => {
+    await persistOrganizationTheme(buildOrganizationTheme());
   };
+
+  const handlePersistSidebarLogo = async (overrides: {
+    sidebarLogoImage?: string;
+    sidebarLogoBackgroundColor?: string;
+  }) => {
+    await persistOrganizationTheme(buildOrganizationTheme(overrides));
+    if (sidebarLogoSaveTimerRef.current) {
+      clearTimeout(sidebarLogoSaveTimerRef.current);
+    }
+    setIsSidebarLogoSaved(true);
+    sidebarLogoSaveTimerRef.current = setTimeout(() => {
+      setIsSidebarLogoSaved(false);
+      sidebarLogoSaveTimerRef.current = null;
+    }, 2000);
+  };
+
+  useEffect(() => () => {
+    if (sidebarLogoSaveTimerRef.current) {
+      clearTimeout(sidebarLogoSaveTimerRef.current);
+    }
+  }, []);
 
   useEffect(() => {
     loadTenants();
@@ -357,6 +411,14 @@ export function ColorThemeForm({ showHeader = true }: ColorThemeFormProps) {
           typeof effectiveTheme.sidebarBackgroundOpacity === 'number'
             ? effectiveTheme.sidebarBackgroundOpacity
             : sidebarBackgroundOpacity,
+        sidebarLogoImage:
+          effectiveTheme.sidebarLogoImage !== undefined
+            ? (effectiveTheme.sidebarLogoImage as string)
+            : sidebarLogoImage,
+        sidebarLogoBackgroundColor:
+          effectiveTheme.sidebarLogoBackgroundColor !== undefined
+            ? (effectiveTheme.sidebarLogoBackgroundColor as string)
+            : sidebarLogoBackgroundColor,
         headerColors: (effectiveTheme.header as SavedTheme['headerColors']) || { 
             'header-background': effectiveTheme.backgroundColour || headerTheme['header-background'], 
             'header-foreground': headerTheme['header-foreground'], 
@@ -426,9 +488,24 @@ export function ColorThemeForm({ showHeader = true }: ColorThemeFormProps) {
     return response.json() as Promise<{ url: string }>;
   };
 
+  const readFileAsDataUrl = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result;
+        if (typeof result === 'string') {
+          resolve(result);
+        } else {
+          reject(new Error('Could not read file.'));
+        }
+      };
+      reader.onerror = () => reject(new Error('Could not read file.'));
+      reader.readAsDataURL(file);
+    });
+
   const handleThemeImageUpload = async (
     file: File | undefined,
-    target: 'sidebar' | 'header'
+    target: 'sidebar' | 'sidebarLogo' | 'header'
   ) => {
     if (!file) return;
 
@@ -437,15 +514,42 @@ export function ColorThemeForm({ showHeader = true }: ColorThemeFormProps) {
       return;
     }
 
-    const setLoading = target === 'sidebar' ? setIsUploadingSidebarImage : setIsUploadingHeaderImage;
-    const setImage = target === 'sidebar' ? setSidebarBackgroundImage : setHeaderBackgroundImage;
-    const label = target === 'sidebar' ? 'Sidebar' : 'Header';
+    const setLoading =
+      target === 'sidebar'
+        ? setIsUploadingSidebarImage
+        : target === 'sidebarLogo'
+          ? setIsUploadingSidebarLogoImage
+          : setIsUploadingHeaderImage;
+    const setImage =
+      target === 'sidebar'
+        ? setSidebarBackgroundImage
+        : target === 'sidebarLogo'
+          ? setSidebarLogoImage
+          : setHeaderBackgroundImage;
+    const label =
+      target === 'sidebar'
+        ? 'Sidebar'
+        : target === 'sidebarLogo'
+          ? 'Sidebar Logo'
+          : 'Header';
 
     try {
       setLoading(true);
-      const uploaded = await uploadThemeImage(file, `${target}-banner`);
-      setImage(uploaded.url);
-      toast({ title: `${label} image uploaded`, description: `${label} background preview updated.` });
+      if (target === 'sidebarLogo') {
+        const dataUrl = await readFileAsDataUrl(file);
+        setImage(dataUrl);
+        await handlePersistSidebarLogo({ sidebarLogoImage: dataUrl });
+      } else {
+        const uploaded = await uploadThemeImage(file, `${target}-banner`);
+        setImage(uploaded.url);
+      }
+      toast({
+        title: `${label} image uploaded`,
+        description:
+          target === 'sidebarLogo'
+            ? 'The logo was saved to the database and preview updated.'
+            : `${label} background preview updated.`,
+      });
     } catch (error) {
       toast({
         variant: 'destructive',
@@ -1039,6 +1143,91 @@ export function ColorThemeForm({ showHeader = true }: ColorThemeFormProps) {
                         </div>
                       </div>
                     </div>
+                    <Separator />
+                    <div className="space-y-3 pt-2">
+                      <h4 className="text-[10px] font-black uppercase tracking-widest text-primary">Sidebar Logo</h4>
+                      <p className="text-[9px] font-black uppercase italic text-foreground/60">Upload a company logo for the bottom-left menu slot.</p>
+                      <p className="text-[9px] font-black uppercase tracking-tight text-foreground/55">Recommended size: {SIDEBAR_LOGO_RECOMMENDED_SIZE}</p>
+                      <div className="grid gap-4 md:grid-cols-[220px_1fr]">
+                        <div
+                          className="relative aspect-[204.1/112.8] w-full max-w-[204.1px] overflow-hidden rounded-xl border"
+                          style={{ backgroundColor: sidebarLogoBackgroundColor || 'transparent' }}
+                        >
+                          {sidebarLogoImage ? (
+                            <img
+                              src={sidebarLogoImage}
+                              alt="Sidebar logo preview"
+                              className="absolute inset-0 h-full w-full object-contain p-2"
+                            />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center p-4 text-center text-[9px] font-black uppercase tracking-widest text-foreground/50">
+                              No sidebar logo
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex flex-col gap-3">
+                          <Input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => void handleThemeImageUpload(e.target.files?.[0], 'sidebarLogo')}
+                            className="cursor-pointer"
+                          />
+                          <div className="space-y-2">
+                            <Label className="text-[9px] font-black uppercase text-foreground">Logo Background Colour</Label>
+                            <div className="flex items-center gap-3 rounded-xl border bg-muted/5 p-3">
+                            <Input
+                              type="color"
+                              aria-label="Logo background colour"
+                              value={sidebarLogoBackgroundColor || '#ffffff'}
+                              onChange={(e) => {
+                                setSidebarLogoBackgroundColor(e.target.value);
+                                void handlePersistSidebarLogo({ sidebarLogoBackgroundColor: e.target.value });
+                              }}
+                              className="h-10 w-16 cursor-pointer rounded-md p-1"
+                            />
+                              <Button
+                                type="button"
+                              variant="outline"
+                              className={PAGE_FORMAT_SECONDARY_BUTTON_CLASS}
+                              disabled={isSavingOrganization}
+                              onClick={() => {
+                                setSidebarLogoBackgroundColor('');
+                                void handlePersistSidebarLogo({ sidebarLogoBackgroundColor: '' });
+                              }}
+                            >
+                                Transparent
+                              </Button>
+                            </div>
+                          </div>
+                          <div className="flex gap-3">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className={PAGE_FORMAT_SECONDARY_BUTTON_CLASS}
+                              disabled={isUploadingSidebarLogoImage || isSavingOrganization}
+                              onClick={() => {
+                                setSidebarLogoImage('');
+                                void handlePersistSidebarLogo({ sidebarLogoImage: '' });
+                              }}
+                            >
+                              Remove Logo
+                            </Button>
+                            <span className="flex items-center text-[10px] font-black uppercase text-foreground/60">
+                              Upload saves immediately
+                            </span>
+                            {isSidebarLogoSaved && (
+                              <Badge variant="secondary" className="w-fit gap-1 rounded-full px-2 py-1 text-[9px] font-black uppercase tracking-widest">
+                                <Check className="h-3 w-3" />
+                                Saved
+                              </Badge>
+                            )}
+                            {isUploadingSidebarLogoImage && (
+                              <span className="text-[10px] font-black uppercase text-foreground/60">Uploading...</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </CollapsibleContent>
                 </section>
               </Collapsible>
@@ -1187,7 +1376,13 @@ export function ColorThemeForm({ showHeader = true }: ColorThemeFormProps) {
   );
 
   if (!showHeader) {
-      return content;
+    return (
+      <div className="flex h-full min-h-0 flex-col">
+        <ScrollArea className="flex-1 min-h-0">
+          {content}
+        </ScrollArea>
+      </div>
+    );
   }
 
   return (
@@ -1197,7 +1392,7 @@ export function ColorThemeForm({ showHeader = true }: ColorThemeFormProps) {
         <CardDescription className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Tailor the visual environment to your organization's brand identity.</CardDescription>
       </CardHeader>
       <CardContent className="flex-1 min-h-0 p-0">
-        <ScrollArea className="h-full">
+        <ScrollArea className="flex-1 min-h-0">
           {content}
         </ScrollArea>
       </CardContent>

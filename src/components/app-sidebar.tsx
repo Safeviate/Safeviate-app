@@ -4,11 +4,9 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
-  SidebarFooter,
   SidebarContent,
   SidebarHeader,
-  SidebarGroup,
-  SidebarSeparator,
+  SidebarFooter,
   useSidebar,
   SidebarCollapsible,
   SidebarCollapsibleTrigger,
@@ -20,10 +18,9 @@ import {
   SidebarMobileContent,
   SidebarTrigger,
 } from '@/components/ui/sidebar';
-import { LogOut, ChevronDown } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import React, { useEffect, useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
 import {
@@ -31,18 +28,10 @@ import {
   type SubMenuItem,
 } from '@/lib/menu-config';
 import type { Role } from '@/app/(app)/admin/roles/page';
-import { signOut, useSession } from 'next-auth/react';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useUserProfile } from '@/hooks/use-user-profile';
 import { usePermissions } from '@/hooks/use-permissions';
+import { useTheme } from '@/components/theme-provider';
 import { getOrSetClientApiCache, invalidateClientApiCache } from '@/lib/client/api-cache';
 
 const USERS_STATIC_SUB_ITEMS: SubMenuItem[] = [
@@ -72,12 +61,6 @@ const clearLastSubmenuByParent = (parentHref: string) => {
     if (!(parentHref in lastSubmenuByParentMemory)) return;
     const { [parentHref]: _removed, ...rest } = lastSubmenuByParentMemory;
     lastSubmenuByParentMemory = rest;
-};
-
-type SidebarSharedState = {
-  tenantIndustry?: string;
-  userDisplayName: string;
-  userFallback: string;
 };
 
 const SidebarItems = () => {
@@ -251,81 +234,40 @@ const SidebarItems = () => {
     )
 }
 
-const SidebarFooterContent = ({ userDisplayName, userFallback }: Pick<SidebarSharedState, 'userDisplayName' | 'userFallback'>) => {
-    const { data: session } = useSession();
-    const { setOpenMobile } = useSidebar();
+const SidebarBrandLogoFooter = () => {
+  const { sidebarLogoImage, sidebarLogoBackgroundColor } = useTheme();
 
-    const handleSignOut = () => {
-      void signOut({ callbackUrl: '/login' });
-      setOpenMobile(false);
-    };
-    
-    return (
-        <SidebarGroup>
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <SidebarMenuButton
-                    tooltip={userDisplayName}
-                    className="h-auto w-full justify-start gap-3 rounded-2xl border border-sidebar-border/60 bg-sidebar-accent/25 px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
-                  >
-                    <Avatar className="h-9 w-9 shrink-0 ring-1 ring-white/10">
-                      <AvatarImage
-                        src={`https://picsum.photos/seed/${userDisplayName}/100/100`}
-                        alt={`${userDisplayName} profile avatar`}
-                      />
-                      <AvatarFallback>{userFallback}</AvatarFallback>
-                    </Avatar>
-                    <div className="flex min-w-0 flex-col items-start gap-0.5 overflow-hidden group-data-[collapsible=icon]:hidden">
-                      <span className="w-full truncate text-sm font-semibold tracking-[-0.01em]">
-                        {userDisplayName}
-                      </span>
-                      <span className="w-full truncate font-mono text-[10px] text-muted-foreground/70">
-                        {session?.user?.email ?? 'Signed in'}
-                      </span>
-                    </div>
-                    <ChevronDown className="ml-auto h-4 w-4 shrink-0 opacity-50 group-data-[collapsible=icon]:hidden" />
-                  </SidebarMenuButton>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  side="right"
-                  align="end"
-                  className="w-56 rounded-2xl border border-sidebar-border/70 bg-sidebar shadow-[0_18px_50px_rgba(0,0,0,0.35)] backdrop-blur-md"
-                >
-                  <DropdownMenuLabel className="text-xs font-semibold tracking-[0.08em] text-sidebar-foreground/70 uppercase">
-                    My Account
-                  </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleSignOut}>
-                    <LogOut className="mr-2 h-4 w-4" />
-                    <span>Log out</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuLabel className="text-[9px] font-mono uppercase tracking-tighter text-sidebar-foreground/45">
-                    Project: Vercel
-                  </DropdownMenuLabel>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </SidebarMenuItem>
-          </SidebarMenu>
-        </SidebarGroup>
-    )
-}
+  return (
+    <SidebarFooter className="border-t border-sidebar-border/25 p-3 pt-4 group-data-[collapsible=icon]:hidden">
+      <div className="space-y-2">
+        <div
+          className="relative mx-auto aspect-[204.1/112.8] w-full max-w-[204.1px] overflow-hidden rounded-2xl border border-sidebar-border/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+          style={{ backgroundColor: sidebarLogoBackgroundColor || 'transparent' }}
+        >
+          {sidebarLogoImage ? (
+            <img
+              src={sidebarLogoImage}
+              alt="Company logo"
+              className="absolute inset-0 h-full w-full object-contain p-2"
+            />
+          ) : (
+            <div aria-hidden="true" className="h-full w-full" />
+          )}
+        </div>
+      </div>
+    </SidebarFooter>
+  );
+};
 
 export function AppSidebarMobile() {
     const { openMobile, setOpenMobile } = useSidebar();
     const isMobile = useIsMobile();
-    const { userProfile } = useUserProfile();
   
     if (!isMobile) return null;
-
-    const userDisplayName = userProfile ? `${userProfile.firstName} ${userProfile.lastName}` : 'Developer';
-    const userFallback = userDisplayName.charAt(0).toUpperCase();
   
     return (
       <SidebarMobile open={openMobile} onOpenChange={setOpenMobile}>
-        <SidebarMobileContent className="!p-0 !gap-0 overflow-hidden" aria-label="Main Menu">
+        <SidebarMobileContent className="!p-0 !gap-0 overflow-hidden no-scrollbar" aria-label="Main Menu">
           <SidebarHeader className="flex h-[44px] flex-row items-center gap-3 shrink-0 bg-header px-4">
             <SidebarTrigger className="h-8 w-8 text-header-foreground opacity-80" />
             <span className="truncate font-headline text-lg font-bold tracking-tight text-header-foreground">
@@ -333,30 +275,22 @@ export function AppSidebarMobile() {
             </span>
           </SidebarHeader>
 
-          <SidebarContent className="pt-0">
+          <SidebarContent className="pt-0 no-scrollbar">
             <SidebarItems />
           </SidebarContent>
-          <SidebarFooter>
-            <SidebarFooterContent userDisplayName={userDisplayName} userFallback={userFallback} />
-          </SidebarFooter>
+          <SidebarBrandLogoFooter />
         </SidebarMobileContent>
       </SidebarMobile>
     );
 }
 
 export function AppSidebar() {
-  const { userProfile } = useUserProfile();
-  const userDisplayName = userProfile ? `${userProfile.firstName} ${userProfile.lastName}` : 'Developer';
-  const userFallback = userDisplayName.charAt(0).toUpperCase();
-
   return (
     <Sidebar className="top-0 h-svh">
-      <SidebarContent className="pt-[36px]">
+      <SidebarContent className="pt-[36px] no-scrollbar">
         <SidebarItems />
       </SidebarContent>
-      <SidebarFooter>
-        <SidebarFooterContent userDisplayName={userDisplayName} userFallback={userFallback} />
-      </SidebarFooter>
+      <SidebarBrandLogoFooter />
     </Sidebar>
   );
 }
