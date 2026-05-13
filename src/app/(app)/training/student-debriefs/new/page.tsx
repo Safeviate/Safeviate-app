@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { use, useState, useMemo, useEffect, Suspense, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -22,11 +22,11 @@ import { SignaturePad } from '@/components/ui/signature-pad';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { BackNavButton } from '@/components/back-nav-button';
-import { MainPageHeader } from '@/components/page-header';
+import { CardControlHeader } from '@/components/page-header';
 import { DEFAULT_TRAINING_COMPETENCY_KEY, TRAINING_COMPETENCY_OPTIONS } from '@/lib/training-competencies';
 import { DEFAULT_TRAINING_EXERCISE_TEMPLATE_KEY, type TrainingExerciseTemplate, getTrainingExerciseTemplate, getTrainingExerciseTemplateOptions, resolveTrainingExerciseTemplates } from '@/lib/training-exercise-templates';
 import { Badge } from '@/components/ui/badge';
-import type { InstructorRecommendationAction, StudentProgressCriterionRating } from '@/types/training';
+import type { HumanFactorsStatus, InstructorRecommendationAction, StudentProgressCriterionRating, StudentProgressHumanFactor } from '@/types/training';
 import { useTenantConfig } from '@/hooks/use-tenant-config';
 
 const RATING_GUIDE = [
@@ -46,6 +46,33 @@ const INSTRUCTOR_RECOMMENDATION_OPTIONS: Array<{
     { value: 'continue_current_phase', label: 'Continue Current Phase', hint: 'Stay in the current phase and consolidate performance.' },
     { value: 'recommend_next_phase', label: 'Recommend Next Phase', hint: 'Instructor feels the student is ready to progress.' },
     { value: 'recommend_solo_review', label: 'Recommend Solo Review', hint: 'Escalate for a solo-readiness review by training management.' },
+];
+
+const HUMAN_FACTORS_OPTIONS: Array<{
+    value: HumanFactorsStatus;
+    label: string;
+    hint: string;
+}> = [
+    { value: 'observed', label: 'Observed', hint: 'This was clearly present on the flight.' },
+    { value: 'needs_attention', label: 'Needs Attention', hint: 'This area needs active coaching or mitigation.' },
+    { value: 'not_applicable', label: 'Not Applicable', hint: 'This was not relevant to this exercise.' },
+];
+
+const HUMAN_FACTORS_CHECKS: Array<{ id: string; label: string; category: 'human_factor' | 'hazardous_attitude'; description: string }> = [
+    { id: 'situational_awareness', label: 'Situational Awareness', category: 'human_factor', description: 'Maintains the big picture and notices changes early.' },
+    { id: 'workload_management', label: 'Workload Management', category: 'human_factor', description: 'Prioritizes tasks and avoids overload or fixation.' },
+    { id: 'decision_making', label: 'Decision Making', category: 'human_factor', description: 'Makes timely, safe decisions and adapts when conditions change.' },
+    { id: 'communication', label: 'Communication', category: 'human_factor', description: 'Uses clear briefing, callouts, and radio discipline.' },
+    { id: 'fitness_for_flight', label: 'Fitness for Flight', category: 'human_factor', description: 'Shows awareness of fatigue, stress, illness, or distraction.' },
+    { id: 'error_management', label: 'Error Management', category: 'human_factor', description: 'Recognizes and corrects mistakes before they grow.' },
+];
+
+const HAZARDOUS_ATTITUDE_OPTIONS = [
+    { value: 'anti_authority', label: 'Anti-Authority', description: 'Resists rules, procedures, or guidance.' },
+    { value: 'impulsivity', label: 'Impulsivity', description: 'Acts too quickly without enough thought.' },
+    { value: 'invulnerability', label: 'Invulnerability', description: 'Underestimates personal exposure to risk.' },
+    { value: 'macho', label: 'Macho', description: 'Takes unnecessary chances to prove skill or bravado.' },
+    { value: 'resignation', label: 'Resignation', description: 'Feels outcomes are out of control and stops trying to manage them.' },
 ];
 
 const debriefSchema = z.object({
@@ -68,6 +95,13 @@ const debriefSchema = z.object({
             comment: z.string().optional(),
             competencyKey: z.string().optional(),
             source: z.enum(['template', 'custom']).optional(),
+        })).optional(),
+        humanFactors: z.array(z.object({
+            id: z.string(),
+            label: z.string().min(1),
+            category: z.enum(['human_factor', 'hazardous_attitude']),
+            status: z.enum(['observed', 'needs_attention', 'not_applicable']),
+            comment: z.string().optional(),
         })).optional(),
     })).min(1, "At least one exercise entry is required."),
     instructorSignatureUrl: z.string().optional(),
@@ -105,6 +139,7 @@ const createDebriefEntry = (templates?: TrainingExerciseTemplate[]) => {
         competencyKey: template?.coreCompetencyKeys[0] || DEFAULT_TRAINING_COMPETENCY_KEY,
         competencySignal: 'growth' as const,
         criteriaRatings: buildCriterionRatingsFromTemplate(DEFAULT_TRAINING_EXERCISE_TEMPLATE_KEY, templates),
+        humanFactors: buildHumanFactorsChecklist(),
     };
 };
 
@@ -123,8 +158,18 @@ const createDebriefEntryFromTemplate = (templateKey?: string | null, templates?:
         competencyKey: template?.coreCompetencyKeys[0] || DEFAULT_TRAINING_COMPETENCY_KEY,
         competencySignal: 'growth' as const,
         criteriaRatings: buildCriterionRatingsFromTemplate(resolvedTemplateKey, templates),
+        humanFactors: buildHumanFactorsChecklist(),
     };
 };
+
+const buildHumanFactorsChecklist = (): StudentProgressHumanFactor[] =>
+    HUMAN_FACTORS_CHECKS.map((item) => ({
+        id: uuidv4(),
+        label: item.label,
+        category: item.category,
+        status: 'not_applicable' as const,
+        comment: '',
+    }));
 
 function NewDebriefContent() {
     const router = useRouter();
@@ -226,6 +271,7 @@ function NewDebriefContent() {
             [...buildCriterionRatingsFromTemplate(templateKey, trainingExerciseTemplates), ...customCriteria],
             { shouldDirty: true }
         );
+        form.setValue(`entries.${index}.humanFactors`, buildHumanFactorsChecklist(), { shouldDirty: true });
     }, [form, trainingExerciseTemplates]);
 
     const handleCriterionChange = useCallback((entryIndex: number, criterionIndex: number, patch: Partial<StudentProgressCriterionRating>) => {
@@ -257,6 +303,32 @@ function NewDebriefContent() {
             { shouldDirty: true }
         );
     }, [form]);
+
+    const handleHumanFactorChange = useCallback((entryIndex: number, factorIndex: number, patch: Partial<StudentProgressHumanFactor>) => {
+        const current = form.getValues(`entries.${entryIndex}.humanFactors`) || [];
+        const next = current.map((factor, index) => (index === factorIndex ? { ...factor, ...patch } : factor));
+        form.setValue(`entries.${entryIndex}.humanFactors`, next, { shouldDirty: true });
+    }, [form]);
+
+    const handleAddHazardousAttitude = useCallback((entryIndex: number) => {
+        const current = form.getValues(`entries.${entryIndex}.humanFactors`) || [];
+        const firstHazard = HAZARDOUS_ATTITUDE_OPTIONS[0];
+        form.setValue(`entries.${entryIndex}.humanFactors`, [
+            ...current,
+            {
+                id: uuidv4(),
+                label: firstHazard.label,
+                category: 'hazardous_attitude',
+                status: 'observed',
+                comment: '',
+            },
+        ], { shouldDirty: true });
+    }, [form]);
+
+    const getHazardousAttitudeOptions = useCallback((currentLabel?: string) => {
+        const currentOption = HAZARDOUS_ATTITUDE_OPTIONS.find((option) => option.label === currentLabel);
+        return currentOption ? [currentOption, ...HAZARDOUS_ATTITUDE_OPTIONS.filter((option) => option.value !== currentOption.value)] : HAZARDOUS_ATTITUDE_OPTIONS;
+    }, []);
 
     const onSubmit = async (values: FormValues) => {
         if (!booking) return;
@@ -321,35 +393,31 @@ function NewDebriefContent() {
     const instructorName = instructor ? `${instructor.firstName} ${instructor.lastName}` : 'Unknown Instructor';
 
     return (
-        <div className="space-y-6 max-w-4xl mx-auto h-full min-h-0 flex flex-col overflow-hidden">
-            <MainPageHeader
-                title="Post-Flight Instructor Debrief"
-                description={`Booking #${booking.bookingNumber} · ${booking.type}`}
-                actions={<BackNavButton href="/bookings/history" text="Back to History" />}
-            />
-
-            <Card className="flex-1 min-h-0 flex flex-col overflow-hidden shadow-none border">
-                <CardHeader className="shrink-0 border-b bg-muted/5 px-5 py-4">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <div>
-                            <CardTitle>Post-Flight Instructor Debrief</CardTitle>
-                            <CardDescription>
-                                Booking #{booking.bookingNumber} • {booking.type}
-                            </CardDescription>
-                        </div>
-                        <div className="flex items-center gap-3 rounded-xl border bg-background px-4 py-3">
-                            <div className="flex flex-col">
-                                <span className="text-[10px] uppercase font-black tracking-[0.12em] text-muted-foreground">Student</span>
-                                <span className="text-sm font-semibold">{studentName}</span>
+        <div className="mx-auto flex h-full min-h-0 w-full max-w-[1100px] flex-col gap-6 overflow-hidden px-1">
+            <Card className="flex min-h-0 flex-col overflow-hidden border border-card-border shadow-none">
+                <CardControlHeader
+                    className="sticky top-0 z-20 bg-muted/5"
+                    context={
+                        <div className="flex min-w-0 flex-col gap-1">
+                            <div className="flex items-center justify-between gap-3">
+                                <div className="min-w-0">
+                                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
+                                        Post-Flight Instructor Debrief
+                                    </p>
+                                    <p className="truncate text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+                                        Booking #{booking.bookingNumber} · {booking.type}
+                                    </p>
+                                </div>
+                                <BackNavButton href="/bookings/history" text="Back to History" />
                             </div>
-                            <Separator orientation="vertical" className="h-8" />
-                            <div className="flex flex-col">
-                                <span className="text-[10px] uppercase font-black tracking-[0.12em] text-muted-foreground">Instructor</span>
-                                <span className="text-sm font-semibold">{instructorName}</span>
+                            <div className="flex flex-wrap items-center gap-3 text-sm font-semibold">
+                                <span>Student: {studentName}</span>
+                                <Separator orientation="vertical" className="h-4" />
+                                <span>Instructor: {instructorName}</span>
                             </div>
                         </div>
-                    </div>
-                </CardHeader>
+                    }
+                />
                 <CardContent className="flex-1 min-h-0 p-0 overflow-hidden">
                     <Form {...form}>
                         <form onSubmit={form.handleSubmit(onSubmit)} className="h-full flex flex-col">
@@ -401,6 +469,7 @@ function NewDebriefContent() {
                                                     const entry = watchedEntries?.[index];
                                                     const selectedTemplate = getTrainingExerciseTemplate(entry?.exerciseTemplateKey || DEFAULT_TRAINING_EXERCISE_TEMPLATE_KEY, trainingExerciseTemplates);
                                                     const criteriaRatings = entry?.criteriaRatings || [];
+                                                    const humanFactors = entry?.humanFactors || [];
 
                                                     return (
                                                         <>
@@ -553,6 +622,164 @@ function NewDebriefContent() {
                                                                 </div>
                                                             </div>
 
+                                                            <div className="rounded-xl border bg-muted/5 p-3.5 space-y-3.5">
+                                                                <div className="flex items-start justify-between gap-4">
+                                                                    <div className="space-y-1">
+                                                                        <p className="text-sm font-semibold">Human Factors</p>
+                                                                        <p className="text-sm text-muted-foreground">
+                                                                            Mark the core human-factors checks that were relevant on this flight.
+                                                                        </p>
+                                                                    </div>
+                                                                </div>
+
+                                                                <div className="grid gap-2.5 md:grid-cols-2">
+                                                                    {HUMAN_FACTORS_CHECKS.filter((item) => item.category === 'human_factor').map((item) => {
+                                                                        const factorIndex = humanFactors.findIndex((entry) => entry.label === item.label);
+                                                                        const factor = factorIndex >= 0 ? humanFactors[factorIndex] : {
+                                                                            id: uuidv4(),
+                                                                            label: item.label,
+                                                                            category: item.category,
+                                                                            status: 'not_applicable' as const,
+                                                                            comment: '',
+                                                                        };
+
+                                                                        return (
+                                                                            <div key={item.id} className="rounded-lg border bg-background p-2.5 space-y-2">
+                                                                                <div className="flex items-start justify-between gap-3">
+                                                                                    <div className="space-y-0.5">
+                                                                                        <p className="text-sm font-semibold leading-tight">{item.label}</p>
+                                                                                        <p className="text-[10px] font-black uppercase tracking-[0.12em] text-muted-foreground">
+                                                                                            {item.category === 'hazardous_attitude' ? 'Hazardous Attitude' : 'Human Factor'}
+                                                                                        </p>
+                                                                                    </div>
+                                                                                    <p className="text-[10px] text-muted-foreground text-right">{item.description}</p>
+                                                                                </div>
+                                                                                <Select
+                                                                                    value={factor.status}
+                                                                                    onValueChange={(value) => {
+                                                                                        if (factorIndex >= 0) {
+                                                                                            handleHumanFactorChange(index, factorIndex, { status: value as HumanFactorsStatus, label: item.label, category: item.category });
+                                                                                        }
+                                                                                    }}
+                                                                                >
+                                                                                    <SelectTrigger>
+                                                                                        <SelectValue placeholder="Select status" />
+                                                                                    </SelectTrigger>
+                                                                                    <SelectContent>
+                                                                                        {HUMAN_FACTORS_OPTIONS.map((option) => (
+                                                                                            <SelectItem key={option.value} value={option.value}>
+                                                                                                {option.label}
+                                                                                            </SelectItem>
+                                                                                        ))}
+                                                                                    </SelectContent>
+                                                                                </Select>
+                                                                                <Input
+                                                                                    value={factor.comment || ''}
+                                                                                    placeholder="Optional note"
+                                                                                    onChange={(event) => {
+                                                                                        if (factorIndex >= 0) {
+                                                                                            handleHumanFactorChange(index, factorIndex, { comment: event.target.value, label: item.label, category: item.category });
+                                                                                        }
+                                                                                    }}
+                                                                                />
+                                                                            </div>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="rounded-xl border bg-muted/5 p-4 space-y-4">
+                                                                <div className="flex items-start justify-between gap-4">
+                                                                    <div className="space-y-1">
+                                                                        <p className="text-sm font-semibold">Hazardous Attitudes</p>
+                                                                        <p className="text-sm text-muted-foreground">
+                                                                            Add a hazardous attitude only when it was actually observed on this flight.
+                                                                        </p>
+                                                                    </div>
+                                                                    <Button type="button" variant="outline" size="sm" className="h-8 text-[10px] font-black uppercase" onClick={() => handleAddHazardousAttitude(index)}>
+                                                                        <PlusCircle className="mr-2 h-4 w-4" /> Add Hazardous Attitude
+                                                                    </Button>
+                                                                </div>
+
+                                                                {humanFactors.some((factor) => factor.category === 'hazardous_attitude') ? (
+                                                                    <div className="space-y-2.5">
+                                                                        {humanFactors
+                                                                            .map((factor, factorIndex) => ({ factor, factorIndex }))
+                                                                            .filter(({ factor }) => factor.category === 'hazardous_attitude')
+                                                                            .map(({ factor, factorIndex }) => (
+                                                                                <div key={factor.id} className="rounded-lg border bg-background p-2.5 space-y-2.5">
+                                                                                    <div className="flex items-start justify-between gap-3">
+                                                                                        <div className="space-y-1 flex-1">
+                                                                                            <Select
+                                                                                                value={factor.label}
+                                                                                                onValueChange={(value) => {
+                                                                                                    const selected = HAZARDOUS_ATTITUDE_OPTIONS.find((option) => option.value === value);
+                                                                                                    if (selected) {
+                                                                                                        handleHumanFactorChange(index, factorIndex, {
+                                                                                                            label: selected.label,
+                                                                                                            category: 'hazardous_attitude',
+                                                                                                            status: 'observed',
+                                                                                                        });
+                                                                                                    }
+                                                                                                }}
+                                                                                            >
+                                                                                                <SelectTrigger>
+                                                                                                    <SelectValue placeholder="Select hazardous attitude" />
+                                                                                                </SelectTrigger>
+                                                                                                <SelectContent>
+                                                                                                    {getHazardousAttitudeOptions(factor.label).map((option) => (
+                                                                                                        <SelectItem key={option.value} value={option.value}>
+                                                                                                            {option.label}
+                                                                                                        </SelectItem>
+                                                                                                    ))}
+                                                                                                </SelectContent>
+                                                                                            </Select>
+                                                                                            <p className="text-[10px] font-black uppercase tracking-[0.12em] text-muted-foreground">Observed hazardous attitude</p>
+                                                                                        </div>
+                                                                                        <Button
+                                                                                            type="button"
+                                                                                            variant="ghost"
+                                                                                            size="icon"
+                                                                                            className="text-destructive"
+                                                                                            onClick={() => handleRemoveCriterion(index, factorIndex)}
+                                                                                        >
+                                                                                            <Trash2 className="h-4 w-4" />
+                                                                                        </Button>
+                                                                                    </div>
+                                                                                    <div className="grid gap-3 md:grid-cols-[220px_1fr]">
+                                                                                        <Select
+                                                                                            value={factor.status}
+                                                                                            onValueChange={(value) => {
+                                                                                                handleHumanFactorChange(index, factorIndex, { status: value as HumanFactorsStatus });
+                                                                                            }}
+                                                                                        >
+                                                                                            <SelectTrigger>
+                                                                                                <SelectValue placeholder="Select status" />
+                                                                                            </SelectTrigger>
+                                                                                            <SelectContent>
+                                                                                                {HUMAN_FACTORS_OPTIONS.filter((option) => option.value !== 'not_applicable').map((option) => (
+                                                                                                    <SelectItem key={option.value} value={option.value}>
+                                                                                                        {option.label}
+                                                                                                    </SelectItem>
+                                                                                                ))}
+                                                                                            </SelectContent>
+                                                                                        </Select>
+                                                                                        <Input
+                                                                                            value={factor.comment || ''}
+                                                                                            placeholder="Optional note"
+                                                                                            onChange={(event) => {
+                                                                                                handleHumanFactorChange(index, factorIndex, { comment: event.target.value });
+                                                                                            }}
+                                                                                        />
+                                                                                    </div>
+                                                                                </div>
+                                                                            ))}
+                                                                    </div>
+                                                                ) : (
+                                                                    <p className="text-xs text-muted-foreground italic">No hazardous attitudes added for this debrief yet.</p>
+                                                                )}
+                                                            </div>
+
                                                             <FormField 
                                                                 control={form.control} 
                                                                 name={`entries.${index}.comment`} 
@@ -687,3 +914,5 @@ export default function NewDebriefPage() {
         </Suspense>
     );
 }
+
+

@@ -603,6 +603,59 @@ export function TrainingRecords({ studentId, tenantId }: TrainingRecordsProps) {
                                                                     ))}
                                                                 </div>
                                                             ) : null}
+                                                            {Array.isArray(entry.humanFactors) && entry.humanFactors.length > 0 ? (
+                                                                <div className="mb-3 space-y-3">
+                                                                    <div className="space-y-2">
+                                                                        <p className="text-[10px] font-bold uppercase text-muted-foreground">Human Factors</p>
+                                                                        {entry.humanFactors
+                                                                            .filter((factor) => factor.category === 'human_factor')
+                                                                            .map((factor) => (
+                                                                                <div key={factor.id} className="rounded-md border bg-muted/30 px-2.5 py-2">
+                                                                                    <div className="flex items-center justify-between gap-2">
+                                                                                        <div>
+                                                                                            <p className="text-[11px] font-semibold">{factor.label}</p>
+                                                                                            <p className="text-[9px] font-black uppercase tracking-[0.12em] text-muted-foreground">
+                                                                                                Human Factor
+                                                                                            </p>
+                                                                                        </div>
+                                                                                        <Badge variant="outline" className="h-5 text-[10px] font-black uppercase">
+                                                                                            {factor.status === 'observed' ? 'Observed' : factor.status === 'needs_attention' ? 'Needs Attention' : 'N/A'}
+                                                                                        </Badge>
+                                                                                    </div>
+                                                                                    {factor.comment ? (
+                                                                                        <p className="mt-1 text-[11px] text-muted-foreground italic">{factor.comment}</p>
+                                                                                    ) : null}
+                                                                                </div>
+                                                                            ))}
+                                                                    </div>
+                                                                    <div className="space-y-2">
+                                                                        <p className="text-[10px] font-bold uppercase text-muted-foreground">Hazardous Attitudes</p>
+                                                                        {entry.humanFactors
+                                                                            .filter((factor) => factor.category === 'hazardous_attitude' && factor.status !== 'not_applicable')
+                                                                            .map((factor) => (
+                                                                                <div key={factor.id} className="rounded-md border bg-muted/30 px-2.5 py-2">
+                                                                                    <div className="flex items-center justify-between gap-2">
+                                                                                        <div>
+                                                                                            <p className="text-[11px] font-semibold">{factor.label}</p>
+                                                                                            <p className="text-[9px] font-black uppercase tracking-[0.12em] text-muted-foreground">
+                                                                                                Hazardous Attitude
+                                                                                            </p>
+                                                                                        </div>
+                                                                                        <Badge variant="outline" className="h-5 text-[10px] font-black uppercase">
+                                                                                            {factor.status === 'observed' ? 'Observed' : factor.status === 'needs_attention' ? 'Needs Attention' : 'N/A'}
+                                                                                        </Badge>
+                                                                                    </div>
+                                                                                    {factor.comment ? (
+                                                                                        <p className="mt-1 text-[11px] text-muted-foreground italic">{factor.comment}</p>
+                                                                                    ) : null}
+                                                                                </div>
+                                                                            ))}
+                                                                        {entry.humanFactors.filter((factor) => factor.category === 'hazardous_attitude' && factor.status !== 'not_applicable').length === 0 ? (
+                                                                            <p className="text-[11px] text-muted-foreground italic">No hazardous attitudes were observed on this debrief.</p>
+                                                                        ) : null}
+                                                                    </div>
+                                                                </div>
+                                                            ) : null}
                                                             <p className="text-xs text-muted-foreground italic">{entry.comment || 'No specific notes.'}</p>
                                                         </div>
                                                     ))}

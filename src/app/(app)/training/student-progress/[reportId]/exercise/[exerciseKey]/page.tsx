@@ -18,6 +18,20 @@ interface ExerciseReviewPageProps {
   params: Promise<{ reportId: string; exerciseKey: string }>;
 }
 
+type ReviewEntry = {
+  reportId: string;
+  date: string;
+  bookingId?: string;
+  bookingNumber?: string;
+  instructorId?: string;
+  summary: string;
+  rating: 1 | 2 | 3 | 4 | 5;
+  recommendationAction?: StudentProgressReport['entries'][number]['instructorRecommendationAction'];
+  recommendationComment?: string;
+  criteria: StudentProgressReport['entries'][number]['criteriaRatings'];
+  humanFactors?: StudentProgressReport['entries'][number]['humanFactors'];
+};
+
 type SummaryPayload = {
   students?: PilotProfile[];
   instructors?: PilotProfile[];
@@ -103,7 +117,7 @@ export default function ExerciseReviewPage({ params }: ExerciseReviewPageProps) 
 
   const matchingDebriefs = useMemo(() => {
     const reports = Array.isArray(summary.studentProgressReports) ? summary.studentProgressReports : [];
-    return reports
+    const mapped = reports
       .filter((report) => report.studentId === studentId)
       .flatMap((report) =>
         report.entries
@@ -119,9 +133,10 @@ export default function ExerciseReviewPage({ params }: ExerciseReviewPageProps) 
             recommendationAction: entry.instructorRecommendationAction,
             recommendationComment: entry.instructorRecommendationComment,
             criteria: Array.isArray(entry.criteriaRatings) ? entry.criteriaRatings : [],
+            humanFactors: Array.isArray(entry.humanFactors) ? entry.humanFactors : [],
           })),
-      )
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      ) as ReviewEntry[];
+    return mapped.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [exerciseKey, studentId, summary.studentProgressReports]);
 
   const matchingReviews = useMemo(() => {
@@ -250,7 +265,7 @@ export default function ExerciseReviewPage({ params }: ExerciseReviewPageProps) 
                         <p className="mt-1 text-sm text-muted-foreground">{item.recommendationComment}</p>
                       </div>
                     ) : null}
-                    {item.criteria.length > 0 ? (
+                    {Array.isArray(item.criteria) && item.criteria.length > 0 ? (
                       <div className="grid gap-2 md:grid-cols-2">
                         {item.criteria.map((criterion) => (
                           <div key={criterion.id} className="rounded-lg border bg-muted/20 px-3 py-2">
@@ -265,6 +280,45 @@ export default function ExerciseReviewPage({ params }: ExerciseReviewPageProps) 
                             ) : null}
                           </div>
                         ))}
+                      </div>
+                    ) : null}
+                    {Array.isArray(item.humanFactors) && item.humanFactors.length > 0 ? (
+                      <div className="space-y-3">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
+                          Full human-factors capture, including Not Applicable items
+                        </p>
+                        <div className="space-y-2">
+                          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Human Factors</p>
+                          {item.humanFactors
+                            .filter((factor) => factor.category === 'human_factor')
+                            .map((factor) => (
+                              <div key={factor.id} className="rounded-lg border bg-muted/20 px-3 py-2">
+                                <div className="flex items-center justify-between gap-2">
+                                  <p className="text-xs font-semibold">{factor.label}</p>
+                                  <span className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
+                                    {factor.status === 'observed' ? 'Observed' : factor.status === 'needs_attention' ? 'Needs Attention' : 'N/A'}
+                                  </span>
+                                </div>
+                                {factor.comment ? <p className="mt-1 text-xs text-muted-foreground">{factor.comment}</p> : null}
+                              </div>
+                            ))}
+                        </div>
+                        <div className="space-y-2">
+                          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Hazardous Attitudes</p>
+                          {item.humanFactors
+                            .filter((factor) => factor.category === 'hazardous_attitude')
+                            .map((factor) => (
+                              <div key={factor.id} className="rounded-lg border bg-muted/20 px-3 py-2">
+                                <div className="flex items-center justify-between gap-2">
+                                  <p className="text-xs font-semibold">{factor.label}</p>
+                                  <span className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
+                                    {factor.status === 'observed' ? 'Observed' : factor.status === 'needs_attention' ? 'Needs Attention' : 'N/A'}
+                                  </span>
+                                </div>
+                                {factor.comment ? <p className="mt-1 text-xs text-muted-foreground">{factor.comment}</p> : null}
+                              </div>
+                            ))}
+                        </div>
                       </div>
                     ) : null}
                   </div>

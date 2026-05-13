@@ -9,6 +9,18 @@ export type InstructorRecommendationAction =
     | 'recommend_next_phase'
     | 'recommend_solo_review';
 
+export type HumanFactorsCategory = 'human_factor' | 'hazardous_attitude';
+
+export type HumanFactorsStatus = 'observed' | 'needs_attention' | 'not_applicable';
+
+export interface StudentProgressHumanFactor {
+    id: string;
+    label: string;
+    category: HumanFactorsCategory;
+    status: HumanFactorsStatus;
+    comment?: string;
+}
+
 export interface StudentProgressCriterionRating {
     id: string;
     key?: string;
@@ -30,6 +42,7 @@ export interface StudentProgressEntry {
     competencyKey?: string;
     competencySignal?: CompetencySignal;
     criteriaRatings?: StudentProgressCriterionRating[];
+    humanFactors?: StudentProgressHumanFactor[];
 }
 
 export interface StudentProgressReport {
