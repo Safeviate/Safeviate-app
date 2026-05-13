@@ -9,10 +9,14 @@ import type { Booking, NavlogLeg } from '@/types/booking';
 import type { ActiveLegState, FlightPosition } from '@/types/flight-session';
 import { cn } from '@/lib/utils';
 
+type Point = [number, number];
+
 type FullScreenFlightLayoutProps = {
   booking: Booking | null;
   legs: NavlogLeg[];
   position: FlightPosition | null;
+  initialTrackHistory?: Point[];
+  initialLastPosition?: FlightPosition | null;
   aircraftRegistration?: string;
   activeLegIndex?: number;
   activeLegState?: ActiveLegState | null;
@@ -40,6 +44,8 @@ export function FullScreenFlightLayout({
   booking,
   legs,
   position,
+  initialTrackHistory = [],
+  initialLastPosition = null,
   aircraftRegistration,
   activeLegIndex,
   activeLegState,
@@ -88,6 +94,8 @@ export function FullScreenFlightLayout({
                 booking={booking}
                 legs={legs}
                 position={position}
+                initialTrackHistory={initialTrackHistory}
+                initialLastPosition={initialLastPosition}
                 aircraftRegistration={aircraftRegistration}
                 activeLegIndex={activeLegIndex}
                 activeLegState={activeLegState}

@@ -413,6 +413,16 @@ export default function ActiveFlightPage() {
     () => flightSessions.find((session) => session.deviceId === deviceBinding?.deviceId) || null,
     [deviceBinding?.deviceId, flightSessions],
   );
+  const currentDeviceTrackHistory = useMemo(
+    () =>
+      currentDeviceSession?.breadcrumb
+        ? currentDeviceSession.breadcrumb
+            .filter((point) => typeof point.latitude === 'number' && typeof point.longitude === 'number')
+            .map((point) => [point.latitude, point.longitude] as [number, number])
+        : [],
+    [currentDeviceSession?.breadcrumb],
+  );
+  const currentDeviceLastPosition = currentDeviceSession?.lastPosition || null;
   useEffect(() => {
     setEditableLegs(null);
   }, [loadedBookingId, loadedPlannerRouteId]);
@@ -1003,6 +1013,8 @@ export default function ActiveFlightPage() {
             booking={selectedBooking}
             legs={displayLegs}
             position={effectivePosition}
+            initialTrackHistory={currentDeviceTrackHistory}
+            initialLastPosition={currentDeviceLastPosition}
             aircraftRegistration={selectedAircraft?.tailNumber}
             activeLegIndex={activeLegState?.activeLegIndex}
             activeLegState={activeLegState}
@@ -1102,6 +1114,8 @@ export default function ActiveFlightPage() {
           booking={selectedBooking}
           legs={displayLegs}
           position={effectivePosition}
+          initialTrackHistory={currentDeviceTrackHistory}
+          initialLastPosition={currentDeviceLastPosition}
           aircraftRegistration={selectedAircraft?.tailNumber}
           activeLegIndex={activeLegState?.activeLegIndex}
           activeLegState={activeLegState}
@@ -1589,6 +1603,8 @@ export default function ActiveFlightPage() {
                 booking={selectedBooking}
                 legs={displayLegs}
                 position={effectivePosition}
+                initialTrackHistory={currentDeviceTrackHistory}
+                initialLastPosition={currentDeviceLastPosition}
                 aircraftRegistration={selectedAircraft?.tailNumber}
                 activeLegIndex={activeLegState?.activeLegIndex}
                 activeLegState={activeLegState}

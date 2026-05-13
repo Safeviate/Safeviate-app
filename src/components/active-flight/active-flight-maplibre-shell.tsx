@@ -32,6 +32,7 @@ type ActiveFlightMapLibreShellProps = {
   position: FlightPosition;
   routePoints: Point[];
   trackHistory: Point[];
+  isRestoredState?: boolean;
   legs: Array<{ id: string; latitude?: number; longitude?: number; waypoint: string }>;
   activeLegIndex?: number;
   airportFeatures: Array<{ _id: string; name: string; type?: string; icaoCode?: string; identifier?: string; geometry?: { coordinates?: [number, number] }; sourceLayer: 'airports' | 'navaids' | 'reporting-points' }>;
@@ -336,6 +337,7 @@ export function ActiveFlightMapLibreShell({
   position,
   routePoints,
   trackHistory,
+  isRestoredState = false,
   legs,
   activeLegIndex,
   airportFeatures,
@@ -397,6 +399,8 @@ export function ActiveFlightMapLibreShell({
 
   const routeGeoJson = useMemo(() => makeLineFeatureCollection(routePoints), [routePoints]);
   const trackGeoJson = useMemo(() => makeLineFeatureCollection(trackHistory), [trackHistory]);
+  const trackLineColor = isRestoredState ? '#f59e0b' : '#38bdf8';
+  const trackLineOpacity = isRestoredState ? 0.85 : 0.72;
   const waypointLegs = useMemo(() => legs.filter((leg) => leg.latitude !== undefined && leg.longitude !== undefined), [legs]);
   const airportGeoJson = useMemo(
     () => ({
@@ -596,15 +600,15 @@ export function ActiveFlightMapLibreShell({
     ownshipEl.style.width = '24px';
     ownshipEl.style.height = '24px';
     ownshipEl.style.borderRadius = '9999px';
-    ownshipEl.style.background = '#0ea5e9';
+    ownshipEl.style.background = isRestoredState ? '#f59e0b' : '#0ea5e9';
     ownshipEl.style.border = '3px solid white';
-    ownshipEl.style.boxShadow = '0 0 0 4px rgba(14,165,233,0.15)';
+    ownshipEl.style.boxShadow = isRestoredState ? '0 0 0 4px rgba(245,158,11,0.18)' : '0 0 0 4px rgba(14,165,233,0.15)';
     ownshipEl.style.transformOrigin = 'center';
     ownshipEl.style.position = 'relative';
     ownshipEl.innerHTML = `
       <div data-ownship-icon style="width:100%;height:100%;position:relative;display:flex;align-items:center;justify-content:center;">
-        <div style="width:100%;height:100%;border-radius:9999px;background:#0ea5e9;border:3px solid white;box-shadow:0 0 0 4px rgba(14,165,233,0.15);"></div>
-        <div style="position:absolute;left:50%;top:-6px;transform:translateX(-50%);width:2px;height:10px;background:#0ea5e9;border-radius:9999px;"></div>
+        <div style="width:100%;height:100%;border-radius:9999px;background:${isRestoredState ? '#f59e0b' : '#0ea5e9'};border:3px solid white;box-shadow:${isRestoredState ? '0 0 0 4px rgba(245,158,11,0.18)' : '0 0 0 4px rgba(14,165,233,0.15)'};"></div>
+        <div style="position:absolute;left:50%;top:-6px;transform:translateX(-50%);width:2px;height:10px;background:${isRestoredState ? '#f59e0b' : '#0ea5e9'};border-radius:9999px;"></div>
       </div>
     `;
 
@@ -629,9 +633,9 @@ export function ActiveFlightMapLibreShell({
         type: 'line',
         source: 'track',
         paint: {
-          'line-color': '#38bdf8',
+          'line-color': trackLineColor,
           'line-width': 3,
-          'line-opacity': 0.72,
+          'line-opacity': trackLineOpacity,
         },
         layout: { 'line-cap': 'round', 'line-join': 'round', visibility: toLayerVisibility(showTrackLine) },
       });
@@ -1090,7 +1094,7 @@ export function ActiveFlightMapLibreShell({
       map.remove();
       mapRef.current = null;
     };
-  }, []);
+  }, [isRestoredState, trackLineColor, trackLineOpacity]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -1276,11 +1280,13 @@ export function ActiveFlightMapLibreShell({
 
     if (map.getLayer('track-line')) {
       map.setLayoutProperty('track-line', 'visibility', toLayerVisibility(showTrackLine));
+      map.setPaintProperty('track-line', 'line-color', trackLineColor);
+      map.setPaintProperty('track-line', 'line-opacity', trackLineOpacity);
     }
     if (map.getLayer('openaip-master-chart-layer')) {
       map.setLayoutProperty('openaip-master-chart-layer', 'visibility', toLayerVisibility(showMasterChart));
     }
-  }, [routeGeoJson, showMasterChart, showTrackLine, trackGeoJson]);
+  }, [routeGeoJson, showMasterChart, showTrackLine, trackGeoJson, trackLineColor, trackLineOpacity]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -1358,6 +1364,21 @@ export function ActiveFlightMapLibreShell({
 
     const heading = normalizeHeading(position.headingTrue) ?? 0;
     currentHeadingRef.current = heading;
+    const ownshipEl = ownship.getElement();
+    ownshipEl.style.background = isRestoredState ? '#f59e0b' : '#0ea5e9';
+    ownshipEl.style.boxShadow = isRestoredState ? '0 0 0 4px rgba(245,158,11,0.18)' : '0 0 0 4px rgba(14,165,233,0.15)';
+    const icon = ownshipEl.querySelector<HTMLElement>('[data-ownship-icon]');
+    if (icon) {
+      const marker = icon.querySelector<HTMLElement>('div');
+      const needle = icon.querySelectorAll<HTMLElement>('div')[1];
+      if (marker) {
+        marker.style.background = isRestoredState ? '#f59e0b' : '#0ea5e9';
+        marker.style.boxShadow = isRestoredState ? '0 0 0 4px rgba(245,158,11,0.18)' : '0 0 0 4px rgba(14,165,233,0.15)';
+      }
+      if (needle) {
+        needle.style.background = isRestoredState ? '#f59e0b' : '#0ea5e9';
+      }
+    }
     ownship
       .setLngLat([position.longitude, position.latitude])
       .addTo(map);
@@ -1383,7 +1404,7 @@ export function ActiveFlightMapLibreShell({
       center: [position.longitude, position.latitude],
       bearing: heading + (debugBearingOffset || 0),
     });
-  }, [debugBearingOffset, followOwnship, position]);
+  }, [debugBearingOffset, followOwnship, isRestoredState, position]);
 
   useEffect(() => {
     const map = mapRef.current;

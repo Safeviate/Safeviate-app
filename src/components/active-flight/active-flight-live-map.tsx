@@ -99,12 +99,35 @@ const AIRSPACE_CLASS_E = 6;
 const AIRSPACE_CLASS_F = 7;
 const AIRSPACE_CLASS_G = 8;
 const LOCATION_CALIBRATION_STORAGE_KEY = 'safeviate:active-flight-location-calibration';
+const ACTIVE_FLIGHT_MAP_STATE_PREFIX = 'safeviate:active-flight-map-state:';
 type Point = [number, number];
 
 type LocationCalibration = {
   latitude: number;
   longitude: number;
   savedAt: string;
+};
+
+type PersistedActiveFlightMapState = {
+  trackHistory: Point[];
+  lastPosition?: FlightPosition;
+  savedAt: string;
+};
+
+const normalizePositionPoint = (value: FlightPosition | null | undefined): Point | null => {
+  if (!value) return null;
+  if (typeof value.latitude !== 'number' || typeof value.longitude !== 'number') return null;
+  return [value.latitude, value.longitude];
+};
+
+const mergeTrackHistory = (base: Point[], next: Point[]) => {
+  const merged: Point[] = [];
+  for (const point of [...base, ...next]) {
+    const last = merged[merged.length - 1];
+    if (last && last[0] === point[0] && last[1] === point[1]) continue;
+    merged.push(point);
+  }
+  return merged.slice(-40);
 };
 
 const delay = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
@@ -126,6 +149,42 @@ const readLocationCalibration = () => {
 const saveLocationCalibration = (calibration: LocationCalibration) => {
   if (typeof window === 'undefined') return;
   window.localStorage.setItem(LOCATION_CALIBRATION_STORAGE_KEY, JSON.stringify(calibration));
+};
+
+const hashPersistenceSource = (value: string) => {
+  let hash = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash << 5) - hash + value.charCodeAt(index);
+    hash |= 0;
+  }
+  return Math.abs(hash).toString(36);
+};
+
+const getActiveFlightMapStateKey = (aircraftRegistration?: string | null, bookingId?: string | null, routeSignature = '') => {
+  const aircraftPart = aircraftRegistration?.trim() || 'unbound';
+  const bookingPart = bookingId?.trim() || 'no-booking';
+  const routePart = routeSignature ? hashPersistenceSource(routeSignature) : 'no-route';
+  return `${ACTIVE_FLIGHT_MAP_STATE_PREFIX}${aircraftPart}:${bookingPart}:${routePart}`;
+};
+
+const readPersistedActiveFlightMapState = (key: string) => {
+  if (typeof window === 'undefined') return null;
+
+  const raw = window.localStorage.getItem(key);
+  if (!raw) return null;
+
+  try {
+    const parsed = JSON.parse(raw) as PersistedActiveFlightMapState;
+    return Array.isArray(parsed.trackHistory) ? parsed : null;
+  } catch {
+    window.localStorage.removeItem(key);
+    return null;
+  }
+};
+
+const savePersistedActiveFlightMapState = (key: string, state: PersistedActiveFlightMapState) => {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(key, JSON.stringify(state));
 };
 
 const clearLocationCalibration = () => {
@@ -1086,6 +1145,8 @@ export function ActiveFlightLiveMap({
   booking,
   legs,
   position,
+  initialTrackHistory = [],
+  initialLastPosition = null,
   aircraftRegistration,
   activeLegIndex,
   activeLegState,
@@ -1112,6 +1173,8 @@ export function ActiveFlightLiveMap({
   booking: Booking | null;
   legs: NavlogLeg[];
   position: FlightPosition | null;
+  initialTrackHistory?: Point[];
+  initialLastPosition?: FlightPosition | null;
   aircraftRegistration?: string;
   activeLegIndex?: number;
   activeLegState?: ActiveLegState | null;
@@ -1151,6 +1214,7 @@ export function ActiveFlightLiveMap({
     [routePoints]
   );
   const [trackHistory, setTrackHistory] = useState<[number, number][]>([]);
+  const [persistedLastPosition, setPersistedLastPosition] = useState<FlightPosition | null>(null);
   const [internalFollowOwnship, setInternalFollowOwnship] = useState(true);
   const [recenterNonce, setRecenterNonce] = useState(0);
   const [cacheNonce, setCacheNonce] = useState(0);
@@ -1184,8 +1248,13 @@ export function ActiveFlightLiveMap({
   const [obstacleFeatures, setObstacleFeatures] = useState<OpenAipObstacle[]>([]);
   const [locationCalibration, setLocationCalibration] = useState<LocationCalibration | null>(null);
   const [mapCenter, setMapCenter] = useState<Point | null>(null);
+  const activeFlightMapStateKey = useMemo(
+    () => getActiveFlightMapStateKey(aircraftRegistration, booking?.id, routeSignature),
+    [aircraftRegistration, booking?.id, routeSignature]
+  );
   const manualLatitudeInputRef = useRef<HTMLInputElement | null>(null);
   const manualLongitudeInputRef = useRef<HTMLInputElement | null>(null);
+  const hydratedMapStateKeyRef = useRef<string | null>(null);
   const [showRouteLine, setShowRouteLine] = useState(() => readStoredActiveFlightMapLayerSettings().showRouteLine);
   const [showWaypointMarkers, setShowWaypointMarkers] = useState(() => readStoredActiveFlightMapLayerSettings().showWaypointMarkers);
   const [showTrackLine, setShowTrackLine] = useState(() => readStoredActiveFlightMapLayerSettings().showTrackLine);
@@ -1307,7 +1376,7 @@ export function ActiveFlightLiveMap({
 
   const followOwnship = followOwnshipProp ?? internalFollowOwnship;
   const displayPosition = useMemo<FlightPosition | null>(() => {
-    if (!position && !locationCalibration) return null;
+    if (!position && !locationCalibration && !persistedLastPosition && !initialLastPosition) return null;
 
     if (position && !locationCalibration) {
       return position;
@@ -1321,6 +1390,10 @@ export function ActiveFlightLiveMap({
       };
     }
 
+    if ((persistedLastPosition || initialLastPosition) && !locationCalibration) {
+      return persistedLastPosition || initialLastPosition;
+    }
+
     return {
       latitude: locationCalibration!.latitude,
       longitude: locationCalibration!.longitude,
@@ -1330,7 +1403,7 @@ export function ActiveFlightLiveMap({
       headingTrue: null,
       timestamp: locationCalibration!.savedAt,
     };
-  }, [locationCalibration, position]);
+  }, [initialLastPosition, locationCalibration, persistedLastPosition, position]);
   const airportFeatures = useMemo(() => viewportFeatures.filter((item) => item.sourceLayer === 'airports' && item.geometry?.coordinates), [viewportFeatures]);
   const navaidFeatures = useMemo(() => viewportFeatures.filter((item) => item.sourceLayer === 'navaids' && item.geometry?.coordinates), [viewportFeatures]);
   const reportingPointFeatures = useMemo(() => viewportFeatures.filter((item) => item.sourceLayer === 'reporting-points' && item.geometry?.coordinates), [viewportFeatures]);
@@ -1394,8 +1467,32 @@ export function ActiveFlightLiveMap({
   }, [followOwnship, followOwnshipProp, onFollowOwnshipChange]);
 
   useEffect(() => {
-    setTrackHistory(displayPosition ? [[displayPosition.latitude, displayPosition.longitude]] : []);
-  }, [aircraftRegistration, booking?.id, displayPosition, routeSignature]);
+    if (typeof window === 'undefined') return;
+
+    if (!activeFlightMapStateKey) {
+      setTrackHistory([]);
+      hydratedMapStateKeyRef.current = null;
+      return;
+    }
+
+    const persistedState = readPersistedActiveFlightMapState(activeFlightMapStateKey);
+    const serverTrackHistory = initialTrackHistory.length > 0 ? initialTrackHistory : normalizePositionPoint(initialLastPosition) ? [normalizePositionPoint(initialLastPosition)!] : [];
+
+    if (persistedState?.trackHistory?.length) {
+      setTrackHistory(mergeTrackHistory(serverTrackHistory, persistedState.trackHistory));
+    } else {
+      setTrackHistory(
+        serverTrackHistory.length > 0
+          ? serverTrackHistory
+          : displayPosition
+            ? [[displayPosition.latitude, displayPosition.longitude]]
+            : []
+      );
+    }
+    setPersistedLastPosition(persistedState?.lastPosition ?? initialLastPosition ?? null);
+
+    hydratedMapStateKeyRef.current = activeFlightMapStateKey;
+  }, [activeFlightMapStateKey, displayPosition, initialLastPosition, initialTrackHistory]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -1442,6 +1539,17 @@ export function ActiveFlightLiveMap({
     });
   }, [displayPosition]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined' || !activeFlightMapStateKey) return;
+    if (hydratedMapStateKeyRef.current !== activeFlightMapStateKey) return;
+
+    savePersistedActiveFlightMapState(activeFlightMapStateKey, {
+      trackHistory,
+      lastPosition: displayPosition ?? undefined,
+      savedAt: new Date().toISOString(),
+    });
+  }, [activeFlightMapStateKey, displayPosition, trackHistory]);
+
   const center = displayPosition
     ? ([displayPosition.latitude, displayPosition.longitude] as [number, number])
     : routePoints[0] || ([-25.9, 27.9] as [number, number]);
@@ -1472,6 +1580,12 @@ export function ActiveFlightLiveMap({
     : position
       ? 'Following browser GPS'
       : 'No live position';
+  const isRestoredState = !position && (persistedLastPosition != null || initialLastPosition != null || trackHistory.length > 0);
+  const trackPersistenceLabel = position
+    ? 'Live GPS feed'
+    : isRestoredState
+      ? 'Restored last known track'
+      : 'Waiting for first fix';
   const locationStatusDetail = geolocationError
     ? geolocationError
     : permissionState === 'denied'
@@ -1581,10 +1695,20 @@ export function ActiveFlightLiveMap({
             </tbody>
           </table>
           <div className="border-t border-slate-200 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
-            Mode: {followOwnship ? 'Track Up' : 'North Up'} · {locationStatusLabel}{rawAccuracyMeters != null ? ` · ${rawAccuracyMeters} m` : ''}{rawHdopValue != null ? ` · HDOP ${rawHdopValue.toFixed(1)}` : ''}
+            <span className="inline-flex flex-wrap items-center gap-2">
+              <span>Mode: {followOwnship ? 'Track Up' : 'North Up'} · {locationStatusLabel}{rawAccuracyMeters != null ? ` · ${rawAccuracyMeters} m` : ''}{rawHdopValue != null ? ` · HDOP ${rawHdopValue.toFixed(1)}` : ''}</span>
+              {isRestoredState ? (
+                <span className="inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-amber-800">
+                  Restored
+                </span>
+              ) : null}
+            </span>
           </div>
           <div className="border-t border-slate-200 px-3 py-1.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-500">
             {locationSourceLabel}
+          </div>
+          <div className="border-t border-slate-200 px-3 py-1.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+            Track source: {trackPersistenceLabel}
           </div>
           <div className="border-t border-slate-200 px-3 py-1.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-400">
             {locationStatusDetail}
@@ -1857,6 +1981,7 @@ export function ActiveFlightLiveMap({
               reportingPointFeatures={reportingPointFeatures}
               airspaceCollections={airspaceCollections}
               obstacleGeoJson={obstacleGeoJson}
+              isRestoredState={isRestoredState}
               onZoomChange={setCurrentZoom}
               onCenterChange={(nextCenter) => setMapCenter(nextCenter)}
               onMoveWaypoint={onMoveWaypoint}
@@ -1950,9 +2075,18 @@ export function ActiveFlightLiveMap({
               {followOwnship ? 'Track-up' : 'North-up'}
             </p>
             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
-              {locationStatusLabel}
-              {rawAccuracyMeters != null ? ` • ${rawAccuracyMeters} m` : ''}
-              {rawHdopValue != null ? ` • HDOP ${rawHdopValue.toFixed(1)}` : ''}
+              <span className="inline-flex flex-wrap items-center gap-2">
+                <span>
+                  {locationStatusLabel} · {trackPersistenceLabel}
+                  {rawAccuracyMeters != null ? ` • ${rawAccuracyMeters} m` : ''}
+                  {rawHdopValue != null ? ` • HDOP ${rawHdopValue.toFixed(1)}` : ''}
+                </span>
+                {isRestoredState ? (
+                  <span className="inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-amber-800">
+                    Restored
+                  </span>
+                ) : null}
+              </span>
             </p>
           </div>
         </div>
@@ -2332,6 +2466,7 @@ export function ActiveFlightLiveMap({
             reportingPointFeatures={reportingPointFeatures}
             airspaceCollections={airspaceCollections}
             obstacleGeoJson={obstacleGeoJson}
+            isRestoredState={isRestoredState}
             onZoomChange={setCurrentZoom}
             onCenterChange={(nextCenter) => setMapCenter(nextCenter)}
             onMoveWaypoint={onMoveWaypoint}
