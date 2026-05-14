@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -14,6 +14,11 @@ interface ImportFromMatrixDialogProps {
     complianceItems: ComplianceRequirement[];
     onImport: (sections: ChecklistSection[]) => void;
 }
+
+type MatrixTreeNode = {
+    item: ComplianceRequirement;
+    children: MatrixTreeNode[];
+};
 
 export function ImportFromMatrixDialog({ complianceItems, onImport }: ImportFromMatrixDialogProps) {
     const [isOpen, setIsOpen] = useState(false);
@@ -37,76 +42,212 @@ export function ImportFromMatrixDialog({ complianceItems, onImport }: ImportFrom
         }
         return a.length - b.length;
     };
+
+    const normalizeRegulationCode = (value?: string | null) => value?.trim() || '';
     
     const sortedComplianceItems = useMemo(() => {
         if (!complianceItems) return [];
         return [...complianceItems].sort((a, b) => naturalSort(a.regulationCode, b.regulationCode));
     }, [complianceItems]);
 
-    const groupedComplianceItems = useMemo(() => {
-        return sortedComplianceItems.reduce((acc, item) => {
-            const parentCode = item.parentRegulationCode;
-            if (parentCode) {
-                if (!acc[parentCode]) acc[parentCode] = [];
-                acc[parentCode].push(item);
-            }
+    const matrixTree = useMemo<MatrixTreeNode[]>(() => {
+        const byParentCode = sortedComplianceItems.reduce((acc, item) => {
+            const parentCode = normalizeRegulationCode(item.parentRegulationCode);
+            if (!acc[parentCode]) acc[parentCode] = [];
+            acc[parentCode].push(item);
             return acc;
         }, {} as Record<string, ComplianceRequirement[]>);
+
+        const buildNodes = (parentCode: string, ancestry: Set<string>): MatrixTreeNode[] => {
+            const children = byParentCode[parentCode] || [];
+            return children.map((item) => {
+                const code = normalizeRegulationCode(item.regulationCode);
+                if (!code || ancestry.has(code)) {
+                    return { item, children: [] };
+                }
+
+                const nextAncestry = new Set(ancestry);
+                nextAncestry.add(code);
+                return {
+                    item,
+                    children: buildNodes(code, nextAncestry),
+                };
+            });
+        };
+
+        return buildNodes('', new Set());
     }, [sortedComplianceItems]);
 
-    const topLevelItems = useMemo(() => sortedComplianceItems.filter(item => !item.parentRegulationCode), [sortedComplianceItems]);
+    const getSubtreeIds = (node: MatrixTreeNode): string[] => [
+        node.item.id,
+        ...node.children.flatMap((child) => getSubtreeIds(child)),
+    ];
 
-    const handleParentToggle = (parentCode: string, checked: boolean) => {
-        const childIds = (groupedComplianceItems[parentCode] || []).map(child => child.id);
-        const newSelected = { ...selectedItems };
-        newSelected[parentCode] = checked;
-        childIds.forEach(id => {
-            newSelected[id] = checked;
+    const getSelectionState = (node: MatrixTreeNode) => {
+        const subtreeIds = getSubtreeIds(node);
+        const checked = subtreeIds.every((id) => !!selectedItems[id]);
+        const anySelected = subtreeIds.some((id) => !!selectedItems[id]);
+        return {
+            checked,
+            indeterminate: anySelected && !checked,
+        };
+    };
+
+    const toggleNode = (node: MatrixTreeNode, checked: boolean) => {
+        const nextSelected = { ...selectedItems };
+        getSubtreeIds(node).forEach((id) => {
+            nextSelected[id] = checked;
         });
-        setSelectedItems(newSelected);
+        setSelectedItems(nextSelected);
     };
-    
-    const handleChildToggle = (parentId: string, childId: string, checked: boolean) => {
-        const newSelected = { ...selectedItems };
-        newSelected[childId] = checked;
 
-        const childIds = (groupedComplianceItems[parentId] || []).map(child => child.id);
-        const allChildrenSelected = childIds.every(id => newSelected[id]);
-        newSelected[parentId] = allChildrenSelected;
-
-        setSelectedItems(newSelected);
+    const getQuestionText = (item: ComplianceRequirement) => {
+        const statement = item.regulationStatement?.trim() || item.regulationCode.trim();
+        const standard = item.technicalStandard?.trim() || '';
+        return standard ? `${statement}\n${standard}` : statement;
     };
-    
+
+    const getSectionTitle = (item: ComplianceRequirement) =>
+        item.regulationStatement?.trim() || item.regulationCode.trim();
+
+    const splitQuestionRows = (item: ComplianceRequirement) => {
+        const standard = item.technicalStandard?.trim() || '';
+        if (!standard) {
+            return [getQuestionText(item)];
+        }
+
+        const clauses = standard
+            .split(/\n(?=\s*(?:\(\d+\)|\d+[.)])\s*)/g)
+            .map((part) => part.trim())
+            .filter(Boolean);
+
+        if (clauses.length <= 1) {
+            return [getQuestionText(item)];
+        }
+
+        return clauses;
+    };
+
+    const cleanQuestionText = (text: string) =>
+        text
+            .replace(/^\s*\(\d+\)\s*/, '')
+            .replace(/^\s*\d+[.)]\s*/, '')
+            .trim();
+
+    const normalizeSubject = (subject: string) => subject.trim().replace(/\s+/g, ' ');
+
+    const lowerCaseLeadingArticle = (subject: string) =>
+        normalizeSubject(subject).replace(/^(a|an|the)\b/i, (match) => match.toLowerCase());
+
+    const stripLeadingArticle = (subject: string) =>
+        normalizeSubject(subject).replace(/^(?:a|an|the)\s+/i, '');
+
+    const makeAuditQuestionText = (text: string) => {
+        const normalized = cleanQuestionText(text);
+        const clauseMatch = normalized.match(/^(.+?)\s+shall\s+(.+)$/i);
+
+        if (clauseMatch) {
+            const subject = normalizeSubject(clauseMatch[1]);
+            const predicate = normalizeSubject(clauseMatch[2]);
+
+            if (/^(?:an?\s+)?ato$/i.test(subject)) {
+                return `Does the ATO ${predicate}`.replace(/\s+/g, ' ').replace(/\?$/, '') + '?';
+            }
+
+            if (/^be\s+prepared/i.test(predicate)) {
+                return `Has ${stripLeadingArticle(subject)} been prepared${predicate.replace(/^be\s+prepared/i, '')}`.replace(/\s+/g, ' ').replace(/\?$/, '') + '?';
+            }
+
+            if (/^be\s+/i.test(predicate)) {
+                return `Is ${lowerCaseLeadingArticle(subject)} ${predicate.replace(/^be\s+/i, '')}`.replace(/\s+/g, ' ').replace(/\?$/, '') + '?';
+            }
+
+            if (/^have\s+/i.test(predicate)) {
+                return `Does ${lowerCaseLeadingArticle(subject)} ${predicate}`.replace(/\s+/g, ' ').replace(/\?$/, '') + '?';
+            }
+
+            return `Does ${lowerCaseLeadingArticle(subject)} ${predicate}`.replace(/\s+/g, ' ').replace(/\?$/, '') + '?';
+        }
+
+        if (/^\s*(?:an?\s+)?ato\b/i.test(normalized)) {
+            return `Does the ATO ${normalized.replace(/^\s*(?:an?\s+)?ato\b/i, '').replace(/^\s+/, '')}`.replace(/\s+/g, ' ').replace(/\?$/, '') + '?';
+        }
+
+        return `Does the organisation ${normalized.replace(/\?$/, '')}`.replace(/\s+/g, ' ').replace(/\?$/, '') + '?';
+    };
+
     const handleImport = () => {
         const importedSections: ChecklistSection[] = [];
-        
-        topLevelItems.forEach(parent => {
-            const children = groupedComplianceItems[parent.regulationCode] || [];
-            const selectedChildren = children.filter(child => selectedItems[child.id]);
 
-            if (selectedChildren.length > 0) {
-                importedSections.push({
-                    id: uuidv4(),
-                    title: `${parent.regulationCode} - ${parent.regulationStatement}`,
-                    items: selectedChildren.map(child => {
-                        const fullText = child.technicalStandard 
-                            ? `${child.regulationStatement}\n${child.technicalStandard}`
-                            : child.regulationStatement;
-                        
-                        return {
-                            id: uuidv4(),
-                            text: fullText,
-                            regulationReference: child.regulationCode,
-                            type: 'Checkbox'
-                        }
-                    })
-                });
-            }
+        const collectSelectedNodes = (node: MatrixTreeNode): ComplianceRequirement[] => {
+            const ownSelection = selectedItems[node.item.id] ? [node.item] : [];
+            return [
+                ...ownSelection,
+                ...node.children.flatMap((child) => collectSelectedNodes(child)),
+            ];
+        };
+
+        matrixTree.forEach((root) => {
+            const selectedRows = collectSelectedNodes(root);
+            if (selectedRows.length === 0) return;
+
+            importedSections.push({
+                id: uuidv4(),
+                title: getSectionTitle(root.item),
+                items: selectedRows.flatMap((row) => {
+                    const questionRows = splitQuestionRows(row);
+                    return questionRows.map((questionText, index) => ({
+                        id: `${row.id}-${index}-${uuidv4()}`,
+                        text: makeAuditQuestionText(questionText),
+                        regulationReference: row.regulationCode,
+                        companyReference: row.companyReference?.trim() || undefined,
+                        responsibleManagerId: row.responsibleManagerId?.trim() || undefined,
+                        nextAuditDate: row.nextAuditDate?.trim() || undefined,
+                        type: 'Checkbox' as const,
+                    }));
+                }),
+            });
         });
         
         onImport(importedSections);
         setIsOpen(false);
         setSelectedItems({});
+    };
+
+    const renderNode = (node: MatrixTreeNode, depth = 0) => {
+        const selectionState = getSelectionState(node);
+        const label = `${node.item.regulationCode} - ${node.item.regulationStatement}`;
+
+        return (
+            <Collapsible key={node.item.id} className={depth === 0 ? 'border rounded-lg' : 'border-l pl-4 ml-3'} defaultOpen={depth < 2}>
+                <div className="flex items-center gap-2 p-2 bg-muted/20">
+                    <Checkbox
+                        id={node.item.id}
+                        checked={selectionState.indeterminate ? 'indeterminate' : selectionState.checked}
+                        onCheckedChange={(checked) => toggleNode(node, checked === true)}
+                        aria-label={`Select ${label}`}
+                        className="mx-2"
+                    />
+                    {node.children.length > 0 ? (
+                        <CollapsibleTrigger className="flex flex-1 items-center gap-2 text-left text-sm font-semibold group">
+                            <span className="min-w-0 flex-1 truncate">{label}</span>
+                            <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200 group-data-[state=open]:-rotate-180" />
+                        </CollapsibleTrigger>
+                    ) : (
+                        <div className="flex flex-1 items-center text-left text-sm">
+                            <span className="min-w-0 flex-1 truncate">{label}</span>
+                        </div>
+                    )}
+                </div>
+                {node.children.length > 0 ? (
+                    <CollapsibleContent className="p-2 pl-6">
+                        <div className="space-y-2">
+                            {node.children.map((child) => renderNode(child, depth + 1))}
+                        </div>
+                    </CollapsibleContent>
+                ) : null}
+            </Collapsible>
+        );
     };
 
     return (
@@ -118,50 +259,12 @@ export function ImportFromMatrixDialog({ complianceItems, onImport }: ImportFrom
                 <DialogHeader>
                     <DialogTitle>Import from Coherence Matrix</DialogTitle>
                     <DialogDescription>
-                        Select the regulations you want to turn into checklist items.
+                        Select the regulation rows you want to turn into audit questions.
                     </DialogDescription>
                 </DialogHeader>
                 <ScrollArea className="h-[60vh] p-1">
                     <div className="space-y-2 pr-4">
-                        {topLevelItems.map(parentItem => {
-                            const children = groupedComplianceItems[parentItem.regulationCode] || [];
-                            const isParentSelected = !!selectedItems[parentItem.regulationCode];
-                            const areSomeChildrenSelected = children.some(c => selectedItems[c.id]);
-                            const indeterminate = areSomeChildrenSelected && !isParentSelected;
-
-                            return (
-                                <Collapsible key={parentItem.id} className="border rounded-lg">
-                                    <div className="flex items-center p-2 bg-muted/20">
-                                        <Checkbox
-                                            id={parentItem.id}
-                                            checked={isParentSelected}
-                                            onCheckedChange={(checked) => handleParentToggle(parentItem.regulationCode, !!checked)}
-                                            aria-label={`Select all under ${parentItem.regulationCode}`}
-                                            className="mx-2"
-                                            data-state={indeterminate ? 'indeterminate' : (isParentSelected ? 'checked' : 'unchecked')}
-                                        />
-                                        <CollapsibleTrigger className="flex flex-1 items-center text-left text-sm font-semibold">
-                                            <span>{parentItem.regulationCode} - {parentItem.regulationStatement}</span>
-                                            <ChevronDown className="h-4 w-4 ml-auto shrink-0 transition-transform duration-200 group-data-[state=open]:-rotate-180" />
-                                        </CollapsibleTrigger>
-                                    </div>
-                                    <CollapsibleContent className="p-2 pl-6">
-                                        {children.map(child => (
-                                            <div key={child.id} className="flex items-center gap-2 py-1">
-                                                <Checkbox
-                                                    id={child.id}
-                                                    checked={!!selectedItems[child.id]}
-                                                    onCheckedChange={(checked) => handleChildToggle(parentItem.regulationCode, child.id, !!checked)}
-                                                />
-                                                <label htmlFor={child.id} className="text-sm cursor-pointer">
-                                                    {child.regulationStatement}
-                                                </label>
-                                            </div>
-                                        ))}
-                                    </CollapsibleContent>
-                                </Collapsible>
-                            )
-                        })}
+                        {matrixTree.map((root) => renderNode(root))}
                     </div>
                 </ScrollArea>
                 <DialogFooter>

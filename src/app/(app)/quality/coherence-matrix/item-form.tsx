@@ -1,6 +1,7 @@
 'use client';
 
-import { useForm, type Resolver } from 'react-hook-form';
+import { useCallback, useState } from 'react';
+import { useForm, useWatch, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useToast } from '@/hooks/use-toast';
@@ -14,6 +15,7 @@ import { CustomCalendar } from '@/components/ui/custom-calendar';
 import { CalendarIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
+import { getPersonnelDisplayName } from '@/lib/personnel-label';
 import type { Personnel } from '../../users/personnel/page';
 import type { ComplianceRequirement } from '@/types/quality';
 
@@ -109,6 +111,7 @@ type ComplianceItemFormValues = {
 export function ComplianceItemForm({ personnel, existingItem, onFormSubmit, tenantId, defaultRegulationFamily, availableParentHeaders = [], mode = 'item' }: ComplianceItemFormProps) {
     const { toast } = useToast();
     const topLevelHeaderValue = '__top_level__';
+    const [calendarPortalContainer, setCalendarPortalContainer] = useState<HTMLDivElement | null>(null);
     const activeSchema = (
         mode === 'header'
             ? headerFormSchema
@@ -131,6 +134,25 @@ export function ComplianceItemForm({ personnel, existingItem, onFormSubmit, tena
             organizationId: existingItem?.organizationId || null,
         },
     });
+
+    const watchedCompanyReference = useWatch({ control: form.control, name: 'companyReference' });
+    const watchedResponsibleManagerId = useWatch({ control: form.control, name: 'responsibleManagerId' });
+    const watchedNextAuditDate = useWatch({ control: form.control, name: 'nextAuditDate' });
+
+    const getManagerLabel = (managerId?: string | null) => {
+        const normalizedManagerId = managerId?.trim() || '';
+        if (!normalizedManagerId) return '';
+        return getPersonnelDisplayName(personnel, normalizedManagerId);
+    };
+
+    const formatAuditDate = (value?: Date | null) => {
+        if (!value) return '';
+        return format(value, 'dd MMM yyyy');
+    };
+
+    const setCalendarPortalContainerRef = useCallback((node: HTMLDivElement | null) => {
+        setCalendarPortalContainer(node);
+    }, []);
 
     const onSubmit = async (values: ComplianceItemFormValues) => {
         const normalizedCode = normalizeRegulationCode(values.regulationCode);
@@ -192,6 +214,31 @@ export function ComplianceItemForm({ personnel, existingItem, onFormSubmit, tena
     return (
         <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                {mode === 'item' && existingItem ? (
+                    <div className="rounded-lg border border-slate-200 bg-muted/30 px-3 py-2">
+                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-foreground/55">Current Matrix Metadata</p>
+                        <div className="mt-2 flex flex-wrap gap-2 text-[10px] font-black uppercase tracking-[0.12em] text-foreground/55">
+                            {watchedCompanyReference?.trim() ? (
+                                <div className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-card-border/70 bg-background px-2.5 py-1">
+                                    <span className="shrink-0">Manual ref</span>
+                                    <span className="truncate normal-case tracking-normal text-foreground/80">{watchedCompanyReference.trim()}</span>
+                                </div>
+                            ) : null}
+                            {watchedResponsibleManagerId?.trim() ? (
+                                <div className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-card-border/70 bg-background px-2.5 py-1">
+                                    <span className="shrink-0">Responsible</span>
+                                    <span className="truncate normal-case tracking-normal text-foreground/80">{getManagerLabel(watchedResponsibleManagerId)}</span>
+                                </div>
+                            ) : null}
+                            {watchedNextAuditDate ? (
+                                <div className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-card-border/70 bg-background px-2.5 py-1">
+                                    <span className="shrink-0">Next audit date</span>
+                                    <span className="truncate normal-case tracking-normal text-foreground/80">{formatAuditDate(watchedNextAuditDate)}</span>
+                                </div>
+                            ) : null}
+                        </div>
+                    </div>
+                ) : null}
                 <FormField control={form.control} name="regulationCode" render={({ field }) => ( <FormItem><FormLabel>Regulation Code</FormLabel><FormControl><Input placeholder="e.g., 141.02.2" {...field} /></FormControl><FormMessage /></FormItem> )} />
                 {mode === 'item' ? (
                     <>
@@ -241,7 +288,34 @@ export function ComplianceItemForm({ personnel, existingItem, onFormSubmit, tena
                         <FormField control={form.control} name="technicalStandard" render={({ field }) => ( <FormItem><FormLabel>Full Regulation Text</FormLabel><FormControl><Textarea placeholder="The full, detailed text of the regulation..." {...field} className="min-h-32" /></FormControl><FormMessage /></FormItem> )} />
                         <FormField control={form.control} name="companyReference" render={({ field }) => ( <FormItem><FormLabel>Company Reference</FormLabel><FormControl><Input placeholder="e.g., Ops Manual, Sec 4.2.1" {...field} /></FormControl><FormMessage /></FormItem> )} />
                         <FormField control={form.control} name="responsibleManagerId" render={({ field }) => ( <FormItem><FormLabel>Responsible Manager</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a manager" /></SelectTrigger></FormControl><SelectContent>{personnel.map(p => (<SelectItem key={p.id} value={p.id}>{p.firstName} {p.lastName}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem> )} />
-                        <FormField control={form.control} name="nextAuditDate" render={({ field }) => (<FormItem className="flex flex-col"><FormLabel>Next Audit Date</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant="outline" className={cn('w-full pl-3 text-left font-normal', !field.value && 'text-muted-foreground')}>{field.value ? format(field.value, 'PPP') : <span>Pick a date</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0"><CustomCalendar selectedDate={field.value} onDateSelect={field.onChange} /></PopoverContent></Popover><FormMessage /></FormItem>)} />
+                        <div ref={setCalendarPortalContainerRef}>
+                            <FormField control={form.control} name="nextAuditDate" render={({ field }) => (
+                                <FormItem className="flex flex-col">
+                                    <FormLabel>Next Audit Date</FormLabel>
+                                    <Popover>
+                                        <PopoverTrigger asChild>
+                                            <FormControl>
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    className={cn('w-full pl-3 text-left font-normal', !field.value && 'text-muted-foreground')}
+                                                >
+                                                    {field.value ? format(field.value, 'PPP') : <span>Pick a date</span>}
+                                                    <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                                </Button>
+                                            </FormControl>
+                                        </PopoverTrigger>
+                                        <PopoverContent
+                                            container={calendarPortalContainer}
+                                            className="w-auto p-0 pointer-events-auto"
+                                        >
+                                            <CustomCalendar selectedDate={field.value} onDateSelect={field.onChange} />
+                                        </PopoverContent>
+                                    </Popover>
+                                    <FormMessage />
+                                </FormItem>
+                            )} />
+                        </div>
                     </>
                 ) : null}
                 {mode === 'subheader' ? (

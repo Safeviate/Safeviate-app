@@ -45,6 +45,9 @@ const checklistItemSchema = z.object({
   text: z.string().min(1, 'Item text is required.'),
   type: z.enum(['Checkbox', 'Textbox', 'Number', 'Date']),
   regulationReference: z.string().optional(),
+  companyReference: z.string().optional(),
+  responsibleManagerId: z.string().optional(),
+  nextAuditDate: z.string().optional(),
 });
 
 const sectionSchema = z.object({
@@ -184,6 +187,9 @@ export function NewChecklistDialog({
                     text: item.text,
                     type: item.type,
                     regulationReference: item.regulationReference,
+                    companyReference: item.companyReference,
+                    responsibleManagerId: item.responsibleManagerId,
+                    nextAuditDate: item.nextAuditDate,
                 }))
             }))
         }
@@ -268,7 +274,15 @@ export function NewChecklistDialog({
       const dragItemNode = useRef<HTMLDivElement | null>(null);
 
       const addItem = (type: AuditChecklistItem['type']) => {
-        append({ id: crypto.randomUUID(), text: '', type, regulationReference: '' });
+        append({
+          id: crypto.randomUUID(),
+          text: '',
+          type,
+          regulationReference: '',
+          companyReference: '',
+          responsibleManagerId: '',
+          nextAuditDate: '',
+        });
       };
 
       const handleItemDragStart = (e: React.DragEvent, index: number) => {

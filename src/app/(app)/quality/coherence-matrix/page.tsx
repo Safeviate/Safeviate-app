@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
   CardControlHeader,
   HEADER_ACTION_BUTTON_CLASS,
@@ -15,6 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useToast } from '@/hooks/use-toast';
 import { callAiFlow } from '@/lib/ai-client';
+import { format } from 'date-fns';
 
 import type { ComplianceRequirement, ExternalOrganization } from '@/types/quality';
 import type { Personnel } from '@/app/(app)/users/personnel/page';
@@ -36,6 +38,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { OrganizationTabsRow, ResponsiveTabRow } from '@/components/responsive-tab-row';
 import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { getPersonnelDisplayName } from '@/lib/personnel-label';
 
 const REGULATION_TABS = [
     { value: 'sacaa-cars', label: 'SACAA CARs' },
@@ -81,6 +85,15 @@ function getInlineMarker(parentCode: string, childCode: string) {
     if (!suffix || suffix.includes('.')) return null;
 
     return `(${suffix})`;
+}
+
+function formatAuditDate(value?: string | null) {
+    if (!value?.trim()) return '';
+
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return value.trim();
+
+    return format(parsed, 'dd MMM yyyy');
 }
 
 function formatStructuredTechnicalStandard(value?: string | null) {
@@ -495,6 +508,7 @@ export default function CoherenceMatrixPage() {
   const canManageMatrix = isDeveloperRole || hasPermission('quality-matrix-manage');
 
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [matrixViewMode, setMatrixViewMode] = useState<'tree' | 'table'>('tree');
   const [editingItem, setEditingItem] = useState<ComplianceRequirement | null>(null);
   const [formMode, setFormMode] = useState<'item' | 'header' | 'subheader'>('item');
 
@@ -651,6 +665,39 @@ export default function CoherenceMatrixPage() {
   const renderOrgContext = (orgId: string | 'internal') => {
     const contextOrgId = orgId === 'internal' ? null : orgId;
     const activeRegulationTabValue = regulationTabToUiValue(activeRegulationTab);
+    const getManagerLabel = (managerId?: string | null) => {
+        const normalizedManagerId = managerId?.trim() || '';
+        if (!normalizedManagerId) return '';
+        return getPersonnelDisplayName(personnel, normalizedManagerId);
+    };
+
+    const renderRequirementMeta = (item: ComplianceRequirement) => {
+        const fields = [
+            item.companyReference?.trim()
+                ? { label: 'Manual ref', value: item.companyReference.trim() }
+                : null,
+            item.responsibleManagerId?.trim()
+                ? { label: 'Responsible', value: getManagerLabel(item.responsibleManagerId) }
+                : null,
+            item.nextAuditDate?.trim()
+                ? { label: 'Next audit date', value: formatAuditDate(item.nextAuditDate) }
+                : null,
+        ].filter(Boolean) as { label: string; value: string }[];
+
+        if (fields.length === 0) return null;
+
+        return (
+            <div className="mt-3 flex flex-wrap gap-2 text-[10px] font-black uppercase tracking-[0.14em] text-foreground/55">
+                {fields.map((field) => (
+                    <div key={`${item.id}-${field.label}`} className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-card-border/70 bg-background/70 px-2.5 py-1">
+                        <span className="shrink-0 text-foreground/45">{field.label}</span>
+                        <span className="truncate text-foreground/80 normal-case tracking-normal">{field.value}</span>
+                    </div>
+                ))}
+            </div>
+        );
+    };
+
     const filteredItems = (complianceItems || []).filter(item => 
         (orgId === 'internal' ? !item.organizationId : item.organizationId === orgId) &&
         getItemFamily(item) === activeRegulationTab
@@ -722,6 +769,176 @@ export default function CoherenceMatrixPage() {
         );
     };
 
+    type MatrixTableRow = {
+        item: ComplianceRequirement;
+        depth: number;
+        hasChildren: boolean;
+    };
+
+    const buildTableRows = (items: ComplianceRequirement[], depth = 0, ancestors: string[] = []): MatrixTableRow[] => {
+        return items.flatMap((item) => {
+            const normalizedCode = normalizeRegulationCode(item.regulationCode);
+            if (ancestors.includes(normalizedCode)) return [];
+
+            const childItems = groupedItems[normalizedCode] || [];
+            return [
+                {
+                    item,
+                    depth,
+                    hasChildren: childItems.length > 0,
+                },
+                ...buildTableRows(childItems, depth + 1, [...ancestors, normalizedCode]),
+            ];
+        });
+    };
+
+    const renderMatrixTable = () => {
+        const tableRows = buildTableRows(topLevelItems);
+
+        if (tableRows.length === 0) {
+            return (
+                <div className="flex flex-col items-center justify-center py-24 text-center opacity-30">
+                    <Layers className="h-16 w-16 mb-4" />
+                    <p className="text-sm font-black uppercase tracking-widest text-foreground/90">Coherence Matrix Empty</p>
+                    <p className="text-xs font-medium text-foreground/80 max-w-xs mt-2">Populate your matrix using the AI upload tool or by seeding standard Part 141 regulations.</p>
+                </div>
+            );
+        }
+
+        return (
+            <div className="rounded-lg border border-card-border bg-background">
+                <Table className="min-w-[1450px] table-fixed">
+                    <colgroup>
+                        <col className="w-[14%]" />
+                        <col className="w-[54%]" />
+                        <col className="w-[10%]" />
+                        <col className="w-[12%]" />
+                        <col className="w-[6%]" />
+                        <col className="w-[4%]" />
+                    </colgroup>
+                    <TableHeader className="sticky top-0 z-10 bg-muted/30">
+                        <TableRow className="hover:bg-transparent">
+                            <TableHead className="px-2 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-foreground/70">Regulation / Clause</TableHead>
+                            <TableHead className="px-2 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-foreground/70">Technical standard</TableHead>
+                            <TableHead className="px-2 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-foreground/70">Manual ref</TableHead>
+                            <TableHead className="px-2 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-foreground/70">Responsible</TableHead>
+                            <TableHead className="px-2 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-foreground/70">Next audit date</TableHead>
+                            <TableHead className="px-2 py-2 text-right text-[10px] font-black uppercase tracking-[0.12em] text-foreground/70">Actions</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {tableRows.map(({ item, depth, hasChildren }: MatrixTableRow) => {
+                            const rowType = depth === 0 ? 'Header' : hasChildren ? 'Subheader' : 'Clause';
+                            return (
+                                <TableRow key={item.id} className={cn(depth === 0 && 'bg-muted/15')}>
+                                    <TableCell className="align-top px-2 py-2">
+                                        <div className="space-y-1" style={{ paddingLeft: `${depth * 0.5}rem` }}>
+                                            <div className="flex flex-wrap items-center gap-1">
+                                                <Badge variant="outline" className="h-5 border-primary/20 bg-primary/5 px-1.5 text-[9px] font-black uppercase tracking-[0.12em] text-primary">
+                                                    {rowType}
+                                                </Badge>
+                                                <span className="text-[10px] font-black tracking-wide text-foreground/65">
+                                                    {item.regulationCode}
+                                                </span>
+                                            </div>
+                                            <p className="line-clamp-2 text-[12.5px] font-semibold leading-[1.35] text-foreground break-words">
+                                                {item.regulationStatement}
+                                            </p>
+                                        </div>
+                                    </TableCell>
+                                    <TableCell className="align-top px-2 py-2">
+                                        {item.technicalStandard?.trim() ? (
+                                            <div className="space-y-1 text-[12px] leading-5 text-foreground/80 break-words">
+                                                {renderTechnicalStandardText(item.technicalStandard)}
+                                            </div>
+                                        ) : (
+                                            <span className="text-sm text-muted-foreground">-</span>
+                                        )}
+                                    </TableCell>
+                                    <TableCell className="align-top px-2 py-2 text-[12px] text-foreground/80 break-words">
+                                        {item.companyReference?.trim() ? (
+                                            <Badge variant="outline" className="max-w-full border-card-border bg-background/70 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-foreground">
+                                                <span className="truncate">{item.companyReference.trim()}</span>
+                                            </Badge>
+                                        ) : '-'}
+                                    </TableCell>
+                                    <TableCell className="align-top px-2 py-2 text-[12px] text-foreground/80 break-words">
+                                        {item.responsibleManagerId?.trim() ? (
+                                            <span className="block truncate">
+                                                {getManagerLabel(item.responsibleManagerId) || '-'}
+                                            </span>
+                                        ) : '-'}
+                                    </TableCell>
+                                    <TableCell className="align-top px-2 py-2 text-[12px] text-foreground/80 whitespace-nowrap">
+                                        {item.nextAuditDate?.trim() ? formatAuditDate(item.nextAuditDate) : '-'}
+                                    </TableCell>
+                                    <TableCell className="align-top px-2 py-2">
+                                        <div className="flex justify-end gap-1">
+                                            {depth === 0 && canManageMatrix ? (
+                                                <>
+                                                    <Button variant="outline" size="icon" className="h-7 w-7 border-slate-300" onClick={() => handleOpenForm(item, 'header')}>
+                                                        <Edit className="h-3.5 w-3.5" />
+                                                    </Button>
+                                                    <Button variant="destructive" size="icon" className="h-7 w-7" onClick={() => handleDeleteSection(item)}>
+                                                        <Trash2 className="h-3.5 w-3.5" />
+                                                    </Button>
+                                                </>
+                                            ) : depth !== 0 && canManageMatrix ? (
+                                                <>
+                                                    <Button variant="outline" size="icon" className="h-7 w-7 border-slate-300" onClick={() => handleOpenForm(item)}>
+                                                        <Edit className="h-3.5 w-3.5" />
+                                                    </Button>
+                                                    <Button variant="destructive" size="icon" className="h-7 w-7" onClick={() => handleDeleteItem(item)}>
+                                                        <Trash2 className="h-3.5 w-3.5" />
+                                                    </Button>
+                                                </>
+                                            ) : null}
+                                        </div>
+                                    </TableCell>
+                                </TableRow>
+                            );
+                        })}
+                    </TableBody>
+                </Table>
+            </div>
+        );
+    };
+
+    const renderViewModeToggle = (mobile = false) => (
+        <div className={cn(
+            mobile ? 'grid w-full grid-cols-2 gap-1' : 'inline-flex items-center gap-1 rounded-md border border-input bg-background p-1'
+        )}>
+            <Button
+                type="button"
+                variant={matrixViewMode === 'tree' ? 'default' : 'outline'}
+                size="compact"
+                className={cn(
+                    mobile ? 'w-full justify-center' : 'min-w-[88px]',
+                    matrixViewMode === 'tree'
+                        ? 'border-[hsl(var(--button-primary-border))] bg-[hsl(var(--button-primary-background))] text-[hsl(var(--button-primary-foreground))]'
+                        : 'text-foreground hover:bg-accent/40'
+                )}
+                onClick={() => setMatrixViewMode('tree')}
+            >
+                Tree view
+            </Button>
+            <Button
+                type="button"
+                variant={matrixViewMode === 'table' ? 'default' : 'outline'}
+                size="compact"
+                className={cn(
+                    mobile ? 'w-full justify-center' : 'min-w-[88px]',
+                    matrixViewMode === 'table'
+                        ? 'border-[hsl(var(--button-primary-border))] bg-[hsl(var(--button-primary-background))] text-[hsl(var(--button-primary-foreground))]'
+                        : 'text-foreground hover:bg-accent/40'
+                )}
+                onClick={() => setMatrixViewMode('table')}
+            >
+                Table view
+            </Button>
+        </div>
+    );
+
     const renderInlineParagraphChildren = (items: ComplianceRequirement[], ancestors: string[]) => {
         return (
             <div className="space-y-3">
@@ -778,6 +995,7 @@ export default function CoherenceMatrixPage() {
                                         </div>
                                     </div>
                                 ) : null}
+                                {renderRequirementMeta(child)}
                                 {hasNestedChildren ? (
                                     <div className="space-y-2 border-t pt-4">
                                         {renderInlineClauseLines(normalizedChildCode, grandChildren, [...ancestors, normalizedChildCode])}
@@ -901,6 +1119,7 @@ export default function CoherenceMatrixPage() {
                             {renderTechnicalStandardText(item.technicalStandard)}
                         </div>
                     ) : null}
+                    {renderRequirementMeta(item)}
                     {childItems.length > 0 && (
                         <div className="space-y-2">
                             {renderChildrenInline
@@ -934,79 +1153,91 @@ export default function CoherenceMatrixPage() {
                             className="border-0 bg-transparent px-0 py-0"
                         />
                     ) : undefined}
-                    actions={canManageMatrix ? (
-                        <>
-                            <UploadRegulationsDialog tenantId={tenantId!} organizationId={contextOrgId} regulationFamily={activeRegulationTab} availableParentHeaders={currentFamilySubheaders} />
-                            <Button
-                                variant="outline"
-                                className={cn(HEADER_COMPACT_CONTROL_CLASS, 'text-foreground hover:bg-accent/40')}
-                                onClick={() => handleOpenForm(null, 'header')}
-                            >
-                                <Layers className="h-4 w-4" />
-                                Add Header
-                            </Button>
-                            <Button
-                                variant="outline"
-                                className={cn(HEADER_COMPACT_CONTROL_CLASS, 'text-foreground hover:bg-accent/40')}
-                                onClick={() => handleOpenForm(null, 'subheader')}
-                            >
-                                <Layers className="h-4 w-4" />
-                                Add Subheader
-                            </Button>
-                            <Button 
-                                className={cn(
-                                    HEADER_COMPACT_CONTROL_CLASS,
-                                    'border-[hsl(var(--button-primary-border))] bg-[hsl(var(--button-primary-background))] text-[hsl(var(--button-primary-foreground))] hover:bg-[hsl(var(--button-primary-accent))] hover:text-[hsl(var(--button-primary-accent-foreground))]'
-                                )}
-                                onClick={() => handleOpenForm()}
-                            >
-                                <PlusCircle className="h-4 w-4" /> 
-                                Add Item
-                            </Button>
-                        </>
-                    ) : undefined}
-                    mobileActions={canManageMatrix ? (
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
+                    actions={canViewMatrix ? (
+                        canManageMatrix ? (
+                            <>
+                                {renderViewModeToggle()}
+                                <UploadRegulationsDialog tenantId={tenantId!} organizationId={contextOrgId} regulationFamily={activeRegulationTab} availableParentHeaders={currentFamilySubheaders} />
                                 <Button
                                     variant="outline"
-                                    aria-label="Open coherence matrix actions"
-                                    className={cn(
-                                        HEADER_SECONDARY_BUTTON_CLASS,
-                                        HEADER_COMPACT_CONTROL_CLASS,
-                                        'w-full justify-between text-foreground hover:bg-accent/40',
-                                    )}
+                                    className={cn(HEADER_COMPACT_CONTROL_CLASS, 'text-foreground hover:bg-accent/40')}
+                                    onClick={() => handleOpenForm(null, 'header')}
                                 >
-                                    <span className="flex items-center gap-2">
-                                        <MoreHorizontal className="h-3.5 w-3.5" />
-                                        Actions
-                                    </span>
-                                    <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                                    <Layers className="h-4 w-4" />
+                                    Add Header
                                 </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-[var(--radix-dropdown-menu-trigger-width)]">
-                                <UploadRegulationsDialog 
-                                    tenantId={tenantId!} 
-                                    organizationId={contextOrgId} 
-                                    regulationFamily={activeRegulationTab}
-                                    availableParentHeaders={currentFamilySubheaders}
-                                    trigger={
-                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                                            <WandSparkles className="mr-2 h-4 w-4" /> AI Populate
+                                <Button
+                                    variant="outline"
+                                    className={cn(HEADER_COMPACT_CONTROL_CLASS, 'text-foreground hover:bg-accent/40')}
+                                    onClick={() => handleOpenForm(null, 'subheader')}
+                                >
+                                    <Layers className="h-4 w-4" />
+                                    Add Subheader
+                                </Button>
+                                <Button 
+                                    className={cn(
+                                        HEADER_COMPACT_CONTROL_CLASS,
+                                        'border-[hsl(var(--button-primary-border))] bg-[hsl(var(--button-primary-background))] text-[hsl(var(--button-primary-foreground))] hover:bg-[hsl(var(--button-primary-accent))] hover:text-[hsl(var(--button-primary-accent-foreground))]'
+                                    )}
+                                    onClick={() => handleOpenForm()}
+                                >
+                                    <PlusCircle className="h-4 w-4" /> 
+                                    Add Item
+                                </Button>
+                            </>
+                        ) : (
+                            renderViewModeToggle()
+                        )
+                    ) : undefined}
+                    mobileActions={canViewMatrix ? (
+                        canManageMatrix ? (
+                            <div className="space-y-2">
+                                {renderViewModeToggle(true)}
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button
+                                            variant="outline"
+                                            aria-label="Open coherence matrix actions"
+                                            className={cn(
+                                                HEADER_SECONDARY_BUTTON_CLASS,
+                                                HEADER_COMPACT_CONTROL_CLASS,
+                                                'w-full justify-between text-foreground hover:bg-accent/40',
+                                            )}
+                                        >
+                                            <span className="flex items-center gap-2">
+                                                <MoreHorizontal className="h-3.5 w-3.5" />
+                                                Actions
+                                            </span>
+                                            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end" className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-[var(--radix-dropdown-menu-trigger-width)]">
+                                        <UploadRegulationsDialog 
+                                            tenantId={tenantId!} 
+                                            organizationId={contextOrgId} 
+                                            regulationFamily={activeRegulationTab}
+                                            availableParentHeaders={currentFamilySubheaders}
+                                            trigger={
+                                                <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                                                    <WandSparkles className="mr-2 h-4 w-4" /> AI Populate
+                                                </DropdownMenuItem>
+                                            }
+                                        />
+                                        <DropdownMenuItem onClick={() => handleOpenForm()}>
+                                            <PlusCircle className="mr-2 h-4 w-4" /> Add Item
                                         </DropdownMenuItem>
-                                    }
-                                />
-                                <DropdownMenuItem onClick={() => handleOpenForm()}>
-                                    <PlusCircle className="mr-2 h-4 w-4" /> Add Item
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleOpenForm(null, 'header')}>
-                                    <Layers className="mr-2 h-4 w-4" /> Add Header
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleOpenForm(null, 'subheader')}>
-                                    <Layers className="mr-2 h-4 w-4" /> Add Subheader
-                                </DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
+                                        <DropdownMenuItem onClick={() => handleOpenForm(null, 'header')}>
+                                            <Layers className="mr-2 h-4 w-4" /> Add Header
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={() => handleOpenForm(null, 'subheader')}>
+                                            <Layers className="mr-2 h-4 w-4" /> Add Subheader
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            </div>
+                        ) : (
+                            renderViewModeToggle(true)
+                        )
                     ) : undefined}
                     navigation={
                         <ResponsiveTabRow
@@ -1024,16 +1255,20 @@ export default function CoherenceMatrixPage() {
                 />
                 
                 <CardContent className="flex-1 min-h-0 overflow-y-auto p-6 pt-4">
-                    <div className="space-y-4">
-                        {topLevelItems.map(parentItem => renderMatrixNode(parentItem, 0))}
-                        {topLevelItems.length === 0 && (
-                            <div className="flex flex-col items-center justify-center py-24 text-center opacity-30">
-                                <Layers className="h-16 w-16 mb-4" />
-                                <p className="text-sm font-black uppercase tracking-widest text-foreground/90">Coherence Matrix Empty</p>
-                                <p className="text-xs font-medium text-foreground/80 max-w-xs mt-2">Populate your matrix using the AI upload tool or by seeding standard Part 141 regulations.</p>
-                            </div>
-                        )}
-                    </div>
+                    {matrixViewMode === 'table' ? (
+                        renderMatrixTable()
+                    ) : (
+                        <div className="space-y-4">
+                            {topLevelItems.map(parentItem => renderMatrixNode(parentItem, 0))}
+                            {topLevelItems.length === 0 && (
+                                <div className="flex flex-col items-center justify-center py-24 text-center opacity-30">
+                                    <Layers className="h-16 w-16 mb-4" />
+                                    <p className="text-sm font-black uppercase tracking-widest text-foreground/90">Coherence Matrix Empty</p>
+                                    <p className="text-xs font-medium text-foreground/80 max-w-xs mt-2">Populate your matrix using the AI upload tool or by seeding standard Part 141 regulations.</p>
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </CardContent>
             </Card>
         </Tabs>

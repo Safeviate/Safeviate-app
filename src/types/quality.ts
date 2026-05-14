@@ -39,6 +39,9 @@ export interface AuditChecklistItem {
     text: string;
     type: AuditChecklistItemType;
     regulationReference?: string;
+    companyReference?: string;
+    responsibleManagerId?: string;
+    nextAuditDate?: string;
 }
 
 export interface ChecklistSection {

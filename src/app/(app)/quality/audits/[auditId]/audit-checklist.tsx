@@ -18,6 +18,7 @@ import { useMemo, useState } from 'react';
 import type { FindingLevel } from '@/app/(app)/admin/features/page';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import { getPersonnelDisplayName } from '@/lib/personnel-label';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,6 +40,17 @@ type EnrichedAudit = QualityAudit & { template: QualityAuditChecklistTemplate };
 type EnrichedCorrectiveActionPlan = CorrectiveActionPlan & {
   auditNumber: string;
   findingDescription: string;
+};
+
+const formatAuditDate = (value?: string | null) => {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return new Intl.DateTimeFormat('en-GB', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+    }).format(date);
 };
 
 const defaultFindingLevels: FindingLevel[] = [
@@ -83,7 +95,6 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
 
     const [isCapDialogOpen, setIsCapDialogOpen] = useState(false);
     const [selectedCap, setSelectedCap] = useState<EnrichedCorrectiveActionPlan | null>(null);
-
     const isReadOnly = audit.status === 'Finalized' || audit.status === 'Closed' || audit.status === 'Archived';
 
     const normalizedSections = useMemo(() => {
@@ -282,6 +293,14 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
         
         const cap = caps.find(c => c.findingId === item.id);
         const openActionsCount = cap?.actions?.filter(a => a.status === 'Open' || a.status === 'In Progress').length || 0;
+        const responsibleLabel = item.responsibleManagerId
+            ? getPersonnelDisplayName(personnel, item.responsibleManagerId)
+            : '';
+        const metadataChips = [
+            item.companyReference ? { label: 'Manual ref', value: item.companyReference } : null,
+            responsibleLabel ? { label: 'Responsible', value: responsibleLabel } : null,
+            item.nextAuditDate ? { label: 'Next audit date', value: formatAuditDate(item.nextAuditDate) } : null,
+        ].filter((chip): chip is { label: string; value: string } => !!chip && !!chip.value);
 
         return (
             <Card key={item.id} className="mb-4 shadow-sm border-muted transition-colors hover:border-primary/20">
@@ -292,6 +311,20 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
                     </CardHeader>
                 )}
                 <CardContent className={cn("space-y-4 px-4 pb-4", !showHeader && "pt-4")}>
+                    {metadataChips.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                            {metadataChips.map((chip) => (
+                                <Badge
+                                    key={`${item.id}-${chip.label}`}
+                                    variant="outline"
+                                    className="h-6 max-w-full border-slate-300 bg-muted/20 px-2.5 text-[10px] font-black uppercase tracking-[0.12em] text-slate-700"
+                                >
+                                    <span className="mr-1.5 text-slate-500">{chip.label}</span>
+                                    <span className="truncate normal-case tracking-normal text-slate-900">{chip.value}</span>
+                                </Badge>
+                            ))}
+                        </div>
+                    )}
                      <div className='flex flex-col md:flex-row md:items-center justify-between gap-4'>
                         <div className="flex flex-wrap items-center gap-6">
                             <FormField
