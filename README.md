@@ -11,7 +11,7 @@ For local development, copy `.env.local.example` to `.env.local` and set the req
 - `NEXTAUTH_URL`
 - `AUTH_SEED_EMAIL`
 - `AUTH_SEED_PASSWORD` or `AUTH_SEED_PASSWORD_HASH`
-- `OPENAI_API_KEY`
+- `Safeviate_AI_KEY` for AI flows, with `OPENAI_API_KEY` kept as a fallback
 - `OPENAIP_API_KEY` for the map tile proxy
 - `DATABASE_URL`
 - `DATABASE_URL_UNPOOLED`

@@ -9,6 +9,7 @@ import { AppProviders } from '@/providers';
 import { authOptions } from '@/auth';
 import { prisma } from '@/lib/prisma';
 import { assertRequiredEnv } from '@/lib/server/env';
+import { ensureAiEnvironment } from '@/lib/server/ai-env';
 import { ensureTenantConfigSchema } from '@/lib/server/bootstrap-db';
 import {
   MASTER_TENANT_ID,
@@ -16,8 +17,10 @@ import {
   isMasterTenantEmail,
 } from '@/lib/server/tenant-access';
 
+ensureAiEnvironment('application bootstrap');
+
 assertRequiredEnv(
-  [['DATABASE_URL', 'DATABASE_URL_UNPOOLED'], 'NEXTAUTH_SECRET', 'OPENAI_API_KEY'],
+  [['DATABASE_URL', 'DATABASE_URL_UNPOOLED'], 'NEXTAUTH_SECRET', ['Safeviate_AI_KEY', 'OPENAI_API_KEY']],
   'application bootstrap'
 );
 

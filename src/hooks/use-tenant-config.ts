@@ -129,6 +129,7 @@ export const useTenantConfig = () => {
   const [error, setError] = useState<Error | null>(null);
   const [industryOverride, setIndustryOverride] = useState<IndustryType | null>(readInitialIndustryOverride);
   const [localOverride, setLocalOverride] = useState<Record<string, unknown> | null>(readInitialLocalOverride);
+  const resolvedTenantId = tenantId || FALLBACK_TENANT_ID;
 
   const buildLocalTenant = (override: Record<string, unknown> | null): Tenant => ({
     id: FALLBACK_TENANT_ID,
@@ -163,7 +164,7 @@ export const useTenantConfig = () => {
 
   useEffect(() => {
     let cancelled = false;
-    const load = async () => {
+      const load = async () => {
       if (isProfileLoading) {
         return;
       }
@@ -186,10 +187,10 @@ export const useTenantConfig = () => {
 
       try {
         const configPayload = await getOrSetClientApiCache(
-          `tenant-config:${tenantId}`,
+          `tenant-config:${resolvedTenantId}`,
           TENANT_CONFIG_CACHE_TTL_MS,
           async () => {
-            const response = await fetch('/api/tenant-config', { cache: 'no-store' });
+            const response = await fetch(`/api/tenant-config?tenantId=${encodeURIComponent(resolvedTenantId)}`, { cache: 'no-store' });
             return response.ok ? await response.json().catch(() => ({})) : {};
           }
         );
@@ -239,12 +240,12 @@ export const useTenantConfig = () => {
     
       const handleUpdate = async () => {
         try {
-          invalidateClientApiCache(`tenant-config:${tenantId}`);
+          invalidateClientApiCache(`tenant-config:${resolvedTenantId}`);
           const payload = await getOrSetClientApiCache(
-            `tenant-config:${tenantId}`,
+            `tenant-config:${resolvedTenantId}`,
             TENANT_CONFIG_CACHE_TTL_MS,
             async () => {
-              const response = await fetch('/api/tenant-config', { cache: 'no-store' });
+              const response = await fetch(`/api/tenant-config?tenantId=${encodeURIComponent(resolvedTenantId)}`, { cache: 'no-store' });
               return response.ok ? await response.json().catch(() => ({})) : {};
             }
           );

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import {
   CardControlHeader,
@@ -130,6 +130,8 @@ function UploadRegulationsDialog({ tenantId, organizationId, regulationFamily, a
     const [isProcessing, setIsProcessing] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const isMobile = useIsMobile();
+    const dialogBodyRef = useRef<HTMLDivElement | null>(null);
+    const previewSectionRef = useRef<HTMLDivElement | null>(null);
     
     const [file, setFile] = useState<File | null>(null);
     const [pastedText, setPastedText] = useState('');
@@ -196,7 +198,7 @@ function UploadRegulationsDialog({ tenantId, organizationId, regulationFamily, a
                 regulationStatement: req.regulationStatement?.trim() || normalizeRegulationCode(req.regulationCode),
             }));
 
-            await Promise.all(newItems.map((item) => fetch('/api/compliance-matrix', {
+            await Promise.all(newItems.map((item) => fetch(`/api/compliance-matrix?tenantId=${encodeURIComponent(tenantId)}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ item }),
@@ -288,6 +290,19 @@ function UploadRegulationsDialog({ tenantId, organizationId, regulationFamily, a
         setPreviewInput(null);
     };
 
+    useEffect(() => {
+        if (!isOpen || !previewRequirements?.length) return;
+
+        dialogBodyRef.current?.scrollTo({
+            top: dialogBodyRef.current.scrollHeight,
+            behavior: 'smooth',
+        });
+        previewSectionRef.current?.scrollIntoView({
+            behavior: 'smooth',
+            block: 'start',
+        });
+    }, [isOpen, previewRequirements]);
+
     const copyPreviewJson = async () => {
         if (!previewRequirements) return;
         const payload = JSON.stringify({ requirements: previewRequirements }, null, 2);
@@ -322,129 +337,131 @@ function UploadRegulationsDialog({ tenantId, organizationId, regulationFamily, a
                     </Button>
                 )}
             </DialogTrigger>
-            <DialogContent className="sm:max-w-2xl">
+            <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+                <div ref={dialogBodyRef} className="flex-1 min-h-0 space-y-4 overflow-y-auto pr-1">
                     <DialogHeader>
-                    <DialogTitle>Populate Matrix with AI</DialogTitle>
-                    <DialogDescription>
-                        Upload a file, paste text, or paste one or more images of regulations. Create the header and sub-regulation manually first, then choose the sub-regulation below so AI only adds the paragraph cards beneath it.
-                    </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-2">
-                    <Label htmlFor="target-family">Target category</Label>
-                    <Select value={targetFamily} onValueChange={(value) => setTargetFamily(value as RegulationFamily)}>
-                        <SelectTrigger id="target-family">
-                            <SelectValue placeholder="Select category" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {REGULATION_TABS.map((tab) => (
-                                <SelectItem key={tab.value} value={tab.value}>
-                                    {tab.label}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor="target-header">Target sub-regulation</Label>
-                    <Select value={targetHeader} onValueChange={setTargetHeader}>
-                        <SelectTrigger id="target-header">
-                            <SelectValue placeholder="Select a sub-regulation" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {availableParentHeaders.map((header) => (
-                                <SelectItem key={header.code} value={header.code}>
-                                    {formatParentOptionLabel(header)}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                </div>
-                <Tabs defaultValue="image">
-                    <TabsList className="grid w-full grid-cols-3">
-                        <TabsTrigger value="image">Paste Images</TabsTrigger>
-                        <TabsTrigger value="text">Paste Text</TabsTrigger>
-                        <TabsTrigger value="file">Upload File</TabsTrigger>
-                    </TabsList>
-                    <TabsContent value="image" className="pt-4">
-                         <div
-                            onPaste={handlePaste}
-                            className="h-48 border-2 border-dashed rounded-lg flex items-center justify-center text-muted-foreground mb-4"
-                        >
-                            <div className="text-center">
-                                <ClipboardPaste className="mx-auto h-8 w-8" />
-                                <p className="text-foreground/90">Click here and paste image(s) (Ctrl+V)</p>
-                            </div>
-                        </div>
-                        <div className="flex items-center space-x-2 my-4">
-                            <Switch id="multi-image-mode" checked={isMultiImageMode} onCheckedChange={setIsMultiImageMode} />
-                            <Label htmlFor="multi-image-mode">Treat images as a single document</Label>
-                        </div>
-                        {isMultiImageMode && (
-                           <p className="text-xs text-foreground/80 p-2 bg-muted rounded-md">
-                               Instruction to AI: &quot;You will be given a sequence of images. Treat them as pages of a single document, in the order they are provided. Text may flow from one image to the next.&quot;
-                           </p>
-                        )}
-                        <ScrollArea className="h-48 mt-4">
-                           <div className="grid grid-cols-3 gap-4">
-                                {stagedImages.map((imageSrc, index) => (
-                                    <div key={index} className="relative group">
-                                        <Image src={imageSrc} alt={`Staged image ${index + 1}`} width={150} height={150} className="rounded-md object-cover aspect-square" />
-                                        <Button
-                                            variant="destructive"
-                                            size="icon"
-                                            className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100"
-                                            onClick={() => removeStagedImage(index)}
-                                        >
-                                            <Trash2 className="h-4 w-4" />
-                                        </Button>
-                                    </div>
+                        <DialogTitle>Populate Matrix with AI</DialogTitle>
+                        <DialogDescription>
+                            Upload a file, paste text, or paste one or more images of regulations. Create the header and sub-regulation manually first, then choose the sub-regulation below so AI only adds the paragraph cards beneath it.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-2">
+                        <Label htmlFor="target-family">Target category</Label>
+                        <Select value={targetFamily} onValueChange={(value) => setTargetFamily(value as RegulationFamily)}>
+                            <SelectTrigger id="target-family">
+                                <SelectValue placeholder="Select category" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {REGULATION_TABS.map((tab) => (
+                                    <SelectItem key={tab.value} value={tab.value}>
+                                        {tab.label}
+                                    </SelectItem>
                                 ))}
-                            </div>
-                        </ScrollArea>
-                    </TabsContent>
-                    <TabsContent value="text" className="pt-4">
-                        <ScrollArea className="h-96 rounded-md border">
-                            <Textarea
-                                placeholder="Paste the raw text of the regulations here..."
-                                className="h-full min-h-[24rem] border-none focus-visible:ring-0"
-                                value={pastedText}
-                                onChange={(e) => setPastedText(e.target.value)}
-                                onPaste={handlePaste}
-                            />
-                        </ScrollArea>
-                    </TabsContent>
-                    <TabsContent value="file" className="pt-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="reg-file">Regulation File (.txt)</Label>
-                            <Input id="reg-file" type="file" onChange={handleFileChange} accept=".txt" />
-                             {file && <p className="text-sm text-muted-foreground">Selected: {file.name}</p>}
-                        </div>
-                    </TabsContent>
-                </Tabs>
-                {previewRequirements && previewRequirements.length > 0 ? (
-                    <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50/60 p-3">
-                        <div className="flex items-center justify-between gap-3">
-                            <div>
-                                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">AI Preview</p>
-                                <p className="text-xs text-muted-foreground">Review the extracted JSON before saving it to the matrix.</p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <Button type="button" variant="ghost" size="sm" onClick={copyPreviewJson}>
-                                    <Copy className="mr-2 h-3.5 w-3.5" />
-                                    Copy JSON
-                                </Button>
-                                <Button type="button" variant="ghost" size="sm" onClick={resetPreview}>
-                                    Clear Preview
-                                </Button>
-                            </div>
-                        </div>
-                        <ScrollArea className="max-h-72 rounded-md border bg-white">
-                            <pre className="p-3 text-[11px] leading-5 whitespace-pre-wrap break-words">
-                                {JSON.stringify({ requirements: previewRequirements }, null, 2)}
-                            </pre>
-                        </ScrollArea>
+                            </SelectContent>
+                        </Select>
                     </div>
-                ) : null}
+                    <div className="space-y-2">
+                        <Label htmlFor="target-header">Target sub-regulation</Label>
+                        <Select value={targetHeader} onValueChange={setTargetHeader}>
+                            <SelectTrigger id="target-header">
+                                <SelectValue placeholder="Select a sub-regulation" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {availableParentHeaders.map((header) => (
+                                    <SelectItem key={header.code} value={header.code}>
+                                        {formatParentOptionLabel(header)}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <Tabs defaultValue="image">
+                        <TabsList className="grid w-full grid-cols-3">
+                            <TabsTrigger value="image">Paste Images</TabsTrigger>
+                            <TabsTrigger value="text">Paste Text</TabsTrigger>
+                            <TabsTrigger value="file">Upload File</TabsTrigger>
+                        </TabsList>
+                        <TabsContent value="image" className="pt-4">
+                            <div
+                                onPaste={handlePaste}
+                                className="h-48 border-2 border-dashed rounded-lg flex items-center justify-center text-muted-foreground mb-4"
+                            >
+                                <div className="text-center">
+                                    <ClipboardPaste className="mx-auto h-8 w-8" />
+                                    <p className="text-foreground/90">Click here and paste image(s) (Ctrl+V)</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center space-x-2 my-4">
+                                <Switch id="multi-image-mode" checked={isMultiImageMode} onCheckedChange={setIsMultiImageMode} />
+                                <Label htmlFor="multi-image-mode">Treat images as a single document</Label>
+                            </div>
+                            {isMultiImageMode && (
+                                <p className="text-xs text-foreground/80 p-2 bg-muted rounded-md">
+                                    Instruction to AI: &quot;You will be given a sequence of images. Treat them as pages of a single document, in the order they are provided. Text may flow from one image to the next.&quot;
+                                </p>
+                            )}
+                            <ScrollArea className="h-48 mt-4">
+                                <div className="grid grid-cols-3 gap-4">
+                                    {stagedImages.map((imageSrc, index) => (
+                                        <div key={index} className="relative group">
+                                            <Image src={imageSrc} alt={`Staged image ${index + 1}`} width={150} height={150} className="rounded-md object-cover aspect-square" />
+                                            <Button
+                                                variant="destructive"
+                                                size="icon"
+                                                className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100"
+                                                onClick={() => removeStagedImage(index)}
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </ScrollArea>
+                        </TabsContent>
+                        <TabsContent value="text" className="pt-4">
+                            <ScrollArea className="h-96 rounded-md border">
+                                <Textarea
+                                    placeholder="Paste the raw text of the regulations here..."
+                                    className="h-full min-h-[24rem] border-none focus-visible:ring-0"
+                                    value={pastedText}
+                                    onChange={(e) => setPastedText(e.target.value)}
+                                    onPaste={handlePaste}
+                                />
+                            </ScrollArea>
+                        </TabsContent>
+                        <TabsContent value="file" className="pt-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="reg-file">Regulation File (.txt)</Label>
+                                <Input id="reg-file" type="file" onChange={handleFileChange} accept=".txt" />
+                                {file && <p className="text-sm text-muted-foreground">Selected: {file.name}</p>}
+                            </div>
+                        </TabsContent>
+                    </Tabs>
+                    {previewRequirements && previewRequirements.length > 0 ? (
+                        <div ref={previewSectionRef} className="space-y-3 rounded-lg border border-slate-200 bg-slate-50/60 p-3 scroll-mt-4">
+                            <div className="flex items-center justify-between gap-3">
+                                <div>
+                                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">AI Preview</p>
+                                    <p className="text-xs text-muted-foreground">Review the extracted JSON before saving it to the matrix.</p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <Button type="button" variant="ghost" size="sm" onClick={copyPreviewJson}>
+                                        <Copy className="mr-2 h-3.5 w-3.5" />
+                                        Copy JSON
+                                    </Button>
+                                    <Button type="button" variant="ghost" size="sm" onClick={resetPreview}>
+                                        Clear Preview
+                                    </Button>
+                                </div>
+                            </div>
+                            <ScrollArea className="max-h-72 rounded-md border bg-white">
+                                <pre className="p-3 text-[11px] leading-5 whitespace-pre-wrap break-words">
+                                    {JSON.stringify({ requirements: previewRequirements }, null, 2)}
+                                </pre>
+                            </ScrollArea>
+                        </div>
+                    ) : null}
+                </div>
                 <DialogFooter>
                     <DialogClose asChild><Button variant="outline" size="compact" disabled={isProcessing || isSaving}>Cancel</Button></DialogClose>
                     {!previewRequirements ? (
@@ -485,11 +502,12 @@ export default function CoherenceMatrixPage() {
   const [personnel, setPersonnel] = useState<Personnel[]>([]);
   const [organizations, setOrganizations] = useState<ExternalOrganization[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const resolvedTenantId = tenantId || 'safeviate';
 
   const loadData = useCallback(async () => {
     try {
         const [matrixResponse, personnelResponse, orgResponse] = await Promise.all([
-          fetch('/api/compliance-matrix', { cache: 'no-store' }),
+          fetch(`/api/compliance-matrix?tenantId=${encodeURIComponent(resolvedTenantId)}`, { cache: 'no-store' }),
           fetch('/api/personnel', { cache: 'no-store' }),
           fetch('/api/external-organizations', { cache: 'no-store' }),
         ]);
@@ -506,7 +524,7 @@ export default function CoherenceMatrixPage() {
     } finally {
         setIsLoading(false);
     }
-  }, []);
+  }, [resolvedTenantId]);
 
   useEffect(() => {
     void loadData();
@@ -632,6 +650,7 @@ export default function CoherenceMatrixPage() {
 
   const renderOrgContext = (orgId: string | 'internal') => {
     const contextOrgId = orgId === 'internal' ? null : orgId;
+    const activeRegulationTabValue = regulationTabToUiValue(activeRegulationTab);
     const filteredItems = (complianceItems || []).filter(item => 
         (orgId === 'internal' ? !item.organizationId : item.organizationId === orgId) &&
         getItemFamily(item) === activeRegulationTab
@@ -895,127 +914,129 @@ export default function CoherenceMatrixPage() {
     };
 
     return (
-        <Card className="h-full min-h-0 flex flex-col overflow-hidden border-0 shadow-none">
-            <CardControlHeader
-                isMobile={isMobile}
-                context={shouldShowOrganizationTabs ? (
-                    <OrganizationTabsRow
-                        organizations={organizations || []}
-                        activeTab={activeOrgTab}
-                        onTabChange={setActiveOrgTab}
-                        className="border-0 bg-transparent px-0 py-0"
-                    />
-                ) : undefined}
-                mobileContext={shouldShowOrganizationTabs ? (
-                    <OrganizationTabsRow
-                        organizations={organizations || []}
-                        activeTab={activeOrgTab}
-                        onTabChange={setActiveOrgTab}
-                        className="border-0 bg-transparent px-0 py-0"
-                    />
-                ) : undefined}
-                actions={canManageMatrix ? (
-                    <>
-                        <UploadRegulationsDialog tenantId={tenantId!} organizationId={contextOrgId} regulationFamily={activeRegulationTab} availableParentHeaders={currentFamilySubheaders} />
-                        <Button
-                            variant="outline"
-                            className={cn(HEADER_COMPACT_CONTROL_CLASS, 'text-foreground hover:bg-accent/40')}
-                            onClick={() => handleOpenForm(null, 'header')}
-                        >
-                            <Layers className="h-4 w-4" />
-                            Add Header
-                        </Button>
-                        <Button
-                            variant="outline"
-                            className={cn(HEADER_COMPACT_CONTROL_CLASS, 'text-foreground hover:bg-accent/40')}
-                            onClick={() => handleOpenForm(null, 'subheader')}
-                        >
-                            <Layers className="h-4 w-4" />
-                            Add Subheader
-                        </Button>
-                        <Button 
-                            className={cn(
-                                HEADER_COMPACT_CONTROL_CLASS,
-                                'border-[hsl(var(--button-primary-border))] bg-[hsl(var(--button-primary-background))] text-[hsl(var(--button-primary-foreground))] hover:bg-[hsl(var(--button-primary-accent))] hover:text-[hsl(var(--button-primary-accent-foreground))]'
-                            )}
-                            onClick={() => handleOpenForm()}
-                        >
-                            <PlusCircle className="h-4 w-4" /> 
-                            Add Item
-                        </Button>
-                    </>
-                ) : undefined}
-                mobileActions={canManageMatrix ? (
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
+        <Tabs value={activeRegulationTabValue} onValueChange={(value) => setActiveRegulationTab(uiValueToRegulationTab(value))} className="flex h-full min-h-0 flex-col overflow-hidden">
+            <Card className="h-full min-h-0 flex flex-col overflow-hidden border-0 shadow-none">
+                <CardControlHeader
+                    isMobile={isMobile}
+                    context={shouldShowOrganizationTabs ? (
+                        <OrganizationTabsRow
+                            organizations={organizations || []}
+                            activeTab={activeOrgTab}
+                            onTabChange={setActiveOrgTab}
+                            className="border-0 bg-transparent px-0 py-0"
+                        />
+                    ) : undefined}
+                    mobileContext={shouldShowOrganizationTabs ? (
+                        <OrganizationTabsRow
+                            organizations={organizations || []}
+                            activeTab={activeOrgTab}
+                            onTabChange={setActiveOrgTab}
+                            className="border-0 bg-transparent px-0 py-0"
+                        />
+                    ) : undefined}
+                    actions={canManageMatrix ? (
+                        <>
+                            <UploadRegulationsDialog tenantId={tenantId!} organizationId={contextOrgId} regulationFamily={activeRegulationTab} availableParentHeaders={currentFamilySubheaders} />
                             <Button
                                 variant="outline"
-                                aria-label="Open coherence matrix actions"
-                                className={cn(
-                                    HEADER_SECONDARY_BUTTON_CLASS,
-                                    HEADER_COMPACT_CONTROL_CLASS,
-                                    'w-full justify-between text-foreground hover:bg-accent/40',
-                                )}
+                                className={cn(HEADER_COMPACT_CONTROL_CLASS, 'text-foreground hover:bg-accent/40')}
+                                onClick={() => handleOpenForm(null, 'header')}
                             >
-                                <span className="flex items-center gap-2">
-                                    <MoreHorizontal className="h-3.5 w-3.5" />
-                                    Actions
-                                </span>
-                                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                                <Layers className="h-4 w-4" />
+                                Add Header
                             </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-[var(--radix-dropdown-menu-trigger-width)]">
-                            <UploadRegulationsDialog 
-                                tenantId={tenantId!} 
-                                organizationId={contextOrgId} 
-                                regulationFamily={activeRegulationTab}
-                                availableParentHeaders={currentFamilySubheaders}
-                                trigger={
-                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                                        <WandSparkles className="mr-2 h-4 w-4" /> AI Populate
-                                    </DropdownMenuItem>
-                                }
-                            />
-                            <DropdownMenuItem onClick={() => handleOpenForm()}>
-                                <PlusCircle className="mr-2 h-4 w-4" /> Add Item
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleOpenForm(null, 'header')}>
-                                <Layers className="mr-2 h-4 w-4" /> Add Header
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleOpenForm(null, 'subheader')}>
-                                <Layers className="mr-2 h-4 w-4" /> Add Subheader
-                            </DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                ) : undefined}
-                navigation={
-                    <ResponsiveTabRow
-                        value={regulationTabToUiValue(activeRegulationTab)}
-                        onValueChange={(value) => setActiveRegulationTab(uiValueToRegulationTab(value))}
-                        placeholder="Select Regulation Family"
-                        centerTabs
-                        className="border-0 bg-transparent px-0 py-0"
-                        options={REGULATION_TABS.map((tab) => ({
-                            value: regulationTabToUiValue(tab.value),
-                            label: tab.label,
-                        }))}
-                    />
-                }
-            />
-            
-            <CardContent className="flex-1 min-h-0 overflow-y-auto p-6 pt-4">
-                <div className="space-y-4">
-                    {topLevelItems.map(parentItem => renderMatrixNode(parentItem, 0))}
-                    {topLevelItems.length === 0 && (
-                        <div className="flex flex-col items-center justify-center py-24 text-center opacity-30">
-                            <Layers className="h-16 w-16 mb-4" />
-                            <p className="text-sm font-black uppercase tracking-widest text-foreground/90">Coherence Matrix Empty</p>
-                            <p className="text-xs font-medium text-foreground/80 max-w-xs mt-2">Populate your matrix using the AI upload tool or by seeding standard Part 141 regulations.</p>
-                        </div>
-                    )}
-                </div>
-            </CardContent>
-        </Card>
+                            <Button
+                                variant="outline"
+                                className={cn(HEADER_COMPACT_CONTROL_CLASS, 'text-foreground hover:bg-accent/40')}
+                                onClick={() => handleOpenForm(null, 'subheader')}
+                            >
+                                <Layers className="h-4 w-4" />
+                                Add Subheader
+                            </Button>
+                            <Button 
+                                className={cn(
+                                    HEADER_COMPACT_CONTROL_CLASS,
+                                    'border-[hsl(var(--button-primary-border))] bg-[hsl(var(--button-primary-background))] text-[hsl(var(--button-primary-foreground))] hover:bg-[hsl(var(--button-primary-accent))] hover:text-[hsl(var(--button-primary-accent-foreground))]'
+                                )}
+                                onClick={() => handleOpenForm()}
+                            >
+                                <PlusCircle className="h-4 w-4" /> 
+                                Add Item
+                            </Button>
+                        </>
+                    ) : undefined}
+                    mobileActions={canManageMatrix ? (
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button
+                                    variant="outline"
+                                    aria-label="Open coherence matrix actions"
+                                    className={cn(
+                                        HEADER_SECONDARY_BUTTON_CLASS,
+                                        HEADER_COMPACT_CONTROL_CLASS,
+                                        'w-full justify-between text-foreground hover:bg-accent/40',
+                                    )}
+                                >
+                                    <span className="flex items-center gap-2">
+                                        <MoreHorizontal className="h-3.5 w-3.5" />
+                                        Actions
+                                    </span>
+                                    <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-[var(--radix-dropdown-menu-trigger-width)]">
+                                <UploadRegulationsDialog 
+                                    tenantId={tenantId!} 
+                                    organizationId={contextOrgId} 
+                                    regulationFamily={activeRegulationTab}
+                                    availableParentHeaders={currentFamilySubheaders}
+                                    trigger={
+                                        <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                                            <WandSparkles className="mr-2 h-4 w-4" /> AI Populate
+                                        </DropdownMenuItem>
+                                    }
+                                />
+                                <DropdownMenuItem onClick={() => handleOpenForm()}>
+                                    <PlusCircle className="mr-2 h-4 w-4" /> Add Item
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleOpenForm(null, 'header')}>
+                                    <Layers className="mr-2 h-4 w-4" /> Add Header
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleOpenForm(null, 'subheader')}>
+                                    <Layers className="mr-2 h-4 w-4" /> Add Subheader
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    ) : undefined}
+                    navigation={
+                        <ResponsiveTabRow
+                            value={activeRegulationTabValue}
+                            onValueChange={(value) => setActiveRegulationTab(uiValueToRegulationTab(value))}
+                            placeholder="Select Regulation Family"
+                            centerTabs
+                            className="border-0 bg-transparent px-0 py-0"
+                            options={REGULATION_TABS.map((tab) => ({
+                                value: regulationTabToUiValue(tab.value),
+                                label: tab.label,
+                            }))}
+                        />
+                    }
+                />
+                
+                <CardContent className="flex-1 min-h-0 overflow-y-auto p-6 pt-4">
+                    <div className="space-y-4">
+                        {topLevelItems.map(parentItem => renderMatrixNode(parentItem, 0))}
+                        {topLevelItems.length === 0 && (
+                            <div className="flex flex-col items-center justify-center py-24 text-center opacity-30">
+                                <Layers className="h-16 w-16 mb-4" />
+                                <p className="text-sm font-black uppercase tracking-widest text-foreground/90">Coherence Matrix Empty</p>
+                                <p className="text-xs font-medium text-foreground/80 max-w-xs mt-2">Populate your matrix using the AI upload tool or by seeding standard Part 141 regulations.</p>
+                            </div>
+                        )}
+                    </div>
+                </CardContent>
+            </Card>
+        </Tabs>
     );
   };
 

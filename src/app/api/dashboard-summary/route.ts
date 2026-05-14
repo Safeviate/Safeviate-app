@@ -1,4 +1,3 @@
-import { authOptions } from '@/auth';
 import { isDatabaseAvailable, prisma } from '@/lib/prisma';
 import {
   ensureAttendanceRecordsSchema,
@@ -14,7 +13,7 @@ import {
 } from '@/lib/server/bootstrap-db';
 import { getOrSetRouteCache } from '@/lib/server/route-cache';
 import { recordSimulationRouteMetric } from '@/lib/server/simulation-telemetry';
-import { getServerSession } from 'next-auth';
+import { getTenantIdFromSession } from '@/lib/server/session-tenant';
 import { NextResponse } from 'next/server';
 
 const PERSONNEL_TYPES = new Set(['Personnel', 'External']);
@@ -185,12 +184,11 @@ export async function GET() {
   const startedAt = Date.now();
   let tenantId: string | null = null;
   try {
-    const session = await getServerSession(authOptions);
-    const email = session?.user?.email?.trim().toLowerCase();
-
-    if (!email) {
+    tenantId = (await getTenantIdFromSession(new Request('http://localhost'))) || 'safeviate';
+    if (!tenantId) {
       return NextResponse.json(EMPTY_SUMMARY, { status: 200 });
     }
+    const resolvedTenantId = tenantId;
 
     if (!(await isDatabaseAvailable())) {
       return NextResponse.json(EMPTY_SUMMARY, { status: 200 });
@@ -202,12 +200,6 @@ export async function GET() {
       create: { id: 'safeviate', name: 'Safeviate' },
     });
 
-    const currentUser = await prisma.user.findUnique({
-      where: { email },
-      select: { tenantId: true },
-    });
-    tenantId = currentUser?.tenantId || 'safeviate';
-    const resolvedTenantId = tenantId;
     const tenantConfig = await readTenantConfig(resolvedTenantId);
 
     await Promise.all([

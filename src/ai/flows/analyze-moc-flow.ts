@@ -4,9 +4,9 @@
 
 import { z } from 'genkit';
 import { v4 as uuidv4 } from 'uuid';
-import { assertRequiredEnv } from '@/lib/server/env';
+import { ensureAiEnvironment, resolveAiApiKey } from '@/lib/server/ai-env';
 
-assertRequiredEnv(['OPENAI_API_KEY'], 'MOC analysis');
+ensureAiEnvironment('MOC analysis');
 
 export const AnalyzeMocInputSchema = z.object({
   title: z.string().describe('The title of the proposed change.'),
@@ -85,9 +85,9 @@ function extractJsonPayload(content: string) {
 }
 
 async function runOpenAiAnalyzeMoc(input: AnalyzeMocInput) {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = resolveAiApiKey();
   if (!apiKey) {
-    throw new Error('OPENAI_API_KEY is missing.');
+    throw new Error('Safeviate_AI_KEY or OPENAI_API_KEY is missing.');
   }
 
   const response = await fetch('https://api.openai.com/v1/chat/completions', {

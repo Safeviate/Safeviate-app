@@ -10,6 +10,8 @@ assertRequiredEnv(['NEXTAUTH_SECRET'], 'authentication');
 const cleanEnvValue = (value: string | undefined) =>
   value?.replace(/\\r\\n|\\n|\\r/g, '').trim() || '';
 
+const SEED_USER_ID = 'vercel-seed-admin';
+
 const normalizeNextAuthUrl = () => {
   const current = cleanEnvValue(process.env.NEXTAUTH_URL);
   if (process.env.NODE_ENV === 'development') {
@@ -112,8 +114,10 @@ export const authOptions: NextAuthOptions = {
 
             return {
               id: dbUser.id,
+              tenantId: dbUser.tenantId,
               email: dbUser.email,
               name: `${dbUser.firstName} ${dbUser.lastName}`.trim(),
+              role: dbUser.role,
             };
           }
         }
@@ -137,9 +141,11 @@ export const authOptions: NextAuthOptions = {
           }
 
           return {
-            id: 'vercel-seed-admin',
+            id: SEED_USER_ID,
+            tenantId: 'safeviate',
             email: seedEmail,
             name: 'Admin',
+            role: 'developer',
           };
         }
 
@@ -156,25 +162,8 @@ export const authOptions: NextAuthOptions = {
         token.id = user.id;
         token.email = user.email;
         token.name = user.name || token.name;
-      }
-
-      if (token.id) {
-        try {
-          const dbUser = await prisma.user.findUnique({
-            where: { id: token.id },
-            select: { email: true, suspendedAt: true },
-          });
-
-          if (!dbUser || dbUser.suspendedAt) {
-            token.id = '';
-            token.email = '';
-            token.name = '';
-          } else {
-            token.email = dbUser.email;
-          }
-        } catch (error) {
-          console.error('[AUTH] Session validation failed.', error);
-        }
+        token.tenantId = user.tenantId;
+        token.role = user.role;
       }
       return token;
     },
@@ -183,6 +172,8 @@ export const authOptions: NextAuthOptions = {
         session.user.id = (token.id as string | undefined) || undefined;
         session.user.email = (token.email as string | undefined) || undefined;
         session.user.name = (token.name as string | undefined) || undefined;
+        session.user.tenantId = (token.tenantId as string | undefined) || undefined;
+        session.user.role = (token.role as string | undefined) || undefined;
       }
       return session;
     },

@@ -1,6 +1,5 @@
-import { authOptions } from '@/auth';
 import { prisma } from '@/lib/prisma';
-import { getServerSession } from 'next-auth';
+import { getTenantIdFromSession } from '@/lib/server/session-tenant';
 import { NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
 
@@ -34,12 +33,9 @@ function isWithinDeletionScope(item: ComplianceMatrixEntry, rootCode: string) {
   return matchesCodeTree || matchesParentTree;
 }
 
-async function getTenantId() {
-  const session = await getServerSession(authOptions);
-  const email = session?.user?.email?.trim().toLowerCase();
-  if (!email) return null;
-  const currentUser = await prisma.user.findUnique({ where: { email }, select: { tenantId: true } });
-  return currentUser?.tenantId || 'safeviate';
+async function getTenantId(request: Request) {
+  const tenantIdFromQuery = new URL(request.url).searchParams.get('tenantId')?.trim() || null;
+  return tenantIdFromQuery || await getTenantIdFromSession(request);
 }
 
 async function getConfig(tenantId: string) {
@@ -50,9 +46,9 @@ async function getConfig(tenantId: string) {
   return (rows[0]?.data as Record<string, unknown>) || {};
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const tenantId = await getTenantId();
+    const tenantId = await getTenantId(request);
     if (!tenantId) return NextResponse.json({ items: [] }, { status: 200 });
     const config = await getConfig(tenantId);
     return NextResponse.json({ items: Array.isArray(config['compliance-matrix']) ? config['compliance-matrix'] : [] }, { status: 200 });
@@ -63,7 +59,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const tenantId = await getTenantId();
+  const tenantId = await getTenantId(request);
   if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const body = await request.json().catch(() => null);
   const item = body?.item;
@@ -84,7 +80,7 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const tenantId = await getTenantId();
+  const tenantId = await getTenantId(request);
   if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');

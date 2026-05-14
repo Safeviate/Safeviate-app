@@ -2,7 +2,8 @@ import { authOptions } from '@/auth';
 import { prisma } from '@/lib/prisma';
 import { ensureTenantConfigSchema } from '@/lib/server/bootstrap-db';
 import { getOrSetRouteCache, invalidateRouteCache } from '@/lib/server/route-cache';
-import { MASTER_TENANT_ID, isMasterTenantEmail, resolveTenantOverride } from '@/lib/server/tenant-access';
+import { MASTER_TENANT_ID, isMasterTenantEmail } from '@/lib/server/tenant-access';
+import { getTenantIdFromSession } from '@/lib/server/session-tenant';
 import { getServerSession } from 'next-auth';
 import { NextResponse } from 'next/server';
 
@@ -10,16 +11,14 @@ export async function GET(request: Request) {
   try {
     const session = await getServerSession(authOptions);
     const email = session?.user?.email?.trim().toLowerCase();
+    const tenantIdFromQuery = new URL(request.url).searchParams.get('tenantId')?.trim() || null;
     if (!email) {
       return NextResponse.json({ config: null }, { status: 200 });
     }
 
     await ensureTenantConfigSchema();
 
-    const baseTenantId = (await prisma.user.findUnique({ where: { email }, select: { tenantId: true } }))?.tenantId || MASTER_TENANT_ID;
-    const tenantId = isMasterTenantEmail(email)
-      ? await resolveTenantOverride(request, email, baseTenantId)
-      : baseTenantId;
+    const tenantId = tenantIdFromQuery || (await getTenantIdFromSession(request, MASTER_TENANT_ID)) || MASTER_TENANT_ID;
 
     const configRow = await getOrSetRouteCache(
       `tenant-config:${tenantId}`,
@@ -41,18 +40,14 @@ export async function PUT(request: Request) {
   try {
     const session = await getServerSession(authOptions);
     const email = session?.user?.email?.trim().toLowerCase();
+    const role = session?.user?.role?.trim().toLowerCase() || '';
+    const tenantIdFromQuery = new URL(request.url).searchParams.get('tenantId')?.trim() || null;
     if (!email) {
       return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
     }
 
-    const currentUser = await prisma.user.findUnique({ where: { email } });
-    if (!currentUser) {
-      return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
-    }
-
-    const role = currentUser.role?.toLowerCase();
     const isDeveloper = role === 'dev' || role === 'developer';
-    const isMaster = isMasterTenantEmail(email) || currentUser.tenantId === MASTER_TENANT_ID;
+    const isMaster = isMasterTenantEmail(email);
     if (!isDeveloper && !isMaster) {
       return NextResponse.json({ error: 'Unauthorized to update tenant configuration.' }, { status: 403 });
     }
@@ -65,9 +60,7 @@ export async function PUT(request: Request) {
 
     await ensureTenantConfigSchema();
 
-    const resolvedTenantId = isMaster
-      ? await resolveTenantOverride(request, email, currentUser.tenantId || MASTER_TENANT_ID)
-      : currentUser.tenantId;
+    const resolvedTenantId = tenantIdFromQuery || (await getTenantIdFromSession(request, MASTER_TENANT_ID)) || MASTER_TENANT_ID;
 
     const existingRow = await prisma.tenantConfig.findUnique({
       where: { tenantId: resolvedTenantId },

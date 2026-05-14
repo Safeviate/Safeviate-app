@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { hasAcceptedBetaNda, BETA_NDA_VERSION } from '@/lib/server/beta-nda';
-import { prisma } from '@/lib/prisma';
+import { getTenantIdFromSession } from '@/lib/server/session-tenant';
 
 export async function GET(request: Request) {
   try {
@@ -17,8 +17,7 @@ export async function GET(request: Request) {
       });
     }
 
-    const user = await prisma.user.findUnique({ where: { email }, select: { tenantId: true } }).catch(() => null);
-    const resolvedTenantId = tenantId || user?.tenantId || 'safeviate';
+    const resolvedTenantId = tenantId || (await getTenantIdFromSession(request)) || 'safeviate';
     const accepted = await hasAcceptedBetaNda(resolvedTenantId, email);
     return NextResponse.json({
       ok: true,

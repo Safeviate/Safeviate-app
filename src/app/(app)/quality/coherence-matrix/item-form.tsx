@@ -169,7 +169,7 @@ export function ComplianceItemForm({ personnel, existingItem, onFormSubmit, tena
             };
 
         try {
-            const response = await fetch('/api/compliance-matrix', {
+            const response = await fetch(`/api/compliance-matrix?tenantId=${encodeURIComponent(tenantId)}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

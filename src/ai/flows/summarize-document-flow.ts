@@ -3,9 +3,9 @@
  */
 
 import { z } from 'genkit';
-import { assertRequiredEnv } from '@/lib/server/env';
+import { ensureAiEnvironment, resolveAiApiKey } from '@/lib/server/ai-env';
 
-assertRequiredEnv(['OPENAI_API_KEY'], 'document summarization');
+ensureAiEnvironment('document summarization');
 
 const RegulationSchema = z.object({
   regulationCode: z.string().describe('The full code for the extracted item.'),
@@ -119,9 +119,9 @@ function buildUserContent(input: SummarizeDocumentInput) {
 }
 
 async function runOpenAiSummarizeDocument(input: SummarizeDocumentInput) {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = resolveAiApiKey();
   if (!apiKey) {
-    throw new Error('OPENAI_API_KEY is missing.');
+    throw new Error('Safeviate_AI_KEY or OPENAI_API_KEY is missing.');
   }
 
   const response = await fetch('https://api.openai.com/v1/chat/completions', {

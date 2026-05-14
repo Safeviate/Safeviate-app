@@ -7,6 +7,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Input } from '@/components/ui/input';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { DropdownMenuCheckboxItem, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
 import { useTenantConfig } from '@/hooks/use-tenant-config';
@@ -17,6 +20,7 @@ import { isHrefEnabledForIndustry, shouldBypassIndustryRestrictions } from '@/li
 import { HEADER_SECONDARY_BUTTON_CLASS } from '@/components/page-header';
 import { OPERATIONS_MAP_CARD_CLASS } from '@/components/operations/operations-map-layout';
 import { MOBILE_ACTION_MENU_ITEM_CLASS, MOBILE_ACTION_MENU_STATE_ITEM_CLASS, MobileActionDropdown } from '@/components/mobile-action-dropdown';
+import { cn } from '@/lib/utils';
 
 const FleetTrackerMap = dynamic(() => import('@/components/fleet-tracker/fleet-tracker-map').then((module) => module.FleetTrackerMap), {
   ssr: false,
@@ -43,6 +47,17 @@ const formatReplayTimestamp = (value?: string | null) => {
   return parsed.toLocaleString([], { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 };
 
+const formatReplayDuration = (firstRecordedAt?: string | null, lastRecordedAt?: string | null) => {
+  if (!firstRecordedAt || !lastRecordedAt) return 'Unknown span';
+  const start = new Date(firstRecordedAt).getTime();
+  const end = new Date(lastRecordedAt).getTime();
+  if (Number.isNaN(start) || Number.isNaN(end) || end <= start) return 'Single point';
+  const diffMinutes = Math.max(1, Math.round((end - start) / 60000));
+  const hours = Math.floor(diffMinutes / 60);
+  const minutes = diffMinutes % 60;
+  return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+};
+
 export default function FleetTrackerPage() {
   const { toast } = useToast();
   const { tenant, isLoading: isTenantLoading } = useTenantConfig();
@@ -58,6 +73,7 @@ export default function FleetTrackerPage() {
   const [replaySummaries, setReplaySummaries] = useState<FlightTrackHistorySummary[]>([]);
   const [selectedReplayRegistration, setSelectedReplayRegistration] = useState('');
   const [selectedReplayHours, setSelectedReplayHours] = useState<number>(6);
+  const [replaySearch, setReplaySearch] = useState('');
   const [replayPoints, setReplayPoints] = useState<FlightTrackPoint[]>([]);
   const [replayCursor, setReplayCursor] = useState(0);
   const [isReplayLoading, setIsReplayLoading] = useState(false);
@@ -192,9 +208,18 @@ export default function FleetTrackerPage() {
   );
 
   const activeReplayPoint = replayPoints[replayCursor] || null;
+  const sortedReplaySummaries = useMemo(
+    () => [...replaySummaries].sort((left, right) => new Date(right.lastRecordedAt).getTime() - new Date(left.lastRecordedAt).getTime()),
+    [replaySummaries]
+  );
+  const filteredReplaySummaries = useMemo(() => {
+    const query = replaySearch.trim().toLowerCase();
+    if (!query) return sortedReplaySummaries;
+    return sortedReplaySummaries.filter((summary) => summary.aircraftRegistration.toLowerCase().includes(query));
+  }, [replaySearch, sortedReplaySummaries]);
   const activeReplaySummary = useMemo(
-    () => replaySummaries.find((summary) => summary.aircraftRegistration === selectedReplayRegistration) ?? null,
-    [replaySummaries, selectedReplayRegistration]
+    () => sortedReplaySummaries.find((summary) => summary.aircraftRegistration === selectedReplayRegistration) ?? null,
+    [selectedReplayRegistration, sortedReplaySummaries]
   );
 
   const navlogRoutesByBookingId = useMemo(() => {
@@ -558,85 +583,189 @@ export default function FleetTrackerPage() {
           </div>
         </DialogContent>
       </Dialog>
-      <Dialog open={trackReplayPickerOpen} onOpenChange={setTrackReplayPickerOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle className="text-sm font-black uppercase tracking-widest">Track Replay</DialogTitle>
-            <DialogDescription>Choose an aircraft registration and time window to load its saved track onto the Fleet Tracker map.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-muted-foreground">Aircraft Registration</p>
-              <select
-                value={selectedReplayRegistration}
-                onChange={(event) => setSelectedReplayRegistration(event.target.value)}
-                className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-900 outline-none ring-0"
-              >
-                {replaySummaries.length === 0 ? <option value="">No track history yet</option> : null}
-                {replaySummaries.map((summary) => (
-                  <option key={summary.aircraftRegistration} value={summary.aircraftRegistration}>
-                    {summary.aircraftRegistration}
-                  </option>
-                ))}
-              </select>
-              {activeReplaySummary ? (
-                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                  {activeReplaySummary.pointCount} points • first {formatReplayTimestamp(activeReplaySummary.firstRecordedAt)} • latest{' '}
-                  {formatReplayTimestamp(activeReplaySummary.lastRecordedAt)}
-                </p>
-              ) : null}
+      <Sheet open={trackReplayPickerOpen} onOpenChange={setTrackReplayPickerOpen}>
+        <SheetContent side="right" className="w-full overflow-hidden border-l-slate-200 bg-slate-50 p-0 sm:max-w-2xl">
+          <div className="flex h-full flex-col">
+            <div className="border-b border-slate-200 bg-white px-5 py-4">
+              <SheetHeader className="space-y-1 text-left">
+                <SheetTitle className="text-sm font-black uppercase tracking-widest">Track Replay</SheetTitle>
+                <SheetDescription>
+                  Browse saved aircraft tracks, set a replay window, and load a flight trail onto the Fleet Tracker map.
+                </SheetDescription>
+              </SheetHeader>
             </div>
 
-            <div className="space-y-2">
-              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-muted-foreground">Replay Window</p>
-              <div className="flex flex-wrap gap-2">
-                {TRACK_REPLAY_WINDOW_OPTIONS.map((option) => (
-                  <Button
-                    key={option.value}
-                    type="button"
-                    variant="outline"
-                    className={`h-8 px-3 text-[9px] font-black uppercase tracking-[0.08em] ${
-                      selectedReplayHours === option.value ? 'border-slate-900 bg-slate-900 text-white hover:bg-slate-800' : ''
-                    }`}
-                    onClick={() => setSelectedReplayHours(option.value)}
-                  >
-                    {option.label}
-                  </Button>
-                ))}
+            <ScrollArea className="flex-1">
+              <div className="space-y-5 px-5 py-4">
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                    <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Saved Tracks</p>
+                    <p className="mt-1 text-2xl font-black text-slate-900">{sortedReplaySummaries.length}</p>
+                    <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Recent history available</p>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                    <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Window</p>
+                    <p className="mt-1 text-2xl font-black text-slate-900">{selectedReplayHours}H</p>
+                    <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Track history window</p>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                    <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Focus</p>
+                    <p className="mt-1 truncate text-sm font-black text-slate-900">{selectedReplayRegistration || 'Choose a track'}</p>
+                    <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">Load to replay</p>
+                  </div>
+                </div>
+
+                <div className="space-y-3 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Search</p>
+                    <Input
+                      value={replaySearch}
+                      onChange={(event) => setReplaySearch(event.target.value)}
+                      placeholder="Filter by registration"
+                      className="h-10 border-slate-200 bg-slate-50 text-sm font-semibold text-slate-900"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Recent Tracks</p>
+                    <div className="grid gap-2">
+                      {filteredReplaySummaries.length === 0 ? (
+                        <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 p-4 text-sm text-slate-500">
+                          No matching track history found.
+                        </div>
+                      ) : (
+                        filteredReplaySummaries.map((summary) => {
+                          const isSelected = summary.aircraftRegistration === selectedReplayRegistration;
+                          return (
+                            <button
+                              key={summary.aircraftRegistration}
+                              type="button"
+                              onClick={() => setSelectedReplayRegistration(summary.aircraftRegistration)}
+                              className={cn(
+                                'w-full rounded-2xl border px-3 py-3 text-left transition',
+                                isSelected
+                                  ? 'border-slate-900 bg-slate-900 text-white shadow-lg shadow-slate-900/10'
+                                  : 'border-slate-200 bg-slate-50/70 text-slate-900 hover:border-slate-300 hover:bg-slate-50'
+                              )}
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0 space-y-1">
+                                  <p className={cn('truncate text-sm font-black uppercase tracking-[0.16em]', isSelected ? 'text-white' : 'text-slate-900')}>
+                                    {summary.aircraftRegistration}
+                                  </p>
+                                  <p className={cn('text-[10px] font-semibold uppercase tracking-[0.12em]', isSelected ? 'text-slate-200' : 'text-slate-500')}>
+                                    {summary.pointCount} pts • {formatReplayDuration(summary.firstRecordedAt, summary.lastRecordedAt)}
+                                  </p>
+                                </div>
+                                <Badge
+                                  variant="outline"
+                                  className={cn(
+                                    'shrink-0 text-[9px] font-black uppercase tracking-widest',
+                                    isSelected ? 'border-white/20 bg-white/10 text-white' : ''
+                                  )}
+                                >
+                                  {isSelected ? 'Selected' : 'Load'}
+                                </Badge>
+                              </div>
+                              <div className="mt-3 grid gap-1 text-[10px] font-medium uppercase tracking-[0.12em] sm:grid-cols-2">
+                                <span className={cn('truncate', isSelected ? 'text-slate-200' : 'text-slate-500')}>
+                                  First {formatReplayTimestamp(summary.firstRecordedAt)}
+                                </span>
+                                <span className={cn('truncate', isSelected ? 'text-slate-200' : 'text-slate-500')}>
+                                  Latest {formatReplayTimestamp(summary.lastRecordedAt)}
+                                </span>
+                              </div>
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {activeReplaySummary ? (
+                  <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Track Snapshot</p>
+                        <p className="mt-1 text-lg font-black text-slate-900">{activeReplaySummary.aircraftRegistration}</p>
+                      </div>
+                      <Badge variant="outline" className="text-[9px] font-black uppercase tracking-widest">
+                        {activeReplaySummary.pointCount} pts
+                      </Badge>
+                    </div>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3">
+                        <p className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-500">First</p>
+                        <p className="mt-1 text-[10px] font-bold text-slate-900">{formatReplayTimestamp(activeReplaySummary.firstRecordedAt)}</p>
+                      </div>
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3">
+                        <p className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-500">Latest</p>
+                        <p className="mt-1 text-[10px] font-bold text-slate-900">{formatReplayTimestamp(activeReplaySummary.lastRecordedAt)}</p>
+                      </div>
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3">
+                        <p className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-500">Span</p>
+                        <p className="mt-1 text-[10px] font-bold text-slate-900">{formatReplayDuration(activeReplaySummary.firstRecordedAt, activeReplaySummary.lastRecordedAt)}</p>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
+                <div className="space-y-2 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Replay Window</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {TRACK_REPLAY_WINDOW_OPTIONS.map((option) => (
+                      <Button
+                        key={option.value}
+                        type="button"
+                        variant="outline"
+                        className={cn(
+                          'h-10 px-3 text-[9px] font-black uppercase tracking-[0.08em]',
+                          selectedReplayHours === option.value ? 'border-slate-900 bg-slate-900 text-white hover:bg-slate-800' : 'border-slate-200'
+                        )}
+                        onClick={() => setSelectedReplayHours(option.value)}
+                      >
+                        {option.label}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </ScrollArea>
+
+            <div className="border-t border-slate-200 bg-white px-5 py-4">
+              <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-10 px-4 text-[10px] font-black uppercase tracking-[0.08em]"
+                  onClick={() => setTrackReplayPickerOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  className="h-10 px-4 text-[10px] font-black uppercase tracking-[0.08em]"
+                  disabled={!selectedReplayRegistration || isReplayLoading}
+                  onClick={() => {
+                    void loadReplayPoints(selectedReplayRegistration, selectedReplayHours)
+                      .then(() => setTrackReplayPickerOpen(false))
+                      .catch(() =>
+                        toast({
+                          variant: 'destructive',
+                          title: 'Replay Unavailable',
+                          description: 'Track replay could not be loaded right now.',
+                        })
+                      );
+                  }}
+                >
+                  {isReplayLoading ? 'Loading Replay...' : 'Load Replay'}
+                </Button>
               </div>
             </div>
-
-            <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-              <Button
-                type="button"
-                variant="outline"
-                className="h-9 px-4 text-[10px] font-black uppercase tracking-[0.08em]"
-                onClick={() => setTrackReplayPickerOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                className="h-9 px-4 text-[10px] font-black uppercase tracking-[0.08em]"
-                disabled={!selectedReplayRegistration || isReplayLoading}
-                onClick={() => {
-                  void loadReplayPoints(selectedReplayRegistration, selectedReplayHours)
-                    .then(() => setTrackReplayPickerOpen(false))
-                    .catch(() =>
-                      toast({
-                        variant: 'destructive',
-                        title: 'Replay Unavailable',
-                        description: 'Track replay could not be loaded right now.',
-                      })
-                    );
-                }}
-              >
-                {isReplayLoading ? 'Loading Replay...' : 'Load Replay'}
-              </Button>
-            </div>
           </div>
-        </DialogContent>
-      </Dialog>
+        </SheetContent>
+      </Sheet>
     </>
   );
 }
