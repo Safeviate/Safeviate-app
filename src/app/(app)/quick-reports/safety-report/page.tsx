@@ -49,6 +49,7 @@ export default function QuickSafetyReportPage() {
   const publicTenantId = typeof params?.tenantId === 'string' ? params.tenantId.trim() : '';
   const isPublicPortal = pathname.startsWith('/report/');
   const returnHref = isPublicPortal && publicTenantId ? `/report/${encodeURIComponent(publicTenantId)}` : '/quick-reports';
+  const showBackButton = !isPublicPortal;
   const photoHelperText = useMemo(
     () => `${photoAttachments.length}/5 photos attached. Use this only for quick visual evidence.`,
     [photoAttachments.length]
@@ -204,7 +205,7 @@ export default function QuickSafetyReportPage() {
             ? 'Capture a preliminary safety concern for this organization without logging in.'
             : 'Capture a preliminary safety concern quickly, then classify it into the formal safety workflow when management is ready.'
         }
-        actions={<BackNavButton href={returnHref} text="Back to Quick Reports" />}
+        actions={showBackButton ? <BackNavButton href={returnHref} text="Back to Quick Reports" /> : undefined}
       />
 
       <Form {...form}>

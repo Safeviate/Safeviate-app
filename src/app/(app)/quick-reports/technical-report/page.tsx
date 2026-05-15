@@ -51,6 +51,7 @@ export default function QuickTechnicalReportPage() {
   const publicTenantId = typeof params?.tenantId === 'string' ? params.tenantId.trim() : '';
   const isPublicPortal = pathname.startsWith('/report/');
   const returnHref = isPublicPortal && publicTenantId ? `/report/${encodeURIComponent(publicTenantId)}` : '/quick-reports';
+  const showBackButton = !isPublicPortal;
   const photoHelperText = useMemo(
     () => `${photoAttachments.length}/5 photos attached. Use this only for quick visual evidence.`,
     [photoAttachments.length]
@@ -202,7 +203,7 @@ export default function QuickTechnicalReportPage() {
             ? 'Capture a quick preliminary technical report for this organization without logging in.'
             : 'Capture a quick preliminary technical report that management can analyze, assign, and escalate later.'
         }
-        actions={<BackNavButton href={returnHref} text="Back to Quick Reports" />}
+        actions={showBackButton ? <BackNavButton href={returnHref} text="Back to Quick Reports" /> : undefined}
       />
 
       <Form {...form}>
