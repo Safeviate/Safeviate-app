@@ -18,6 +18,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { Booking } from '@/types/booking';
 import type { MilestoneWarning, StudentMilestoneSettings, StudentProgressReport } from '@/types/training';
+import { buildTrainingCompetencyAreas, type TrainingCompetencyArea } from '@/lib/training-competencies';
 import { TRAINING_EXERCISE_TEMPLATES } from '@/lib/training-exercise-templates';
 
 interface StudentDetailPageProps {
@@ -96,6 +97,159 @@ const getPeriodStart = (period: 'week' | 'month' | 'all', reference = new Date()
 
 const getProgressionStatusMeta = (status?: StudentProgressionRecommendation['status']) =>
   PROGRESSION_STATUS_OPTIONS.find((option) => option.value === status) || PROGRESSION_STATUS_OPTIONS[1];
+
+type CompetencyHighlight = Pick<TrainingCompetencyArea, 'key' | 'label' | 'score' | 'signal' | 'nextAction'>;
+
+const getCompetencyTone = (signal: TrainingCompetencyArea['signal']) => {
+  if (signal === 'strength') {
+    return {
+      border: 'border-emerald-200',
+      bg: 'bg-emerald-50',
+      pill: 'bg-emerald-500/10 text-emerald-700 border-emerald-200',
+      bar: 'bg-emerald-500',
+      label: 'Strength',
+    };
+  }
+
+  if (signal === 'growth') {
+    return {
+      border: 'border-rose-200',
+      bg: 'bg-rose-50',
+      pill: 'bg-rose-500/10 text-rose-700 border-rose-200',
+      bar: 'bg-rose-500',
+      label: 'Growth area',
+    };
+  }
+
+  return {
+    border: 'border-amber-200',
+    bg: 'bg-amber-50',
+    pill: 'bg-amber-500/10 text-amber-700 border-amber-200',
+    bar: 'bg-amber-500',
+    label: 'Watch',
+  };
+};
+
+const getCompetencySnapshot = (reports: StudentProgressReport[]) => {
+  const areas = buildTrainingCompetencyAreas(reports);
+  const strengths = areas.filter((area) => area.signal === 'strength').slice(0, 2) as CompetencyHighlight[];
+  const weakPoints = [
+    ...areas.filter((area) => area.signal === 'growth'),
+    ...areas.filter((area) => area.signal === 'watch'),
+  ].slice(0, 2) as CompetencyHighlight[];
+  const signal: TrainingCompetencyArea['signal'] = weakPoints.some((area) => area.signal === 'growth')
+    ? 'growth'
+    : weakPoints.length > 0
+      ? 'watch'
+      : 'strength';
+  const headline = weakPoints[0]?.label || strengths[0]?.label || 'No competency data yet';
+  const score = areas.length > 0 ? areas.reduce((sum, area) => sum + area.score, 0) / areas.length : 0;
+  const nextFocus = weakPoints[0]
+    ? `Next focus: ${weakPoints[0].label}`
+    : strengths[0]
+      ? `Keep reinforcing ${strengths[0].label}`
+      : 'Next focus: add debrief notes';
+
+  return {
+    signal,
+    headline,
+    score: parseFloat(score.toFixed(1)),
+    nextFocus,
+    strengths,
+    weakPoints,
+  };
+};
+
+function CompetencyStrip({ reports }: { reports: StudentProgressReport[] }) {
+  const snapshot = useMemo(() => getCompetencySnapshot(reports), [reports]);
+  const tone = getCompetencyTone(snapshot.signal);
+  const strengthItems = snapshot.strengths.length > 0
+    ? snapshot.strengths
+    : [{ key: 'strength-empty', label: 'No clear strength yet', score: 0, signal: 'strength' as const, nextAction: 'Keep adding debrief evidence.' }];
+  const weakPointItems = snapshot.weakPoints.length > 0
+    ? snapshot.weakPoints
+    : [{ key: 'weak-empty', label: 'No weak point flagged yet', score: 0, signal: 'watch' as const, nextAction: 'More debrief detail will surface the next focus.' }];
+
+  const renderHighlightCard = (area: CompetencyHighlight) => {
+    const areaTone = getCompetencyTone(area.signal);
+    return (
+      <div key={area.key} className={cn('rounded-xl border bg-background/70 p-3 space-y-2', areaTone.border)}>
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
+              {area.signal === 'strength' ? 'Strength' : 'Weak point'}
+            </p>
+            <p className="mt-1 text-[11px] font-semibold leading-snug">{area.label}</p>
+          </div>
+          <Badge variant="outline" className={cn('shrink-0 text-[10px] font-black uppercase tracking-[0.16em]', areaTone.pill)}>
+            {Math.round(area.score)} / 100
+          </Badge>
+        </div>
+        <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground leading-snug">
+          {area.nextAction}
+        </p>
+      </div>
+    );
+  };
+
+  return (
+    <Card className={cn('overflow-hidden border shadow-none', tone.border, tone.bg)}>
+      <CardHeader className="border-b bg-muted/5 px-4 py-3">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <p className="text-[10px] font-black uppercase tracking-[0.16em]">Strengths / Weak points</p>
+            </div>
+            <p className="mt-1 text-[11px] font-semibold leading-snug">{snapshot.headline}</p>
+          </div>
+          <Badge variant="outline" className={cn('text-[10px] font-black uppercase tracking-[0.16em]', tone.pill)}>
+            {tone.label}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3 p-4">
+        <div className="space-y-1.25">
+          <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
+            <span>Average skill score</span>
+            <span>{Math.round(snapshot.score)} / 100</span>
+          </div>
+          <div className="h-1 overflow-hidden rounded-full bg-muted/60">
+            <div className={cn('h-full rounded-full', tone.bar)} style={{ width: `${Math.min(Math.max(snapshot.score, 0), 100)}%` }} />
+          </div>
+          <p className="text-[9px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+            {snapshot.nextFocus}
+          </p>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-2">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-700">Strengths</p>
+              <Badge variant="outline" className="text-[10px] font-black uppercase tracking-[0.16em] bg-emerald-500/10 text-emerald-700 border-emerald-200">
+                {strengthItems.length}
+              </Badge>
+            </div>
+            <div className="space-y-2">
+              {strengthItems.map(renderHighlightCard)}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-rose-700">Weak points</p>
+              <Badge variant="outline" className="text-[10px] font-black uppercase tracking-[0.16em] bg-rose-500/10 text-rose-700 border-rose-200">
+                {weakPointItems.length}
+              </Badge>
+            </div>
+            <div className="space-y-2">
+              {weakPointItems.map(renderHighlightCard)}
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 const PHASE_OPTIONS = TRAINING_EXERCISE_TEMPLATES.map((template) => ({
   value: template.key,
@@ -391,6 +545,10 @@ export default function StudentDetailPage({ params }: StudentDetailPageProps) {
       ),
     [summary.instructors],
   );
+  const competencyReports = useMemo(
+    () => (Array.isArray(summary.studentProgressReports) ? summary.studentProgressReports.filter((report) => report.studentId === studentId) : []),
+    [studentId, summary.studentProgressReports],
+  );
 
   if (isLoading) {
     return (
@@ -522,6 +680,7 @@ export default function StudentDetailPage({ params }: StudentDetailPageProps) {
         <div className="h-full min-w-[1100px] md:min-w-0">
           <div className="space-y-4 p-4">
             <ProgressSummary student={student} progress={progress} />
+            <CompetencyStrip reports={competencyReports} />
             <ProgressionDecisionCard
               recommendation={student.progressionRecommendation}
               canManage={canManageProgression}

@@ -267,7 +267,10 @@ export function AppSidebarMobile() {
   
     return (
       <SidebarMobile open={openMobile} onOpenChange={setOpenMobile}>
-        <SidebarMobileContent className="!p-0 !gap-0 overflow-hidden no-scrollbar" aria-label="Main Menu">
+        <SidebarMobileContent
+          className={cn('!p-0 !gap-0 overflow-hidden no-scrollbar')}
+          aria-label="Main Menu"
+        >
           <SidebarHeader className="flex h-[44px] flex-row items-center gap-3 shrink-0 bg-header px-4">
             <SidebarTrigger className="h-8 w-8 text-header-foreground opacity-80" />
             <span className="truncate font-headline text-lg font-bold tracking-tight text-header-foreground">
@@ -286,7 +289,7 @@ export function AppSidebarMobile() {
 
 export function AppSidebar() {
   return (
-    <Sidebar className="top-0 h-svh">
+    <Sidebar className={cn('top-0 h-svh')}>
       <SidebarContent className="pt-[36px] no-scrollbar">
         <SidebarItems />
       </SidebarContent>

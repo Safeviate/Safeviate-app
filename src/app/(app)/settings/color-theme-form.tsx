@@ -194,8 +194,10 @@ export function ColorThemeForm({ showHeader = true }: ColorThemeFormProps) {
   const canManageOrganization = hasPermission('admin-settings-manage') || hasPermission('settings-manage');
 
   const buildOrganizationTheme = useCallback((overrides?: {
+    sidebarBackgroundImage?: string;
     sidebarLogoImage?: string;
     sidebarLogoBackgroundColor?: string;
+    headerBackgroundImage?: string;
   }) => ({
     primaryColour: theme.primary,
     backgroundColour: theme.background,
@@ -206,12 +208,14 @@ export function ColorThemeForm({ showHeader = true }: ColorThemeFormProps) {
     card: cardTheme,
     popover: popoverTheme,
     sidebar: sidebarTheme,
-    sidebarBackgroundImage,
+    sidebarBackgroundImage:
+      overrides?.sidebarBackgroundImage !== undefined ? overrides.sidebarBackgroundImage : sidebarBackgroundImage,
     sidebarBackgroundOpacity,
     sidebarLogoImage: overrides?.sidebarLogoImage ?? sidebarLogoImage,
     sidebarLogoBackgroundColor: overrides?.sidebarLogoBackgroundColor ?? sidebarLogoBackgroundColor,
     header: headerTheme,
-    headerBackgroundImage,
+    headerBackgroundImage:
+      overrides?.headerBackgroundImage !== undefined ? overrides.headerBackgroundImage : headerBackgroundImage,
     headerBackgroundOpacity,
     swimlane: swimlaneTheme,
     matrix: matrixTheme,
@@ -988,7 +992,10 @@ export function ColorThemeForm({ showHeader = true }: ColorThemeFormProps) {
                               variant="outline"
                               className={PAGE_FORMAT_SECONDARY_BUTTON_CLASS}
                               disabled={isUploadingHeaderImage}
-                              onClick={() => setHeaderBackgroundImage('')}
+                              onClick={() => {
+                                setHeaderBackgroundImage('');
+                                void persistOrganizationTheme(buildOrganizationTheme({ headerBackgroundImage: '' }));
+                              }}
                             >
                               Remove Header Image
                             </Button>
@@ -1115,7 +1122,10 @@ export function ColorThemeForm({ showHeader = true }: ColorThemeFormProps) {
                               variant="outline"
                               className={PAGE_FORMAT_SECONDARY_BUTTON_CLASS}
                               disabled={isUploadingSidebarImage}
-                              onClick={() => setSidebarBackgroundImage('')}
+                              onClick={() => {
+                                setSidebarBackgroundImage('');
+                                void persistOrganizationTheme(buildOrganizationTheme({ sidebarBackgroundImage: '' }));
+                              }}
                             >
                               Remove Sidebar Image
                             </Button>

@@ -118,21 +118,27 @@ const getStudentRecommendation = (row: {
   return 'Keep current pace';
 };
 
+type CompetencyHighlight = Pick<TrainingCompetencyArea, 'key' | 'label' | 'score' | 'signal' | 'nextAction'>;
+
 const getCompetencySnapshot = (reports: StudentProgressReport[]) => {
   const areas = buildTrainingCompetencyAreas(reports);
-  const strengths = areas.filter((area) => area.signal === 'strength').slice(0, 1);
-  const growth = areas.filter((area) => area.signal === 'growth').slice(0, 1);
-  const watch = areas.filter((area) => area.signal === 'watch').slice(0, 1);
-  const signal: TrainingCompetencyArea['signal'] = growth.length > 0 ? 'growth' : watch.length > 0 ? 'watch' : 'strength';
-  const headline = growth[0]?.label || watch[0]?.label || strengths[0]?.label || 'No competency data yet';
+  const strengths = areas.filter((area) => area.signal === 'strength').slice(0, 2) as CompetencyHighlight[];
+  const weakPoints = [
+    ...areas.filter((area) => area.signal === 'growth'),
+    ...areas.filter((area) => area.signal === 'watch'),
+  ].slice(0, 2) as CompetencyHighlight[];
+  const signal: TrainingCompetencyArea['signal'] = weakPoints.some((area) => area.signal === 'growth')
+    ? 'growth'
+    : weakPoints.length > 0
+      ? 'watch'
+      : 'strength';
+  const headline = weakPoints[0]?.label || strengths[0]?.label || 'No competency data yet';
   const score = areas.length > 0 ? areas.reduce((sum, area) => sum + area.score, 0) / areas.length : 0;
-  const nextFocus = growth[0]
-    ? `Next focus: ${growth[0].label}`
-    : watch[0]
-      ? `Next focus: ${watch[0].label}`
-      : strengths[0]
-        ? `Keep reinforcing ${strengths[0].label}`
-        : 'Next focus: add debrief notes';
+  const nextFocus = weakPoints[0]
+    ? `Next focus: ${weakPoints[0].label}`
+    : strengths[0]
+      ? `Keep reinforcing ${strengths[0].label}`
+      : 'Next focus: add debrief notes';
 
   return {
     signal,
@@ -140,8 +146,7 @@ const getCompetencySnapshot = (reports: StudentProgressReport[]) => {
     score: parseFloat(score.toFixed(1)),
     nextFocus,
     strengths,
-    growth,
-    watch,
+    weakPoints,
   };
 };
 
@@ -178,6 +183,34 @@ const getCompetencyTone = (signal: TrainingCompetencyArea['signal']) => {
 function CompetencyStrip({ reports }: { reports: StudentProgressReport[] }) {
   const snapshot = useMemo(() => getCompetencySnapshot(reports), [reports]);
   const tone = getCompetencyTone(snapshot.signal);
+  const strengthItems = snapshot.strengths.length > 0
+    ? snapshot.strengths
+    : [{ key: 'strength-empty', label: 'No clear strength yet', score: 0, signal: 'strength' as const, nextAction: 'Keep adding debrief evidence.' }];
+  const weakPointItems = snapshot.weakPoints.length > 0
+    ? snapshot.weakPoints
+    : [{ key: 'weak-empty', label: 'No weak point flagged yet', score: 0, signal: 'watch' as const, nextAction: 'More debrief detail will surface the next focus.' }];
+
+  const renderHighlightCard = (area: CompetencyHighlight) => {
+    const areaTone = getCompetencyTone(area.signal);
+    return (
+      <div key={area.key} className={cn('rounded-xl border bg-background/70 p-3 space-y-2', areaTone.border)}>
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
+              {area.signal === 'strength' ? 'Strength' : 'Weak point'}
+            </p>
+            <p className="mt-1 text-[11px] font-semibold leading-snug">{area.label}</p>
+          </div>
+          <Badge variant="outline" className={cn('shrink-0 text-[10px] font-black uppercase tracking-[0.16em]', areaTone.pill)}>
+            {Math.round(area.score)} / 100
+          </Badge>
+        </div>
+        <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground leading-snug">
+          {area.nextAction}
+        </p>
+      </div>
+    );
+  };
 
   return (
     <div className={cn('rounded-xl border p-2.5 space-y-2.5', tone.border, tone.bg)}>
@@ -189,7 +222,7 @@ function CompetencyStrip({ reports }: { reports: StudentProgressReport[] }) {
             ) : (
               <TrendingDown className="h-4 w-4 text-rose-600" />
             )}
-            <p className="text-[10px] font-black uppercase tracking-[0.16em]">Strength / Growth</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.16em]">Strengths / Weak points</p>
           </div>
           <p className="mt-1 text-[11px] font-semibold leading-snug">{snapshot.headline}</p>
         </div>
@@ -206,6 +239,31 @@ function CompetencyStrip({ reports }: { reports: StudentProgressReport[] }) {
         <p className="text-[9px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
           {snapshot.nextFocus}
         </p>
+      </div>
+      <div className="grid gap-3 md:grid-cols-2">
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-700">Strengths</p>
+            <Badge variant="outline" className="text-[10px] font-black uppercase tracking-[0.16em] bg-emerald-500/10 text-emerald-700 border-emerald-200">
+              {strengthItems.length}
+            </Badge>
+          </div>
+          <div className="space-y-2">
+            {strengthItems.map(renderHighlightCard)}
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-rose-700">Weak points</p>
+            <Badge variant="outline" className="text-[10px] font-black uppercase tracking-[0.16em] bg-rose-500/10 text-rose-700 border-rose-200">
+              {weakPointItems.length}
+            </Badge>
+          </div>
+          <div className="space-y-2">
+            {weakPointItems.map(renderHighlightCard)}
+          </div>
+        </div>
       </div>
     </div>
   );
