@@ -28,35 +28,7 @@ export type PageLayoutSettings = {
   pages: Record<string, PageLayoutState>;
 };
 
-export const SAFETY_QUALITY_FOCUS_HREFS = [
-  '/safety-quality',
-] as const;
-
 export const SAFETY_QUALITY_LAYOUT_DEFINITIONS: PageLayoutDefinition[] = [
-  {
-    id: 'safety-quality',
-    href: '/safety-quality',
-    label: 'Safety & Quality',
-    description: 'Focused module root that gathers the dashboards and supporting pages.',
-    sections: [
-      {
-        id: 'workspace',
-        label: 'Workspace Pages',
-        tabs: [
-          { id: 'dashboard', label: 'Company Dashboard' },
-          { id: 'my-dashboard', label: 'My Dashboard' },
-          { id: 'safety', label: 'Safety' },
-          { id: 'quality', label: 'Quality' },
-          { id: 'users', label: 'Users' },
-          { id: 'admin', label: 'Admin' },
-          { id: 'alerts', label: 'Alerts' },
-          { id: 'company-documents', label: 'Company Documents' },
-          { id: 'emergency-response', label: 'Emergency Response' },
-          { id: 'tenant-setup', label: 'Tenant Setup' },
-        ],
-      },
-    ],
-  },
   {
     id: 'company-dashboard',
     href: '/dashboard',
@@ -68,8 +40,8 @@ export const SAFETY_QUALITY_LAYOUT_DEFINITIONS: PageLayoutDefinition[] = [
         label: 'Executive Summary',
       },
       {
-        id: 'safety-quality-focus',
-        label: 'Safety and Quality Focus',
+        id: 'core-dashboard-focus',
+        label: 'Core Dashboard Focus',
         tabs: [
           { id: 'safety', label: 'Safety' },
           { id: 'quality', label: 'Quality' },
@@ -299,7 +271,7 @@ export const SAFETY_QUALITY_LAYOUT_DEFINITIONS: PageLayoutDefinition[] = [
     id: 'tenant-setup',
     href: '/development/database',
     label: 'Tenant Setup',
-    description: 'Registry and page-layout setup for the Safeviate tenant.',
+    description: 'Company and page-layout setup for the Safeviate tenant.',
     sections: [
       {
         id: 'setup',
@@ -336,6 +308,3 @@ export const buildDefaultPageLayoutSettings = (): PageLayoutSettings => ({
     return acc;
   }, {}),
 });
-
-export const buildSafetyQualityModuleSet = (_enabledMenus?: Iterable<string>) =>
-  new Set<string>(SAFETY_QUALITY_FOCUS_HREFS);

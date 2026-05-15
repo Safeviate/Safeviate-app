@@ -95,7 +95,7 @@ export function ChecklistTemplateCard({
                         departments={departments}
                         trigger={
                           <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="cursor-pointer">
-                            <PlayCircle className="mr-2 h-3.5 w-3.5" /> Start
+                            <PlayCircle className="mr-2 h-3.5 w-3.5" /> Create Audit
                           </DropdownMenuItem>
                         }
                       />
@@ -136,7 +136,7 @@ export function ChecklistTemplateCard({
                       departments={departments}
                       trigger={
                         <Button size="sm" className="h-8 flex-1 gap-1.5 text-[9px] font-black uppercase tracking-[0.08em]">
-                          <PlayCircle className="h-3.5 w-3.5" /> Start
+                          <PlayCircle className="h-3.5 w-3.5" /> Create Audit
                         </Button>
                       }
                     />
@@ -198,7 +198,7 @@ export function ChecklistTemplateCard({
                         departments={departments}
                         trigger={
                           <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="cursor-pointer">
-                            <PlayCircle className="mr-2 h-3.5 w-3.5" /> Start
+                            <PlayCircle className="mr-2 h-3.5 w-3.5" /> Create Audit
                           </DropdownMenuItem>
                         }
                       />

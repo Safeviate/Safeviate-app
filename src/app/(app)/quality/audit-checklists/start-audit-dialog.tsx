@@ -9,6 +9,7 @@ import { format } from 'date-fns';
 import { useUserProfile } from '@/hooks/use-user-profile';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -88,6 +89,11 @@ export function StartAuditDialog({
       auditDate: new Date(),
     },
   });
+  const auditOwnerName = userProfile
+    ? `${userProfile.firstName} ${userProfile.lastName}`.trim() || userProfile.email
+    : 'Current user';
+  const totalSections = template.sections.length;
+  const totalItems = template.sections.reduce((count, section) => count + section.items.length, 0);
   
   useEffect(() => {
     if (!isOpen && newAuditId) {
@@ -99,7 +105,7 @@ export function StartAuditDialog({
 
   const onSubmit = async (values: FormValues) => {
     if (!userProfile) {
-        toast({ variant: 'destructive', title: 'Error', description: 'User session not found.' });
+      toast({ variant: 'destructive', title: 'Error', description: 'User session not found.' });
         return;
     }
     setIsSubmitting(true);
@@ -137,7 +143,7 @@ export function StartAuditDialog({
         if (!response.ok) throw new Error('Failed to save audit');
         
         setNewAuditId(createdId);
-        toast({ title: 'Audit Started' });
+        toast({ title: 'Audit Created', description: `Audit ${newAuditNumber} is ready to open.` });
         
         window.dispatchEvent(new Event('safeviate-quality-updated'));
         setIsOpen(false);
@@ -155,22 +161,59 @@ export function StartAuditDialog({
             <DialogTrigger asChild>{trigger}</DialogTrigger>
         ) : (
             <DialogTrigger asChild>
-                <Button><PlayCircle className='mr-2 h-4 w-4' /> Start Audit</Button>
+                <Button><PlayCircle className='mr-2 h-4 w-4' /> Create Audit</Button>
             </DialogTrigger>
         )}
-      <DialogContent>
+      <DialogContent className="sm:max-w-[720px]">
         <DialogHeader>
-          <DialogTitle>Start New Audit</DialogTitle>
-          <DialogDescription>Using template: &quot;{template.title}&quot;</DialogDescription>
+          <DialogTitle>Create Audit Session</DialogTitle>
+          <DialogDescription>
+            Using template: &quot;{template.title}&quot;. This will create a scheduled audit record and open the audit workspace after save.
+          </DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 pt-4">
+            <Card className="border bg-muted/20 shadow-none">
+              <CardContent className="space-y-3 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">What will be created</p>
+                    <p className="mt-1 text-sm font-semibold text-foreground">{template.title}</p>
+                  </div>
+                  <div className="rounded-full border bg-background px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-muted-foreground">
+                    {totalSections} sections · {totalItems} items
+                  </div>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  <div className="rounded-lg border bg-background px-3 py-2">
+                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Audit target</p>
+                    <p className="mt-1 text-sm font-semibold text-foreground">Department, person, or external organization</p>
+                  </div>
+                  <div className="rounded-lg border bg-background px-3 py-2">
+                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Scope</p>
+                    <p className="mt-1 text-sm font-semibold text-foreground">Short description of what is being reviewed</p>
+                  </div>
+                  <div className="rounded-lg border bg-background px-3 py-2">
+                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Start date</p>
+                    <p className="mt-1 text-sm font-semibold text-foreground">Planned audit date and opening timestamp</p>
+                  </div>
+                  <div className="rounded-lg border bg-background px-3 py-2 sm:col-span-2">
+                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Audit owner</p>
+                    <p className="mt-1 text-sm font-semibold text-foreground">{auditOwnerName}</p>
+                  </div>
+                  <div className="rounded-lg border bg-background px-3 py-2">
+                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Status on create</p>
+                    <p className="mt-1 text-sm font-semibold text-foreground">Scheduled</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
             <FormField
               control={form.control}
               name="auditeeId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Auditee</FormLabel>
+                  <FormLabel>Audit Target</FormLabel>
                    <Select onValueChange={field.onChange} defaultValue={field.value}>
                         <FormControl>
                             <SelectTrigger>
@@ -179,13 +222,13 @@ export function StartAuditDialog({
                         </FormControl>
                         <SelectContent>
                            <SelectGroup>
-                               <SelectLabel>Internal Departments</SelectLabel>
+                               <SelectLabel>Internal departments</SelectLabel>
                                {departments.map(dept => (
                                     <SelectItem key={dept.id} value={dept.id}>{dept.name}</SelectItem>
                                ))}
                            </SelectGroup>
                            <SelectGroup>
-                               <SelectLabel>External Organizations</SelectLabel>
+                               <SelectLabel>External organizations</SelectLabel>
                                {(organizations || []).map(org => (
                                     <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
                                ))}
@@ -198,17 +241,31 @@ export function StartAuditDialog({
                            </SelectGroup>
                         </SelectContent>
                    </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Choose the department, person, or external organization this audit will be attached to.
+                  </p>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            <FormField control={form.control} name="scope" render={({ field }) => ( <FormItem><FormLabel>Audit Scope</FormLabel><FormControl><Input placeholder="e.g., Q2 Maintenance Procedures" {...field} /></FormControl><FormMessage /></FormItem> )} />
+            <FormField control={form.control} name="scope" render={({ field }) => (
+              <FormItem>
+                <FormLabel>Audit Scope / Objective</FormLabel>
+                <FormControl>
+                  <Input placeholder="e.g., Q2 maintenance procedures review" {...field} />
+                </FormControl>
+                <p className="text-xs text-muted-foreground">
+                  Keep this short and specific so the audit purpose is obvious at a glance.
+                </p>
+                <FormMessage />
+              </FormItem>
+            )} />
              <FormField
                 control={form.control}
                 name="auditDate"
                 render={({ field }) => (
                     <FormItem className="flex flex-col">
-                    <FormLabel>Date of Audit</FormLabel>
+                    <FormLabel>Planned Start Date</FormLabel>
                     <Popover>
                         <PopoverTrigger asChild>
                         <FormControl>
@@ -227,14 +284,17 @@ export function StartAuditDialog({
                             onDateSelect={field.onChange}
                         />
                         </PopoverContent>
-                    </Popover>
+                        </Popover>
+                    <p className="text-xs text-muted-foreground">
+                      This is the date the audit session will be opened and scheduled from.
+                    </p>
                     <FormMessage />
                     </FormItem>
                 )}
              />
             <DialogFooter>
               <DialogClose asChild><Button type="button" variant="outline" disabled={isSubmitting}>Cancel</Button></DialogClose>
-              <Button type="submit" disabled={isSubmitting}>{isSubmitting ? "Starting..." : "Start Audit"}</Button>
+              <Button type="submit" disabled={isSubmitting}>{isSubmitting ? "Creating..." : "Create Audit"}</Button>
             </DialogFooter>
           </form>
         </Form>

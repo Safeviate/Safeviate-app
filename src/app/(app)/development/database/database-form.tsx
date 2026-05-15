@@ -22,10 +22,8 @@ import { Badge } from '@/components/ui/badge';
 import { useUserProfile } from '@/hooks/use-user-profile';
 import { TENANT_OVERRIDE_COOKIE } from '@/lib/tenant-constants';
 import {
-  SAFETY_QUALITY_FOCUS_HREFS,
   SAFETY_QUALITY_LAYOUT_DEFINITIONS,
   buildDefaultPageLayoutSettings,
-  buildSafetyQualityModuleSet,
   type PageLayoutSettings,
 } from '@/lib/tenant-setup-presets';
 import { 
@@ -69,9 +67,34 @@ const INDUSTRY_TYPES: IndustryType[] = [
 ];
 
 const PAGE_LAYOUT_TAB_ID = 'layout';
-const SAFETY_QUALITY_PRESET_LABEL = 'Safety & Quality Focus';
 
-const buildFocusEnabledHrefs = (_industry: IndustryType) => buildSafetyQualityModuleSet();
+const buildDefaultEnabledHrefs = () =>
+  new Set(
+    menuConfig.flatMap((menu) => [
+      menu.href,
+      ...(menu.subItems?.map((subItem) => subItem.href) || []),
+    ])
+  );
+
+const buildDisabledPageLayoutSettings = (): PageLayoutSettings => ({
+  id: 'page-layout-settings',
+  pages: SAFETY_QUALITY_LAYOUT_DEFINITIONS.reduce<Record<string, { enabled: boolean; sections: Record<string, boolean>; tabs: Record<string, boolean> }>>((acc, page) => {
+    acc[page.id] = {
+      enabled: false,
+      sections: page.sections.reduce<Record<string, boolean>>((sectionAcc, section) => {
+        sectionAcc[section.id] = false;
+        return sectionAcc;
+      }, {}),
+      tabs: page.sections.reduce<Record<string, boolean>>((tabAcc, section) => {
+        (section.tabs || []).forEach((tab) => {
+          tabAcc[tab.id] = false;
+        });
+        return tabAcc;
+      }, {}),
+    };
+    return acc;
+  }, {}),
+});
 
 const normalizePageLayoutSettings = (value: unknown): PageLayoutSettings => {
   const fallback = buildDefaultPageLayoutSettings();
@@ -124,9 +147,7 @@ export function DatabaseForm() {
   const [localIndustryOverride, setLocalIndustryOverride] = useState<string>('');
   
   const [mainTheme, setMainTheme] = useState<MainTheme>(DEFAULT_MAIN);
-  const [enabledHrefs, setEnabledHrefs] = useState<Set<string>>(
-    () => buildFocusEnabledHrefs('Aviation: Flight Training (ATO)')
-  );
+  const [enabledHrefs, setEnabledHrefs] = useState<Set<string>>(() => buildDefaultEnabledHrefs());
   const [pageLayoutSettings, setPageLayoutSettings] = useState<PageLayoutSettings>(() => buildDefaultPageLayoutSettings());
   const [ndaAcceptances, setNdaAcceptances] = useState<BetaNdaAcceptanceRecord[]>([]);
   const [isLoadingNdaAcceptances, setIsLoadingNdaAcceptances] = useState(false);
@@ -138,6 +159,31 @@ export function DatabaseForm() {
     'primary-foreground': main?.['primary-foreground'] || DEFAULT_MAIN['primary-foreground'],
     accent: main?.accent || DEFAULT_MAIN.accent,
   });
+
+  const totalMenuCount = useMemo(() => buildDefaultEnabledHrefs().size, []);
+  const totalPageCount = SAFETY_QUALITY_LAYOUT_DEFINITIONS.length;
+  const totalSectionCount = useMemo(
+    () => SAFETY_QUALITY_LAYOUT_DEFINITIONS.reduce((count, page) => count + page.sections.length, 0),
+    []
+  );
+  const totalTabCount = useMemo(
+    () =>
+      SAFETY_QUALITY_LAYOUT_DEFINITIONS.reduce(
+        (count, page) => count + page.sections.reduce((sectionCount, section) => sectionCount + (section.tabs?.length || 0), 0),
+        0
+      ),
+    []
+  );
+  const enabledMenuCount = enabledHrefs.size;
+  const enabledPageCount = Object.values(pageLayoutSettings.pages).filter((page) => page.enabled).length;
+  const enabledSectionCount = Object.values(pageLayoutSettings.pages).reduce(
+    (count, page) => count + Object.values(page.sections || {}).filter(Boolean).length,
+    0
+  );
+  const enabledTabCount = Object.values(pageLayoutSettings.pages).reduce(
+    (count, page) => count + Object.values(page.tabs || {}).filter(Boolean).length,
+    0
+  );
 
   // Load Tenants from LocalStorage
   useEffect(() => {
@@ -153,7 +199,7 @@ export function DatabaseForm() {
                 id: 'safeviate',
                 name: 'Safeviate Standard',
                 industry: 'Aviation: Flight Training (ATO)',
-                enabledMenus: Array.from(buildFocusEnabledHrefs('Aviation: Flight Training (ATO)')),
+                enabledMenus: Array.from(buildDefaultEnabledHrefs()),
                 theme: {
                   primaryColour: DEFAULT_MAIN.primary,
                   backgroundColour: DEFAULT_MAIN.background,
@@ -198,18 +244,16 @@ export function DatabaseForm() {
         background: t.theme?.backgroundColour || DEFAULT_MAIN.background,
         accent: t.theme?.accentColour || DEFAULT_MAIN.accent
     }));
-    const industryDefaults = buildFocusEnabledHrefs(t.industry || 'Aviation: Flight Training (ATO)');
-
     try {
       const response = await fetch(`/api/tenant-config?tenantId=${encodeURIComponent(t.id)}`, { cache: 'no-store' });
       const payload = await response.json().catch(() => ({}));
       const config = payload?.config && typeof payload.config === 'object' ? (payload.config as Record<string, unknown>) : {};
       const tenantMenus = Array.isArray(config.enabledMenus) ? config.enabledMenus.filter((value): value is string => typeof value === 'string') : (t.enabledMenus || []);
-      setEnabledHrefs(new Set([...industryDefaults, ...tenantMenus]));
+      setEnabledHrefs(new Set(tenantMenus.length > 0 ? tenantMenus : Array.from(buildDefaultEnabledHrefs())));
       setPageLayoutSettings(normalizePageLayoutSettings(config.pageLayoutSettings));
     } catch {
       const tenantMenus = new Set(t.enabledMenus || []);
-      setEnabledHrefs(new Set([...industryDefaults, ...tenantMenus]));
+      setEnabledHrefs(new Set(tenantMenus.size > 0 ? tenantMenus : Array.from(buildDefaultEnabledHrefs())));
       setPageLayoutSettings(buildDefaultPageLayoutSettings());
     }
 
@@ -219,8 +263,8 @@ export function DatabaseForm() {
   const handleIndustryChange = (newIndustry: IndustryType) => {
     setIndustry(newIndustry);
 
-    setEnabledHrefs(buildFocusEnabledHrefs(newIndustry));
-    toast({ title: 'Logic Presets Calibrated', description: `Module permissions synthesized for ${newIndustry}.` });
+    setEnabledHrefs(buildDefaultEnabledHrefs());
+    toast({ title: 'Company Logic Calibrated', description: `Module permissions synthesized for ${newIndustry}.` });
   };
 
   const handleApplyIndustryOverride = (val: string) => {
@@ -232,7 +276,7 @@ export function DatabaseForm() {
         window.localStorage.setItem(INDUSTRY_OVERRIDE_KEY, val);
     }
     window.dispatchEvent(new Event('safeviate-industry-switch'));
-    toast({ title: 'Simulation Parameter Set', description: `Interface synchronized to ${val === 'none' ? 'Registry Default' : val}.` });
+    toast({ title: 'Simulation Parameter Set', description: `Interface synchronized to ${val === 'none' ? 'Company Default' : val}.` });
   };
 
   const handleSwitchTenant = (tenant: Tenant) => {
@@ -298,8 +342,33 @@ export function DatabaseForm() {
     setIndustry('Aviation: Flight Training (ATO)');
     setLogoPreview(null);
     setMainTheme(DEFAULT_MAIN);
-    setEnabledHrefs(buildFocusEnabledHrefs('Aviation: Flight Training (ATO)'));
+    setEnabledHrefs(buildDefaultEnabledHrefs());
     setPageLayoutSettings(buildDefaultPageLayoutSettings());
+  };
+
+  const handleResetCompanyDefaults = () => {
+    setEnabledHrefs(buildDefaultEnabledHrefs());
+    setPageLayoutSettings(buildDefaultPageLayoutSettings());
+    toast({
+      title: 'Company Defaults Restored',
+      description: 'Baseline menus and page layout settings have been restored.',
+    });
+  };
+
+  const handleEnableAllMenuItems = () => {
+    setEnabledHrefs(buildDefaultEnabledHrefs());
+  };
+
+  const handleClearAllMenuItems = () => {
+    setEnabledHrefs(new Set());
+  };
+
+  const handleEnableAllPages = () => {
+    setPageLayoutSettings(buildDefaultPageLayoutSettings());
+  };
+
+  const handleDisableAllPages = () => {
+    setPageLayoutSettings(buildDisabledPageLayoutSettings());
   };
 
   const toggleMenu = (href: string, subHrefs?: string[]) => {
@@ -323,15 +392,6 @@ export function DatabaseForm() {
       newEnabled.add(parentHref);
     }
     setEnabledHrefs(newEnabled);
-  };
-
-  const applySafetyQualityFocus = () => {
-    setEnabledHrefs(buildFocusEnabledHrefs(industry));
-    setPageLayoutSettings(buildDefaultPageLayoutSettings());
-    toast({
-      title: SAFETY_QUALITY_PRESET_LABEL,
-      description: 'Safety, quality, users, admin, dashboards, and support pages have been preselected.',
-    });
   };
 
   const toggleLayoutPage = (pageId: string) => {
@@ -381,7 +441,7 @@ export function DatabaseForm() {
 
   const handleSaveTenant = async () => {
     if (!tenantName) {
-      toast({ variant: 'destructive', title: 'Invalid Operation', description: 'Registry Name is mandatory.' });
+      toast({ variant: 'destructive', title: 'Invalid Operation', description: 'Company name is required.' });
       return;
     }
     
@@ -451,8 +511,8 @@ export function DatabaseForm() {
       window.dispatchEvent(new Event('safeviate-tenants-updated'));
       
       toast({
-        title: selectedTenantId ? 'Registry Entry Updated' : 'Registry Entry Generated',
-        description: `"${tenantName}" is now persistent in the database.`,
+        title: selectedTenantId ? 'Company Updated' : 'Company Created',
+        description: `"${tenantName}" has been saved in the database.`,
       });
 
       if (!selectedTenantId) handleClearForm();
@@ -472,17 +532,17 @@ export function DatabaseForm() {
             <div className="space-y-4 text-left">
                 <Badge variant="outline" className="h-7 px-4 text-[10px] font-black uppercase tracking-widest text-primary border-primary/30 bg-primary/5">
                     <ShieldCheck className="mr-2 h-3.5 w-3.5" />
-                    Corporate Registry Admin
+                    Company Setup Admin
                 </Badge>
                 <div>
-                    <CardTitle className="text-4xl font-black uppercase leading-none tracking-tighter">Axiom Registry Console</CardTitle>
+                    <CardTitle className="text-4xl font-black uppercase leading-none tracking-tighter">Company Setup Console</CardTitle>
                     <CardDescription className="mt-2 text-xs font-bold uppercase tracking-widest text-muted-foreground opacity-70">
-                        Synthesize organization profiles and parameterize logic distribution.
+                        Create companies, choose default modules, and control page access before saving.
                     </CardDescription>
                 </div>
             </div>
             <Button onClick={handleClearForm} className={TENANT_SETUP_PRIMARY_BUTTON_CLASS}>
-              <PlusCircle className="mr-3 h-4 w-4" /> Initialize Profile
+              <PlusCircle className="mr-3 h-4 w-4" /> New Company
             </Button>
         </div>
       </CardHeader>
@@ -500,14 +560,55 @@ export function DatabaseForm() {
           <ScrollArea className="h-full">
             <div className="space-y-8 p-8 pb-6">
               <TabsContent value="setup" className="mt-0 space-y-8">
+                <Card className="border shadow-none bg-background">
+                  <CardContent className="space-y-4 p-4 sm:p-5">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Company setup summary</p>
+                        <p className="mt-1 text-sm font-semibold text-foreground">
+                          Create a new company profile or clone an existing one, then tune its menu and layout defaults before saving.
+                        </p>
+                      </div>
+                      <Badge variant="outline" className="rounded-full border-primary/20 bg-primary/5 px-3 py-1 text-[9px] font-black uppercase tracking-widest text-primary">
+                        {selectedTenantId ? 'Editing existing company' : 'Creating new company'}
+                      </Badge>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
+                      <div className="rounded-2xl border bg-muted/5 px-3 py-3">
+                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Companies</p>
+                        <p className="mt-1 text-lg font-black">{sortedTenants.length}</p>
+                      </div>
+                      <div className="rounded-2xl border bg-muted/5 px-3 py-3">
+                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Menus</p>
+                        <p className="mt-1 text-lg font-black">{enabledMenuCount}/{totalMenuCount}</p>
+                      </div>
+                      <div className="rounded-2xl border bg-muted/5 px-3 py-3">
+                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Pages</p>
+                        <p className="mt-1 text-lg font-black">{enabledPageCount}/{totalPageCount}</p>
+                      </div>
+                      <div className="rounded-2xl border bg-muted/5 px-3 py-3">
+                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Sections</p>
+                        <p className="mt-1 text-lg font-black">{enabledSectionCount}/{totalSectionCount}</p>
+                      </div>
+                      <div className="rounded-2xl border bg-muted/5 px-3 py-3">
+                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Tabs</p>
+                        <p className="mt-1 text-lg font-black">{enabledTabCount}/{totalTabCount}</p>
+                      </div>
+                      <div className="rounded-2xl border bg-muted/5 px-3 py-3">
+                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Mode</p>
+                        <p className="mt-1 text-lg font-black">{industry}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
                 <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
                   <div className="space-y-6">
                       <div className="grid grid-cols-1 gap-6 md:grid-cols-2 items-end">
                           <div className="space-y-2.5 text-left">
-                              <Label className="ml-1 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Inherit Registry Entry</Label>
+                              <Label className="ml-1 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Clone Existing Company</Label>
                               <Select onValueChange={handleLoadTenant} value={selectedTenantId || undefined}>
                                   <SelectTrigger className="h-10 rounded-xl border-2 bg-background text-[10px] font-bold uppercase shadow-none transition-colors hover:border-primary/50">
-                                    <SelectValue placeholder={isLoadingTenants ? "Accessing Core..." : "Choose Profile..."} />
+                                    <SelectValue placeholder={isLoadingTenants ? "Accessing Core..." : "Choose company..."} />
                                   </SelectTrigger>
                                   <SelectContent className="rounded-xl border-2">
                                       {sortedTenants.map(t => (<SelectItem key={t.id} value={t.id} className="text-[10px] font-bold uppercase">{t.name}</SelectItem>))}
@@ -515,7 +616,7 @@ export function DatabaseForm() {
                               </Select>
                           </div>
                           <div className="space-y-2.5 text-left">
-                              <Label htmlFor="tenant-name" className="ml-1 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Registry Label</Label>
+                              <Label htmlFor="tenant-name" className="ml-1 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Company Name</Label>
                               <Input id="tenant-name" placeholder="Safeviate Aviation" className="h-10 rounded-xl border-2 text-sm font-black uppercase tracking-tight focus-visible:ring-primary/20" value={tenantName} onChange={(e) => setTenantName(e.target.value)} />
                           </div>
                           <div className="col-span-full space-y-2.5 text-left">
@@ -669,33 +770,25 @@ export function DatabaseForm() {
                         </div>
                         <div>
                             <h3 className="text-2xl font-black uppercase tracking-tighter">Access & Visibility</h3>
-                            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground opacity-60">Authorize modules and linked pages for the selected tenant profile.</p>
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground opacity-60">Choose which modules, menus, and linked pages this company can see.</p>
                         </div>
                     </div>
 
-                    <Card className="border border-primary/20 bg-primary/5 shadow-none">
-                      <CardHeader className="flex flex-row items-start justify-between gap-4 border-b border-primary/10 px-4 py-3">
-                        <div className="space-y-1">
-                          <p className="text-[10px] font-black uppercase tracking-widest text-primary">{SAFETY_QUALITY_PRESET_LABEL}</p>
-                          <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
-                            Focus the tenant on the two dashboards, safety, quality, users, admin, and the support pages that keep them running.
-                          </p>
-                        </div>
-                        <Button type="button" variant="outline" className={TENANT_SETUP_PRIMARY_BUTTON_CLASS} onClick={applySafetyQualityFocus}>
-                          Apply Preset
-                        </Button>
-                      </CardHeader>
-                      <CardContent className="px-4 py-4">
-                        <div className="flex flex-wrap gap-2">
-                          {SAFETY_QUALITY_FOCUS_HREFS.map((href) => (
-                            <Badge key={href} variant="outline" className="rounded-full border-primary/20 bg-background px-2 py-1 text-[9px] font-black uppercase tracking-widest text-foreground">
-                              {href.replace(/^\//, '')}
-                            </Badge>
-                          ))}
-                        </div>
-                      </CardContent>
-                    </Card>
-                    
+                    <div className="flex flex-wrap items-center gap-2 rounded-2xl border bg-background px-4 py-3">
+                      <Button type="button" variant="outline" className={TENANT_SETUP_PRIMARY_BUTTON_CLASS} onClick={handleEnableAllMenuItems}>
+                        Enable All Menus
+                      </Button>
+                      <Button type="button" variant="outline" className={TENANT_SETUP_PRIMARY_BUTTON_CLASS} onClick={handleClearAllMenuItems}>
+                        Clear All Menus
+                      </Button>
+                      <Button type="button" variant="outline" className={TENANT_SETUP_PRIMARY_BUTTON_CLASS} onClick={handleResetCompanyDefaults}>
+                        Reset Company Defaults
+                      </Button>
+                      <div className="ml-auto text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                        {enabledMenuCount} of {totalMenuCount} menus enabled
+                      </div>
+                    </div>
+
                     <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
                         {menuConfig.map((menu) => {
                             const subHrefs = menu.subItems?.map(s => s.href) || [];
@@ -767,9 +860,17 @@ export function DatabaseForm() {
                         Switch pages on or off, then decide which sections and tabs remain available inside each one.
                       </p>
                     </div>
-                    <Button type="button" onClick={applySafetyQualityFocus} className={TENANT_SETUP_PRIMARY_BUTTON_CLASS}>
-                      Apply Safety & Quality Preset
-                    </Button>
+                    <div className="flex flex-wrap gap-2">
+                      <Button type="button" variant="outline" className={TENANT_SETUP_PRIMARY_BUTTON_CLASS} onClick={handleEnableAllPages}>
+                        Enable All Pages
+                      </Button>
+                      <Button type="button" variant="outline" className={TENANT_SETUP_PRIMARY_BUTTON_CLASS} onClick={handleDisableAllPages}>
+                        Disable All Pages
+                      </Button>
+                      <Button type="button" variant="outline" className={TENANT_SETUP_PRIMARY_BUTTON_CLASS} onClick={handleResetCompanyDefaults}>
+                        Reset Layout Defaults
+                      </Button>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
@@ -781,6 +882,9 @@ export function DatabaseForm() {
                             <div className="space-y-1">
                               <p className="text-sm font-black uppercase tracking-tight text-foreground">{page.label}</p>
                               <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">{page.description}</p>
+                              <p className="text-[9px] font-black uppercase tracking-[0.18em] text-muted-foreground">
+                                {page.sections.length} sections · {page.sections.reduce((count, section) => count + (section.tabs?.length || 0), 0)} tabs
+                              </p>
                             </div>
                             <Checkbox
                               checked={layout?.enabled ?? true}
@@ -845,7 +949,7 @@ export function DatabaseForm() {
       <Separator />
       <div className="shrink-0 bg-background p-6 sm:p-8 flex justify-end">
           <Button onClick={handleSaveTenant} className={cn(TENANT_SETUP_PRIMARY_BUTTON_CLASS, 'w-full gap-3 sm:w-72')}>
-              {selectedTenantId ? <><Save className="h-4 w-4" /> Commit Update</> : <><PlusCircle className="h-4 w-4" /> Finalize Registry</>}
+              {selectedTenantId ? <><Save className="h-4 w-4" /> Update Company</> : <><PlusCircle className="h-4 w-4" /> Save Company</>}
           </Button>
       </div>
     </Card>
