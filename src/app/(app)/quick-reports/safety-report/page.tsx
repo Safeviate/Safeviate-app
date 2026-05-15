@@ -7,7 +7,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { format } from 'date-fns';
 import { CalendarIcon, ImagePlus, ShieldAlert, Trash2 } from 'lucide-react';
-import { MainPageHeader } from '@/components/page-header';
 import { BackNavButton } from '@/components/back-nav-button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -198,30 +197,27 @@ export default function QuickSafetyReportPage() {
 
   return (
     <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-6 p-4">
-      <MainPageHeader
-        title="Quick Safety Report"
-        description={
-          isPublicPortal
-            ? 'Capture a preliminary safety concern for this organization without logging in.'
-            : 'Capture a preliminary safety concern quickly, then classify it into the formal safety workflow when management is ready.'
-        }
-        actions={showBackButton ? <BackNavButton href={returnHref} text="Back to Quick Reports" /> : undefined}
-      />
-
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
           <Card className="overflow-hidden border shadow-none">
             <CardHeader className="border-b bg-muted/5">
-              <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full border bg-background">
-                  <ShieldAlert className="h-5 w-5 text-primary" />
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full border bg-background">
+                    <ShieldAlert className="h-5 w-5 text-primary" />
+                  </div>
+                  <div className="min-w-0">
+                    <CardTitle>Preliminary Safety Report</CardTitle>
+                    <CardDescription>
+                      Use this for fast first capture. Management can later classify it into the full safety report workflow.
+                    </CardDescription>
+                  </div>
                 </div>
-                <div className="min-w-0">
-                  <CardTitle>Preliminary Safety Report</CardTitle>
-                  <CardDescription>
-                    Use this for fast first capture. Management can later classify it into the full safety report workflow.
-                  </CardDescription>
-                </div>
+                {showBackButton ? (
+                  <div className="sm:ml-auto">
+                    <BackNavButton href={returnHref} text="Back to Quick Reports" />
+                  </div>
+                ) : null}
               </div>
             </CardHeader>
             <CardContent className="space-y-6 p-6">
