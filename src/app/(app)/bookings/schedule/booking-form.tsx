@@ -184,7 +184,9 @@ export function BookingForm({ isOpen, setIsOpen, aircraft, startTime, tenantId, 
 
     // PERMISSIONS: Can user edit/save?
     const canManageSchedule = canEditBooking;
-    const canOverride = hasPermission('bookings-approve-override');
+    const canManagePreFlight = canEditBooking || hasPermission('bookings-preflight-manage');
+    const canManagePostFlight = canEditBooking || hasPermission('bookings-postflight-manage') || hasPermission('bookings-techlog-override');
+    const canOverride = hasPermission('bookings-approve-override') || hasPermission('bookings-techlog-override');
     // LOGIC: A booking is "underway" if it is Approved or tech logs have started
     const isUnderway = existingBooking?.status === 'Approved' || existingBooking?.status === 'Completed' || existingBooking?.preFlight;
     const defaultActiveTab: 'details' | 'checks' = existingBooking && isUnderway ? 'checks' : 'details';
@@ -883,15 +885,15 @@ export function BookingForm({ isOpen, setIsOpen, aircraft, startTime, tenantId, 
                                             <div className="grid grid-cols-2 gap-3">
                                                 <div className="space-y-1.5">
                                                     <FormLabel className="text-[9px] font-bold uppercase">Hobbs Start</FormLabel>
-                                                    <Input type="number" step="0.1" value={preFlight.hobbs} onChange={(e) => setPreFlight({ ...preFlight, hobbs: parseFloat(e.target.value) || 0 })} className="h-9 font-bold" disabled={!canEditBooking} />
+                                                    <Input type="number" step="0.1" value={preFlight.hobbs} onChange={(e) => setPreFlight({ ...preFlight, hobbs: parseFloat(e.target.value) || 0 })} className="h-9 font-bold" disabled={!canManagePreFlight} />
                                                 </div>
                                                 <div className="space-y-1.5">
                                                     <FormLabel className="text-[9px] font-bold uppercase">Tacho Start</FormLabel>
-                                                    <Input type="number" step="0.1" value={preFlight.tacho} onChange={(e) => setPreFlight({ ...preFlight, tacho: parseFloat(e.target.value) || 0 })} className="h-9 font-bold" disabled={!canEditBooking} />
+                                                    <Input type="number" step="0.1" value={preFlight.tacho} onChange={(e) => setPreFlight({ ...preFlight, tacho: parseFloat(e.target.value) || 0 })} className="h-9 font-bold" disabled={!canManagePreFlight} />
                                                 </div>
                                                 <div className="space-y-1.5">
                                                     <FormLabel className="text-[9px] font-bold uppercase">Fuel Uplift (G)</FormLabel>
-                                                    <Input type="number" value={preFlight.fuelUpliftGallons} onChange={(e) => setPreFlight({ ...preFlight, fuelUpliftGallons: parseFloat(e.target.value) || 0 })} className="h-9 font-bold" disabled={!canEditBooking} />
+                                                    <Input type="number" value={preFlight.fuelUpliftGallons} onChange={(e) => setPreFlight({ ...preFlight, fuelUpliftGallons: parseFloat(e.target.value) || 0 })} className="h-9 font-bold" disabled={!canManagePreFlight} />
                                                 </div>
                                                 <div className="space-y-1.5">
                                                     <FormLabel className="text-[9px] font-bold uppercase">Fuel Uplift (L)</FormLabel>
@@ -907,16 +909,16 @@ export function BookingForm({ isOpen, setIsOpen, aircraft, startTime, tenantId, 
                                                             });
                                                         }}
                                                         className="h-9 font-bold"
-                                                        disabled={!canEditBooking}
+                                                        disabled={!canManagePreFlight}
                                                     />
                                                 </div>
                                                 <div className="space-y-1.5">
                                                     <FormLabel className="text-[9px] font-bold uppercase">Oil Uplift (Q)</FormLabel>
-                                                    <Input type="number" value={preFlight.oilUplift} onChange={(e) => setPreFlight({ ...preFlight, oilUplift: parseFloat(e.target.value) || 0 })} className="h-9 font-bold" disabled={!canEditBooking} />
+                                                    <Input type="number" value={preFlight.oilUplift} onChange={(e) => setPreFlight({ ...preFlight, oilUplift: parseFloat(e.target.value) || 0 })} className="h-9 font-bold" disabled={!canManagePreFlight} />
                                                 </div>
                                             </div>
                                             <div className="flex items-center space-x-3 rounded-lg border p-3">
-                                                <Checkbox id="popup-docs" checked={preFlight.documentsChecked} onCheckedChange={(val) => setPreFlight({ ...preFlight, documentsChecked: !!val })} disabled={!canEditBooking} />
+                                                <Checkbox id="popup-docs" checked={preFlight.documentsChecked} onCheckedChange={(val) => setPreFlight({ ...preFlight, documentsChecked: !!val })} disabled={!canManagePreFlight} />
                                                 <label htmlFor="popup-docs" className="text-[10px] font-black uppercase leading-none cursor-pointer">Documents & License Checked</label>
                                             </div>
                                             <div className="space-y-2">
@@ -932,7 +934,7 @@ export function BookingForm({ isOpen, setIsOpen, aircraft, startTime, tenantId, 
                                                                 variant="outline"
                                                                 size="sm"
                                                                 className="h-8 text-[10px] font-black uppercase"
-                                                                disabled={!canEditBooking}
+                                                                disabled={!canManagePreFlight}
                                                                 onClick={() => open('camera')}
                                                             >
                                                                 Add Photo
@@ -961,11 +963,11 @@ export function BookingForm({ isOpen, setIsOpen, aircraft, startTime, tenantId, 
                                             <div className="grid grid-cols-2 gap-3">
                                                 <div className="space-y-1.5">
                                                     <FormLabel className="text-[9px] font-bold uppercase">Hobbs End</FormLabel>
-                                                    <Input type="number" step="0.1" value={postFlight.hobbs} onChange={(e) => setPostFlight({ ...postFlight, hobbs: parseFloat(e.target.value) || 0 })} className="h-9 font-bold" disabled={!canEditBooking} />
+                                                    <Input type="number" step="0.1" value={postFlight.hobbs} onChange={(e) => setPostFlight({ ...postFlight, hobbs: parseFloat(e.target.value) || 0 })} className="h-9 font-bold" disabled={!canManagePostFlight} />
                                                 </div>
                                                 <div className="space-y-1.5">
                                                     <FormLabel className="text-[9px] font-bold uppercase">Tacho End</FormLabel>
-                                                    <Input type="number" step="0.1" value={postFlight.tacho} onChange={(e) => setPostFlight({ ...postFlight, tacho: parseFloat(e.target.value) || 0 })} className="h-9 font-bold" disabled={!canEditBooking} />
+                                                    <Input type="number" step="0.1" value={postFlight.tacho} onChange={(e) => setPostFlight({ ...postFlight, tacho: parseFloat(e.target.value) || 0 })} className="h-9 font-bold" disabled={!canManagePostFlight} />
                                                 </div>
                                             </div>
                                             <div className="grid grid-cols-2 gap-3">
@@ -983,7 +985,7 @@ export function BookingForm({ isOpen, setIsOpen, aircraft, startTime, tenantId, 
                                                             });
                                                         }}
                                                         className="h-9 font-bold"
-                                                        disabled={!canEditBooking}
+                                                        disabled={!canManagePostFlight}
                                                     />
                                                 </div>
                                                 <div className="space-y-1.5">
@@ -1000,12 +1002,12 @@ export function BookingForm({ isOpen, setIsOpen, aircraft, startTime, tenantId, 
                                                             });
                                                         }}
                                                         className="h-9 font-bold"
-                                                        disabled={!canEditBooking}
+                                                        disabled={!canManagePostFlight}
                                                     />
                                                 </div>
                                                 <div className="space-y-1.5">
                                                     <FormLabel className="text-[9px] font-bold uppercase">Oil Uplift (Q)</FormLabel>
-                                                    <Input type="number" value={postFlight.oilUplift} onChange={(e) => setPostFlight({ ...postFlight, oilUplift: parseFloat(e.target.value) || 0 })} className="h-9 font-bold" disabled={!canEditBooking} />
+                                                    <Input type="number" value={postFlight.oilUplift} onChange={(e) => setPostFlight({ ...postFlight, oilUplift: parseFloat(e.target.value) || 0 })} className="h-9 font-bold" disabled={!canManagePostFlight} />
                                                 </div>
                                             </div>
                                             <div className="space-y-2">
@@ -1021,7 +1023,7 @@ export function BookingForm({ isOpen, setIsOpen, aircraft, startTime, tenantId, 
                                                                 variant="outline"
                                                                 size="sm"
                                                                 className="h-8 text-[10px] font-black uppercase"
-                                                                disabled={!canEditBooking}
+                                                                disabled={!canManagePostFlight}
                                                                 onClick={() => open('camera')}
                                                             >
                                                                 Add Photo

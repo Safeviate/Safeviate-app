@@ -12,7 +12,6 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { isHrefEnabledForIndustry } from '@/lib/industry-access';
 import { Separator } from '@/components/ui/separator';
 import { Checkbox } from '@/components/ui/checkbox';
 import { menuConfig } from '@/lib/menu-config';
@@ -22,6 +21,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { useUserProfile } from '@/hooks/use-user-profile';
 import { TENANT_OVERRIDE_COOKIE } from '@/lib/tenant-constants';
+import {
+  SAFETY_QUALITY_FOCUS_HREFS,
+  SAFETY_QUALITY_LAYOUT_DEFINITIONS,
+  buildDefaultPageLayoutSettings,
+  buildSafetyQualityModuleSet,
+  type PageLayoutSettings,
+} from '@/lib/tenant-setup-presets';
 import { 
     Building2, 
     CheckCircle2, 
@@ -44,10 +50,6 @@ const TENANT_OVERRIDE_STORAGE_KEY = 'safeviate:selected-tenant';
 const INDUSTRY_OVERRIDE_KEY = 'safeviate:industry-override';
 const TENANT_SETUP_PRIMARY_BUTTON_CLASS = 'h-10 rounded-xl px-6 text-[10px] font-black uppercase tracking-widest shadow-sm';
 type MainTheme = typeof DEFAULT_MAIN;
-type MenuNode = {
-  href: string;
-  subItems?: MenuNode[];
-};
 
 type BetaNdaAcceptanceRecord = {
   id: string;
@@ -66,23 +68,47 @@ const INDUSTRY_TYPES: IndustryType[] = [
   'General: Occupational Health & Safety (OHS)'
 ];
 
-const collectIndustryEnabledHrefs = (items: MenuNode[], industry: IndustryType) => {
-  const enabled = new Set<string>();
+const PAGE_LAYOUT_TAB_ID = 'layout';
+const SAFETY_QUALITY_PRESET_LABEL = 'Safety & Quality Focus';
 
-  const walk = (nodes: MenuNode[]) => {
-    nodes.forEach((node) => {
-      if (isHrefEnabledForIndustry(node.href, industry)) {
-        enabled.add(node.href);
-        if (node.subItems) {
-          walk(node.subItems);
-        }
-      }
-    });
+const buildFocusEnabledHrefs = (_industry: IndustryType) => buildSafetyQualityModuleSet();
+
+const normalizePageLayoutSettings = (value: unknown): PageLayoutSettings => {
+  const fallback = buildDefaultPageLayoutSettings();
+  if (!value || typeof value !== 'object') {
+    return fallback;
+  }
+
+  const config = value as { id?: string; pages?: Record<string, unknown> };
+  const pages = config.pages && typeof config.pages === 'object' ? config.pages : {};
+  return {
+    id: typeof config.id === 'string' ? config.id : fallback.id,
+    pages: SAFETY_QUALITY_LAYOUT_DEFINITIONS.reduce<Record<string, { enabled: boolean; sections: Record<string, boolean>; tabs: Record<string, boolean> }>>((acc, page) => {
+      const storedPage = pages[page.id] && typeof pages[page.id] === 'object'
+        ? (pages[page.id] as { enabled?: boolean; sections?: Record<string, boolean>; tabs?: Record<string, boolean> })
+        : null;
+      acc[page.id] = {
+        enabled: typeof storedPage?.enabled === 'boolean' ? storedPage.enabled : true,
+        sections: page.sections.reduce<Record<string, boolean>>((sectionAcc, section) => {
+          sectionAcc[section.id] = storedPage?.sections?.[section.id] ?? true;
+          return sectionAcc;
+        }, {}),
+        tabs: page.sections.reduce<Record<string, boolean>>((tabAcc, section) => {
+          (section.tabs || []).forEach((tab) => {
+            tabAcc[tab.id] = storedPage?.tabs?.[tab.id] ?? true;
+          });
+          return tabAcc;
+        }, {}),
+      };
+      return acc;
+    }, {}),
   };
-
-  walk(items);
-  return enabled;
 };
+
+const formatLayoutLabel = (value: string) =>
+  value
+    .replace(/-/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase());
 
 export function DatabaseForm() {
   const { toast } = useToast();
@@ -99,8 +125,9 @@ export function DatabaseForm() {
   
   const [mainTheme, setMainTheme] = useState<MainTheme>(DEFAULT_MAIN);
   const [enabledHrefs, setEnabledHrefs] = useState<Set<string>>(
-    () => collectIndustryEnabledHrefs(menuConfig as MenuNode[], 'Aviation: Flight Training (ATO)')
+    () => buildFocusEnabledHrefs('Aviation: Flight Training (ATO)')
   );
+  const [pageLayoutSettings, setPageLayoutSettings] = useState<PageLayoutSettings>(() => buildDefaultPageLayoutSettings());
   const [ndaAcceptances, setNdaAcceptances] = useState<BetaNdaAcceptanceRecord[]>([]);
   const [isLoadingNdaAcceptances, setIsLoadingNdaAcceptances] = useState(false);
   const [ndaAcceptancesError, setNdaAcceptancesError] = useState<string | null>(null);
@@ -126,13 +153,14 @@ export function DatabaseForm() {
                 id: 'safeviate',
                 name: 'Safeviate Standard',
                 industry: 'Aviation: Flight Training (ATO)',
-                enabledMenus: menuConfig.map(m => m.href),
+                enabledMenus: Array.from(buildFocusEnabledHrefs('Aviation: Flight Training (ATO)')),
                 theme: {
                   primaryColour: DEFAULT_MAIN.primary,
                   backgroundColour: DEFAULT_MAIN.background,
                   accentColour: DEFAULT_MAIN.accent,
                   main: DEFAULT_MAIN
-                }
+                },
+                pageLayoutSettings: buildDefaultPageLayoutSettings(),
               }];
               setTenants(initial);
             }
@@ -156,7 +184,7 @@ export function DatabaseForm() {
     return [...tenants].sort((a, b) => a.name.localeCompare(b.name));
   }, [tenants]);
 
-  const handleLoadTenant = (tenantId: string) => {
+  const handleLoadTenant = async (tenantId: string) => {
     const t = tenants.find(tenant => tenant.id === tenantId);
     if (!t) return;
 
@@ -170,9 +198,20 @@ export function DatabaseForm() {
         background: t.theme?.backgroundColour || DEFAULT_MAIN.background,
         accent: t.theme?.accentColour || DEFAULT_MAIN.accent
     }));
-    const industryDefaults = collectIndustryEnabledHrefs(menuConfig as MenuNode[], t.industry || 'Aviation: Flight Training (ATO)');
-    const tenantMenus = new Set(t.enabledMenus || []);
-    setEnabledHrefs(new Set([...industryDefaults, ...tenantMenus]));
+    const industryDefaults = buildFocusEnabledHrefs(t.industry || 'Aviation: Flight Training (ATO)');
+
+    try {
+      const response = await fetch(`/api/tenant-config?tenantId=${encodeURIComponent(t.id)}`, { cache: 'no-store' });
+      const payload = await response.json().catch(() => ({}));
+      const config = payload?.config && typeof payload.config === 'object' ? (payload.config as Record<string, unknown>) : {};
+      const tenantMenus = Array.isArray(config.enabledMenus) ? config.enabledMenus.filter((value): value is string => typeof value === 'string') : (t.enabledMenus || []);
+      setEnabledHrefs(new Set([...industryDefaults, ...tenantMenus]));
+      setPageLayoutSettings(normalizePageLayoutSettings(config.pageLayoutSettings));
+    } catch {
+      const tenantMenus = new Set(t.enabledMenus || []);
+      setEnabledHrefs(new Set([...industryDefaults, ...tenantMenus]));
+      setPageLayoutSettings(buildDefaultPageLayoutSettings());
+    }
 
     toast({ title: 'System Context Loaded', description: `Configuration for "${t.name}" inherited.` });
   };
@@ -180,7 +219,7 @@ export function DatabaseForm() {
   const handleIndustryChange = (newIndustry: IndustryType) => {
     setIndustry(newIndustry);
 
-    setEnabledHrefs(collectIndustryEnabledHrefs(menuConfig as MenuNode[], newIndustry));
+    setEnabledHrefs(buildFocusEnabledHrefs(newIndustry));
     toast({ title: 'Logic Presets Calibrated', description: `Module permissions synthesized for ${newIndustry}.` });
   };
 
@@ -259,7 +298,8 @@ export function DatabaseForm() {
     setIndustry('Aviation: Flight Training (ATO)');
     setLogoPreview(null);
     setMainTheme(DEFAULT_MAIN);
-    setEnabledHrefs(collectIndustryEnabledHrefs(menuConfig as MenuNode[], 'Aviation: Flight Training (ATO)'));
+    setEnabledHrefs(buildFocusEnabledHrefs('Aviation: Flight Training (ATO)'));
+    setPageLayoutSettings(buildDefaultPageLayoutSettings());
   };
 
   const toggleMenu = (href: string, subHrefs?: string[]) => {
@@ -283,6 +323,60 @@ export function DatabaseForm() {
       newEnabled.add(parentHref);
     }
     setEnabledHrefs(newEnabled);
+  };
+
+  const applySafetyQualityFocus = () => {
+    setEnabledHrefs(buildFocusEnabledHrefs(industry));
+    setPageLayoutSettings(buildDefaultPageLayoutSettings());
+    toast({
+      title: SAFETY_QUALITY_PRESET_LABEL,
+      description: 'Safety, quality, users, admin, dashboards, and support pages have been preselected.',
+    });
+  };
+
+  const toggleLayoutPage = (pageId: string) => {
+    setPageLayoutSettings((current) => ({
+      ...current,
+      pages: {
+        ...current.pages,
+        [pageId]: {
+          ...current.pages[pageId],
+          enabled: !current.pages[pageId]?.enabled,
+        },
+      },
+    }));
+  };
+
+  const toggleLayoutSection = (pageId: string, sectionId: string) => {
+    setPageLayoutSettings((current) => ({
+      ...current,
+      pages: {
+        ...current.pages,
+        [pageId]: {
+          ...current.pages[pageId],
+          sections: {
+            ...current.pages[pageId]?.sections,
+            [sectionId]: !current.pages[pageId]?.sections?.[sectionId],
+          },
+        },
+      },
+    }));
+  };
+
+  const toggleLayoutTab = (pageId: string, tabId: string) => {
+    setPageLayoutSettings((current) => ({
+      ...current,
+      pages: {
+        ...current.pages,
+        [pageId]: {
+          ...current.pages[pageId],
+          tabs: {
+            ...current.pages[pageId]?.tabs,
+            [tabId]: !current.pages[pageId]?.tabs?.[tabId],
+          },
+        },
+      },
+    }));
   };
 
   const handleSaveTenant = async () => {
@@ -309,9 +403,15 @@ export function DatabaseForm() {
             main: mainTheme,
           },
           enabledMenus: Array.from(new Set([
-            ...collectIndustryEnabledHrefs(menuConfig as MenuNode[], industry),
             ...enabledHrefs,
           ])),
+          pageLayoutSettings,
+          tabVisibilitySettings: {
+            id: 'tab-visibility',
+            visibilities: Object.fromEntries(
+              Object.entries(pageLayoutSettings.pages).map(([pageKey, layout]) => [pageKey, layout.enabled])
+            ),
+          },
       };
 
       if (index >= 0) {
@@ -324,6 +424,28 @@ export function DatabaseForm() {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tenant: tenantData }),
+      });
+      await fetch(`/api/tenant-config?tenantId=${encodeURIComponent(tenantId)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          config: {
+            id: tenantId,
+            name: tenantName,
+            industry,
+            logoUrl: logoPreview || '',
+            enabledMenus: Array.from(new Set([
+              ...enabledHrefs,
+            ])),
+            pageLayoutSettings,
+            tabVisibilitySettings: {
+              id: 'tab-visibility',
+              visibilities: Object.fromEntries(
+                Object.entries(pageLayoutSettings.pages).map(([pageKey, layout]) => [pageKey, layout.enabled])
+              ),
+            },
+          },
+        }),
       });
       setTenants(nextTenants);
       window.dispatchEvent(new Event('safeviate-tenants-updated'));
@@ -370,6 +492,7 @@ export function DatabaseForm() {
           <TabsList className={cn(HEADER_TAB_LIST_CLASS, 'w-full overflow-x-auto')}>
             <TabsTrigger value="setup" className={cn(HEADER_TAB_TRIGGER_CLASS, 'text-[10px]')}>Setup</TabsTrigger>
             <TabsTrigger value="access" className={cn(HEADER_TAB_TRIGGER_CLASS, 'text-[10px]')}>Access & Visibility</TabsTrigger>
+            <TabsTrigger value={PAGE_LAYOUT_TAB_ID} className={cn(HEADER_TAB_TRIGGER_CLASS, 'text-[10px]')}>Pages & Layout</TabsTrigger>
           </TabsList>
         </div>
 
@@ -549,6 +672,29 @@ export function DatabaseForm() {
                             <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground opacity-60">Authorize modules and linked pages for the selected tenant profile.</p>
                         </div>
                     </div>
+
+                    <Card className="border border-primary/20 bg-primary/5 shadow-none">
+                      <CardHeader className="flex flex-row items-start justify-between gap-4 border-b border-primary/10 px-4 py-3">
+                        <div className="space-y-1">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-primary">{SAFETY_QUALITY_PRESET_LABEL}</p>
+                          <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                            Focus the tenant on the two dashboards, safety, quality, users, admin, and the support pages that keep them running.
+                          </p>
+                        </div>
+                        <Button type="button" variant="outline" className={TENANT_SETUP_PRIMARY_BUTTON_CLASS} onClick={applySafetyQualityFocus}>
+                          Apply Preset
+                        </Button>
+                      </CardHeader>
+                      <CardContent className="px-4 py-4">
+                        <div className="flex flex-wrap gap-2">
+                          {SAFETY_QUALITY_FOCUS_HREFS.map((href) => (
+                            <Badge key={href} variant="outline" className="rounded-full border-primary/20 bg-background px-2 py-1 text-[9px] font-black uppercase tracking-widest text-foreground">
+                              {href.replace(/^\//, '')}
+                            </Badge>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
                     
                     <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
                         {menuConfig.map((menu) => {
@@ -601,6 +747,94 @@ export function DatabaseForm() {
                             );
                         })}
                     </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value={PAGE_LAYOUT_TAB_ID} className="mt-0 space-y-8">
+                <div className="space-y-6">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                    <div className="space-y-2 text-left">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="rounded-full border-primary/20 bg-primary/5 px-3 py-1 text-[9px] font-black uppercase tracking-widest text-primary">
+                          Layout Assignment
+                        </Badge>
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                          {Object.values(pageLayoutSettings.pages).filter((page) => page.enabled).length} pages enabled
+                        </span>
+                      </div>
+                      <h3 className="text-2xl font-black uppercase tracking-tighter">Pages, Sections, and Tabs</h3>
+                      <p className="max-w-3xl text-[10px] font-bold uppercase tracking-widest text-muted-foreground opacity-60">
+                        Switch pages on or off, then decide which sections and tabs remain available inside each one.
+                      </p>
+                    </div>
+                    <Button type="button" onClick={applySafetyQualityFocus} className={TENANT_SETUP_PRIMARY_BUTTON_CLASS}>
+                      Apply Safety & Quality Preset
+                    </Button>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+                    {SAFETY_QUALITY_LAYOUT_DEFINITIONS.map((page) => {
+                      const layout = pageLayoutSettings.pages[page.id] || buildDefaultPageLayoutSettings().pages[page.id];
+                      return (
+                        <Card key={page.id} className={cn('border shadow-none', layout?.enabled ? 'border-primary/20 bg-primary/5' : 'border-slate-200')}>
+                          <CardHeader className="flex flex-row items-start justify-between gap-4 border-b bg-muted/10 px-4 py-3">
+                            <div className="space-y-1">
+                              <p className="text-sm font-black uppercase tracking-tight text-foreground">{page.label}</p>
+                              <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">{page.description}</p>
+                            </div>
+                            <Checkbox
+                              checked={layout?.enabled ?? true}
+                              onCheckedChange={() => toggleLayoutPage(page.id)}
+                              className="h-5 w-5 shrink-0"
+                            />
+                          </CardHeader>
+                          <CardContent className="space-y-4 px-4 py-4">
+                            {page.sections.map((section) => (
+                              <div key={section.id} className="space-y-3 rounded-2xl border bg-background p-3">
+                                <div className="flex items-center justify-between gap-3">
+                                  <div className="space-y-1">
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-foreground">
+                                      {formatLayoutLabel(section.label)}
+                                    </p>
+                                    <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+                                      Section on this page
+                                    </p>
+                                  </div>
+                                  <Checkbox
+                                    checked={layout?.sections?.[section.id] ?? true}
+                                    onCheckedChange={() => toggleLayoutSection(page.id, section.id)}
+                                    className="h-4 w-4 shrink-0"
+                                  />
+                                </div>
+
+                                {section.tabs && section.tabs.length > 0 && (
+                                  <div className="space-y-2 border-t pt-3">
+                                    <p className="text-[9px] font-black uppercase tracking-[0.18em] text-muted-foreground">
+                                      Tabs
+                                    </p>
+                                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                      {section.tabs.map((tab) => (
+                                        <div key={tab.id} className="flex items-center justify-between gap-3 rounded-xl border bg-muted/5 px-3 py-2">
+                                          <span className="text-[10px] font-black uppercase tracking-tight text-foreground">
+                                            {tab.label}
+                                          </span>
+                                          <Checkbox
+                                            checked={layout?.tabs?.[tab.id] ?? true}
+                                            onCheckedChange={() => toggleLayoutTab(page.id, tab.id)}
+                                            className="h-4 w-4 shrink-0"
+                                          />
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
                 </div>
               </TabsContent>
             </div>

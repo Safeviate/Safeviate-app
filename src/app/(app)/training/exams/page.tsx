@@ -292,14 +292,15 @@ export default function ExamsPage() {
                             <p className="text-sm font-bold leading-tight">{template.title}</p>
                             <p className="text-xs text-muted-foreground">{template.subject}</p>
                           </div>
-                          <div className="mt-3 flex items-center justify-between">
+                          <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                             <Badge variant="outline" className="text-[10px] font-black text-primary uppercase">
                               PASS {template.passingScore}%
                             </Badge>
-                            <div className="flex items-center gap-1">
+                            <div className="flex items-center gap-1 sm:justify-end">
                               <Button
                                 variant="default"
                                 size="compact"
+                                className="w-full sm:w-auto"
                                 onClick={() => setTakingExam({ template, isMock: false })}
                               >
                                 <PlayCircle className="mr-1.5 h-3.5 w-3.5" />

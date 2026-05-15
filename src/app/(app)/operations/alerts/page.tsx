@@ -21,6 +21,7 @@ export default function AlertsPage() {
   const { hasPermission } = usePermissions();
   const canCreateAlerts = hasPermission('operations-alerts-create');
   const canEditAlerts = hasPermission('operations-alerts-edit');
+  const canDeleteAlerts = hasPermission('operations-alerts-delete');
   const organizationId = userProfile?.organizationId || 'default';
 
   useEffect(() => {
@@ -148,7 +149,7 @@ export default function AlertsPage() {
             <TabsContent value="red-tags" className="mt-0 h-full min-h-0 overflow-y-auto no-scrollbar">
               <div className="space-y-4 px-4 py-4 sm:px-6 sm:pb-20">
                 {redTags.length > 0 ? (
-                  redTags.map(alert => <AlertCard key={alert.id} alert={alert} canManage={canEditAlerts} onArchive={handleArchiveAlert} />)
+                  redTags.map(alert => <AlertCard key={alert.id} alert={alert} canManage={canEditAlerts} canDelete={canDeleteAlerts} onArchive={handleArchiveAlert} />)
                 ) : (
                   <Card className="flex h-64 items-center justify-center shadow-none border bg-background">
                     <p className="text-muted-foreground text-[10px] font-black uppercase tracking-widest italic opacity-40">No active red tags.</p>
@@ -159,7 +160,7 @@ export default function AlertsPage() {
             <TabsContent value="yellow-tags" className="mt-0 h-full min-h-0 overflow-y-auto no-scrollbar">
               <div className="space-y-4 px-4 py-4 sm:px-6 sm:pb-20">
                 {yellowTags.length > 0 ? (
-                  yellowTags.map(alert => <AlertCard key={alert.id} alert={alert} canManage={canEditAlerts} onArchive={handleArchiveAlert} />)
+                  yellowTags.map(alert => <AlertCard key={alert.id} alert={alert} canManage={canEditAlerts} canDelete={canDeleteAlerts} onArchive={handleArchiveAlert} />)
                 ) : (
                   <Card className="flex h-64 items-center justify-center shadow-none border bg-background">
                     <p className="text-muted-foreground text-[10px] font-black uppercase tracking-widest italic opacity-40">No active yellow tags.</p>
@@ -170,7 +171,7 @@ export default function AlertsPage() {
             <TabsContent value="company-notices" className="mt-0 h-full min-h-0 overflow-y-auto no-scrollbar">
               <div className="space-y-4 px-4 py-4 sm:px-6 sm:pb-20">
                 {companyNotices.length > 0 ? (
-                  companyNotices.map(alert => <AlertCard key={alert.id} alert={alert} canManage={canEditAlerts} onArchive={handleArchiveAlert} />)
+                  companyNotices.map(alert => <AlertCard key={alert.id} alert={alert} canManage={canEditAlerts} canDelete={canDeleteAlerts} onArchive={handleArchiveAlert} />)
                 ) : (
                   <Card className="flex h-64 items-center justify-center shadow-none border bg-background">
                     <p className="text-muted-foreground text-[10px] font-black uppercase tracking-widest italic opacity-40">No active company notices.</p>

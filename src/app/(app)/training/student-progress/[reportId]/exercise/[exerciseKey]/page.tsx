@@ -163,7 +163,7 @@ export default function ExerciseReviewPage({ params }: ExerciseReviewPageProps) 
   return (
     <Card className="mx-auto flex h-full min-h-0 w-full max-w-[1100px] flex-col overflow-hidden border shadow-none">
       <CardHeader className="shrink-0 border-b bg-muted/5 px-4 py-3">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <CardTitle className="text-[13px] font-black uppercase tracking-tight md:text-lg">
               Exercise Review

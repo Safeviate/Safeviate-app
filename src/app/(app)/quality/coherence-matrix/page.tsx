@@ -810,10 +810,10 @@ export default function CoherenceMatrixPage() {
                 <Table className="min-w-[1450px] table-fixed">
                     <colgroup>
                         <col className="w-[14%]" />
-                        <col className="w-[54%]" />
-                        <col className="w-[10%]" />
+                        <col className="w-[46%]" />
                         <col className="w-[12%]" />
-                        <col className="w-[6%]" />
+                        <col className="w-[14%]" />
+                        <col className="w-[10%]" />
                         <col className="w-[4%]" />
                     </colgroup>
                     <TableHeader className="sticky top-0 z-10 bg-muted/30">

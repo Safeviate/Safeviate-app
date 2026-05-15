@@ -15,6 +15,7 @@ import { useUserProfile } from '@/hooks/use-user-profile';
 import { usePermissions } from '@/hooks/use-permissions';
 import { Badge } from '@/components/ui/badge';
 import { BackNavButton } from '@/components/back-nav-button';
+import { usePageLayout } from '@/hooks/use-page-layout';
 
 const parseLocalDate = (value: string) => {
   const [year, month, day] = value.split('-').map(Number);
@@ -33,6 +34,7 @@ export default function AuditDetailPage({ params }: AuditDetailPageProps) {
   const router = useRouter();
   const { tenantId, userProfile } = useUserProfile();
   const { hasPermission } = usePermissions();
+  const { isPageEnabled } = usePageLayout('audits');
   const auditId = resolvedParams.auditId;
 
   const [audit, setAudit] = useState<QualityAudit | null>(null);
@@ -92,6 +94,18 @@ export default function AuditDetailPage({ params }: AuditDetailPageProps) {
       <div className="space-y-6 max-w-[1100px] mx-auto w-full pt-4 px-1">
         <Skeleton className="h-10 w-48" />
         <Skeleton className="h-[600px] w-full" />
+      </div>
+    );
+  }
+
+  if (!isPageEnabled) {
+    return (
+      <div className="max-w-[1100px] mx-auto w-full px-1 pt-4">
+        <Card className="border shadow-none">
+          <CardContent className="p-6 text-center text-sm text-muted-foreground">
+            This page is disabled for the current tenant layout.
+          </CardContent>
+        </Card>
       </div>
     );
   }

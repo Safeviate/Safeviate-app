@@ -21,7 +21,7 @@ export async function saveOrganizationThemeAction(themeConfig: any) {
     const role = auth.userProfile.role?.toLowerCase();
     const isDeveloper = role === 'dev' || role === 'developer';
     
-    if (!isDeveloper && !auth.effectivePermissions.has('admin-settings-manage')) {
+    if (!isDeveloper && !auth.effectivePermissions.has('admin-settings-manage') && !auth.effectivePermissions.has('settings-manage')) {
       return { ok: false, error: 'Unauthorized to update organization branding.' };
     }
 

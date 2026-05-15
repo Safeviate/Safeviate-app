@@ -134,15 +134,15 @@ export function TakeExamDialog({ template, isOpen, onOpenChange, personnel, tena
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) resetExam(); onOpenChange(open); }}>
       <DialogContent className="max-w-4xl max-h-[95vh] flex flex-col p-0 overflow-hidden rounded-3xl border-0 shadow-2xl">
-        <DialogHeader className="p-8 border-b bg-muted/5 shrink-0">
-          <div className="flex items-center justify-between">
+        <DialogHeader className="border-b bg-muted/5 p-5 shrink-0 sm:p-8">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="space-y-4 text-left">
               <Badge variant="outline" className="text-[10px] font-black uppercase tracking-widest text-primary border-primary/30 bg-primary/5 px-4 h-7">
                 <GraduationCap className="h-3.5 w-3.5 mr-2" />
                 Axiom Assessment Center
               </Badge>
               <div>
-                <DialogTitle className="text-3xl font-black uppercase tracking-tighter leading-none">
+                <DialogTitle className="text-2xl font-black uppercase tracking-tighter leading-none sm:text-3xl">
                   {template.title}
                 </DialogTitle>
                 <DialogDescription className="mt-2 text-[11px] font-bold uppercase tracking-widest text-foreground/75">
@@ -151,7 +151,7 @@ export function TakeExamDialog({ template, isOpen, onOpenChange, personnel, tena
               </div>
             </div>
             {state === 'taking' && (
-                <div className="text-right bg-background border-2 rounded-2xl p-5 shadow-sm min-w-[120px]">
+                <div className="w-full min-w-0 rounded-2xl border-2 bg-background p-4 text-right shadow-sm sm:w-auto sm:min-w-[120px] sm:p-5">
                     <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-1">Item Index</p>
                     <div className="flex items-baseline justify-end gap-1">
                         <span className="text-3xl font-mono font-black text-primary">{Object.keys(answers).length}</span>
@@ -160,12 +160,12 @@ export function TakeExamDialog({ template, isOpen, onOpenChange, personnel, tena
                 </div>
             )}
           </div>
-          {state === 'taking' && <Progress value={progress} className="h-2.5 mt-8 bg-muted rounded-full overflow-hidden border-2" />}
+          {state === 'taking' && <Progress value={progress} className="mt-6 h-2.5 overflow-hidden rounded-full border-2 bg-muted sm:mt-8" />}
         </DialogHeader>
 
         <div className="flex-1 min-h-0 overflow-hidden bg-background">
           {state === 'setup' && (
-            <div className="p-12 space-y-10 max-w-lg mx-auto">
+            <div className="mx-auto max-w-lg space-y-8 p-5 sm:p-12">
               <div className="space-y-6 text-left">
                 {isMockOnly ? (
                     <div className="p-6 border-2 border-dashed rounded-2xl bg-amber-50/30 border-amber-200 flex items-start gap-4 text-left">
@@ -199,7 +199,7 @@ export function TakeExamDialog({ template, isOpen, onOpenChange, personnel, tena
                 </p>
               </div>
 
-              <Button onClick={handleStart} className="w-full h-16 text-xl font-black uppercase tracking-tighter gap-3 shadow-2xl rounded-2xl transition-transform hover:scale-[1.02] active:scale-[0.98]" size="lg">
+              <Button onClick={handleStart} className="w-full h-14 gap-3 rounded-2xl text-lg font-black uppercase tracking-tighter shadow-2xl transition-transform hover:scale-[1.02] active:scale-[0.98] sm:h-16 sm:text-xl" size="lg">
                 <PlayCircle className="h-6 w-6" /> {isMockOnly ? 'Start Practice Run' : 'Initiate Official Cert'}
               </Button>
             </div>
@@ -207,32 +207,32 @@ export function TakeExamDialog({ template, isOpen, onOpenChange, personnel, tena
 
           {state === 'taking' && (
             <ScrollArea type="always" className="h-full">
-              <div className="p-10 pr-12 space-y-16 pb-32">
+              <div className="space-y-12 p-5 pb-28 sm:space-y-16 sm:p-10 sm:pr-12 sm:pb-32">
                 {template.questions.map((q, idx) => (
                   <div key={q.id} className="space-y-8 group/q text-left">
-                    <div className="flex gap-8 items-start">
+                    <div className="flex items-start gap-4 sm:gap-8">
                       <Badge variant="outline" className="h-12 w-12 rounded-2xl p-0 flex items-center justify-center shrink-0 border-2 border-primary text-primary font-black text-xl shadow-md bg-background">
                         {idx + 1}
                       </Badge>
-                      <p className="text-2xl font-black uppercase tracking-tight text-foreground/90 group-hover/q:text-primary transition-colors leading-tight flex-1">{q.text}</p>
+                      <p className="flex-1 text-xl font-black uppercase tracking-tight text-foreground/90 transition-colors leading-tight group-hover/q:text-primary sm:text-2xl">{q.text}</p>
                     </div>
                     <RadioGroup 
                       value={answers[q.id]} 
                       onValueChange={(val) => setAnswers(prev => ({ ...prev, [q.id]: val }))}
-                      className="grid grid-cols-1 md:grid-cols-2 gap-5 pl-[5rem]"
+                      className="grid grid-cols-1 gap-4 pl-0 sm:pl-[5rem] md:grid-cols-2"
                     >
                       {q.options.map(opt => (
                         <div 
                           key={opt.id} 
                           className={cn(
-                            "flex items-center space-x-5 p-6 rounded-3xl border-2 transition-all cursor-pointer shadow-sm relative overflow-hidden group/opt",
+                            "flex items-start gap-4 rounded-3xl border-2 p-4 transition-all cursor-pointer shadow-sm relative overflow-hidden group/opt sm:items-center sm:space-x-5 sm:p-6",
                             answers[q.id] === opt.id 
                                 ? "bg-primary/5 border-primary shadow-xl ring-2 ring-primary/10 scale-[1.01]" 
                                 : "bg-background border-slate-100 hover:border-primary/30 hover:bg-muted/30"
                           )} 
                           onClick={() => setAnswers(prev => ({ ...prev, [q.id]: opt.id }))}
                         >
-                          <RadioGroupItem value={opt.id} id={opt.id} className="h-6 w-6 border-2 border-slate-300 data-[state=checked]:border-primary" />
+                          <RadioGroupItem value={opt.id} id={opt.id} className="mt-0.5 h-6 w-6 border-2 border-slate-300 data-[state=checked]:border-primary sm:mt-0" />
                           <Label htmlFor={opt.id} className="text-sm font-black uppercase tracking-tight cursor-pointer flex-1 leading-snug text-left">{opt.text}</Label>
                           {answers[q.id] === opt.id && (
                               <div className="absolute right-6 top-1/2 -translate-y-1/2">
@@ -249,7 +249,7 @@ export function TakeExamDialog({ template, isOpen, onOpenChange, personnel, tena
           )}
 
           {state === 'finished' && result && (
-            <div className="p-14 flex flex-col items-center justify-center text-center space-y-10 animate-in fade-in slide-in-from-bottom-8 duration-700">
+            <div className="flex flex-col items-center justify-center space-y-8 p-6 text-center animate-in fade-in slide-in-from-bottom-8 duration-700 sm:p-14 sm:space-y-10">
               <div className={cn(
                 "h-32 w-32 rounded-[2.5rem] flex items-center justify-center shadow-2xl animate-in zoom-in duration-700 rotate-6",
                 result.passed ? "bg-green-100 text-green-600 border-4 border-green-200" : "bg-red-100 text-red-600 border-4 border-red-200"
@@ -270,7 +270,7 @@ export function TakeExamDialog({ template, isOpen, onOpenChange, personnel, tena
                 </Badge>
               </div>
 
-              <div className="w-full max-w-lg bg-muted/5 p-8 rounded-[2rem] border-2 border-slate-100 shadow-inner grid grid-cols-2 gap-8">
+              <div className="grid w-full max-w-lg grid-cols-1 gap-4 rounded-[2rem] border-2 border-slate-100 bg-muted/5 p-6 shadow-inner sm:grid-cols-2 sm:gap-8 sm:p-8">
                 <div className="space-y-1 text-left">
                     <p className="text-[10px] font-black uppercase tracking-widest text-foreground/75">Authorized Candidate</p>
                     <p className="font-black text-base uppercase truncate leading-none">{result.studentName}</p>
@@ -281,7 +281,7 @@ export function TakeExamDialog({ template, isOpen, onOpenChange, personnel, tena
                         {result.isMock ? 'Practice Mock' : 'Official Cert'}
                     </Badge>
                 </div>
-                <div className="col-span-2 space-y-1 text-left border-t border-slate-200/50 pt-6">
+                <div className="space-y-1 border-t border-slate-200/50 pt-4 text-left sm:col-span-2 sm:pt-6">
                     <p className="text-[10px] font-black uppercase tracking-widest text-foreground/75">Validation Timestamp</p>
                     <p className="font-mono text-xs font-black text-foreground/80 uppercase">{format(new Date(result.date), 'dd MMMM yyyy • HH:mm:ss')}</p>
                 </div>
@@ -297,20 +297,20 @@ export function TakeExamDialog({ template, isOpen, onOpenChange, personnel, tena
           )}
         </div>
 
-        <DialogFooter className="p-8 border-t bg-muted/5 shrink-0 gap-4">
-          <div className="flex w-full gap-4">
+        <DialogFooter className="shrink-0 gap-4 border-t bg-muted/5 p-5 sm:p-8">
+          <div className="flex w-full flex-col gap-3 sm:flex-row sm:gap-4">
             {state === 'taking' ? (
                 <Button 
                     onClick={handleSubmit} 
                     disabled={Object.keys(answers).length < template.questions.length}
-                    className="w-full h-14 text-lg font-black uppercase tracking-widest shadow-xl rounded-2xl"
+                    className="w-full h-14 text-base font-black uppercase tracking-widest shadow-xl rounded-2xl sm:text-lg"
                 >
                 Submit Full Examination
                 </Button>
             ) : state === 'finished' ? (
-                <Button onClick={() => onOpenChange(false)} className="w-full h-14 text-lg font-black uppercase tracking-widest shadow-xl rounded-2xl">Return to Overview</Button>
+                <Button onClick={() => onOpenChange(false)} className="w-full h-14 text-base font-black uppercase tracking-widest shadow-xl rounded-2xl sm:text-lg">Return to Overview</Button>
             ) : (
-                <DialogClose asChild><Button variant="outline" className="h-14 px-8 text-xs font-black uppercase tracking-widest rounded-2xl border-2 flex-1">Abort Session</Button></DialogClose>
+                <DialogClose asChild><Button variant="outline" className="h-14 w-full px-8 text-xs font-black uppercase tracking-widest rounded-2xl border-2 sm:flex-1">Abort Session</Button></DialogClose>
             )}
           </div>
         </DialogFooter>

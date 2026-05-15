@@ -12,7 +12,6 @@ import { usePermissions } from '@/hooks/use-permissions';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -231,7 +230,7 @@ function ProgressionDecisionCard({
   return (
     <Card className="overflow-hidden border shadow-none">
       <CardHeader className="border-b bg-muted/5 px-4 py-3">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <CardTitle className="text-sm font-black uppercase tracking-tight">Progression Review</CardTitle>
             <CardDescription className="text-xs">Current phase, next phase recommendation, and the review trail for the student.</CardDescription>
@@ -330,8 +329,8 @@ function ProgressionDecisionCard({
           {canManage ? (
             <Button onClick={() => void handleSave()} disabled={isSaving}>
               {isSaving ? 'Saving...' : 'Save review'}
-          </Button>
-        ) : (
+            </Button>
+          ) : (
             <p className="text-xs text-muted-foreground">Only training-management roles can edit this review.</p>
           )}
         </div>
@@ -501,7 +500,7 @@ export default function StudentDetailPage({ params }: StudentDetailPageProps) {
   return (
     <Card className="mx-auto flex h-full min-h-0 w-full max-w-[1100px] flex-col overflow-hidden shadow-none border">
       <CardHeader className="shrink-0 border-b bg-muted/5 px-4 py-3">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <CardTitle className="text-[13px] font-black uppercase tracking-tight md:text-lg">
               Student Progress
@@ -519,20 +518,22 @@ export default function StudentDetailPage({ params }: StudentDetailPageProps) {
         </div>
       </CardHeader>
 
-      <ScrollArea className="min-h-0 flex-1">
-        <CardContent className="space-y-4 p-4">
-          <ProgressSummary student={student} progress={progress} />
-          <ProgressionDecisionCard
-            recommendation={student.progressionRecommendation}
-            canManage={canManageProgression}
-            onSave={handleSaveProgressionRecommendation}
-          />
+      <CardContent className="min-h-0 flex-1 overflow-auto p-0">
+        <div className="h-full min-w-[1100px] md:min-w-0">
+          <div className="space-y-4 p-4">
+            <ProgressSummary student={student} progress={progress} />
+            <ProgressionDecisionCard
+              recommendation={student.progressionRecommendation}
+              canManage={canManageProgression}
+              onSave={handleSaveProgressionRecommendation}
+            />
 
-          <div className="flex-1 min-h-0 overflow-hidden px-1">
-            <TrainingRecords studentId={studentId} tenantId={tenantId || ''} />
+            <div className="flex-1 min-h-0 overflow-hidden px-1">
+              <TrainingRecords studentId={studentId} tenantId={tenantId || ''} />
+            </div>
           </div>
-        </CardContent>
-      </ScrollArea>
+        </div>
+      </CardContent>
     </Card>
   );
 }

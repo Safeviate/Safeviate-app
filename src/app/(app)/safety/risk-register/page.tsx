@@ -28,6 +28,8 @@ import { CardControlHeader, HEADER_COMPACT_CONTROL_CLASS, HEADER_SECONDARY_BUTTO
 import { useIsMobile } from '@/hooks/use-mobile';
 import { OrganizationTabsRow, ResponsiveTabRow } from '@/components/responsive-tab-row';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { usePageLayout } from '@/hooks/use-page-layout';
+import { useTabVisibility } from '@/hooks/use-tab-visibility';
 
 const parseLocalDate = (value: string) => {
   const [year, month, day] = value.split('-').map(Number);
@@ -127,6 +129,7 @@ export default function RiskRegisterPage() {
   const { tenantId } = useUserProfile();
   const { hasPermission } = usePermissions();
   const { scopedOrganizationId, shouldShowOrganizationTabs } = useOrganizationScope({ viewAllPermissionId: 'risk-register-view' });
+  const { isPageEnabled, isSectionEnabled } = usePageLayout('risk-register');
   const isMobile = useIsMobile();
 
   const [activeOrgTab, setActiveOrgTab] = useState('internal');
@@ -140,7 +143,6 @@ export default function RiskRegisterPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   const canManageAreas = hasPermission('risk-register-manage-definitions');
-  const [visibilitySettings, setVisibilitySettings] = useState<{ visibilities?: Record<string, boolean> } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -179,23 +181,20 @@ export default function RiskRegisterPage() {
     const load = async () => {
       setIsLoading(true);
       try {
-        const [personnelResponse, riskResponse, orgResponse, visibilityResponse] = await Promise.all([
+        const [personnelResponse, riskResponse, orgResponse] = await Promise.all([
           fetch('/api/personnel', { cache: 'no-store' }),
           fetch('/api/risk-register', { cache: 'no-store' }),
           fetch('/api/external-organizations', { cache: 'no-store' }),
-          fetch('/api/tenant-config', { cache: 'no-store' }),
         ]);
-        const [personnelPayload, riskPayload, orgPayload, visibilityPayload] = await Promise.all([
+        const [personnelPayload, riskPayload, orgPayload] = await Promise.all([
           personnelResponse.json().catch(() => ({ personnel: [] })),
           riskResponse.json().catch(() => ({ risks: [] })),
           orgResponse.json().catch(() => ({ organizations: [] })),
-          visibilityResponse.json().catch(() => ({ configuration: null })),
         ]);
         if (!cancelled) {
           setPersonnel(personnelPayload?.personnel ?? []);
           setOrganizations(orgPayload?.organizations ?? []);
           setAllRisks(riskPayload?.risks ?? []);
-          setVisibilitySettings({ visibilities: visibilityPayload?.configuration?.visibilities || { 'risk-register': true } });
         }
       } catch {
         if (!cancelled) {
@@ -219,8 +218,54 @@ export default function RiskRegisterPage() {
   }, [personnel]);
 
   const handleEditClick = (risk: Risk) => setEditingRisk(risk);
-  const isTabEnabled = visibilitySettings?.visibilities?.['risk-register'] ?? true;
-  const showTabs = isTabEnabled && shouldShowOrganizationTabs;
+  const showTabs = useTabVisibility('risk-register', shouldShowOrganizationTabs) && isSectionEnabled('organization-scope');
+  const showHazardAreaTabs = isSectionEnabled('hazard-areas');
+
+  const renderRiskTable = (risks: Risk[], emptyMessage: string) => (
+    <div className="overflow-x-auto">
+      <Table>
+        <TableHeader className="bg-muted/30 sticky top-0 z-10">
+          <TableRow>
+            <TableHead className="w-[15%] text-[10px] uppercase font-bold tracking-wider">Hazard</TableHead>
+            <TableHead className="w-[15%] text-[10px] uppercase font-bold tracking-wider">Risk</TableHead>
+            <TableHead className="text-[10px] uppercase font-bold tracking-wider">Initial</TableHead>
+            <TableHead className="w-[20%] text-[10px] uppercase font-bold tracking-wider">Mitigation</TableHead>
+            <TableHead className="text-[10px] uppercase font-bold tracking-wider">Residual</TableHead>
+            <TableHead className={cn('text-[10px] uppercase font-bold tracking-wider', isMobile && 'hidden')}>Responsible</TableHead>
+            <TableHead className={cn('text-[10px] uppercase font-bold tracking-wider', isMobile && 'hidden')}>Review</TableHead>
+            <TableHead className="text-right text-[10px] uppercase font-bold tracking-wider">Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        {risks.length > 0 ? (
+          risks.map((hazard) => (
+            <tbody key={hazard.id} className="border-b">
+              <RiskGroup hazard={hazard} personnelMap={personnelMap} onEditClick={handleEditClick} isMobile={isMobile} />
+            </tbody>
+          ))
+        ) : (
+          <tbody>
+            <TableRow>
+              <TableCell colSpan={isMobile ? 6 : 8} className="h-48 text-center text-muted-foreground italic text-sm">
+                {emptyMessage}
+              </TableCell>
+            </TableRow>
+          </tbody>
+        )}
+      </Table>
+    </div>
+  );
+
+  if (!isPageEnabled) {
+    return (
+      <div className="max-w-[1100px] mx-auto w-full px-1 pt-4">
+        <Card className="border shadow-none">
+          <CardContent className="p-6 text-center text-sm text-muted-foreground">
+            This page is disabled for the current tenant layout.
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   const renderOrgCard = (orgId: string | 'internal') => {
     const orgRisks = (allRisks || []).filter((r) => (orgId === 'internal' ? !r.organizationId : r.organizationId === orgId));
@@ -299,62 +344,38 @@ export default function RiskRegisterPage() {
           }
         />
         <CardContent className="flex-1 p-0 overflow-hidden bg-background">
-          <Tabs value={activeAreaTab} onValueChange={setActiveAreaTab} className="h-full flex flex-col">
-            {displayAreas.length > 0 ? (
-              <ResponsiveTabRow
-                value={activeAreaTab}
-                onValueChange={setActiveAreaTab}
-                placeholder="Select Area"
-                className="border-b bg-muted/5 px-3 py-2 shrink-0"
-                options={displayAreas.map((area) => ({ value: area, label: area, icon: LayoutGrid }))}
-              />
-            ) : (
-              <div className="bg-muted/5 px-3 py-4 text-center">
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">No Risk Areas Configured</p>
-                <p className="mt-1 text-sm text-muted-foreground">Use Manage Areas to add the tabs you want for this register.</p>
+          {showHazardAreaTabs ? (
+            <Tabs value={activeAreaTab} onValueChange={setActiveAreaTab} className="h-full flex flex-col">
+              {displayAreas.length > 0 ? (
+                <ResponsiveTabRow
+                  value={activeAreaTab}
+                  onValueChange={setActiveAreaTab}
+                  placeholder="Select Area"
+                  className="border-b bg-muted/5 px-3 py-2 shrink-0"
+                  options={displayAreas.map((area) => ({ value: area, label: area, icon: LayoutGrid }))}
+                />
+              ) : (
+                <div className="bg-muted/5 px-3 py-4 text-center">
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">No Risk Areas Configured</p>
+                  <p className="mt-1 text-sm text-muted-foreground">Use Manage Areas to add the tabs you want for this register.</p>
+                </div>
+              )}
+              <div className="flex-1 overflow-auto">
+                {displayAreas.map((area) => {
+                  const areaRisks = area === 'Uncategorized' ? uncategorizedRisks : orgRisks.filter((r) => r.hazardArea === area && r.status === 'Open');
+                  return (
+                    <TabsContent key={area} value={area} className="mt-0 h-full">
+                      {renderRiskTable(areaRisks, 'No open risks in this area.')}
+                    </TabsContent>
+                  );
+                })}
               </div>
-            )}
-            <div className="flex-1 overflow-auto">
-              {displayAreas.map((area) => {
-                const areaRisks = area === 'Uncategorized' ? uncategorizedRisks : orgRisks.filter((r) => r.hazardArea === area && r.status === 'Open');
-                return (
-                  <TabsContent key={area} value={area} className="mt-0 h-full">
-                    <div className="overflow-x-auto">
-                      <Table>
-                        <TableHeader className="bg-muted/30 sticky top-0 z-10">
-                          <TableRow>
-                            <TableHead className="w-[15%] text-[10px] uppercase font-bold tracking-wider">Hazard</TableHead>
-                            <TableHead className="w-[15%] text-[10px] uppercase font-bold tracking-wider">Risk</TableHead>
-                            <TableHead className="text-[10px] uppercase font-bold tracking-wider">Initial</TableHead>
-                            <TableHead className="w-[20%] text-[10px] uppercase font-bold tracking-wider">Mitigation</TableHead>
-                            <TableHead className="text-[10px] uppercase font-bold tracking-wider">Residual</TableHead>
-                            <TableHead className={cn('text-[10px] uppercase font-bold tracking-wider', isMobile && 'hidden')}>Responsible</TableHead>
-                            <TableHead className={cn('text-[10px] uppercase font-bold tracking-wider', isMobile && 'hidden')}>Review</TableHead>
-                            <TableHead className="text-right text-[10px] uppercase font-bold tracking-wider">Actions</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        {areaRisks.length > 0 ? (
-                          areaRisks.map((hazard) => (
-                            <tbody key={hazard.id} className="border-b">
-                              <RiskGroup hazard={hazard} personnelMap={personnelMap} onEditClick={handleEditClick} isMobile={isMobile} />
-                            </tbody>
-                          ))
-                        ) : (
-                          <tbody>
-                            <TableRow>
-                              <TableCell colSpan={isMobile ? 6 : 8} className="h-48 text-center text-muted-foreground italic text-sm">
-                                No open risks in this area.
-                              </TableCell>
-                            </TableRow>
-                          </tbody>
-                        )}
-                      </Table>
-                    </div>
-                  </TabsContent>
-                );
-              })}
+            </Tabs>
+          ) : (
+            <div className="h-full overflow-auto">
+              {renderRiskTable(orgRisks.filter((risk) => risk.status === 'Open'), 'No open risks found for this organization.')}
             </div>
-          </Tabs>
+          )}
         </CardContent>
       </Card>
     );

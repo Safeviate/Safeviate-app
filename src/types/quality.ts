@@ -127,6 +127,17 @@ export interface TabVisibilitySettings {
   visibilities: Record<string, boolean>;
 }
 
+export interface PageLayoutState {
+  enabled: boolean;
+  sections: Record<string, boolean>;
+  tabs: Record<string, boolean>;
+}
+
+export interface PageLayoutSettings {
+  id: string;
+  pages: Record<string, PageLayoutState>;
+}
+
 export interface Tenant {
     id: string;
     name: string;
@@ -154,4 +165,6 @@ export interface Tenant {
         scale?: number;
     };
     enabledMenus?: string[];
+    pageLayoutSettings?: PageLayoutSettings | null;
+    tabVisibilitySettings?: TabVisibilitySettings | null;
 }

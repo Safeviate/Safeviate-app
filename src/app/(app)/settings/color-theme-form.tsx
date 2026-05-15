@@ -191,7 +191,7 @@ export function ColorThemeForm({ showHeader = true }: ColorThemeFormProps) {
   const [openAdvancedSections, setOpenAdvancedSections] = useState<string[]>(['buttons', 'headers', 'sidebar']);
   const sidebarLogoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const canManageOrganization = hasPermission('admin-settings-manage');
+  const canManageOrganization = hasPermission('admin-settings-manage') || hasPermission('settings-manage');
 
   const buildOrganizationTheme = useCallback((overrides?: {
     sidebarLogoImage?: string;

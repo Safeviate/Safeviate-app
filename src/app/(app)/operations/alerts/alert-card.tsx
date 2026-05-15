@@ -14,11 +14,12 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 interface AlertCardProps {
     alert: Alert;
     canManage: boolean;
+    canDelete: boolean;
     onArchive: (alertId: string) => void;
     showReadReceipts?: boolean;
 }
 
-export function AlertCard({ alert, canManage, onArchive, showReadReceipts = true }: AlertCardProps) {
+export function AlertCard({ alert, canManage, canDelete, onArchive, showReadReceipts = true }: AlertCardProps) {
     const { toast } = useToast();
     const cardRef = useRef<HTMLDivElement>(null);
 
@@ -90,7 +91,7 @@ export function AlertCard({ alert, canManage, onArchive, showReadReceipts = true
                         <Button variant="outline" size="compact" onClick={handlePrint} className="border-slate-300">
                             <Printer className="h-3.5 w-3.5" /> Print
                         </Button>
-                        {canManage && (
+                        {canDelete && (
                             <Button variant="outline" size="compact" onClick={handleArchive} className="border-slate-300 text-red-600 hover:text-red-700">
                                 <Archive className="h-3.5 w-3.5" /> Archive
                             </Button>

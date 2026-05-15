@@ -228,9 +228,9 @@ function ExerciseProgressMatrix({ summaries, studentId }: { summaries: ExerciseP
     return (
         <section className="space-y-4">
             <SectionHeader title="Exercise Progress Matrix" icon={Target} />
-            <div className="space-y-4">
-                <div className="rounded-2xl border bg-background overflow-hidden">
-                    <div className="grid grid-cols-[minmax(0,1.8fr)_90px_84px_82px_98px_112px] gap-2 border-b bg-muted/30 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
+            <div className="rounded-2xl border bg-background max-w-full overflow-x-auto touch-pan-x overscroll-x-contain md:overflow-visible">
+                <div className="min-w-[760px] w-max md:w-full md:min-w-0">
+                    <div className="grid w-max min-w-full grid-cols-[minmax(300px,1.8fr)_90px_84px_82px_98px_112px] gap-2 border-b bg-muted/30 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
                         <span>Exercise</span>
                         <span>Attempts</span>
                         <span>Latest</span>
@@ -246,7 +246,7 @@ function ExerciseProgressMatrix({ summaries, studentId }: { summaries: ExerciseP
                               ? 'Handoff'
                               : summary.latestComment ? 'Debrief' : 'Open';
                             return (
-                                <div key={summary.templateKey} className="grid grid-cols-[minmax(0,1.8fr)_90px_84px_82px_98px_112px] gap-2 px-4 py-2.5">
+                                <div key={summary.templateKey} className="grid w-max min-w-full grid-cols-[minmax(300px,1.8fr)_90px_84px_82px_98px_112px] gap-2 px-4 py-2.5">
                                     <div className="min-w-0">
                                         <Link
                                             href={`/training/student-progress/${studentId}/exercise/${summary.templateKey}`}
@@ -267,8 +267,8 @@ function ExerciseProgressMatrix({ summaries, studentId }: { summaries: ExerciseP
                                         </div>
                                     </div>
                                     <div className="flex items-center text-sm font-black">{summary.attemptCount}</div>
-                                    <div className="flex items-center text-sm font-black">{summary.latestRating ? `${summary.latestRating}/5` : '—'}</div>
-                                    <div className="flex items-center text-sm font-black">{summary.averageRating ? `${summary.averageRating}/5` : '—'}</div>
+                                    <div className="flex items-center text-sm font-black">{summary.latestRating ? `${summary.latestRating}/5` : '-'}</div>
+                                    <div className="flex items-center text-sm font-black">{summary.averageRating ? `${summary.averageRating}/5` : '-'}</div>
                                     <div className="flex items-center text-[10px] font-black uppercase tracking-[0.14em] text-muted-foreground">
                                         {statusMeta.label}
                                     </div>
@@ -285,7 +285,6 @@ function ExerciseProgressMatrix({ summaries, studentId }: { summaries: ExerciseP
                         })}
                     </div>
                 </div>
-
             </div>
         </section>
     );

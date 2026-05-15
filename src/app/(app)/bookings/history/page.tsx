@@ -206,7 +206,7 @@ const BookingsTable = ({
 
 export default function BookingsHistoryPage() {
   const { tenantId } = useUserProfile();
-  const { hasPermission } = usePermissions();
+  const { hasPermission, isLoading: isPermissionsLoading } = usePermissions();
   const isMobile = useIsMobile();
   const [activeTab, setActiveTab] = useState('all');
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -291,6 +291,7 @@ export default function BookingsHistoryPage() {
     };
   }, [enrichedBookings]);
 
+  const canViewHistory = hasPermission('bookings-view') || hasPermission('bookings-history-view') || hasPermission('admin-view');
   const canDeleteBookings = hasPermission('bookings-delete');
   const canDeleteCompletedBookings = hasPermission('admin-database-manage');
 
@@ -304,7 +305,19 @@ export default function BookingsHistoryPage() {
     { value: 'cancelled', label: 'Cancelled' },
   ];
 
-  return (
+  return !isPermissionsLoading && !canViewHistory ? (
+    <div className="max-w-[900px] mx-auto w-full px-1 pt-4">
+      <Card className="shadow-none border">
+        <CardContent className="flex min-h-[240px] flex-col items-center justify-center gap-3 text-center">
+          <ShieldAlert className="h-10 w-10 text-muted-foreground" />
+          <div className="space-y-1">
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-muted-foreground">Access Denied</p>
+            <p className="text-sm text-muted-foreground">You do not have permission to view booking history.</p>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  ) : (
     <div className="max-w-[1100px] mx-auto w-full flex flex-col gap-6 h-full min-h-0 px-1 pt-4">
       <Card className="flex h-full flex-col shadow-none border overflow-hidden">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex h-full min-h-0 flex-col">

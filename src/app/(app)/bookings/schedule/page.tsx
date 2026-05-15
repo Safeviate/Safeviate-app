@@ -461,6 +461,7 @@ export default function SchedulePage() {
 
   // PERMISSIONS
   const canManageSchedule = hasPermission('bookings-schedule-manage');
+  const canViewSchedule = hasPermission('bookings-view') || hasPermission('bookings-schedule-view') || canManageSchedule || hasPermission('admin-view');
 
   const [aircraft, setAircraft] = useState<Aircraft[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -583,8 +584,9 @@ export default function SchedulePage() {
   const canManualApprove = useCallback((booking: Booking) => {
     const userId = userProfile?.id;
     const userRole = userProfile?.role?.toLowerCase();
-    return ((!!userId && booking.instructorId === userId) || userRole === 'developer' || userRole === 'dev');
-  }, [userProfile?.id, userProfile?.role]);
+    const canApproveWithPermission = hasPermission('bookings-approve');
+    return ((!!userId && booking.instructorId === userId) || userRole === 'developer' || userRole === 'dev' || canApproveWithPermission);
+  }, [hasPermission, userProfile?.id, userProfile?.role]);
 
   const handleManualApproveBooking = useCallback(async (booking: Booking) => {
     if (!canManualApprove(booking)) {
@@ -973,7 +975,19 @@ export default function SchedulePage() {
     </div>
   );
 
-  return (
+  return !isPermissionsLoading && !canViewSchedule ? (
+    <div className="max-w-[900px] mx-auto w-full px-1 pt-4">
+      <Card className="shadow-none border">
+        <CardContent className="flex min-h-[240px] flex-col items-center justify-center gap-3 text-center">
+          <Lock className="h-10 w-10 text-muted-foreground" />
+          <div className="space-y-1">
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-muted-foreground">Access Denied</p>
+            <p className="text-sm text-muted-foreground">You do not have permission to view the booking schedule.</p>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  ) : (
     <div className="max-w-[1100px] mx-auto w-full flex flex-col gap-6 h-full px-1 pt-4 overflow-hidden">
         <Card className="overflow-hidden flex-grow flex flex-col shadow-none border">
             <MainPageHeader 

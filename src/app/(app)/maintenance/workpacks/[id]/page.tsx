@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useUserProfile } from '@/hooks/use-user-profile';
+import { usePermissions } from '@/hooks/use-permissions';
 import type { Workpack, TaskCard } from '@/types/workpack';
 import { TaskCardDialog } from './task-card-dialog';
 import { TaskCardItem } from './task-card-item';
@@ -18,6 +19,7 @@ export default function WorkpackDetailsPage({ params }: { params: Promise<{ id: 
   const resolvedParams = use(params);
   const router = useRouter();
   const { tenantId } = useUserProfile();
+  const { hasPermission } = usePermissions();
 
   const [workpack, setWorkpack] = useState<Workpack | null>(null);
   const [allTaskCards, setAllTaskCards] = useState<TaskCard[]>([]);
@@ -52,6 +54,10 @@ export default function WorkpackDetailsPage({ params }: { params: Promise<{ id: 
   }, [loadData]);
 
   const taskCards = useMemo(() => allTaskCards.filter((tc) => tc.workpackId === resolvedParams.id), [allTaskCards, resolvedParams.id]);
+  const canCreateTaskCards = hasPermission('maintenance-workpacks-create') || hasPermission('admin-view');
+  const canEditTaskCards = hasPermission('maintenance-workpacks-edit') || hasPermission('admin-view');
+  const canSignTaskCards = hasPermission('maintenance-workpacks-sign') || hasPermission('admin-view');
+  const canApproveWorkpack = hasPermission('maintenance-workpacks-approve') || hasPermission('admin-view');
 
   const handleCloseWorkpack = async () => {
     if (!workpack) return;
@@ -108,13 +114,17 @@ export default function WorkpackDetailsPage({ params }: { params: Promise<{ id: 
             <Badge className="h-10 px-6 bg-emerald-600 hover:bg-emerald-600 font-black tracking-widest text-sm uppercase">Released to Service</Badge>
           ) : (
             <div className="flex gap-2">
-              <TaskCardDialog workpackId={workpack.id} tenantId={tenantId || ''} />
+              {canCreateTaskCards ? (
+                <TaskCardDialog workpackId={workpack.id} tenantId={tenantId || ''} canCreateTaskCards={canCreateTaskCards} />
+              ) : (
+                <Badge variant="outline" className="h-10 px-6 font-black tracking-widest text-[10px] uppercase">Task Cards Locked</Badge>
+              )}
             </div>
           )}
         </CardContent>
       </Card>
 
-      {workpack.status !== 'CLOSED' && taskCards && taskCards.length > 0 && taskCards.every((tc) => tc.isCompleted && (!tc.requiresInspector || tc.isInspected)) && (
+      {workpack.status !== 'CLOSED' && taskCards && taskCards.length > 0 && taskCards.every((tc) => tc.isCompleted && (!tc.requiresInspector || tc.isInspected)) && canApproveWorkpack && (
         <Card className="shrink-0 bg-primary/10 border-primary/30 shadow-sm">
           <CardContent className="p-4 flex flex-col md:flex-row items-center justify-between gap-4">
             <div>
@@ -129,7 +139,15 @@ export default function WorkpackDetailsPage({ params }: { params: Promise<{ id: 
       <ScrollArea className="flex-1 -mx-4 px-4 h-full pb-24">
         {taskCards && taskCards.length > 0 ? (
           <div className="space-y-4">
-            {taskCards.map((tc) => <TaskCardItem key={tc.id} taskCard={tc} workpackId={workpack.id} />)}
+            {taskCards.map((tc) => (
+              <TaskCardItem
+                key={tc.id}
+                taskCard={tc}
+                workpackId={workpack.id}
+                canEditTaskCard={canEditTaskCards}
+                canSignTaskCard={canSignTaskCards}
+              />
+            ))}
           </div>
         ) : (
           <Card className="border-dashed bg-transparent shadow-none">

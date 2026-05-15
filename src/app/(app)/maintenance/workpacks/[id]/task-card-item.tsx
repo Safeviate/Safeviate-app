@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import { SecureSignaturePad } from '@/components/secure-signature-pad';
 import { useToast } from '@/hooks/use-toast';
 import { useUserProfile } from '@/hooks/use-user-profile';
+import { usePermissions } from '@/hooks/use-permissions';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,6 +15,8 @@ import type { TaskCard } from '@/types/workpack';
 interface TaskCardItemProps {
   workpackId: string;
   taskCard: TaskCard;
+  canEditTaskCard?: boolean;
+  canSignTaskCard?: boolean;
 }
 
 type TaskCardSignature = {
@@ -33,9 +36,12 @@ type TaskCardAttachment = {
   type: 'PDF' | 'IMAGE';
 };
 
-export function TaskCardItem({ workpackId, taskCard }: TaskCardItemProps) {
+export function TaskCardItem({ workpackId, taskCard, canEditTaskCard = true, canSignTaskCard = true }: TaskCardItemProps) {
   const { userProfile } = useUserProfile();
   const { toast } = useToast();
+  const { hasPermission } = usePermissions();
+  const canEdit = canEditTaskCard || hasPermission('maintenance-workpacks-edit') || hasPermission('admin-view');
+  const canSign = canSignTaskCard || hasPermission('maintenance-workpacks-sign') || hasPermission('admin-view');
 
   const [isSigning, setIsSigning] = useState(false);
   const [signMode, setSignMode] = useState<'MECHANIC' | 'INSPECTOR'>('MECHANIC');
@@ -152,10 +158,10 @@ export function TaskCardItem({ workpackId, taskCard }: TaskCardItemProps) {
         </div>
 
         <div className="flex flex-col gap-2 shrink-0 w-full md:w-auto">
-          {!taskCard.isCompleted && !isSigning && (
+          {!taskCard.isCompleted && !isSigning && canSign && (
             <Button onClick={() => { setSignMode('MECHANIC'); setIsSigning(true); }} className="w-full text-xs font-black uppercase shadow-md gap-2"><PenTool className="h-4 w-4" /> Mechanic Sign-Off</Button>
           )}
-          {isPendingInspection && !isSigning && (
+          {isPendingInspection && !isSigning && canSign && (
             <Button onClick={() => { setSignMode('INSPECTOR'); setIsSigning(true); }} className="w-full bg-accent text-accent-foreground hover:bg-accent/90 text-xs font-black uppercase shadow-md gap-2"><ShieldCheck className="h-4 w-4" /> Inspector Sign-Off</Button>
           )}
         </div>
@@ -178,8 +184,8 @@ export function TaskCardItem({ workpackId, taskCard }: TaskCardItemProps) {
       {!isFullyClosed && !isSigning && (
         <CardFooter className="px-4 md:px-6 py-3 bg-muted/10 border-t flex justify-end">
           <div className="flex w-full gap-2">
-            <Input value={attachmentUrl} onChange={(e) => setAttachmentUrl(e.target.value)} placeholder="Paste evidence URL" className="h-9 text-xs" />
-            <Button variant="outline" size="sm" className="text-xs font-bold gap-2" onClick={handleAddAttachmentUrl}>
+            <Input value={attachmentUrl} onChange={(e) => setAttachmentUrl(e.target.value)} placeholder="Paste evidence URL" className="h-9 text-xs" disabled={!canEdit} />
+            <Button variant="outline" size="sm" className="text-xs font-bold gap-2" onClick={handleAddAttachmentUrl} disabled={!canEdit}>
               <Link2 className="h-3 w-3" />
               Attach Link
             </Button>
@@ -187,7 +193,7 @@ export function TaskCardItem({ workpackId, taskCard }: TaskCardItemProps) {
         </CardFooter>
       )}
 
-      {isSigning && (
+      {isSigning && canSign && (
         <CardContent className="p-4 md:p-6 bg-muted/30 border-t">
           <div className="flex justify-end mb-4">
             <Button variant="ghost" size="sm" onClick={() => setIsSigning(false)}>Cancel Sign-Off</Button>

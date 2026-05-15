@@ -260,7 +260,7 @@ export default function QuestionBankPage() {
                                             <p className="mt-1 text-sm font-semibold text-foreground">Active Bank Item</p>
                                         </div>
                                     </div>
-                                    <div className="flex justify-end gap-2">
+                                    <div className="flex items-center justify-end gap-2">
                                         <Button variant="outline" size="sm" className="h-8 w-8 text-primary border-slate-300" onClick={() => setEditingItem(item)}>
                                             <Pencil className="h-3.5 w-3.5" />
                                         </Button>
@@ -474,10 +474,10 @@ function UpsertQuestionDialog({ isOpen, onOpenChange, tenantId, topic, editingIt
                             <div className="space-y-3">
                                 {options.map((opt, idx) => (
                                     <div key={opt.id} className={cn(
-                                        "flex gap-3 items-center p-2 rounded-lg border transition-all",
+                                        "flex flex-col gap-3 p-2 rounded-lg border transition-all sm:flex-row sm:items-center",
                                         correctId === opt.id ? "bg-green-50 border-green-500 ring-1 ring-green-500" : "bg-muted/5 border-border"
                                     )}>
-                                        <div className="flex items-center justify-center w-8 h-8 shrink-0">
+                                        <div className="flex items-center justify-center w-8 h-8 shrink-0 self-start sm:self-auto">
                                             <input 
                                                 type="radio" 
                                                 name="correct" 
@@ -487,7 +487,7 @@ function UpsertQuestionDialog({ isOpen, onOpenChange, tenantId, topic, editingIt
                                                 className="accent-green-600 h-5 w-5 cursor-pointer"
                                             />
                                         </div>
-                                        <div className="flex-1 space-y-1">
+                                        <div className="flex-1 space-y-1 min-w-0">
                                             <div className="flex items-center justify-between">
                                                 <Label htmlFor={`radio-${opt.id}`} className="text-[9px] uppercase font-bold text-muted-foreground cursor-pointer">
                                                     Option {idx + 1}
@@ -517,7 +517,7 @@ function UpsertQuestionDialog({ isOpen, onOpenChange, tenantId, topic, editingIt
                                                 setOptions(options.filter(o => o.id !== opt.id));
                                             }} 
                                             disabled={options.length <= 2}
-                                            className="text-muted-foreground hover:text-destructive h-8 w-8"
+                                            className="self-end text-muted-foreground hover:text-destructive h-8 w-8 sm:self-auto"
                                         >
                                             <Trash2 className="h-4 w-4" />
                                         </Button>
@@ -541,7 +541,7 @@ function UpsertQuestionDialog({ isOpen, onOpenChange, tenantId, topic, editingIt
                         <AlertCircle className="h-4 w-4" />
                         <span className="text-[10px] font-bold uppercase tracking-tight">2+ opts & 1 correct required.</span>
                     </div>
-                    <div className="flex gap-2 w-full sm:w-auto">
+                    <div className="flex flex-col gap-2 w-full sm:w-auto sm:flex-row">
                         <DialogClose asChild><Button variant="outline" size="compact" className="flex-1 sm:flex-none border-slate-300">Cancel</Button></DialogClose>
                         <Button onClick={handleSave} size="compact" disabled={isSaving} className="flex-1 sm:flex-none">
                             {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : (editingItem ? 'Update' : 'Save')}

@@ -28,6 +28,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
+import { usePermissions } from '@/hooks/use-permissions';
 
 const formSchema = z.object({
   taskNumber: z.string().min(1, 'Required'),
@@ -37,9 +38,11 @@ const formSchema = z.object({
   toolsList: z.string().optional(),
 });
 
-export function TaskCardDialog({ workpackId, tenantId }: { workpackId: string; tenantId: string }) {
+export function TaskCardDialog({ workpackId, tenantId, canCreateTaskCards = true }: { workpackId: string; tenantId: string; canCreateTaskCards?: boolean }) {
   const [isOpen, setIsOpen] = useState(false);
   const { toast } = useToast();
+  const { hasPermission } = usePermissions();
+  const canCreate = canCreateTaskCards || hasPermission('maintenance-workpacks-create') || hasPermission('admin-view');
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -84,7 +87,7 @@ export function TaskCardDialog({ workpackId, tenantId }: { workpackId: string; t
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button className="h-9 px-4 text-xs font-black uppercase tracking-tight gap-2 shadow-md shrink-0">
+        <Button className="h-9 px-4 text-xs font-black uppercase tracking-tight gap-2 shadow-md shrink-0" disabled={!canCreate}>
           <PlusCircle className="h-4 w-4" /> Append Task Card
         </Button>
       </DialogTrigger>
@@ -126,7 +129,7 @@ export function TaskCardDialog({ workpackId, tenantId }: { workpackId: string; t
             </div>
             <DialogFooter className="pt-4">
               <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
-              <Button type="submit">Build Card</Button>
+              <Button type="submit" disabled={!canCreate}>Build Card</Button>
             </DialogFooter>
           </form>
         </Form>

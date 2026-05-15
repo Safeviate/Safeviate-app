@@ -173,7 +173,7 @@ export function ExamForm({ initialValues, onSubmit, onCancel, isSubmitting }: Ex
             <Separator />
 
             <div className="space-y-6">
-              <div className="flex justify-between items-center bg-muted/5 p-4 rounded-2xl border-2 border-dashed">
+              <div className="flex flex-col gap-4 bg-muted/5 p-4 rounded-2xl border-2 border-dashed sm:flex-row sm:items-center sm:justify-between">
                 <div>
                     <h3 className="text-sm font-black uppercase tracking-tight flex items-center gap-2">
                         <ListTodo className="h-4 w-4 text-primary" />
@@ -181,13 +181,13 @@ export function ExamForm({ initialValues, onSubmit, onCancel, isSubmitting }: Ex
                     </h3>
                     <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground opacity-70">Construct or generate the evaluation pool.</p>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                     <AiExamGenerator onGenerated={handleGeneratedQuestions} />
                     <Button
                         type="button"
                         variant="default"
                         size="sm"
-                        className="h-10 px-6 text-[10px] font-black uppercase tracking-widest shadow-lg rounded-xl"
+                        className="h-10 w-full px-6 text-[10px] font-black uppercase tracking-widest shadow-lg rounded-xl sm:w-auto"
                         onClick={() =>
                             appendQuestion({
                             id: uuidv4(),
@@ -217,11 +217,11 @@ export function ExamForm({ initialValues, onSubmit, onCancel, isSubmitting }: Ex
           </div>
         </ScrollArea>
 
-        <div className="shrink-0 flex justify-end gap-4 p-6 border-t bg-muted/5">
-          <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
+        <div className="shrink-0 flex flex-col gap-3 p-6 border-t bg-muted/5 sm:flex-row sm:justify-end">
+          <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting} className="w-full sm:w-auto">
             Cancel
           </Button>
-          <Button type="submit" disabled={isSubmitting}>
+          <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto">
             {isSubmitting ? 'Saving...' : 'Save Exam Template'}
           </Button>
         </div>
@@ -241,8 +241,8 @@ function QuestionItem({ questionIndex, onRemove }: { questionIndex: number; onRe
 
   return (
     <Card className="bg-background border-2 border-slate-200 shadow-sm rounded-2xl overflow-hidden group hover:border-primary/30 transition-all duration-300">
-      <CardHeader className="py-5 px-6 flex flex-row items-start justify-between space-y-0 bg-muted/5 group-hover:bg-primary/5">
-        <div className="flex items-center gap-4 flex-1 mr-4">
+      <CardHeader className="flex flex-col gap-4 bg-muted/5 px-6 py-5 group-hover:bg-primary/5 sm:flex-row sm:items-start sm:justify-between sm:space-y-0">
+        <div className="flex min-w-0 flex-1 items-start gap-4">
           <Badge variant="outline" className="h-8 w-8 rounded-full p-0 flex items-center justify-center shrink-0 border-2 border-primary text-primary font-black text-sm shadow-sm bg-background">
             {questionIndex + 1}
           </Badge>
@@ -259,13 +259,13 @@ function QuestionItem({ questionIndex, onRemove }: { questionIndex: number; onRe
             )}
           />
         </div>
-        <Button type="button" variant="ghost" size="icon" onClick={onRemove} className="text-destructive h-9 w-9 rounded-full hover:bg-destructive/10 transition-colors">
+        <Button type="button" variant="ghost" size="icon" onClick={onRemove} className="self-start text-destructive h-9 w-9 rounded-full hover:bg-destructive/10 transition-colors sm:self-auto">
           <Trash2 className="h-4 w-4" />
         </Button>
       </CardHeader>
       <CardContent className="space-y-6 p-6 pt-2">
         <div className="space-y-3">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <Label className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest flex items-center gap-2">
                 Options (Select Correct)
                 {correctOptionId && <Badge variant="outline" className="h-4 text-[8px] bg-green-50 text-green-700 border-green-200 uppercase">Correct Marked</Badge>}
@@ -275,7 +275,7 @@ function QuestionItem({ questionIndex, onRemove }: { questionIndex: number; onRe
               variant="ghost"
               size="sm"
               onClick={() => appendOption({ id: uuidv4(), text: '' })}
-              className="h-6 text-[10px] uppercase font-bold"
+              className="h-8 w-full text-[10px] uppercase font-bold sm:w-auto"
             >
               <PlusCircle className="mr-1 h-3 w-3" /> Add Option
             </Button>
@@ -284,7 +284,7 @@ function QuestionItem({ questionIndex, onRemove }: { questionIndex: number; onRe
           <RadioGroup
             value={correctOptionId}
             onValueChange={(val) => setValue(`questions.${questionIndex}.correctOptionId`, val)}
-            className="grid grid-cols-1 md:grid-cols-2 gap-4"
+            className="grid grid-cols-1 gap-4 md:grid-cols-2"
           >
             {optionFields.map((option, oIndex) => (
               <div key={option.id} className="flex items-center gap-3 group/opt">
@@ -320,7 +320,7 @@ function QuestionItem({ questionIndex, onRemove }: { questionIndex: number; onRe
                   size="icon"
                   onClick={() => removeOption(oIndex)}
                   disabled={optionFields.length <= 2}
-                  className="h-10 w-10 text-muted-foreground opacity-0 group-hover/opt:opacity-100 transition-opacity rounded-full hover:text-destructive hover:bg-destructive/5"
+                  className="h-10 w-10 self-start text-muted-foreground opacity-100 transition-opacity rounded-full hover:text-destructive hover:bg-destructive/5 sm:opacity-0 sm:group-hover/opt:opacity-100"
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>

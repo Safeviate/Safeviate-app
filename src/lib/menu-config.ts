@@ -57,6 +57,71 @@ export const menuConfig: MenuItem[] = [
     ]
   },
   {
+    href: '/safety-quality',
+    label: 'Safety & Quality',
+    icon: ShieldAlert,
+    subItems: [
+      {
+        href: '/dashboard',
+        label: 'Company Dashboard',
+        description: 'Executive overview for the current tenant.',
+      },
+      {
+        href: '/my-dashboard',
+        label: 'My Dashboard',
+        description: 'Tasks, messages, and personal logbook.',
+      },
+      {
+        href: '/safety',
+        label: 'Safety',
+        description: 'Safety reporting and related controls.',
+        permissionId: 'safety-view',
+      },
+      {
+        href: '/quality',
+        label: 'Quality',
+        description: 'Quality audits, risk, and task tracking.',
+        permissionId: 'quality-view',
+      },
+      {
+        href: '/users',
+        label: 'Users',
+        description: 'Personnel, access, and accounts.',
+        permissionId: 'users-view',
+      },
+      {
+        href: '/admin',
+        label: 'Admin',
+        description: 'Admin tools that support the tenant.',
+        permissionId: 'admin-view',
+      },
+      {
+        href: '/operations/alerts',
+        label: 'Alerts',
+        description: 'Operational alerts that support safety oversight.',
+        permissionId: 'operations-alerts-view',
+      },
+      {
+        href: '/operations/company-documents',
+        label: 'Company Documents',
+        description: 'Controlled documents used by the safety and quality team.',
+        permissionId: 'operations-documents-view',
+      },
+      {
+        href: '/operations/emergency-response',
+        label: 'Emergency Response',
+        description: 'ERP tools that support the safety workflow.',
+        permissionId: 'operations-erp-view',
+      },
+      {
+        href: '/development/database',
+        label: 'Tenant Setup',
+        description: 'Create and maintain the Safeviate tenant setup.',
+        permissionId: 'development-view',
+      },
+    ],
+  },
+  {
     href: '/bookings',
     label: 'Bookings',
     icon: CalendarDays,

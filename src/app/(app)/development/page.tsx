@@ -426,10 +426,7 @@ export default function DevelopmentPage() {
     );
   }
 
-  // We filter out the database page since we moved it
-  const devSubItems = developmentMenu.subItems.filter(
-    (item) => item.href !== '/development/database' && canAccessMenuItem(item, developmentMenu)
-  );
+  const devSubItems = developmentMenu.subItems.filter((item) => canAccessMenuItem(item, developmentMenu));
   const diagnosticsSummary = useMemo(() => {
     if (!diagnostics) return 'Diagnostics unavailable.';
     if (!diagnostics.rolesLoaded) return 'Unable to confirm live role menu data.';

@@ -16,7 +16,14 @@ export default function WorkpacksPage() {
   const [workpacks, setWorkpacks] = useState<Workpack[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const canManageWorkpacks = hasPermission('maintenance-workpacks-create') || hasPermission('admin-view');
+  const canViewWorkpacks =
+    hasPermission('maintenance-workpacks-view') ||
+    hasPermission('maintenance-workpacks-create') ||
+    hasPermission('maintenance-workpacks-edit') ||
+    hasPermission('maintenance-workpacks-sign') ||
+    hasPermission('maintenance-workpacks-approve') ||
+    hasPermission('admin-view');
+  const canCreateWorkpacks = hasPermission('maintenance-workpacks-create') || hasPermission('admin-view');
 
   const loadWorkpacks = useCallback(async () => {
     setIsLoading(true);
@@ -46,13 +53,32 @@ export default function WorkpacksPage() {
     );
   }
 
+  if (!canViewWorkpacks) {
+    return (
+      <div className="lg:max-w-[1100px] mx-auto w-full flex flex-col gap-6 h-full overflow-hidden">
+        <Card className="flex-1 flex flex-col overflow-hidden shadow-none border">
+          <MainPageHeader
+            title="Maintenance Workpacks"
+            description="Manage aircraft task cards, maintenance scopes, and digital sign-offs. (Under development)"
+          />
+          <CardContent className="flex-1 flex items-center justify-center p-8 text-center">
+            <div className="space-y-2">
+              <p className="text-lg font-black uppercase tracking-tight">Access Denied</p>
+              <p className="text-sm text-muted-foreground">You do not have permission to view maintenance workpacks.</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="lg:max-w-[1100px] mx-auto w-full flex flex-col gap-6 h-full overflow-hidden">
       <Card className="flex-1 flex flex-col overflow-hidden shadow-none border">
         <MainPageHeader
           title="Maintenance Workpacks"
           description="Manage aircraft task cards, maintenance scopes, and digital sign-offs. (Under development)"
-          actions={canManageWorkpacks ? <AddWorkpackDialog tenantId={tenantId || ''} /> : undefined}
+          actions={canCreateWorkpacks ? <AddWorkpackDialog tenantId={tenantId || ''} /> : undefined}
         />
         <CardContent className="flex-1 p-0 overflow-hidden bg-background">
           <WorkpackList data={workpacks || []} />

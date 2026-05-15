@@ -28,6 +28,7 @@ import { DEFAULT_TRAINING_EXERCISE_TEMPLATE_KEY, type TrainingExerciseTemplate, 
 import { Badge } from '@/components/ui/badge';
 import type { HumanFactorsStatus, InstructorRecommendationAction, StudentProgressCriterionRating, StudentProgressHumanFactor } from '@/types/training';
 import { useTenantConfig } from '@/hooks/use-tenant-config';
+import { usePermissions } from '@/hooks/use-permissions';
 
 const RATING_GUIDE = [
     { value: '1', label: 'Unsafe', hint: 'Instructor intervention required immediately.' },
@@ -178,6 +179,8 @@ function NewDebriefContent() {
     const { toast } = useToast();
     const tenantId = 'safeviate';
     const { tenant } = useTenantConfig();
+    const { hasPermission } = usePermissions();
+    const canEditDebrief = hasPermission('training-debriefs-edit') || hasPermission('admin-view');
 
     const [booking, setBooking] = useState<Booking | null>(null);
     const [student, setStudent] = useState<PilotProfile | null>(null);
@@ -332,6 +335,14 @@ function NewDebriefContent() {
 
     const onSubmit = async (values: FormValues) => {
         if (!booking) return;
+        if (!canEditDebrief) {
+            toast({
+                variant: 'destructive',
+                title: 'Permission Denied',
+                description: 'You do not have permission to save training debriefs.',
+            });
+            return;
+        }
 
         const debriefData = {
             ...values,
@@ -399,7 +410,7 @@ function NewDebriefContent() {
                     className="sticky top-0 z-20 bg-muted/5"
                     context={
                         <div className="flex min-w-0 flex-col gap-1">
-                            <div className="flex items-center justify-between gap-3">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                 <div className="min-w-0">
                                     <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
                                         Post-Flight Instructor Debrief
@@ -442,7 +453,7 @@ function NewDebriefContent() {
                                     </div>
 
                                     <div className="space-y-4">
-                                        <div className="flex items-start justify-between gap-4">
+                                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                                             <div>
                                                 <h3 className="text-lg font-semibold">Assessment Entries</h3>
                                                 <p className="text-sm text-muted-foreground">Log each observed exercise, competency, and instructor signal from the flight.</p>
@@ -451,6 +462,7 @@ function NewDebriefContent() {
                                                 type="button"
                                                 variant="outline"
                                                 size="sm"
+                                                className="w-full sm:w-auto"
                                                 onClick={() =>
                                                     append(
                                                         booking?.trainingExerciseTemplateKey
@@ -473,7 +485,7 @@ function NewDebriefContent() {
 
                                                     return (
                                                         <>
-                                                            <div className="flex items-center justify-between gap-3">
+                                                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                                                 <div className="space-y-1">
                                                                     <p className="text-[10px] font-black uppercase tracking-[0.12em] text-muted-foreground">Entry {index + 1}</p>
                                                                     <p className="text-sm font-semibold">Exercise, focus areas, and instructor feedback</p>
@@ -483,7 +495,7 @@ function NewDebriefContent() {
                                                                     variant="ghost" 
                                                                     size="icon" 
                                                                     onClick={() => remove(index)} 
-                                                                    className="text-destructive"
+                                                                    className="self-start text-destructive sm:self-auto"
                                                                     disabled={fields.length === 1}
                                                                 >
                                                                     <Trash2 className="h-4 w-4" />
@@ -540,12 +552,12 @@ function NewDebriefContent() {
                                                             ) : null}
 
                                                             <div className="rounded-xl border bg-muted/5 p-4 space-y-4">
-                                                                <div className="flex items-start justify-between gap-4">
+                                                                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                                                                     <div>
                                                                         <p className="text-sm font-semibold">Exercise Focus Areas</p>
                                                                         <p className="text-sm text-muted-foreground">Capture the focus areas that mattered on this flight. Add another one if the instructor wants to include more.</p>
                                                                     </div>
-                                                                    <Button type="button" variant="outline" size="sm" onClick={() => handleAddCustomCriterion(index)}>
+                                                                    <Button type="button" variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => handleAddCustomCriterion(index)}>
                                                                         <PlusCircle className="mr-2 h-4 w-4" /> Add Focus Area
                                                                     </Button>
                                                                 </div>
@@ -689,14 +701,14 @@ function NewDebriefContent() {
                                                             </div>
 
                                                             <div className="rounded-xl border bg-muted/5 p-4 space-y-4">
-                                                                <div className="flex items-start justify-between gap-4">
+                                                                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                                                                     <div className="space-y-1">
                                                                         <p className="text-sm font-semibold">Hazardous Attitudes</p>
                                                                         <p className="text-sm text-muted-foreground">
                                                                             Add a hazardous attitude only when it was actually observed on this flight.
                                                                         </p>
                                                                     </div>
-                                                                    <Button type="button" variant="outline" size="sm" className="h-8 text-[10px] font-black uppercase" onClick={() => handleAddHazardousAttitude(index)}>
+                                                                    <Button type="button" variant="outline" size="sm" className="h-8 w-full text-[10px] font-black uppercase sm:w-auto" onClick={() => handleAddHazardousAttitude(index)}>
                                                                         <PlusCircle className="mr-2 h-4 w-4" /> Add Hazardous Attitude
                                                                     </Button>
                                                                 </div>
@@ -895,7 +907,7 @@ function NewDebriefContent() {
                                 <Button asChild variant="outline" type="button">
                                     <Link href="/bookings/history">Cancel</Link>
                                 </Button>
-                                <Button type="submit">
+                                <Button type="submit" disabled={!canEditDebrief}>
                                     <Save className="mr-2 h-4 w-4" /> Save Debrief
                                 </Button>
                             </div>

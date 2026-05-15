@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useUserProfile } from '@/hooks/use-user-profile';
 import { useOrganizationScope } from '@/hooks/use-organization-scope';
 import { useTabVisibility } from '@/hooks/use-tab-visibility';
+import { usePageLayout } from '@/hooks/use-page-layout';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { OrganizationTabsRow, ResponsiveTabRow } from '@/components/responsive-tab-row';
@@ -148,6 +149,7 @@ function AuditsTable({ audits, tenantId }: AuditsTableProps) {
 export default function AuditsPage() {
     const { tenantId } = useUserProfile();
     const { scopedOrganizationId, shouldShowOrganizationTabs } = useOrganizationScope({ viewAllPermissionId: 'quality-audits-view-all' });
+    const { isPageEnabled, isSectionEnabled, isTabEnabled } = usePageLayout('audits');
     const isMobile = useIsMobile();
     const [activeOrgTab, setActiveOrgTab] = useState('internal');
     const [activeStatusTab, setActiveStatusTab] = useState('active');
@@ -180,6 +182,31 @@ export default function AuditsPage() {
     }, []);
 
     const showTabs = useTabVisibility('audits', shouldShowOrganizationTabs);
+    const showOrgTabs = showTabs && isSectionEnabled('organization-scope');
+    const showStatusTabs = isSectionEnabled('audit-status');
+    const statusTabs = [
+      { value: 'active', label: `Active (${audits.filter((audit) => audit.status !== 'Archived').length})` },
+      { value: 'archived', label: `Archived (${audits.filter((audit) => audit.status === 'Archived').length})` },
+    ].filter((tab) => showStatusTabs && isTabEnabled(tab.value));
+
+    useEffect(() => {
+        if (statusTabs.length === 0) return;
+        if (!statusTabs.some((tab) => tab.value === activeStatusTab)) {
+            setActiveStatusTab(statusTabs[0].value);
+        }
+    }, [activeStatusTab, statusTabs]);
+
+    if (!isPageEnabled) {
+      return (
+        <div className="max-w-[1100px] mx-auto w-full px-1 pt-4">
+          <Card className="border shadow-none">
+            <CardContent className="p-6 text-center text-sm text-muted-foreground">
+              This page is disabled for the current tenant layout.
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
 
     const enrichedAudits = useMemo((): EnrichedAudit[] => {
         if (!audits || !personnel || !departments || !organizations) return [];
@@ -198,15 +225,63 @@ export default function AuditsPage() {
         const filteredByOrg = enrichedAudits.filter(a => 
             orgId === 'internal' ? !a.organizationId : a.organizationId === orgId
         );
-        
+
         const activeAudits = filteredByOrg.filter(a => a.status !== 'Archived');
         const archivedAudits = filteredByOrg.filter(a => a.status === 'Archived');
+
+        if (!showStatusTabs || statusTabs.length === 0) {
+            return (
+                <Card className="h-full min-h-0 flex flex-col overflow-hidden border border-card-border shadow-none">
+                    <CardControlHeader
+                        isMobile={isMobile}
+                        context={showOrgTabs ? (
+                            <OrganizationTabsRow
+                                organizations={organizations || []}
+                                activeTab={activeOrgTab}
+                                onTabChange={setActiveOrgTab}
+                                className="border-0 bg-transparent px-0 py-0"
+                            />
+                        ) : undefined}
+                        mobileContext={showOrgTabs ? (
+                            <OrganizationTabsRow
+                                organizations={organizations || []}
+                                activeTab={activeOrgTab}
+                                onTabChange={setActiveOrgTab}
+                                className="border-0 bg-transparent px-0 py-0"
+                            />
+                        ) : undefined}
+                        actions={
+                            <Button
+                                asChild
+                                variant="outline"
+                                size="sm"
+                                className={isMobile ? HEADER_MOBILE_ACTION_BUTTON_CLASS : HEADER_COMPACT_CONTROL_CLASS}
+                            >
+                                <Link href="/quality/audit-checklists">
+                                    <span className="flex items-center gap-2">
+                                        <ShieldCheck className="h-3.5 w-3.5" />
+                                        {isMobile ? "Templates" : "Audit Templates"}
+                                    </span>
+                                    {isMobile ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : null}
+                                </Link>
+                            </Button>
+                        }
+                    />
+
+                    <CardContent className="p-0 flex-1 min-h-0 overflow-y-auto">
+                        <div className="p-4 lg:p-6">
+                            <AuditsTable audits={filteredByOrg} tenantId={tenantId || ''} />
+                        </div>
+                    </CardContent>
+                </Card>
+            );
+        }
 
         return (
             <Card className="h-full min-h-0 flex flex-col overflow-hidden border border-card-border shadow-none">
                 <CardControlHeader
                     isMobile={isMobile}
-                    context={shouldShowOrganizationTabs ? (
+                    context={showOrgTabs ? (
                         <OrganizationTabsRow
                             organizations={organizations || []}
                             activeTab={activeOrgTab}
@@ -214,7 +289,7 @@ export default function AuditsPage() {
                             className="border-0 bg-transparent px-0 py-0"
                         />
                     ) : undefined}
-                    mobileContext={shouldShowOrganizationTabs ? (
+                    mobileContext={showOrgTabs ? (
                         <OrganizationTabsRow
                             organizations={organizations || []}
                             activeTab={activeOrgTab}
@@ -241,24 +316,30 @@ export default function AuditsPage() {
                 />
 
                 <Tabs value={activeStatusTab} onValueChange={setActiveStatusTab} className="flex-1 min-h-0 flex flex-col overflow-hidden">
-                    <ResponsiveTabRow
-                        value={activeStatusTab}
-                        onValueChange={setActiveStatusTab}
-                        placeholder="Filter Status"
-                        centerTabs
-                    className="px-3 py-2 border-b border-card-border/70 bg-muted/5 shrink-0 md:px-4"
-                        options={[
-                            { value: 'active', label: `Active (${activeAudits.length})`, icon: ListFilter },
-                            { value: 'archived', label: `Archived (${archivedAudits.length})`, icon: ListFilter },
-                        ]}
-                    />
+                    {statusTabs.length > 1 ? (
+                      <ResponsiveTabRow
+                          value={activeStatusTab}
+                          onValueChange={setActiveStatusTab}
+                          placeholder="Filter Status"
+                          centerTabs
+                          className="px-3 py-2 border-b border-card-border/70 bg-muted/5 shrink-0 md:px-4"
+                          options={statusTabs.map((tab) => ({
+                              ...tab,
+                              icon: ListFilter,
+                          }))}
+                      />
+                    ) : null}
                     <CardContent className="p-0 flex-1 min-h-0 overflow-y-auto">
-                        <TabsContent value="active" className="m-0 p-4 lg:p-6">
-                            <AuditsTable audits={activeAudits} tenantId={tenantId || ''} />
-                        </TabsContent>
-                        <TabsContent value="archived" className="m-0 p-4 lg:p-6">
-                            <AuditsTable audits={archivedAudits} tenantId={tenantId || ''} />
-                        </TabsContent>
+                        {isTabEnabled('active') ? (
+                          <TabsContent value="active" className="m-0 p-4 lg:p-6">
+                              <AuditsTable audits={activeAudits} tenantId={tenantId || ''} />
+                          </TabsContent>
+                        ) : null}
+                        {isTabEnabled('archived') ? (
+                          <TabsContent value="archived" className="m-0 p-4 lg:p-6">
+                              <AuditsTable audits={archivedAudits} tenantId={tenantId || ''} />
+                          </TabsContent>
+                        ) : null}
                     </CardContent>
                 </Tabs>
             </Card>
@@ -282,7 +363,7 @@ export default function AuditsPage() {
 
     return (
         <div className="max-w-[1100px] mx-auto w-full flex flex-col gap-6 h-full overflow-hidden px-1 pt-4">
-            {!showTabs ? (
+            {!showTabs || !showOrgTabs ? (
                 renderOrgCard(scopedOrganizationId)
             ) : (
                 <Tabs value={activeOrgTab} onValueChange={setActiveOrgTab} className="w-full flex flex-col h-full overflow-hidden">

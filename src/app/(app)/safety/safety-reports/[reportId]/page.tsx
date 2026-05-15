@@ -26,6 +26,7 @@ import { EditReportDialog } from '../edit-report-dialog';
 import { cn } from '@/lib/utils';
 import { ResponsiveTabRow } from '@/components/responsive-tab-row';
 import { HEADER_SECONDARY_BUTTON_CLASS } from '@/components/page-header';
+import { usePageLayout } from '@/hooks/use-page-layout';
 
 interface SafetyReportDetailPageProps {
   params: Promise<{ reportId: string }>;
@@ -35,6 +36,7 @@ export default function SafetyReportDetailPage({ params }: SafetyReportDetailPag
   const { toast } = useToast();
   const { userProfile, tenantId } = useUserProfile();
   const isMobile = useIsMobile();
+  const { isPageEnabled, isSectionEnabled, isTabEnabled } = usePageLayout('safety-reports');
   const resolvedParams = use(params);
   const reportId = resolvedParams.reportId;
   const [report, setReport] = useState<SafetyReport | null>(null);
@@ -44,6 +46,7 @@ export default function SafetyReportDetailPage({ params }: SafetyReportDetailPag
   const [isLoadingPersonnel, setIsLoadingPersonnel] = useState(true);
   const [isLoadingRiskMatrix, setIsLoadingRiskMatrix] = useState(true);
   const [activeTab, setActiveTab] = useState('triage');
+  const showReportViews = isSectionEnabled('report-views');
 
   useEffect(() => {
     let cancelled = false;
@@ -92,6 +95,26 @@ export default function SafetyReportDetailPage({ params }: SafetyReportDetailPag
     return report.discussion.filter(item => item.assignedToId === userProfile.id).length;
   }, [report?.discussion, userProfile]);
 
+  const visibleReportTabs = useMemo(() => {
+    const tabs = [
+      { value: 'full', label: 'Full Report' },
+      { value: 'triage', label: 'Report & Triage' },
+      { value: 'hazards', label: 'Hazard & Risk ID' },
+      { value: 'investigation', label: 'Investigation' },
+      { value: 'cap', label: 'Corrective Actions' },
+      { value: 'review', label: 'Final Review' },
+      { value: 'discussion', label: myMentionsCount > 0 ? `Discussion (${myMentionsCount})` : 'Discussion' },
+    ];
+    return tabs.filter((tab) => isTabEnabled(tab.value));
+  }, [isTabEnabled, myMentionsCount]);
+
+  useEffect(() => {
+    if (!showReportViews || visibleReportTabs.length === 0) return;
+    if (!visibleReportTabs.some((tab) => tab.value === activeTab)) {
+      setActiveTab(visibleReportTabs[0].value);
+    }
+  }, [activeTab, showReportViews, visibleReportTabs]);
+
   const isLoading = isLoadingReport || isLoadingPersonnel || isLoadingRiskMatrix;
 
   const handlePrint = () => {
@@ -128,6 +151,65 @@ export default function SafetyReportDetailPage({ params }: SafetyReportDetailPag
       </div>
     );
   }
+
+  if (!isPageEnabled) {
+    return (
+      <div className="max-w-[1100px] mx-auto w-full px-1 pt-4">
+        <Card className="border shadow-none">
+          <CardContent className="p-6 text-center text-sm text-muted-foreground">
+            This page is disabled for the current tenant layout.
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const renderFullReportSections = (isStacked = false) => (
+    <div className={isStacked ? 'flex flex-col gap-8 p-6 pb-20' : 'p-6 pb-20'}>
+      <TriageForm report={report} tenantId={tenantId} isStacked={isStacked} />
+      <HazardIdentificationForm
+        report={report}
+        tenantId={tenantId}
+        riskMatrixColors={riskMatrixSettings?.colors}
+        isStacked={isStacked}
+      />
+      <InvestigationForm
+        report={report}
+        tenantId={tenantId}
+        personnel={personnel || []}
+        isStacked={isStacked}
+      />
+      <CorrectiveActionsForm report={report} tenantId={tenantId} personnel={personnel || []} isStacked={isStacked} />
+      <FinalReview
+        report={report}
+        tenantId={tenantId}
+        personnel={personnel || []}
+        riskMatrixColors={riskMatrixSettings?.colors}
+        isStacked={isStacked}
+      />
+    </div>
+  );
+
+  const renderSingleTabContent = (tabValue: string) => {
+    switch (tabValue) {
+      case 'full':
+        return renderFullReportSections(true);
+      case 'triage':
+        return <TriageForm report={report} tenantId={tenantId} />;
+      case 'hazards':
+        return <HazardIdentificationForm report={report} tenantId={tenantId} riskMatrixColors={riskMatrixSettings?.colors} />;
+      case 'investigation':
+        return <InvestigationForm report={report} tenantId={tenantId} personnel={personnel || []} />;
+      case 'cap':
+        return <CorrectiveActionsForm report={report} tenantId={tenantId} personnel={personnel || []} />;
+      case 'review':
+        return <FinalReview report={report} tenantId={tenantId} personnel={personnel || []} riskMatrixColors={riskMatrixSettings?.colors} />;
+      case 'discussion':
+        return <ReportForum report={report} tenantId={tenantId} />;
+      default:
+        return renderFullReportSections(true);
+    }
+  };
 
   return (
     <div className="max-w-[1100px] mx-auto w-full flex flex-col h-full overflow-hidden pt-4 px-1">
@@ -183,70 +265,57 @@ export default function SafetyReportDetailPage({ params }: SafetyReportDetailPag
 
               {/* --- TAB BAR INSIDE CARD WITH HORIZONTAL SCROLL --- */}
               <div className="border-b bg-muted/5 px-6 py-2 shrink-0">
-                {isMobile ? (
-                  <ResponsiveTabRow
-                    value={activeTab}
-                    onValueChange={setActiveTab}
-                    placeholder="Select Section"
-                    className="shrink-0"
-                    options={[
-                      { value: 'full', label: 'Full Report' },
-                      { value: 'triage', label: 'Report & Triage' },
-                      { value: 'hazards', label: 'Hazard & Risk ID' },
-                      { value: 'investigation', label: 'Investigation' },
-                      { value: 'cap', label: 'Corrective Actions' },
-                      { value: 'review', label: 'Final Review' },
-                      { value: 'discussion', label: myMentionsCount > 0 ? `Discussion (${myMentionsCount})` : 'Discussion' },
-                    ]}
-                  />
-                ) : (
-                  <TabsList className="bg-transparent h-auto p-0 gap-2 border-b-0 justify-start overflow-x-auto no-scrollbar flex items-center w-full">
-                    <TabsTrigger value="full" className="rounded-full px-6 py-2 border data-[state=active]:bg-button-primary data-[state=active]:text-button-primary-foreground font-bold text-[10px] uppercase transition-all shrink-0">Full Report</TabsTrigger>
-                    <TabsTrigger value="triage" className="rounded-full px-6 py-2 border data-[state=active]:bg-button-primary data-[state=active]:text-button-primary-foreground font-bold text-[10px] uppercase transition-all shrink-0">Report & Triage</TabsTrigger>
-                    <TabsTrigger value="hazards" className="rounded-full px-6 py-2 border data-[state=active]:bg-button-primary data-[state=active]:text-button-primary-foreground font-bold text-[10px] uppercase transition-all shrink-0">Hazard & Risk ID</TabsTrigger>
-                    <TabsTrigger value="investigation" className="rounded-full px-6 py-2 border data-[state=active]:bg-button-primary data-[state=active]:text-button-primary-foreground font-bold text-[10px] uppercase transition-all shrink-0">Investigation</TabsTrigger>
-                    <TabsTrigger value="cap" className="rounded-full px-6 py-2 border data-[state=active]:bg-button-primary data-[state=active]:text-button-primary-foreground font-bold text-[10px] uppercase transition-all shrink-0">Corrective Actions</TabsTrigger>
-                    <TabsTrigger value="review" className="rounded-full px-6 py-2 border data-[state=active]:bg-button-primary data-[state=active]:text-button-primary-foreground font-bold text-[10px] uppercase transition-all shrink-0">Final Review</TabsTrigger>
-                    <TabsTrigger value="discussion" className="rounded-full px-6 py-2 border data-[state=active]:bg-button-primary data-[state=active]:text-button-primary-foreground font-bold text-[10px] uppercase transition-all shrink-0">
-                      Discussion {myMentionsCount > 0 && <Badge className="ml-2 h-4 px-1.5 min-w-4 flex items-center justify-center text-[10px]">{myMentionsCount}</Badge>}
-                    </TabsTrigger>
-                  </TabsList>
-                )}
+                {showReportViews && visibleReportTabs.length > 1 ? (
+                  isMobile ? (
+                    <ResponsiveTabRow
+                      value={activeTab}
+                      onValueChange={setActiveTab}
+                      placeholder="Select Section"
+                      className="shrink-0"
+                      options={visibleReportTabs}
+                    />
+                  ) : (
+                    <TabsList className="bg-transparent h-auto p-0 gap-2 border-b-0 justify-start overflow-x-auto no-scrollbar flex items-center w-full">
+                      {visibleReportTabs.map((tab) => (
+                        <TabsTrigger key={tab.value} value={tab.value} className="rounded-full px-6 py-2 border data-[state=active]:bg-button-primary data-[state=active]:text-button-primary-foreground font-bold text-[10px] uppercase transition-all shrink-0">
+                          {tab.value === 'discussion' && myMentionsCount > 0 ? (
+                            <span className="inline-flex items-center gap-2">
+                              {tab.label}
+                              <Badge className="ml-2 h-4 px-1.5 min-w-4 flex items-center justify-center text-[10px]">{myMentionsCount}</Badge>
+                            </span>
+                          ) : (
+                            tab.label
+                          )}
+                        </TabsTrigger>
+                      ))}
+                    </TabsList>
+                  )
+                ) : null}
               </div>
             </div>
 
             <div className="flex-1 min-h-0">
-              <TabsContent value="full" className="m-0 h-full outline-none overflow-y-auto no-scrollbar">
-                <div className="flex flex-col gap-8 p-6 pb-20">
-                  <TriageForm report={report} tenantId={tenantId} isStacked />
-                  <HazardIdentificationForm 
-                      report={report} 
-                      tenantId={tenantId} 
-                      riskMatrixColors={riskMatrixSettings?.colors}
-                      isStacked
-                  />
-                  <InvestigationForm 
-                      report={report} 
-                      tenantId={tenantId} 
-                      personnel={personnel || []} 
-                      isStacked
-                  />
-                  <CorrectiveActionsForm report={report} tenantId={tenantId} personnel={personnel || []} isStacked />
-                  <FinalReview 
-                      report={report} 
-                      tenantId={tenantId} 
-                      personnel={personnel || []} 
-                      riskMatrixColors={riskMatrixSettings?.colors}
-                      isStacked
-                  />
+              {!showReportViews || visibleReportTabs.length === 0 ? (
+                <div className="m-0 h-full outline-none overflow-y-auto no-scrollbar">
+                  {renderFullReportSections()}
                 </div>
-              </TabsContent>
-              <TabsContent value="triage" className="m-0 h-full outline-none overflow-hidden h-full"><TriageForm report={report} tenantId={tenantId} /></TabsContent>
-              <TabsContent value="hazards" className="m-0 h-full outline-none overflow-hidden h-full"><HazardIdentificationForm report={report} tenantId={tenantId} riskMatrixColors={riskMatrixSettings?.colors} /></TabsContent>
-              <TabsContent value="investigation" className="m-0 h-full outline-none overflow-hidden h-full"><InvestigationForm report={report} tenantId={tenantId} personnel={personnel || []} /></TabsContent>
-              <TabsContent value="cap" className="m-0 h-full outline-none overflow-hidden h-full"><CorrectiveActionsForm report={report} tenantId={tenantId} personnel={personnel || []} /></TabsContent>
-              <TabsContent value="review" className="m-0 h-full outline-none overflow-hidden h-full"><FinalReview report={report} tenantId={tenantId} personnel={personnel || []} riskMatrixColors={riskMatrixSettings?.colors} /></TabsContent>
-              <TabsContent value="discussion" className="m-0 h-full outline-none overflow-hidden h-full"><ReportForum report={report} tenantId={tenantId} /></TabsContent>
+              ) : visibleReportTabs.length === 1 ? (
+                <div className="m-0 h-full outline-none overflow-y-auto no-scrollbar">
+                  {renderSingleTabContent(visibleReportTabs[0].value)}
+                </div>
+              ) : (
+                <>
+                  <TabsContent value="full" className="m-0 h-full outline-none overflow-y-auto no-scrollbar">
+                    {renderFullReportSections(true)}
+                  </TabsContent>
+                  <TabsContent value="triage" className="m-0 h-full outline-none overflow-hidden h-full"><TriageForm report={report} tenantId={tenantId} /></TabsContent>
+                  <TabsContent value="hazards" className="m-0 h-full outline-none overflow-hidden h-full"><HazardIdentificationForm report={report} tenantId={tenantId} riskMatrixColors={riskMatrixSettings?.colors} /></TabsContent>
+                  <TabsContent value="investigation" className="m-0 h-full outline-none overflow-hidden h-full"><InvestigationForm report={report} tenantId={tenantId} personnel={personnel || []} /></TabsContent>
+                  <TabsContent value="cap" className="m-0 h-full outline-none overflow-hidden h-full"><CorrectiveActionsForm report={report} tenantId={tenantId} personnel={personnel || []} /></TabsContent>
+                  <TabsContent value="review" className="m-0 h-full outline-none overflow-hidden h-full"><FinalReview report={report} tenantId={tenantId} personnel={personnel || []} riskMatrixColors={riskMatrixSettings?.colors} /></TabsContent>
+                  <TabsContent value="discussion" className="m-0 h-full outline-none overflow-hidden h-full"><ReportForum report={report} tenantId={tenantId} /></TabsContent>
+                </>
+              )}
             </div>
           </div>
         </div>

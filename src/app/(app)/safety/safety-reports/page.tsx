@@ -35,6 +35,7 @@ import { OrganizationTabsRow } from '@/components/responsive-tab-row';
 import { DeleteActionButton, ViewActionButton } from '@/components/record-action-buttons';
 import { ResponsiveCardGrid } from '@/components/responsive-card-grid';
 import { dispatchSafeviateEvent, SAFEVIATE_QUICK_SAFETY_REPORTS_UPDATED, SAFEVIATE_SAFETY_REPORTS_UPDATED } from '@/lib/client-events';
+import { usePageLayout } from '@/hooks/use-page-layout';
 
 const parseLocalDate = (value: string) => {
     const [year, month, day] = value.split('-').map(Number);
@@ -362,6 +363,7 @@ export default function SafetyReportsPage() {
   const { tenantId } = useUserProfile();
   const { hasPermission } = usePermissions();
   const { scopedOrganizationId, shouldShowOrganizationTabs } = useOrganizationScope({ viewAllPermissionId: 'safety-reports-manage' });
+  const { isPageEnabled } = usePageLayout('safety-reports');
   const { toast } = useToast();
   const isMobile = useIsMobile();
   const [activeOrgTab, setActiveOrgTab] = useState('internal');
@@ -456,6 +458,18 @@ export default function SafetyReportsPage() {
   }, []);
 
   const isLoading = isLoadingReports;
+
+  if (!isPageEnabled) {
+    return (
+      <div className="max-w-[1100px] mx-auto w-full px-1 pt-4">
+        <Card className="border shadow-none">
+          <CardContent className="p-6 text-center text-sm text-muted-foreground">
+            This page is disabled for the current tenant layout.
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   const handleClassifyQuickReport = async (report: QuickSafetyReport) => {
     setClassifyingQuickReportId(report.id);

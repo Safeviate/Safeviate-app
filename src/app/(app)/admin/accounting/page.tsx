@@ -21,11 +21,15 @@ import { ResponsiveTabRow } from '@/components/responsive-tab-row';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useUserProfile } from '@/hooks/use-user-profile';
+import { usePermissions } from '@/hooks/use-permissions';
 
 export default function AccountingPage() {
   const { toast } = useToast();
   const isMobile = useIsMobile();
   const { tenantId } = useUserProfile();
+  const { hasPermission } = usePermissions();
+  const canViewAccounting = hasPermission('accounting-view') || hasPermission('accounting-manage') || hasPermission('admin-view');
+  const canExportAccounting = hasPermission('accounting-export') || hasPermission('accounting-manage') || hasPermission('admin-view');
 
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [aircrafts, setAircrafts] = useState<Aircraft[]>([]);
@@ -133,6 +137,10 @@ export default function AccountingPage() {
 
   const handleSageExport = async () => {
     if (selectedIds.size === 0) return;
+    if (!canExportAccounting) {
+      toast({ variant: 'destructive', title: 'Permission Denied', description: 'You do not have permission to export accounting records.' });
+      return;
+    }
 
     try {
       const selectedBookings = enrichedData.unbilled.filter((booking) => selectedIds.has(booking.id));
@@ -184,6 +192,21 @@ export default function AccountingPage() {
   }, [enrichedData.unbilled, aircrafts]);
 
   if (isLoading) return <div className="p-8 space-y-6 px-1"><Skeleton className="h-14 w-full" /><Skeleton className="h-[400px] w-full" /></div>;
+
+  if (!canViewAccounting) {
+    return (
+      <div className="max-w-[1100px] mx-auto w-full px-1 pt-4">
+        <Card className="shadow-none border">
+          <CardContent className="flex min-h-[320px] items-center justify-center p-8 text-center">
+            <div className="space-y-2">
+              <p className="text-lg font-black uppercase tracking-tight">Access Denied</p>
+              <p className="text-sm text-muted-foreground">You do not have permission to view accounting records.</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-[1100px] mx-auto w-full flex flex-col gap-6 h-full px-1 pt-4 overflow-hidden">
@@ -239,7 +262,7 @@ export default function AccountingPage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      disabled={selectedIds.size === 0 || activeTab !== 'unbilled'}
+                      disabled={selectedIds.size === 0 || activeTab !== 'unbilled' || !canExportAccounting}
                       className="h-9 w-full justify-between border-border bg-background px-3 text-[10px] font-bold uppercase text-foreground shadow-sm hover:bg-muted/40"
                     >
                       <span className="flex items-center gap-2">
@@ -266,7 +289,7 @@ export default function AccountingPage() {
                       variant="outline"
                       className="gap-2 font-black h-9 px-4 text-[10px] uppercase shrink-0 border-slate-300" 
                       onClick={() => setIsPreviewOpen(true)} 
-                      disabled={selectedIds.size === 0 || activeTab !== 'unbilled'}
+                      disabled={selectedIds.size === 0 || activeTab !== 'unbilled' || !canExportAccounting}
                   >
                       <Eye className="h-3.5 w-3.5 text-primary" /> Preview ({selectedIds.size})
                   </Button>
@@ -366,7 +389,7 @@ export default function AccountingPage() {
 
             <DialogFooter className="shrink-0 border-t p-4 md:p-0 md:pt-4 no-print flex flex-col md:flex-row gap-2">
                 <DialogClose asChild><Button variant="outline" className="w-full md:w-auto h-10 text-[10px] font-black uppercase border-slate-300">Close</Button></DialogClose>
-                <Button onClick={handleSageExport} className="gap-2 w-full md:w-auto h-10 text-[10px] font-black uppercase shadow-md">
+                <Button onClick={handleSageExport} className="gap-2 w-full md:w-auto h-10 text-[10px] font-black uppercase shadow-md" disabled={!canExportAccounting}>
                     <FileSpreadsheet className="h-4 w-4" /> Download CSV & Update Status
                 </Button>
             </DialogFooter>

@@ -1,0 +1,65 @@
+0000000000000000000000000000000000000000 ec8db6a03afad26ed24f1e4e28e02d0f88641b06 Deane <info@safeviate.com> 1776146667 +0200	clone: from https://github.com/Safeviate/Safeviate-Manager-Vercel.git
+ec8db6a03afad26ed24f1e4e28e02d0f88641b06 b0565bf1f203dbb70a7a947331d22ca6de88d2cf Deane <info@safeviate.com> 1776758445 +0200	pull --ff --recurse-submodules --progress origin: Fast-forward
+b0565bf1f203dbb70a7a947331d22ca6de88d2cf bb9a3c7cd0785ec7f6174f508040a56beae4bab6 Deane <info@safeviate.com> 1776789860 +0200	commit: Align card standards and booking completion flow
+bb9a3c7cd0785ec7f6174f508040a56beae4bab6 b14ccee6e24430349ab37904de965a01842391eb Deane <info@safeviate.com> 1776837304 +0200	pull --ff-only origin main: Fast-forward
+b14ccee6e24430349ab37904de965a01842391eb 0122183d7e8704836dc806a19a85bfad26197a60 Deane <info@safeviate.com> 1776869064 +0200	commit: Standardize dashboard and tenant setup layouts
+0122183d7e8704836dc806a19a85bfad26197a60 5bda1ed7b5890ea92f001b4c230632fcc8486586 Deane <info@safeviate.com> 1776869940 +0200	commit: Tweaks
+5bda1ed7b5890ea92f001b4c230632fcc8486586 7192ce1f76f25cc27afa8226f5194d91fb00fabf Deane <info@safeviate.com> 1776884902 +0200	commit: Summary
+7192ce1f76f25cc27afa8226f5194d91fb00fabf 7284ae3f4ce66c92b4eb29a94a287a631c9d7de5 Deane <info@safeviate.com> 1776945836 +0200	commit: Company Dashboard
+7284ae3f4ce66c92b4eb29a94a287a631c9d7de5 f045e180fd782faa5381719576dbedc4dbcfdc98 Deane <info@safeviate.com> 1776976054 +0200	commit: Defects
+f045e180fd782faa5381719576dbedc4dbcfdc98 d9098e8b2fa5df6abac9a3234c3bd3f290e8f5b4 Deane <info@safeviate.com> 1777047043 +0200	commit: Labs
+d9098e8b2fa5df6abac9a3234c3bd3f290e8f5b4 570fdc3a6bc3f26446510f041c0b55266087a710 Deane <info@safeviate.com> 1777049489 +0200	commit: Simulation
+570fdc3a6bc3f26446510f041c0b55266087a710 1267c5ea3abab5372527f1f3c0b02a22943981dc Deane <info@safeviate.com> 1777051920 +0200	commit: Simulation Lab
+1267c5ea3abab5372527f1f3c0b02a22943981dc a0eb430d41f152e8a9eeaf87de8065bdfffb011c Deane <info@safeviate.com> 1777054677 +0200	commit: Simulation
+a0eb430d41f152e8a9eeaf87de8065bdfffb011c 86abae4c5c3e88ed192e362de378d1177e79893a Deane <info@safeviate.com> 1777056290 +0200	commit: Simulation
+86abae4c5c3e88ed192e362de378d1177e79893a e8cd56ff20f2a155d7702abddb4628b98603ef6e Deane <info@safeviate.com> 1777057899 +0200	commit: Simulation
+e8cd56ff20f2a155d7702abddb4628b98603ef6e 5b57485990ea6f2b65c0bb6626dad801c51920b5 Deane <info@safeviate.com> 1777059842 +0200	commit: LCS
+5b57485990ea6f2b65c0bb6626dad801c51920b5 4942c308af130331f0b843cd917fdc31effb7972 Deane <info@safeviate.com> 1777064079 +0200	commit: Performance
+4942c308af130331f0b843cd917fdc31effb7972 c0a4f40d16053699d8318ca191dec6bd33b2362d Deane <info@safeviate.com> 1777066317 +0200	commit: Performance
+c0a4f40d16053699d8318ca191dec6bd33b2362d a700ba713940bf53b8b098b23b48701c98e4cd2e Deane <info@safeviate.com> 1777067552 +0200	commit: Perforamance
+a700ba713940bf53b8b098b23b48701c98e4cd2e 155f7cfc9b3e4701c690677f18cbc5848c41d1c3 Deane <info@safeviate.com> 1777111122 +0200	commit: Add a commit inspection
+155f7cfc9b3e4701c690677f18cbc5848c41d1c3 91ca2b0e90ce19c48cb0d544c7529f87025f58fe Deane <info@safeviate.com> 1777113047 +0200	commit: Add live build identity diagnostics
+91ca2b0e90ce19c48cb0d544c7529f87025f58fe 5977ba652b484ef71095e598669c32fa2b4aa001 Deane <info@safeviate.com> 1777116515 +0200	commit: Improve page format first paint and live route caching
+5977ba652b484ef71095e598669c32fa2b4aa001 2a6cd86e0a298232e124cbf8d5d0f7995bfec92e Deane <info@safeviate.com> 1777125176 +0200	commit: Reduce duplicate shared lookup requests
+2a6cd86e0a298232e124cbf8d5d0f7995bfec92e e9ec32c88684005044ae74e13178afd279b1fbfc Deane <info@safeviate.com> 1777125568 +0200	commit: Add app link and data flow diagrams
+e9ec32c88684005044ae74e13178afd279b1fbfc 83a37ec6048af35e2db82c155325a147abcd77b9 Deane <info@safeviate.com> 1777128257 +0200	commit: Retry Azure deploy on transient conflicts
+83a37ec6048af35e2db82c155325a147abcd77b9 8b615b59284c4b8ac6ff24ddfee95ba1c663ef71 Deane <info@safeviate.com> 1777136185 +0200	commit: Compact booking history summary cards
+8b615b59284c4b8ac6ff24ddfee95ba1c663ef71 15279063a68930ffc9e43b01fa87af9b1800cfd1 Deane <info@safeviate.com> 1777138094 +0200	commit: Simplify booking history summary cards
+15279063a68930ffc9e43b01fa87af9b1800cfd1 7b661cb97824e5bbbba02202bafef9776be67c1f Deane <info@safeviate.com> 1777141302 +0200	commit: Reduce booking history summary to three fields
+7b661cb97824e5bbbba02202bafef9776be67c1f 023399eba386710c659c83c576a7c520c0f999b4 Deane <info@safeviate.com> 1777144198 +0200	commit: Fix bookings history layout and sidebar prefetch
+023399eba386710c659c83c576a7c520c0f999b4 70ee4db936983a94bbd8be855d6b89c93be0cb0c Deane <info@safeviate.com> 1777154209 +0200	commit: Tighten shared identity and config caching
+70ee4db936983a94bbd8be855d6b89c93be0cb0c ef25097aeb3affbbb48dca3efd74c7848f40681f Deane <info@safeviate.com> 1777156677 +0200	commit: Stabilize active flight loading shell
+ef25097aeb3affbbb48dca3efd74c7848f40681f 9d5a10571a19642f37bd2aef2ea3b7e46b7df683 Deane <info@safeviate.com> 1777159802 +0200	commit: Harden live roles schema repair
+9d5a10571a19642f37bd2aef2ea3b7e46b7df683 7992569a856d0c9fcfbd6ff3d9c83a8565899ba3 Deane <info@safeviate.com> 1777193410 +0200	commit: Add performance threshold reference
+7992569a856d0c9fcfbd6ff3d9c83a8565899ba3 a0343a763f4d2b9b999594961831c30a5ba9b1c7 Deane <info@safeviate.com> 1777231077 +0200	commit: Refine booking history approval workflow
+a0343a763f4d2b9b999594961831c30a5ba9b1c7 bd9bbabb3101c2df6d56605fce90087812d6ed0c Deane <info@safeviate.com> 1777355540 +0200	commit: Expand student competency assessment model
+bd9bbabb3101c2df6d56605fce90087812d6ed0c 2a4162fa71bb66e2d09995b04651aad22b21557c Deane <info@safeviate.com> 1777363580 +0200	commit: Planning
+2a4162fa71bb66e2d09995b04651aad22b21557c 903a4003348e90f993a28f4395907ae0a0517272 Deane <info@safeviate.com> 1777402667 +0200	commit: Booking planner
+903a4003348e90f993a28f4395907ae0a0517272 cf55ea5f9fafebf330460c1eed38d833a22cb921 Deane <info@safeviate.com> 1777469370 +0200	commit: Implement booking planner and navlog workflow improvements
+cf55ea5f9fafebf330460c1eed38d833a22cb921 774e4f208d514c435b14beb5a7ecee8b37708702 Deane <info@safeviate.com> 1777531969 +0200	commit: Refine route summaries and booking debrief flow
+774e4f208d514c435b14beb5a7ecee8b37708702 88b24a892149a374bdfb078421d4d1aae61efe97 Deane <info@safeviate.com> 1777534865 +0200	commit: Avoid tenant config startup timeout
+88b24a892149a374bdfb078421d4d1aae61efe97 49ba2083710b9984c38064d508cd850c1242d0a3 Deane <info@safeviate.com> 1777553354 +0200	commit: Align route summaries and ownship rendering
+49ba2083710b9984c38064d508cd850c1242d0a3 46fd53c0a40c8003ffcd904c4549df636e006ccf Deane <info@safeviate.com> 1777558188 +0200	commit: Split active flight route actions
+46fd53c0a40c8003ffcd904c4549df636e006ccf c323956feb616333be43bce8c5473f2c9b3d013f Deane <info@safeviate.com> 1777560133 +0200	commit: Separate active flight route sources
+c323956feb616333be43bce8c5473f2c9b3d013f dcedfb17513ee63af2d1bb5ee93163216cab0095 Deane <info@safeviate.com> 1777574245 +0200	commit: Link simulation lab to usage estimator
+dcedfb17513ee63af2d1bb5ee93163216cab0095 47754086631fc68c9e99dce3ed780cc799064287 Deane <info@safeviate.com> 1777582314 +0200	commit: Commit remaining app and caching updates
+47754086631fc68c9e99dce3ed780cc799064287 69ceb5f24df40f3a6464bbcefe136abbdd66fd7a Deane <info@safeviate.com> 1777582777 +0200	commit: Ignore generated logs and build info
+69ceb5f24df40f3a6464bbcefe136abbdd66fd7a 0383a0d527201942f6980fd4fd16c76a4336c194 Deane <info@safeviate.com> 1777626150 +0200	commit: Refine active flight track-up rotation
+0383a0d527201942f6980fd4fd16c76a4336c194 88df81a632c73825dc42424ff2761cc8aef091d8 Deane <info@safeviate.com> 1777633744 +0200	commit: Refine active flight track-up rotation and protocol skill
+88df81a632c73825dc42424ff2761cc8aef091d8 0bf0b73dfb22844cc9be18f944e10c02bb7fa12e Deane <info@safeviate.com> 1777636887 +0200	commit: Fix active flight track-up ownship rendering
+0bf0b73dfb22844cc9be18f944e10c02bb7fa12e c024f686d94c3475f8c091465f9dd9e070768d18 Deane <info@safeviate.com> 1777639017 +0200	commit: Revert active flight ownship overlay experiment
+c024f686d94c3475f8c091465f9dd9e070768d18 1fec3b6894157c3a35799cc83242d748b2f18143 Deane <info@safeviate.com> 1777643130 +0200	commit: Stabilize active flight map controls and rotation
+1fec3b6894157c3a35799cc83242d748b2f18143 188943a4537beb5cfb332bd6c2e068cd2847c1f1 Deane <info@safeviate.com> 1777646918 +0200	commit: Fix active flight mobile controls and track-up rotation
+188943a4537beb5cfb332bd6c2e068cd2847c1f1 bd9bbabb3101c2df6d56605fce90087812d6ed0c Deane <info@safeviate.com> 1777664007 +0200	reset: moving to bd9bbabb3101c2df6d56605fce90087812d6ed0c
+bd9bbabb3101c2df6d56605fce90087812d6ed0c fef6efefd74487b8618c3b0ba5e5fc3fda9232a2 Deane <info@safeviate.com> 1777732349 +0200	commit: Standardize route line styling across maps
+fef6efefd74487b8618c3b0ba5e5fc3fda9232a2 9e70f865d9f3bbae7495531d3618c08bb6919505 Deane <info@safeviate.com> 1777732619 +0200	rebase (finish): refs/heads/main onto 188943a4537beb5cfb332bd6c2e068cd2847c1f1
+9e70f865d9f3bbae7495531d3618c08bb6919505 5ada746f7491290823df0d9080306bb47bf337a9 Deane <info@safeviate.com> 1777752331 +0200	revert: Revert "Standardize route line styling across maps"
+5ada746f7491290823df0d9080306bb47bf337a9 770fe413043ad1293b9df03e5dd6de2a0ab4fccb Deane <info@safeviate.com> 1777753173 +0200	revert: Reapply "Standardize route line styling across maps"
+770fe413043ad1293b9df03e5dd6de2a0ab4fccb bd9bbabb3101c2df6d56605fce90087812d6ed0c Deane <info@safeviate.com> 1777753302 +0200	reset: moving to bd9bbabb3101c2df6d56605fce90087812d6ed0c
+bd9bbabb3101c2df6d56605fce90087812d6ed0c 2381495c917868c5eb81150b8d9ef76064746645 Deane <info@safeviate.com> 1777801732 +0200	commit: Restore local build changes
+2381495c917868c5eb81150b8d9ef76064746645 424b9e62d98f5cda2b7195b0add307649ec492ba Deane <info@safeviate.com> 1777873475 +0200	commit: Prevent duplicate waypoint inserts
+424b9e62d98f5cda2b7195b0add307649ec492ba cf5883381ca6d1c3f14a5e8a74203e61462e6b5e Deane <info@safeviate.com> 1777873618 +0200	commit: Update booking approval and active flight flow
+cf5883381ca6d1c3f14a5e8a74203e61462e6b5e 9cdc08a2724fe7eddb39154e54632c81aa7d54b9 Deane <info@safeviate.com> 1777874643 +0200	commit: Show route segments and forward headings
+9cdc08a2724fe7eddb39154e54632c81aa7d54b9 bf9ead6f5dc21b0d96be76e8d32073e4f673b4b4 Deane <info@safeviate.com> 1777876043 +0200	commit: Add DMS waypoint entry and formatting
+bf9ead6f5dc21b0d96be76e8d32073e4f673b4b4 bb501512c3ac485152e93da9ae2f62d67417bd88 Deane <info@safeviate.com> 1777886615 +0200	commit: Refine route leg editing and labels
+bb501512c3ac485152e93da9ae2f62d67417bd88 cd93884ebcb2d62b353d5db0c7bc89bbff7d4c5b Deane <info@safeviate.com> 1777898929 +0200	commit: Fix active-flight route hydration and mobile labels

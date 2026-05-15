@@ -35,6 +35,7 @@ import { ManageCapDialog } from '../../cap-tracker/manage-cap-dialog';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { usePermissions } from '@/hooks/use-permissions';
 
 type EnrichedAudit = QualityAudit & { template: QualityAuditChecklistTemplate };
 type EnrichedCorrectiveActionPlan = CorrectiveActionPlan & {
@@ -90,12 +91,14 @@ type FormValues = z.infer<typeof formSchema>;
 
 export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel }: AuditChecklistProps) {
     const { toast } = useToast();
+    const { hasPermission } = usePermissions();
     const [isImageViewerOpen, setIsImageViewerOpen] = useState(false);
     const [viewingImageUrl, setViewingImageUrl] = useState<string | null>(null);
 
     const [isCapDialogOpen, setIsCapDialogOpen] = useState(false);
     const [selectedCap, setSelectedCap] = useState<EnrichedCorrectiveActionPlan | null>(null);
     const isReadOnly = audit.status === 'Finalized' || audit.status === 'Closed' || audit.status === 'Archived';
+    const canViewCaps = hasPermission('quality-caps-view') || hasPermission('quality-audits-manage') || hasPermission('admin-view');
 
     const normalizedSections = useMemo(() => {
         return audit.template.sections.map((section) => {
@@ -166,6 +169,14 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
     const handleOpenCapDialog = (findingId: string, findingDescription: string) => {
         const capForFinding = caps.find(c => c.findingId === findingId);
         if (capForFinding) {
+            if (!canViewCaps) {
+                toast({
+                    variant: 'destructive',
+                    title: 'Permission Denied',
+                    description: 'You do not have permission to manage corrective action plans.',
+                });
+                return;
+            }
             setSelectedCap({
                 ...capForFinding,
                 auditNumber: audit.auditNumber,
@@ -399,10 +410,14 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
                                 ) : (
                                     <Badge variant="outline" className="text-[9px] h-5 font-black uppercase border-amber-300 bg-amber-50 text-amber-700">CAP Pending</Badge>
                                 )}
-                                 <Button variant="outline" size="sm" onClick={() => handleOpenCapDialog(item.id, item.text)} className="h-7 text-[10px] font-black uppercase px-3 gap-1.5 border-slate-300">
-                                    <Edit className="h-3 w-3" />
-                                    Manage CAP
-                                </Button>
+                                  {canViewCaps ? (
+                                    <Button variant="outline" size="sm" onClick={() => handleOpenCapDialog(item.id, item.text)} className="h-7 text-[10px] font-black uppercase px-3 gap-1.5 border-slate-300">
+                                       <Edit className="h-3 w-3" />
+                                       Manage CAP
+                                    </Button>
+                                  ) : (
+                                    <Badge variant="outline" className="text-[9px] h-5 font-black uppercase border-slate-300 bg-slate-50 text-slate-600">CAP Access Required</Badge>
+                                  )}
                             </div>
                         )}
                      </div>

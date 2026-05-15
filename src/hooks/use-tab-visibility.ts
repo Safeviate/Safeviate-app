@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useUserProfile } from './use-user-profile';
+import { useTenantConfig } from './use-tenant-config';
 import type { TabVisibilitySettings } from '@/types/quality';
 
 /**
@@ -9,18 +9,17 @@ import type { TabVisibilitySettings } from '@/types/quality';
  * Uses the current MOC/Vercel profile context and the tenant database route.
  */
 export function useTabVisibility(pageId: string, canViewAll: boolean): boolean {
-  const { tenantId, tenant } = useUserProfile();
+  const { tenant } = useTenantConfig();
   const [settings, setSettings] = useState<TabVisibilitySettings | null>(null);
 
   useEffect(() => {
-    if (!tenantId) {
-      setSettings(null);
-      return;
-    }
-
     setSettings(tenant?.tabVisibilitySettings ?? null);
-  }, [tenantId, tenant?.tabVisibilitySettings]);
+  }, [tenant?.tabVisibilitySettings]);
 
   if (canViewAll) return true;
+  const pageLayoutEnabled = tenant?.pageLayoutSettings?.pages?.[pageId]?.enabled;
+  if (typeof pageLayoutEnabled === 'boolean') {
+    return pageLayoutEnabled;
+  }
   return settings?.visibilities?.[pageId] ?? true;
 }
