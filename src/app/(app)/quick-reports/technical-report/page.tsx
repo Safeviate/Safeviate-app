@@ -1,7 +1,7 @@
 'use client';
 
 import { ChangeEvent, useMemo, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useParams, useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -34,16 +34,23 @@ const technicalReportSchema = z.object({
   urgency: z.enum(['Low', 'Medium', 'High']),
   summary: z.string().min(10, 'Please provide a useful summary.'),
   immediateAction: z.string().optional(),
+  reporterName: z.string().optional(),
+  reporterEmail: z.string().email('Please enter a valid email address.').optional().or(z.literal('')),
 });
 
 type TechnicalReportValues = z.infer<typeof technicalReportSchema>;
 
 export default function QuickTechnicalReportPage() {
   const router = useRouter();
+  const pathname = usePathname() || '';
+  const params = useParams<{ tenantId?: string }>();
   const { toast } = useToast();
   const [aircrafts, setAircrafts] = useState<Aircraft[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [photoAttachments, setPhotoAttachments] = useState<QuickReportPhotoAttachment[]>([]);
+  const publicTenantId = typeof params?.tenantId === 'string' ? params.tenantId.trim() : '';
+  const isPublicPortal = pathname.startsWith('/report/');
+  const returnHref = isPublicPortal && publicTenantId ? `/report/${encodeURIComponent(publicTenantId)}` : '/quick-reports';
   const photoHelperText = useMemo(
     () => `${photoAttachments.length}/5 photos attached. Use this only for quick visual evidence.`,
     [photoAttachments.length]
@@ -53,7 +60,10 @@ export default function QuickTechnicalReportPage() {
     let cancelled = false;
     const loadAircraft = async () => {
       try {
-        const response = await fetch('/api/schedule-data', { cache: 'no-store' });
+        const response = await fetch(
+          publicTenantId ? `/api/schedule-data?tenantId=${encodeURIComponent(publicTenantId)}` : '/api/schedule-data',
+          { cache: 'no-store' }
+        );
         const payload = await response.json().catch(() => ({ aircraft: [] }));
         if (!cancelled) {
           setAircrafts(Array.isArray(payload?.aircraft) ? payload.aircraft : []);
@@ -82,6 +92,8 @@ export default function QuickTechnicalReportPage() {
       urgency: 'Medium',
       summary: '',
       immediateAction: '',
+      reporterName: '',
+      reporterEmail: '',
     },
   });
 
@@ -108,6 +120,9 @@ export default function QuickTechnicalReportPage() {
             photoAttachments: photoAttachments.length > 0 ? photoAttachments : null,
             aircraftId: values.aircraftId && values.aircraftId !== 'unassigned' ? values.aircraftId : null,
             aircraftLabel: selectedAircraft ? `${selectedAircraft.tailNumber} (${selectedAircraft.model})` : null,
+            tenantId: publicTenantId || undefined,
+            submittedByName: isPublicPortal ? values.reporterName?.trim() || 'External Reporter' : undefined,
+            submittedByEmail: isPublicPortal ? values.reporterEmail?.trim() || null : undefined,
           },
         }),
       });
@@ -122,7 +137,7 @@ export default function QuickTechnicalReportPage() {
         description: 'The preliminary technical report has been captured for management follow-up.',
       });
 
-      router.push('/quick-reports');
+      router.push(returnHref);
     } catch (error) {
       toast({
         variant: 'destructive',
@@ -182,8 +197,12 @@ export default function QuickTechnicalReportPage() {
     <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-6 p-4">
       <MainPageHeader
         title="Technical Report"
-        description="Capture a quick preliminary technical report that management can analyze, assign, and escalate later."
-        actions={<BackNavButton href="/quick-reports" text="Back to Quick Reports" />}
+        description={
+          isPublicPortal
+            ? 'Capture a quick preliminary technical report for this organization without logging in.'
+            : 'Capture a quick preliminary technical report that management can analyze, assign, and escalate later.'
+        }
+        actions={<BackNavButton href={returnHref} text="Back to Quick Reports" />}
       />
 
       <Form {...form}>
@@ -230,6 +249,37 @@ export default function QuickTechnicalReportPage() {
                   )}
                 />
               </div>
+
+              {isPublicPortal ? (
+                <div className="grid gap-6 md:grid-cols-2">
+                  <FormField
+                    control={form.control}
+                    name="reporterName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Your Name</FormLabel>
+                        <FormControl>
+                          <Input className="h-10" placeholder="Optional, helps with follow-up" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="reporterEmail"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Your Email</FormLabel>
+                        <FormControl>
+                          <Input type="email" className="h-10" placeholder="Optional contact email" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              ) : null}
 
               <div className="grid gap-6 md:grid-cols-3">
                 <FormField
@@ -460,7 +510,7 @@ export default function QuickTechnicalReportPage() {
           </Card>
 
           <div className="flex justify-end gap-2 pb-8">
-            <Button type="button" variant="outline" onClick={() => router.push('/quick-reports')} disabled={isSubmitting}>
+            <Button type="button" variant="outline" onClick={() => router.push(returnHref)} disabled={isSubmitting}>
               Cancel
             </Button>
             <Button type="submit" disabled={isSubmitting}>

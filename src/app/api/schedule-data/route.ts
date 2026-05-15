@@ -57,7 +57,9 @@ export async function GET(request: Request) {
   const startedAt = Date.now();
   let tenantId: string | null = null;
   try {
-    tenantId = (await getTenantIdFromSession(request)) || 'safeviate';
+    const url = new URL(request.url);
+    const publicTenantId = url.searchParams.get('tenantId')?.trim() || '';
+    tenantId = (await getTenantIdFromSession(request)) || publicTenantId || 'safeviate';
     if (!tenantId) {
       return NextResponse.json({ aircraft: [], bookings: [], instructors: [], instructorDuty: [] }, { status: 200 });
     }

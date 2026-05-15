@@ -1,7 +1,7 @@
 'use client';
 
 import { ChangeEvent, useMemo, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useParams, useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -11,6 +11,7 @@ import { MainPageHeader } from '@/components/page-header';
 import { BackNavButton } from '@/components/back-nav-button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -30,16 +31,24 @@ const quickSafetySchema = z.object({
   aircraftId: z.string().optional(),
   summary: z.string().min(10, 'Please provide a useful summary.'),
   immediateAction: z.string().optional(),
+  submitAnonymous: z.boolean().default(false),
+  reporterName: z.string().optional(),
+  reporterEmail: z.string().email('Please enter a valid email address.').optional().or(z.literal('')),
 });
 
 type QuickSafetyValues = z.infer<typeof quickSafetySchema>;
 
 export default function QuickSafetyReportPage() {
   const router = useRouter();
+  const pathname = usePathname() || '';
+  const params = useParams<{ tenantId?: string }>();
   const { toast } = useToast();
   const [aircrafts, setAircrafts] = useState<Aircraft[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [photoAttachments, setPhotoAttachments] = useState<QuickReportPhotoAttachment[]>([]);
+  const publicTenantId = typeof params?.tenantId === 'string' ? params.tenantId.trim() : '';
+  const isPublicPortal = pathname.startsWith('/report/');
+  const returnHref = isPublicPortal && publicTenantId ? `/report/${encodeURIComponent(publicTenantId)}` : '/quick-reports';
   const photoHelperText = useMemo(
     () => `${photoAttachments.length}/5 photos attached. Use this only for quick visual evidence.`,
     [photoAttachments.length]
@@ -49,7 +58,10 @@ export default function QuickSafetyReportPage() {
     let cancelled = false;
     const loadAircraft = async () => {
       try {
-        const response = await fetch('/api/schedule-data', { cache: 'no-store' });
+        const response = await fetch(
+          publicTenantId ? `/api/schedule-data?tenantId=${encodeURIComponent(publicTenantId)}` : '/api/schedule-data',
+          { cache: 'no-store' }
+        );
         const payload = await response.json().catch(() => ({ aircraft: [] }));
         if (!cancelled) {
           setAircrafts(Array.isArray(payload?.aircraft) ? payload.aircraft : []);
@@ -74,6 +86,9 @@ export default function QuickSafetyReportPage() {
       aircraftId: '',
       summary: '',
       immediateAction: '',
+      submitAnonymous: isPublicPortal,
+      reporterName: '',
+      reporterEmail: '',
     },
   });
 
@@ -81,6 +96,7 @@ export default function QuickSafetyReportPage() {
     setIsSubmitting(true);
     try {
       const selectedAircraft = aircrafts.find((aircraft) => aircraft.id === values.aircraftId);
+      const isAnonymous = Boolean(values.submitAnonymous);
       const response = await fetch('/api/quick-safety-reports', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -96,6 +112,18 @@ export default function QuickSafetyReportPage() {
             summary: values.summary,
             immediateAction: values.immediateAction || null,
             photoAttachments: photoAttachments.length > 0 ? photoAttachments : null,
+            tenantId: publicTenantId || undefined,
+            submitAnonymous: isAnonymous,
+            submittedByName: isAnonymous
+              ? 'Anonymous Reporter'
+              : isPublicPortal
+                ? values.reporterName?.trim() || 'External Reporter'
+                : undefined,
+            submittedByEmail: isAnonymous
+              ? null
+              : isPublicPortal
+                ? values.reporterEmail?.trim() || null
+                : undefined,
           },
         }),
       });
@@ -111,7 +139,7 @@ export default function QuickSafetyReportPage() {
       });
 
       dispatchSafeviateEvent(SAFEVIATE_QUICK_SAFETY_REPORTS_UPDATED);
-      router.push('/quick-reports');
+      router.push(returnHref);
     } catch (error) {
       toast({
         variant: 'destructive',
@@ -171,8 +199,12 @@ export default function QuickSafetyReportPage() {
     <div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-6 p-4">
       <MainPageHeader
         title="Quick Safety Report"
-        description="Capture a preliminary safety concern quickly, then classify it into the formal safety workflow when management is ready."
-        actions={<BackNavButton href="/quick-reports" text="Back to Quick Reports" />}
+        description={
+          isPublicPortal
+            ? 'Capture a preliminary safety concern for this organization without logging in.'
+            : 'Capture a preliminary safety concern quickly, then classify it into the formal safety workflow when management is ready.'
+        }
+        actions={<BackNavButton href={returnHref} text="Back to Quick Reports" />}
       />
 
       <Form {...form}>
@@ -249,6 +281,55 @@ export default function QuickSafetyReportPage() {
                   )}
                 />
               </div>
+
+              <FormField
+                control={form.control}
+                name="submitAnonymous"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-start gap-3 rounded-lg border bg-muted/10 p-4">
+                    <FormControl>
+                      <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel>Submit anonymously</FormLabel>
+                      <p className="text-xs text-muted-foreground">
+                        The report will be stored without your name or email. Management will only see that it was submitted anonymously.
+                      </p>
+                    </div>
+                  </FormItem>
+                )}
+              />
+
+              {isPublicPortal && !form.watch('submitAnonymous') ? (
+                <div className="grid gap-6 md:grid-cols-2">
+                  <FormField
+                    control={form.control}
+                    name="reporterName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Your Name</FormLabel>
+                        <FormControl>
+                          <Input className="h-10" placeholder="Optional, helps with follow-up" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="reporterEmail"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Your Email</FormLabel>
+                        <FormControl>
+                          <Input type="email" className="h-10" placeholder="Optional contact email" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              ) : null}
 
               <FormField
                 control={form.control}
@@ -352,7 +433,7 @@ export default function QuickSafetyReportPage() {
           </Card>
 
           <div className="flex justify-end gap-2 pb-8">
-            <Button type="button" variant="outline" onClick={() => router.push('/quick-reports')} disabled={isSubmitting}>
+            <Button type="button" variant="outline" onClick={() => router.push(returnHref)} disabled={isSubmitting}>
               Cancel
             </Button>
             <Button type="submit" disabled={isSubmitting}>

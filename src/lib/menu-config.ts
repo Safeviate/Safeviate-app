@@ -143,6 +143,11 @@ export const menuConfig: MenuItem[] = [
     icon: ClipboardPlus,
     subItems: [
       {
+        href: '/quick-reports/qr-codes',
+        label: 'QR Codes',
+        description: 'Print the safety and technical report QR codes.',
+      },
+      {
         href: '/quick-reports/technical-report',
         label: 'Technical Report',
         description: 'Log a preliminary technical report for engineering follow-up.',

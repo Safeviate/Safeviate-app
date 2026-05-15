@@ -5,9 +5,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { MainPageHeader } from '@/components/page-header';
 import { Badge } from '@/components/ui/badge';
-import { FileWarning, ShieldAlert, CheckCircle2 } from 'lucide-react';
+import { FileWarning, ShieldAlert, CheckCircle2, QrCode } from 'lucide-react';
 
 const reportCards = [
+  {
+    href: '/quick-reports/qr-codes',
+    title: 'QR Codes',
+    description: 'Print the public safety and technical QR codes for desk mounts, dashboards, and wall mounts.',
+    icon: QrCode,
+    footerNote: 'Built for small print formats.',
+  },
   {
     href: '/quick-reports/technical-report',
     title: 'Technical Report',
@@ -33,8 +40,13 @@ export default function QuickReportsPage() {
         <MainPageHeader
           title="Quick Reports"
           description="Create a preliminary report quickly, then let management review, analyze, and assign the next steps."
+          actions={
+            <Button asChild variant="outline">
+              <Link href="/quick-reports/qr-codes">Print QR Codes</Link>
+            </Button>
+          }
         />
-        <CardContent className="grid gap-4 p-4 md:grid-cols-2">
+        <CardContent className="grid gap-4 p-4 md:grid-cols-3">
           {reportCards.map((card) => {
             const Icon = card.icon;
             return (

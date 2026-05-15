@@ -1,59 +1,31 @@
-import { authOptions } from '@/auth';
 import { prisma } from '@/lib/prisma';
 import { ensureTechnicalReportsSchema } from '@/lib/server/bootstrap-db';
-import { getServerSession } from 'next-auth';
+import { resolveQuickReportContext } from '@/lib/server/quick-report-context';
 import { NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
 
-async function getSessionContext() {
-  const session = await getServerSession(authOptions);
-  const email = session?.user?.email?.trim().toLowerCase();
-  if (!email) return null;
-
-  await prisma.tenant.upsert({
-    where: { id: 'safeviate' },
-    update: { updatedAt: new Date() },
-    create: { id: 'safeviate', name: 'Safeviate' },
-  });
-
-  const currentUser = await prisma.user.findUnique({
-    where: { email },
-    select: { tenantId: true, email: true },
-  });
-
-  const personnel = await prisma.personnel.findFirst({
-    where: { email },
-    select: { id: true, firstName: true, lastName: true },
-  });
-
-  return {
-    tenantId: currentUser?.tenantId || 'safeviate',
-    email,
-    userId: personnel?.id || null,
-    userName: personnel ? `${personnel.firstName} ${personnel.lastName}`.trim() : email,
-  };
-}
-
 export async function POST(request: Request) {
   try {
-    const context = await getSessionContext();
+    const body = await request.json().catch(() => null);
+    const incoming = body?.report ?? {};
+    const context = await resolveQuickReportContext({
+      publicTenantId: typeof incoming?.tenantId === 'string' ? incoming.tenantId : null,
+    });
     if (!context) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     await ensureTechnicalReportsSchema();
-
-    const body = await request.json().catch(() => null);
-    const incoming = body?.report ?? {};
-    const id = incoming.id || randomUUID();
+    const { tenantId: _tenantId, ...reportInput } = incoming as Record<string, unknown>;
+    const id = (reportInput.id as string | undefined) || randomUUID();
 
     const data = {
-      ...incoming,
+      ...reportInput,
       id,
-      submittedByEmail: incoming.submittedByEmail || context.email,
-      submittedById: incoming.submittedById || context.userId,
-      submittedByName: incoming.submittedByName || context.userName,
-      submittedAt: incoming.submittedAt || new Date().toISOString(),
-      status: incoming.status || 'Open',
-      workflowStatus: incoming.workflowStatus || 'Preliminary',
+      submittedByEmail: (reportInput.submittedByEmail as string | null | undefined) || context.email,
+      submittedById: (reportInput.submittedById as string | null | undefined) || context.userId,
+      submittedByName: (reportInput.submittedByName as string | undefined) || context.userName,
+      submittedAt: (reportInput.submittedAt as string | undefined) || new Date().toISOString(),
+      status: (reportInput.status as string | undefined) || 'Open',
+      workflowStatus: (reportInput.workflowStatus as string | undefined) || 'Preliminary',
     };
 
     await prisma.$executeRawUnsafe(
@@ -74,7 +46,7 @@ export async function POST(request: Request) {
 
 export async function GET() {
   try {
-    const context = await getSessionContext();
+    const context = await resolveQuickReportContext({ publicTenantId: null });
     if (!context) return NextResponse.json({ reports: [] }, { status: 200 });
 
     await ensureTechnicalReportsSchema();
@@ -93,14 +65,17 @@ export async function GET() {
 
 export async function PUT(request: Request) {
   try {
-    const context = await getSessionContext();
+    const body = await request.json().catch(() => null);
+    const incoming = body?.report ?? {};
+    const context = await resolveQuickReportContext({
+      publicTenantId: typeof incoming?.tenantId === 'string' ? incoming.tenantId : null,
+    });
     if (!context) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     await ensureTechnicalReportsSchema();
 
-    const body = await request.json().catch(() => null);
-    const incoming = body?.report ?? {};
-    const id = incoming.id;
+    const { tenantId: _tenantId, ...reportInput } = incoming as Record<string, unknown>;
+    const id = reportInput.id as string | undefined;
     if (!id) return NextResponse.json({ error: 'Missing report id.' }, { status: 400 });
 
     const rows = await prisma.$queryRawUnsafe<{ data: unknown }[]>(
@@ -111,7 +86,7 @@ export async function PUT(request: Request) {
     const existing = (rows[0]?.data as Record<string, unknown> | undefined) || {};
     const data = {
       ...existing,
-      ...incoming,
+      ...reportInput,
       id,
     };
 
