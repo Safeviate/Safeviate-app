@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { Fragment, useState, useCallback, useEffect, useRef } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
@@ -39,7 +39,12 @@ import { OrganizationTabsRow, ResponsiveTabRow } from '@/components/responsive-t
 import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { CustomCalendar } from '@/components/ui/custom-calendar';
+import { CalendarIcon } from 'lucide-react';
 import { getPersonnelDisplayName } from '@/lib/personnel-label';
+import type { CorrectiveActionPlan, GapStatus, QualityAudit, QualityAuditChecklistTemplate, QualityFinding } from '@/types/quality';
+import { List } from 'lucide-react';
 
 const REGULATION_TABS = [
     { value: 'sacaa-cars', label: 'SACAA CARs' },
@@ -95,6 +100,23 @@ function formatAuditDate(value?: string | null) {
 
     return format(parsed, 'dd MMM yyyy');
 }
+
+function getTechnicalExcerpt(value?: string | null) {
+    const lines = getStructuredTechnicalLines(value);
+    if (lines.length > 0) {
+        return lines[0].content;
+    }
+
+    return value?.trim() || '';
+}
+
+const GAP_STATUS_OPTIONS: { value: GapStatus; label: string }[] = [
+    { value: 'Open gap', label: 'Open gap' },
+    { value: 'Partial coverage', label: 'Partial coverage' },
+    { value: 'Covered', label: 'Covered' },
+    { value: 'Unassessed', label: 'Unassessed' },
+    { value: 'Not applicable', label: 'Not applicable' },
+];
 
 function formatStructuredTechnicalStandard(value?: string | null) {
     const text = value?.trim() || '';
@@ -508,31 +530,42 @@ export default function CoherenceMatrixPage() {
   const canManageMatrix = isDeveloperRole || hasPermission('quality-matrix-manage');
 
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [matrixViewMode, setMatrixViewMode] = useState<'tree' | 'table'>('tree');
+  const [matrixSearchQuery, setMatrixSearchQuery] = useState('');
+  const [matrixIndexQuery, setMatrixIndexQuery] = useState('');
+  const [openGapDateRowId, setOpenGapDateRowId] = useState<string | null>(null);
+  const [expandedClauseIds, setExpandedClauseIds] = useState<Record<string, boolean>>({});
   const [editingItem, setEditingItem] = useState<ComplianceRequirement | null>(null);
   const [formMode, setFormMode] = useState<'item' | 'header' | 'subheader'>('item');
 
   const [complianceItems, setComplianceItems] = useState<ComplianceRequirement[]>([]);
   const [personnel, setPersonnel] = useState<Personnel[]>([]);
   const [organizations, setOrganizations] = useState<ExternalOrganization[]>([]);
+  const [qualityAudits, setQualityAudits] = useState<QualityAudit[]>([]);
+  const [qualityAuditTemplates, setQualityAuditTemplates] = useState<QualityAuditChecklistTemplate[]>([]);
+  const [correctiveActionPlans, setCorrectiveActionPlans] = useState<CorrectiveActionPlan[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const resolvedTenantId = tenantId || 'safeviate';
 
   const loadData = useCallback(async () => {
     try {
-        const [matrixResponse, personnelResponse, orgResponse] = await Promise.all([
+        const [matrixResponse, personnelResponse, orgResponse, auditsResponse] = await Promise.all([
           fetch(`/api/compliance-matrix?tenantId=${encodeURIComponent(resolvedTenantId)}`, { cache: 'no-store' }),
           fetch('/api/personnel', { cache: 'no-store' }),
           fetch('/api/external-organizations', { cache: 'no-store' }),
+          fetch('/api/quality-audits', { cache: 'no-store' }),
         ]);
-        const [matrixPayload, personnelPayload, orgPayload] = await Promise.all([
+        const [matrixPayload, personnelPayload, orgPayload, auditsPayload] = await Promise.all([
           matrixResponse.json().catch(() => ({ items: [] })),
           personnelResponse.json().catch(() => ({ personnel: [] })),
           orgResponse.json().catch(() => ({ organizations: [] })),
+          auditsResponse.json().catch(() => ({ audits: [], templates: [], caps: [] })),
         ]);
         setComplianceItems(Array.isArray(matrixPayload.items) ? matrixPayload.items : []);
         setPersonnel(Array.isArray(personnelPayload.personnel) ? personnelPayload.personnel : []);
         setOrganizations(Array.isArray(orgPayload.organizations) ? orgPayload.organizations : []);
+        setQualityAudits(Array.isArray(auditsPayload.audits) ? auditsPayload.audits : []);
+        setQualityAuditTemplates(Array.isArray(auditsPayload.templates) ? auditsPayload.templates : []);
+        setCorrectiveActionPlans(Array.isArray(auditsPayload.caps) ? auditsPayload.caps : []);
     } catch (e) {
         console.error("Failed to load matrix data", e);
     } finally {
@@ -540,15 +573,94 @@ export default function CoherenceMatrixPage() {
     }
   }, [resolvedTenantId]);
 
+  const updateGapStatus = useCallback(async (item: ComplianceRequirement, gapStatus: GapStatus) => {
+    try {
+        const response = await fetch(`/api/compliance-matrix?tenantId=${encodeURIComponent(resolvedTenantId)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                item: {
+                    ...item,
+                    gapStatus,
+                    gapStatusDate: new Date().toISOString(),
+                },
+            }),
+        });
+
+        if (!response.ok) {
+            const payload = await response.json().catch(() => null);
+            throw new Error(payload?.error || 'Failed to update gap status.');
+        }
+
+        window.dispatchEvent(new Event('safeviate-compliance-updated'));
+        toast({
+            title: 'Gap status updated',
+            description: `${item.regulationCode} marked as ${gapStatus}.`,
+        });
+    } catch (error) {
+        toast({
+            variant: 'destructive',
+            title: 'Update Failed',
+            description: error instanceof Error ? error.message : 'Failed to update gap status.',
+        });
+    }
+  }, [resolvedTenantId, toast]);
+
+  const updateMatrixItemField = useCallback(async (item: ComplianceRequirement, patch: Partial<ComplianceRequirement>) => {
+    try {
+        const response = await fetch(`/api/compliance-matrix?tenantId=${encodeURIComponent(resolvedTenantId)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                item: {
+                    ...item,
+                    ...patch,
+                },
+            }),
+        });
+
+        if (!response.ok) {
+            const payload = await response.json().catch(() => null);
+            throw new Error(payload?.error || 'Failed to update matrix item.');
+        }
+
+        window.dispatchEvent(new Event('safeviate-compliance-updated'));
+    } catch (error) {
+        toast({
+            variant: 'destructive',
+            title: 'Update Failed',
+            description: error instanceof Error ? error.message : 'Failed to update matrix item.',
+        });
+    }
+  }, [resolvedTenantId, toast]);
+
+  const parseLocalDate = (value?: string | null) => {
+    if (!value?.trim()) return undefined;
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+  };
+
+  const toNoonUtcIso = (date: Date) =>
+    new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), 12)).toISOString();
+
+  const toggleClauseDetails = useCallback((itemId: string) => {
+    setExpandedClauseIds((prev) => ({
+        ...prev,
+        [itemId]: !prev[itemId],
+    }));
+  }, []);
+
   useEffect(() => {
     void loadData();
     window.addEventListener('safeviate-compliance-updated', loadData);
     window.addEventListener('safeviate-personnel-updated', loadData);
     window.addEventListener('safeviate-external-organizations-updated', loadData);
+    window.addEventListener('safeviate-quality-updated', loadData);
     return () => {
         window.removeEventListener('safeviate-compliance-updated', loadData);
         window.removeEventListener('safeviate-personnel-updated', loadData);
         window.removeEventListener('safeviate-external-organizations-updated', loadData);
+        window.removeEventListener('safeviate-quality-updated', loadData);
     }
   }, [loadData]);
 
@@ -620,8 +732,20 @@ export default function CoherenceMatrixPage() {
         }
   }
 
-  const currentOrgItems = (complianceItems || []).filter(item =>
+    const currentOrgItems = (complianceItems || []).filter(item =>
     (activeOrgTab === 'internal' ? !item.organizationId : item.organizationId === activeOrgTab)
+  );
+  const renderSearchControl = (mobile = false) => (
+    <div className={cn(
+        mobile ? 'w-full' : 'w-[170px] max-w-full'
+    )}>
+        <Input
+            value={matrixSearchQuery}
+            onChange={(event) => setMatrixSearchQuery(event.target.value)}
+            placeholder="Search regulations..."
+            className="h-8 w-full border-input bg-background text-sm"
+        />
+    </div>
   );
   const currentFamilyHeaders = currentOrgItems
     .filter(item => getItemFamily(item) === activeRegulationTab)
@@ -661,10 +785,10 @@ export default function CoherenceMatrixPage() {
         }
         return acc;
     }, [] as { code: string; label: string }[]);
-
   const renderOrgContext = (orgId: string | 'internal') => {
     const contextOrgId = orgId === 'internal' ? null : orgId;
     const activeRegulationTabValue = regulationTabToUiValue(activeRegulationTab);
+    const showGapAnalysis = activeRegulationTab === 'sacaa-cats';
     const getManagerLabel = (managerId?: string | null) => {
         const normalizedManagerId = managerId?.trim() || '';
         if (!normalizedManagerId) return '';
@@ -769,10 +893,41 @@ export default function CoherenceMatrixPage() {
         );
     };
 
+    const normalizedSearchQuery = matrixSearchQuery.trim().toLowerCase();
+    const searchCache = new Map<string, boolean>();
+    const getSearchableText = (item: ComplianceRequirement) => [
+        item.regulationCode,
+        item.regulationStatement,
+        item.technicalStandard,
+        item.companyReference,
+        getManagerLabel(item.responsibleManagerId),
+        item.nextAuditDate ? formatAuditDate(item.nextAuditDate) : '',
+        item.gapStatus,
+    ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+    const itemMatchesSearch = (item: ComplianceRequirement) => {
+        if (!normalizedSearchQuery) return true;
+        return getSearchableText(item).includes(normalizedSearchQuery);
+    };
+    const branchMatchesSearch = (item: ComplianceRequirement): boolean => {
+        const normalizedCode = normalizeRegulationCode(item.regulationCode);
+        if (!normalizedSearchQuery) return true;
+        if (searchCache.has(normalizedCode)) {
+            return searchCache.get(normalizedCode) || false;
+        }
+        const childItems = groupedItems[normalizedCode] || [];
+        const matches = itemMatchesSearch(item) || childItems.some((child) => branchMatchesSearch(child));
+        searchCache.set(normalizedCode, matches);
+        return matches;
+    };
+
     type MatrixTableRow = {
         item: ComplianceRequirement;
         depth: number;
         hasChildren: boolean;
+        anchorId: string;
     };
 
     const buildTableRows = (items: ComplianceRequirement[], depth = 0, ancestors: string[] = []): MatrixTableRow[] => {
@@ -781,19 +936,275 @@ export default function CoherenceMatrixPage() {
             if (ancestors.includes(normalizedCode)) return [];
 
             const childItems = groupedItems[normalizedCode] || [];
+            if (normalizedSearchQuery && !branchMatchesSearch(item)) {
+                return [];
+            }
+
+            const nextChildItems = normalizedSearchQuery && !itemMatchesSearch(item)
+                ? childItems.filter((child) => branchMatchesSearch(child))
+                : childItems;
+
             return [
                 {
                     item,
                     depth,
-                    hasChildren: childItems.length > 0,
+                    hasChildren: nextChildItems.length > 0,
+                    anchorId: `matrix-row-${item.id}`,
                 },
-                ...buildTableRows(childItems, depth + 1, [...ancestors, normalizedCode]),
+                ...buildTableRows(nextChildItems, depth + 1, [...ancestors, normalizedCode]),
             ];
         });
     };
 
+    const scrollToTableRow = (anchorId: string) => {
+        if (typeof document === 'undefined') return;
+        const target = document.getElementById(anchorId);
+        target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+
+    const buildTableIndex = (rows: MatrixTableRow[]) =>
+        rows.filter(({ depth, hasChildren }) => depth === 0 || hasChildren);
+
+    const normalizedIndexQuery = matrixIndexQuery.trim().toLowerCase();
+    const matrixIndexEntries = buildTableIndex(buildTableRows(topLevelItems));
+    const filteredMatrixIndexEntries = normalizedIndexQuery
+        ? matrixIndexEntries.filter(({ item }) =>
+            [item.regulationCode, item.regulationStatement]
+                .filter(Boolean)
+                .join(' ')
+                .toLowerCase()
+                .includes(normalizedIndexQuery)
+        )
+        : matrixIndexEntries;
+
+    const renderMatrixIndexContent = () => (
+        <>
+            <div className="mb-3 space-y-1">
+                <p className="text-[10px] font-black uppercase tracking-[0.14em] text-foreground/50">Regulation index</p>
+                <p className="text-xs text-foreground/70">
+                    Jump to a header or subheader in the current table. {filteredMatrixIndexEntries.length} entries.
+                </p>
+            </div>
+            <div className="mb-3">
+                <Input
+                    value={matrixIndexQuery}
+                    onChange={(event) => setMatrixIndexQuery(event.target.value)}
+                    placeholder="Filter index..."
+                    className="h-8 w-full border-input bg-background text-sm"
+                />
+            </div>
+            <ScrollArea className="max-h-[calc(100vh-300px)] pr-2">
+                {filteredMatrixIndexEntries.length > 0 ? (
+                    <div className="space-y-2.5">
+                        <div className="space-y-1">
+                            <div className="flex items-center justify-between gap-2">
+                                <p className="text-[9px] font-black uppercase tracking-[0.16em] text-foreground/45">Headers</p>
+                                <span className="text-[9px] font-black uppercase tracking-[0.16em] text-foreground/40">
+                                    {filteredMatrixIndexEntries.filter(({ depth }) => depth === 0).length}
+                                </span>
+                            </div>
+                            <div className="space-y-1">
+                                {filteredMatrixIndexEntries
+                                    .filter(({ depth }) => depth === 0)
+                                    .map(({ item, anchorId }) => (
+                                        <button
+                                            key={item.id}
+                                            type="button"
+                                            onClick={() => scrollToTableRow(anchorId)}
+                                            className="flex w-full items-start gap-2 rounded-md border border-transparent px-2 py-1 text-left transition hover:border-border hover:bg-muted/40"
+                                        >
+                                            <span className="inline-flex h-5 shrink-0 items-center rounded-full border border-primary/15 bg-primary/5 px-1.5 text-[9px] font-black uppercase tracking-[0.12em] text-primary">
+                                                Header
+                                            </span>
+                                            <span className="min-w-0 flex-1">
+                                                <span className="block text-[10px] font-black tracking-wide text-foreground/60">
+                                                    {item.regulationCode}
+                                                </span>
+                                                <span className="block truncate text-sm font-medium text-foreground">
+                                                    {item.regulationStatement}
+                                                </span>
+                                            </span>
+                                        </button>
+                                    ))}
+                            </div>
+                        </div>
+                        <div className="space-y-1">
+                            <div className="flex items-center justify-between gap-2">
+                                <p className="text-[9px] font-black uppercase tracking-[0.16em] text-foreground/45">Subheaders</p>
+                                <span className="text-[9px] font-black uppercase tracking-[0.16em] text-foreground/40">
+                                    {filteredMatrixIndexEntries.filter(({ depth }) => depth > 0).length}
+                                </span>
+                            </div>
+                            <div className="space-y-1">
+                                {filteredMatrixIndexEntries
+                                    .filter(({ depth }) => depth > 0)
+                                    .map(({ item, depth, anchorId }) => (
+                                        <button
+                                            key={item.id}
+                                            type="button"
+                                            onClick={() => scrollToTableRow(anchorId)}
+                                            className="flex w-full items-start gap-2 rounded-md border border-transparent px-2 py-1 text-left transition hover:border-border hover:bg-muted/40"
+                                        >
+                                            <span
+                                                className={cn(
+                                                    'mt-0.5 inline-flex h-5 shrink-0 items-center rounded-full border border-primary/15 bg-primary/5 px-1.5 text-[9px] font-black uppercase tracking-[0.12em] text-primary',
+                                                    depth > 0 ? 'ml-4' : ''
+                                                )}
+                                            >
+                                                Subheader
+                                            </span>
+                                            <span className="min-w-0 flex-1">
+                                                <span className="block text-[10px] font-black tracking-wide text-foreground/60">
+                                                    {item.regulationCode}
+                                                </span>
+                                                <span className="block truncate text-sm font-medium text-foreground">
+                                                    {item.regulationStatement}
+                                                </span>
+                                            </span>
+                                        </button>
+                                    ))}
+                            </div>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="rounded-md border border-dashed border-card-border/70 px-3 py-4 text-xs text-foreground/60">
+                        No matching regulations in the current view.
+                    </div>
+                )}
+            </ScrollArea>
+        </>
+    );
+
+    const renderMatrixIndexPanel = () => (
+        <div className="sticky top-0 rounded-lg border border-card-border bg-card/90 p-2.5 shadow-none backdrop-blur-sm">
+            {renderMatrixIndexContent()}
+        </div>
+    );
+
     const renderMatrixTable = () => {
+        const enableGapAnalysis = showGapAnalysis;
         const tableRows = buildTableRows(topLevelItems);
+        const auditsSorted = [...qualityAudits].sort((a, b) => {
+            const aDate = new Date(a.auditDate || '').getTime() || 0;
+            const bDate = new Date(b.auditDate || '').getTime() || 0;
+            return bDate - aDate;
+        });
+
+        const templateItemLookup = new Map<string, { regulationReference: string; templateTitle: string }>();
+        qualityAuditTemplates.forEach((template) => {
+            template.sections.forEach((section) => {
+                section.items.forEach((item) => {
+                    const regulationReference = normalizeRegulationCode(item.regulationReference);
+                    if (!regulationReference) return;
+                    templateItemLookup.set(item.id, {
+                        regulationReference,
+                        templateTitle: template.title,
+                    });
+                });
+            });
+        });
+
+        type AuditFindingSummary = {
+            finding: QualityFinding['finding'];
+            auditNumber: string;
+            auditDate: string;
+            auditStatus: QualityAudit['status'];
+            templateTitle: string;
+            checklistItemId: string;
+        };
+
+        const latestFindingByItemId = new Map<string, AuditFindingSummary>();
+
+        auditsSorted.forEach((audit) => {
+            const template = qualityAuditTemplates.find((entry) => entry.id === audit.templateId);
+            if (!template) return;
+
+            const itemIdsForTemplate = new Map<string, { regulationReference: string }>();
+            template.sections.forEach((section) => {
+                section.items.forEach((item) => {
+                    const regulationReference = normalizeRegulationCode(item.regulationReference);
+                    if (!regulationReference) return;
+                    itemIdsForTemplate.set(item.id, { regulationReference });
+                });
+            });
+
+            (audit.findings || []).forEach((finding) => {
+                const templateItem = itemIdsForTemplate.get(finding.checklistItemId);
+                if (!templateItem) return;
+                if (latestFindingByItemId.has(finding.checklistItemId)) return;
+
+                latestFindingByItemId.set(finding.checklistItemId, {
+                    finding: finding.finding,
+                    auditNumber: audit.auditNumber,
+                    auditDate: audit.auditDate,
+                    auditStatus: audit.status,
+                    templateTitle: template.title,
+                    checklistItemId: finding.checklistItemId,
+                });
+            });
+        });
+
+        const getGapSummary = (row: Pick<MatrixTableRow, 'item' | 'depth' | 'hasChildren'>) => {
+            const normalizedCode = normalizeRegulationCode(row.item.regulationCode);
+            const mappedItemIds = Array.from(templateItemLookup.entries())
+                .filter(([, value]) => value.regulationReference === normalizedCode)
+                .map(([itemId]) => itemId);
+
+            const latestFindings = mappedItemIds
+                .map((itemId) => latestFindingByItemId.get(itemId))
+                .filter((finding): finding is AuditFindingSummary => Boolean(finding));
+
+            const assessedCount = latestFindings.length;
+            const openCapCount = correctiveActionPlans.filter((cap) => {
+                const isOpen = cap.status !== 'Closed' && cap.status !== 'Cancelled';
+                return isOpen && mappedItemIds.includes(cap.findingId);
+            }).length;
+
+            const nonCompliantCount = latestFindings.filter((finding) => finding.finding === 'Non Compliant').length;
+            const compliantCount = latestFindings.filter((finding) => finding.finding === 'Compliant').length;
+            const notApplicableCount = latestFindings.filter((finding) => finding.finding === 'Not Applicable').length;
+            const latestFinding = [...latestFindings].sort((a, b) => new Date(b.auditDate).getTime() - new Date(a.auditDate).getTime())[0];
+
+            let gapStatus: 'Open gap' | 'Partial coverage' | 'Covered' | 'Unassessed' | 'Not applicable' = 'Unassessed';
+            if (mappedItemIds.length === 0) {
+                gapStatus = 'Open gap';
+            } else if (assessedCount === 0) {
+                gapStatus = 'Unassessed';
+            } else if (nonCompliantCount > 0) {
+                gapStatus = 'Open gap';
+            } else if (compliantCount > 0 && compliantCount + notApplicableCount === assessedCount) {
+                gapStatus = notApplicableCount === assessedCount ? 'Not applicable' : 'Covered';
+            } else {
+                gapStatus = 'Partial coverage';
+            }
+
+            if (openCapCount > 0 && gapStatus === 'Covered') {
+                gapStatus = 'Partial coverage';
+            }
+
+            return {
+                mappedCount: mappedItemIds.length,
+                assessedCount,
+                openCapCount,
+                latestFinding,
+                gapStatus,
+            };
+        };
+
+        const gapStatusVariant = (status: 'Open gap' | 'Partial coverage' | 'Covered' | 'Unassessed' | 'Not applicable') => {
+            switch (status) {
+                case 'Covered':
+                    return 'default';
+                case 'Not applicable':
+                    return 'secondary';
+                case 'Partial coverage':
+                    return 'outline';
+                case 'Open gap':
+                    return 'destructive';
+                default:
+                    return 'secondary';
+            }
+        };
 
         if (tableRows.length === 0) {
             return (
@@ -806,20 +1217,372 @@ export default function CoherenceMatrixPage() {
         }
 
         return (
-            <div className="rounded-lg border border-card-border bg-background">
-                <Table className="min-w-[1450px] table-fixed">
+            <div className="grid items-start gap-4 xl:grid-cols-[260px_minmax(0,1fr)]">
+                <div className="xl:hidden">
+                    <details className="rounded-lg border border-card-border bg-card/90 p-3 shadow-none">
+                        <summary className="cursor-pointer list-none text-[10px] font-black uppercase tracking-[0.14em] text-foreground/50">
+                            Regulation index
+                        </summary>
+                        <div className="mt-3">
+                            {renderMatrixIndexContent()}
+                        </div>
+                    </details>
+                </div>
+                <div className="hidden xl:block">
+                    {renderMatrixIndexPanel()}
+                </div>
+                <div className="min-w-0">
+                    <div className="overflow-x-auto rounded-lg border border-card-border bg-background">
+                <Table className="min-w-[1180px] table-fixed">
                     <colgroup>
-                        <col className="w-[14%]" />
-                        <col className="w-[46%]" />
+                        <col className="w-[38%]" />
                         <col className="w-[12%]" />
-                        <col className="w-[14%]" />
+                        <col className="w-[18%]" />
                         <col className="w-[10%]" />
-                        <col className="w-[4%]" />
+                        <col className="w-[12%]" />
+                    </colgroup>
+                    <TableHeader className="sticky top-0 z-10 bg-muted/30">
+                        <TableRow className="hover:bg-transparent">
+                            <TableHead className="px-2 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-foreground/70">Clause</TableHead>
+                            <TableHead className="px-2 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-foreground/70">Gap status</TableHead>
+                            <TableHead className="px-2 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-foreground/70">Reference / reason</TableHead>
+                            <TableHead className="px-2 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-foreground/70">Status date</TableHead>
+                            <TableHead className="px-2 py-2 text-right text-[10px] font-black uppercase tracking-[0.12em] text-foreground/70">Actions</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {tableRows.map(({ item, depth, hasChildren, anchorId }: MatrixTableRow) => {
+                            const isClauseRow = enableGapAnalysis && depth > 0 && !hasChildren;
+                            const gapSummary = isClauseRow ? getGapSummary({ item, depth, hasChildren }) : null;
+                            const clauseGapStatus: GapStatus | null = isClauseRow
+                                ? item.gapStatus || gapSummary?.gapStatus || 'Unassessed'
+                                : null;
+                            const rowType = depth === 0 ? 'Header' : hasChildren ? 'Subheader' : 'Clause';
+                            const isExpanded = Boolean(expandedClauseIds[item.id]);
+                            return (
+                                <Fragment key={item.id}>
+                                    <TableRow id={anchorId} key={item.id} className={cn(depth === 0 && 'bg-muted/15', 'scroll-mt-24')}>
+                                    <TableCell className="align-top px-1.5 py-2">
+                                            <div className="space-y-3" style={{ paddingLeft: `${depth * 0.5}rem` }}>
+                                                <div className="space-y-1">
+                                                    <div className="flex flex-wrap items-center gap-1">
+                                                        <Badge variant="outline" className="h-5 border-primary/20 bg-primary/5 px-1.5 text-[9px] font-black uppercase tracking-[0.12em] text-primary">
+                                                            {rowType}
+                                                        </Badge>
+                                                        <span className="text-[10px] font-black tracking-wide text-foreground/65">
+                                                            {item.regulationCode}
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-[13px] font-semibold leading-5 text-foreground break-words">
+                                                        {item.regulationStatement}
+                                                    </p>
+                                                </div>
+                                                {item.technicalStandard?.trim() ? (
+                                                    <div className="space-y-2">
+                                                        <div className="flex items-center gap-2">
+                                                            <Button
+                                                                type="button"
+                                                                variant="ghost"
+                                                                size="compact"
+                                                                className="h-7 px-2 text-[9px] font-black uppercase tracking-[0.08em] text-foreground/70 hover:bg-accent/30"
+                                                                onClick={() => toggleClauseDetails(item.id)}
+                                                            >
+                                                                <ChevronDown className={cn('mr-1 h-3.5 w-3.5 transition-transform', isExpanded && 'rotate-180')} />
+                                                                {isExpanded ? 'Hide text' : 'Show text'}
+                                                            </Button>
+                                                            {!isExpanded ? (
+                                                                <p className="line-clamp-2 min-w-0 flex-1 text-[12px] leading-5 text-foreground/70">
+                                                                    {getTechnicalExcerpt(item.technicalStandard)}
+                                                                </p>
+                                                            ) : null}
+                                                        </div>
+                                                    </div>
+                                                ) : null}
+                                            </div>
+                                        </TableCell>
+                                        <TableCell className="align-top px-1.5 py-2">
+                                            {isClauseRow ? (
+                                                canManageMatrix ? (
+                                                    <Select
+                                                        value={clauseGapStatus || 'Unassessed'}
+                                                        onValueChange={(value) => void updateGapStatus(item, value as GapStatus)}
+                                                    >
+                                                    <SelectTrigger className="h-8 w-full max-w-[160px]">
+                                                            <SelectValue placeholder="Select status" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {GAP_STATUS_OPTIONS.map((option) => (
+                                                                <SelectItem key={option.value} value={option.value}>
+                                                                    {option.label}
+                                                                </SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                ) : (
+                                                    <Badge variant={gapStatusVariant(clauseGapStatus || 'Unassessed')} className="text-[9px] font-black uppercase tracking-[0.08em]">
+                                                        {clauseGapStatus}
+                                                    </Badge>
+                                                )
+                                            ) : (
+                                                <span className="text-[12px] text-muted-foreground">-</span>
+                                            )}
+                                        </TableCell>
+                                        <TableCell className="align-top px-1.5 py-2">
+                                            {isClauseRow ? (
+                                                canManageMatrix ? (
+                                                    <Input
+                                                        defaultValue={item.companyReference || ''}
+                                                        placeholder="Reference or reason"
+                                                        className="h-8 max-w-[220px]"
+                                                        onBlur={(event) => {
+                                                            const nextValue = event.target.value.trim();
+                                                            if ((item.companyReference || '').trim() === nextValue) return;
+                                                            void updateMatrixItemField(item, { companyReference: nextValue });
+                                                        }}
+                                                    />
+                                                ) : (
+                                                    <span className="block truncate text-[12px] text-foreground/80">
+                                                        {item.companyReference?.trim() || '-'}
+                                                    </span>
+                                                )
+                                            ) : (
+                                                <span className="text-[12px] text-muted-foreground">-</span>
+                                            )}
+                                        </TableCell>
+                                        <TableCell className="align-top px-1.5 py-2 text-[12px] text-foreground/80 whitespace-nowrap">
+                                            {isClauseRow ? (
+                                                canManageMatrix ? (
+                                                    <Popover
+                                                        open={openGapDateRowId === item.id}
+                                                        onOpenChange={(open) => setOpenGapDateRowId(open ? item.id : null)}
+                                                    >
+                                                        <PopoverTrigger asChild>
+                                                        <Button type="button" variant="outline" size="compact" className="h-8 w-full max-w-[150px] justify-between px-3">
+                                                                <span className={cn('truncate', !item.gapStatusDate?.trim() && 'text-muted-foreground')}>
+                                                                    {item.gapStatusDate?.trim() ? formatAuditDate(item.gapStatusDate) : 'Set date'}
+                                                                </span>
+                                                                <CalendarIcon className="h-4 w-4 shrink-0 opacity-60" />
+                                                            </Button>
+                                                        </PopoverTrigger>
+                                                        <PopoverContent className="w-auto p-0" align="start">
+                                                            <CustomCalendar
+                                                                selectedDate={parseLocalDate(item.gapStatusDate)}
+                                                                onDateSelect={(date) => {
+                                                                    void updateMatrixItemField(item, { gapStatusDate: toNoonUtcIso(date) });
+                                                                    setOpenGapDateRowId(null);
+                                                                }}
+                                                            />
+                                                        </PopoverContent>
+                                                    </Popover>
+                                                ) : (
+                                                    item.gapStatusDate?.trim() ? formatAuditDate(item.gapStatusDate) : '-'
+                                                )
+                                            ) : (
+                                                '-'
+                                            )}
+                                        </TableCell>
+                                        <TableCell className="align-top px-2 py-2">
+                                            <div className="flex justify-end gap-1">
+                                                {depth === 0 && canManageMatrix ? (
+                                                    <>
+                                                        <Button variant="outline" size="icon" className="h-7 w-7 border-slate-300" onClick={() => handleOpenForm(item, 'header')}>
+                                                            <Edit className="h-3.5 w-3.5" />
+                                                        </Button>
+                                                        <Button variant="destructive" size="icon" className="h-7 w-7" onClick={() => handleDeleteSection(item)}>
+                                                            <Trash2 className="h-3.5 w-3.5" />
+                                                        </Button>
+                                                    </>
+                                                ) : depth !== 0 && canManageMatrix ? (
+                                                    <>
+                                                        <Button variant="outline" size="icon" className="h-7 w-7 border-slate-300" onClick={() => handleOpenForm(item)}>
+                                                            <Edit className="h-3.5 w-3.5" />
+                                                        </Button>
+                                                        <Button variant="destructive" size="icon" className="h-7 w-7" onClick={() => handleDeleteItem(item)}>
+                                                            <Trash2 className="h-3.5 w-3.5" />
+                                                        </Button>
+                                                    </>
+                                                ) : null}
+                                            </div>
+                                        </TableCell>
+                                    </TableRow>
+                                    {isClauseRow && isExpanded ? (
+                                        <TableRow key={`${item.id}-detail`} className="bg-muted/10">
+                                            <TableCell colSpan={5} className="px-1.5 pb-3 pt-0">
+                                                <div className="w-full rounded-md border border-card-border/70 bg-background pl-6 pr-3 py-2 text-[12px] leading-5 text-foreground/80 break-words">
+                                                    <p className="mb-1 text-[9px] font-black uppercase tracking-[0.14em] text-foreground/50">Clause details</p>
+                                                    {renderTechnicalStandardText(item.technicalStandard)}
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : null}
+                                </Fragment>
+                            );
+                        })}
+                    </TableBody>
+                </Table>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    const renderGapAnalysisTable = () => {
+        const auditsSorted = [...qualityAudits].sort((a, b) => {
+            const aDate = new Date(a.auditDate || '').getTime() || 0;
+            const bDate = new Date(b.auditDate || '').getTime() || 0;
+            return bDate - aDate;
+        });
+
+        const templateItemLookup = new Map<string, { regulationReference: string; templateTitle: string }>();
+        qualityAuditTemplates.forEach((template) => {
+            template.sections.forEach((section) => {
+                section.items.forEach((item) => {
+                    const regulationReference = normalizeRegulationCode(item.regulationReference);
+                    if (!regulationReference) return;
+                    templateItemLookup.set(item.id, {
+                        regulationReference,
+                        templateTitle: template.title,
+                    });
+                });
+            });
+        });
+
+        type AuditFindingSummary = {
+            finding: QualityFinding['finding'];
+            auditNumber: string;
+            auditDate: string;
+            auditStatus: QualityAudit['status'];
+            templateTitle: string;
+            checklistItemId: string;
+        };
+
+        const latestFindingByItemId = new Map<string, AuditFindingSummary>();
+
+        auditsSorted.forEach((audit) => {
+            const template = qualityAuditTemplates.find((entry) => entry.id === audit.templateId);
+            if (!template) return;
+
+            const itemIdsForTemplate = new Map<string, { regulationReference: string }>();
+            template.sections.forEach((section) => {
+                section.items.forEach((item) => {
+                    const regulationReference = normalizeRegulationCode(item.regulationReference);
+                    if (!regulationReference) return;
+                    itemIdsForTemplate.set(item.id, { regulationReference });
+                });
+            });
+
+            (audit.findings || []).forEach((finding) => {
+                const templateItem = itemIdsForTemplate.get(finding.checklistItemId);
+                if (!templateItem) return;
+                if (latestFindingByItemId.has(finding.checklistItemId)) return;
+
+                latestFindingByItemId.set(finding.checklistItemId, {
+                    finding: finding.finding,
+                    auditNumber: audit.auditNumber,
+                    auditDate: audit.auditDate,
+                    auditStatus: audit.status,
+                    templateTitle: template.title,
+                    checklistItemId: finding.checklistItemId,
+                });
+            });
+        });
+
+        type GapRow = MatrixTableRow & {
+            mappedCount: number;
+            assessedCount: number;
+            openCapCount: number;
+            latestFinding?: AuditFindingSummary;
+            gapStatus: 'Open gap' | 'Partial coverage' | 'Covered' | 'Unassessed' | 'Not applicable';
+        };
+
+        const rows = buildTableRows(topLevelItems).map<GapRow>((row) => {
+            const normalizedCode = normalizeRegulationCode(row.item.regulationCode);
+            const mappedItemIds = Array.from(templateItemLookup.entries())
+                .filter(([, value]) => value.regulationReference === normalizedCode)
+                .map(([itemId]) => itemId);
+
+            const latestFindings = mappedItemIds
+                .map((itemId) => latestFindingByItemId.get(itemId))
+                .filter((finding): finding is AuditFindingSummary => Boolean(finding));
+
+            const assessedCount = latestFindings.length;
+            const openCapCount = correctiveActionPlans.filter((cap) => {
+                const isOpen = cap.status !== 'Closed' && cap.status !== 'Cancelled';
+                return isOpen && mappedItemIds.includes(cap.findingId);
+            }).length;
+
+            const nonCompliantCount = latestFindings.filter((finding) => finding.finding === 'Non Compliant').length;
+            const compliantCount = latestFindings.filter((finding) => finding.finding === 'Compliant').length;
+            const notApplicableCount = latestFindings.filter((finding) => finding.finding === 'Not Applicable').length;
+            const latestFinding = [...latestFindings].sort((a, b) => new Date(b.auditDate).getTime() - new Date(a.auditDate).getTime())[0];
+
+            let gapStatus: GapRow['gapStatus'] = 'Unassessed';
+            if (mappedItemIds.length === 0) {
+                gapStatus = 'Open gap';
+            } else if (assessedCount === 0) {
+                gapStatus = 'Unassessed';
+            } else if (nonCompliantCount > 0) {
+                gapStatus = 'Open gap';
+            } else if (compliantCount > 0 && compliantCount + notApplicableCount === assessedCount) {
+                gapStatus = notApplicableCount === assessedCount ? 'Not applicable' : 'Covered';
+            } else {
+                gapStatus = 'Partial coverage';
+            }
+
+            if (openCapCount > 0 && gapStatus === 'Covered') {
+                gapStatus = 'Partial coverage';
+            }
+
+            return {
+                ...row,
+                mappedCount: mappedItemIds.length,
+                assessedCount,
+                openCapCount,
+                latestFinding,
+                gapStatus,
+            };
+        });
+
+        const statusVariant = (status: GapRow['gapStatus']) => {
+            switch (status) {
+                case 'Covered':
+                    return 'default';
+                case 'Not applicable':
+                    return 'secondary';
+                case 'Partial coverage':
+                    return 'outline';
+                case 'Open gap':
+                    return 'destructive';
+                default:
+                    return 'secondary';
+            }
+        };
+
+        if (rows.length === 0) {
+            return (
+                <div className="flex flex-col items-center justify-center py-24 text-center opacity-30">
+                    <Layers className="h-16 w-16 mb-4" />
+                    <p className="text-sm font-black uppercase tracking-widest text-foreground/90">Coherence Matrix Empty</p>
+                    <p className="text-xs font-medium text-foreground/80 max-w-xs mt-2">Populate your matrix using the AI upload tool or by seeding standard Part 141 regulations.</p>
+                </div>
+            );
+        }
+
+        return (
+            <div className="rounded-lg border border-card-border bg-background">
+                <Table className="min-w-[1350px] table-fixed">
+                    <colgroup>
+                        <col className="w-[17%]" />
+                        <col className="w-[40%]" />
+                        <col className="w-[13%]" />
+                        <col className="w-[12%]" />
+                        <col className="w-[10%]" />
+                        <col className="w-[8%]" />
                     </colgroup>
                     <TableHeader className="sticky top-0 z-10 bg-muted/30">
                         <TableRow className="hover:bg-transparent">
                             <TableHead className="px-2 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-foreground/70">Regulation / Clause</TableHead>
-                            <TableHead className="px-2 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-foreground/70">Technical standard</TableHead>
+                            <TableHead className="px-2 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-foreground/70">Gap summary</TableHead>
                             <TableHead className="px-2 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-foreground/70">Manual ref</TableHead>
                             <TableHead className="px-2 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-foreground/70">Responsible</TableHead>
                             <TableHead className="px-2 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-foreground/70">Next audit date</TableHead>
@@ -827,117 +1590,90 @@ export default function CoherenceMatrixPage() {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {tableRows.map(({ item, depth, hasChildren }: MatrixTableRow) => {
-                            const rowType = depth === 0 ? 'Header' : hasChildren ? 'Subheader' : 'Clause';
-                            return (
-                                <TableRow key={item.id} className={cn(depth === 0 && 'bg-muted/15')}>
-                                    <TableCell className="align-top px-2 py-2">
-                                        <div className="space-y-1" style={{ paddingLeft: `${depth * 0.5}rem` }}>
-                                            <div className="flex flex-wrap items-center gap-1">
-                                                <Badge variant="outline" className="h-5 border-primary/20 bg-primary/5 px-1.5 text-[9px] font-black uppercase tracking-[0.12em] text-primary">
-                                                    {rowType}
-                                                </Badge>
-                                                <span className="text-[10px] font-black tracking-wide text-foreground/65">
-                                                    {item.regulationCode}
-                                                </span>
-                                            </div>
-                                            <p className="line-clamp-2 text-[12.5px] font-semibold leading-[1.35] text-foreground break-words">
-                                                {item.regulationStatement}
-                                            </p>
-                                        </div>
-                                    </TableCell>
-                                    <TableCell className="align-top px-2 py-2">
-                                        {item.technicalStandard?.trim() ? (
-                                            <div className="space-y-1 text-[12px] leading-5 text-foreground/80 break-words">
-                                                {renderTechnicalStandardText(item.technicalStandard)}
-                                            </div>
-                                        ) : (
-                                            <span className="text-sm text-muted-foreground">-</span>
-                                        )}
-                                    </TableCell>
-                                    <TableCell className="align-top px-2 py-2 text-[12px] text-foreground/80 break-words">
-                                        {item.companyReference?.trim() ? (
-                                            <Badge variant="outline" className="max-w-full border-card-border bg-background/70 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-foreground">
-                                                <span className="truncate">{item.companyReference.trim()}</span>
+                        {rows.map(({ item, depth, hasChildren, mappedCount, assessedCount, openCapCount, latestFinding, gapStatus }) => (
+                            <TableRow key={item.id} className={cn(depth === 0 && 'bg-muted/15')}>
+                                <TableCell className="align-top px-2 py-2">
+                                    <div className="space-y-1" style={{ paddingLeft: `${depth * 0.5}rem` }}>
+                                        <div className="flex flex-wrap items-center gap-1">
+                                            <Badge variant="outline" className="h-5 border-primary/20 bg-primary/5 px-1.5 text-[9px] font-black uppercase tracking-[0.12em] text-primary">
+                                                {depth === 0 ? 'Header' : hasChildren ? 'Subheader' : 'Clause'}
                                             </Badge>
-                                        ) : '-'}
-                                    </TableCell>
-                                    <TableCell className="align-top px-2 py-2 text-[12px] text-foreground/80 break-words">
-                                        {item.responsibleManagerId?.trim() ? (
-                                            <span className="block truncate">
-                                                {getManagerLabel(item.responsibleManagerId) || '-'}
-                                            </span>
-                                        ) : '-'}
-                                    </TableCell>
-                                    <TableCell className="align-top px-2 py-2 text-[12px] text-foreground/80 whitespace-nowrap">
-                                        {item.nextAuditDate?.trim() ? formatAuditDate(item.nextAuditDate) : '-'}
-                                    </TableCell>
-                                    <TableCell className="align-top px-2 py-2">
-                                        <div className="flex justify-end gap-1">
-                                            {depth === 0 && canManageMatrix ? (
-                                                <>
-                                                    <Button variant="outline" size="icon" className="h-7 w-7 border-slate-300" onClick={() => handleOpenForm(item, 'header')}>
-                                                        <Edit className="h-3.5 w-3.5" />
-                                                    </Button>
-                                                    <Button variant="destructive" size="icon" className="h-7 w-7" onClick={() => handleDeleteSection(item)}>
-                                                        <Trash2 className="h-3.5 w-3.5" />
-                                                    </Button>
-                                                </>
-                                            ) : depth !== 0 && canManageMatrix ? (
-                                                <>
-                                                    <Button variant="outline" size="icon" className="h-7 w-7 border-slate-300" onClick={() => handleOpenForm(item)}>
-                                                        <Edit className="h-3.5 w-3.5" />
-                                                    </Button>
-                                                    <Button variant="destructive" size="icon" className="h-7 w-7" onClick={() => handleDeleteItem(item)}>
-                                                        <Trash2 className="h-3.5 w-3.5" />
-                                                    </Button>
-                                                </>
+                                            <span className="text-[10px] font-black tracking-wide text-foreground/65">{item.regulationCode}</span>
+                                        </div>
+                                        <p className="line-clamp-2 text-[12.5px] font-semibold leading-[1.35] text-foreground break-words">
+                                            {item.regulationStatement}
+                                        </p>
+                                    </div>
+                                </TableCell>
+                                <TableCell className="align-top px-2 py-2">
+                                    <div className="space-y-1.5">
+                                        <div className="flex flex-wrap gap-1.5">
+                                            <Badge variant={statusVariant(gapStatus)} className="text-[9px] font-black uppercase tracking-[0.08em]">
+                                                {gapStatus}
+                                            </Badge>
+                                            <Badge variant="outline" className="text-[9px] font-black uppercase tracking-[0.08em]">
+                                                {mappedCount === 0 ? 'No mapping' : `${assessedCount}/${mappedCount} assessed`}
+                                            </Badge>
+                                            {openCapCount > 0 ? (
+                                                <Badge variant="destructive" className="text-[9px] font-black uppercase tracking-[0.08em]">
+                                                    {openCapCount} open CAP{openCapCount === 1 ? '' : 's'}
+                                                </Badge>
                                             ) : null}
                                         </div>
-                                    </TableCell>
-                                </TableRow>
-                            );
-                        })}
+                                        {latestFinding ? (
+                                            <p className="text-[11px] leading-5 text-foreground/75">
+                                                Latest: <span className="font-semibold uppercase">{latestFinding.finding}</span> · {latestFinding.auditNumber} · {formatAuditDate(latestFinding.auditDate)}
+                                            </p>
+                                        ) : (
+                                            <p className="text-[11px] leading-5 text-muted-foreground italic">No audit finding linked yet.</p>
+                                        )}
+                                    </div>
+                                </TableCell>
+                                <TableCell className="align-top px-2 py-2 text-[12px] text-foreground/80 break-words">
+                                    {item.companyReference?.trim() ? (
+                                        <Badge variant="outline" className="max-w-full border-card-border bg-background/70 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-foreground">
+                                            <span className="truncate">{item.companyReference.trim()}</span>
+                                        </Badge>
+                                    ) : '-'}
+                                </TableCell>
+                                <TableCell className="align-top px-2 py-2 text-[12px] text-foreground/80 break-words">
+                                    {item.responsibleManagerId?.trim() ? (
+                                        <span className="block truncate">{getManagerLabel(item.responsibleManagerId) || '-'}</span>
+                                    ) : '-'}
+                                </TableCell>
+                                <TableCell className="align-top px-2 py-2 text-[12px] text-foreground/80 whitespace-nowrap">
+                                    {item.nextAuditDate?.trim() ? formatAuditDate(item.nextAuditDate) : '-'}
+                                </TableCell>
+                                <TableCell className="align-top px-2 py-2">
+                                    <div className="flex justify-end gap-1">
+                                        {depth === 0 && canManageMatrix ? (
+                                            <>
+                                                <Button variant="outline" size="icon" className="h-7 w-7 border-slate-300" onClick={() => handleOpenForm(item, 'header')}>
+                                                    <Edit className="h-3.5 w-3.5" />
+                                                </Button>
+                                                <Button variant="destructive" size="icon" className="h-7 w-7" onClick={() => handleDeleteSection(item)}>
+                                                    <Trash2 className="h-3.5 w-3.5" />
+                                                </Button>
+                                            </>
+                                        ) : depth !== 0 && canManageMatrix ? (
+                                            <>
+                                                <Button variant="outline" size="icon" className="h-7 w-7 border-slate-300" onClick={() => handleOpenForm(item)}>
+                                                    <Edit className="h-3.5 w-3.5" />
+                                                </Button>
+                                                <Button variant="destructive" size="icon" className="h-7 w-7" onClick={() => handleDeleteItem(item)}>
+                                                    <Trash2 className="h-3.5 w-3.5" />
+                                                </Button>
+                                            </>
+                                        ) : null}
+                                    </div>
+                                </TableCell>
+                            </TableRow>
+                        ))}
                     </TableBody>
                 </Table>
             </div>
         );
     };
-
-    const renderViewModeToggle = (mobile = false) => (
-        <div className={cn(
-            mobile ? 'grid w-full grid-cols-2 gap-1' : 'inline-flex items-center gap-1 rounded-md border border-input bg-background p-1'
-        )}>
-            <Button
-                type="button"
-                variant={matrixViewMode === 'tree' ? 'default' : 'outline'}
-                size="compact"
-                className={cn(
-                    mobile ? 'w-full justify-center' : 'min-w-[88px]',
-                    matrixViewMode === 'tree'
-                        ? 'border-[hsl(var(--button-primary-border))] bg-[hsl(var(--button-primary-background))] text-[hsl(var(--button-primary-foreground))]'
-                        : 'text-foreground hover:bg-accent/40'
-                )}
-                onClick={() => setMatrixViewMode('tree')}
-            >
-                Tree view
-            </Button>
-            <Button
-                type="button"
-                variant={matrixViewMode === 'table' ? 'default' : 'outline'}
-                size="compact"
-                className={cn(
-                    mobile ? 'w-full justify-center' : 'min-w-[88px]',
-                    matrixViewMode === 'table'
-                        ? 'border-[hsl(var(--button-primary-border))] bg-[hsl(var(--button-primary-background))] text-[hsl(var(--button-primary-foreground))]'
-                        : 'text-foreground hover:bg-accent/40'
-                )}
-                onClick={() => setMatrixViewMode('table')}
-            >
-                Table view
-            </Button>
-        </div>
-    );
 
     const renderInlineParagraphChildren = (items: ComplianceRequirement[], ancestors: string[]) => {
         return (
@@ -1013,6 +1749,7 @@ export default function CoherenceMatrixPage() {
         const normalizedItemCode = normalizeRegulationCode(item.regulationCode);
         if (ancestors.includes(normalizedItemCode)) return null;
         const childItems = groupedItems[normalizedItemCode] || [];
+        if (normalizedSearchQuery && !branchMatchesSearch(item)) return null;
         const hasChildren = childItems.length > 0;
         const renderChildrenInline = depth === 1;
         const nodeStyle = depth === 0
@@ -1123,8 +1860,15 @@ export default function CoherenceMatrixPage() {
                     {childItems.length > 0 && (
                         <div className="space-y-2">
                             {renderChildrenInline
-                                ? renderInlineParagraphChildren(childItems, [...ancestors, normalizedItemCode])
-                                : childItems.map((child) => renderMatrixNode(child, depth + 1, [...ancestors, normalizedItemCode]))}
+                                ? renderInlineParagraphChildren(
+                                    normalizedSearchQuery && !itemMatchesSearch(item)
+                                        ? childItems.filter((child) => branchMatchesSearch(child))
+                                        : childItems,
+                                    [...ancestors, normalizedItemCode]
+                                )
+                                : (normalizedSearchQuery && !itemMatchesSearch(item)
+                                    ? childItems.filter((child) => branchMatchesSearch(child))
+                                    : childItems).map((child) => renderMatrixNode(child, depth + 1, [...ancestors, normalizedItemCode]))}
                         </div>
                     )}
                 </CollapsibleContent>
@@ -1155,8 +1899,8 @@ export default function CoherenceMatrixPage() {
                     ) : undefined}
                     actions={canViewMatrix ? (
                         canManageMatrix ? (
-                            <>
-                                {renderViewModeToggle()}
+                            <div className="flex flex-wrap items-center gap-2">
+                                {renderSearchControl()}
                                 <UploadRegulationsDialog tenantId={tenantId!} organizationId={contextOrgId} regulationFamily={activeRegulationTab} availableParentHeaders={currentFamilySubheaders} />
                                 <Button
                                     variant="outline"
@@ -1174,7 +1918,7 @@ export default function CoherenceMatrixPage() {
                                     <Layers className="h-4 w-4" />
                                     Add Subheader
                                 </Button>
-                                <Button 
+                                <Button
                                     className={cn(
                                         HEADER_COMPACT_CONTROL_CLASS,
                                         'border-[hsl(var(--button-primary-border))] bg-[hsl(var(--button-primary-background))] text-[hsl(var(--button-primary-foreground))] hover:bg-[hsl(var(--button-primary-accent))] hover:text-[hsl(var(--button-primary-accent-foreground))]'
@@ -1184,15 +1928,17 @@ export default function CoherenceMatrixPage() {
                                     <PlusCircle className="h-4 w-4" /> 
                                     Add Item
                                 </Button>
-                            </>
+                            </div>
                         ) : (
-                            renderViewModeToggle()
+                            <div className="flex flex-wrap items-center gap-2">
+                                {renderSearchControl()}
+                            </div>
                         )
                     ) : undefined}
                     mobileActions={canViewMatrix ? (
                         canManageMatrix ? (
                             <div className="space-y-2">
-                                {renderViewModeToggle(true)}
+                                {renderSearchControl(true)}
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
                                         <Button
@@ -1236,7 +1982,9 @@ export default function CoherenceMatrixPage() {
                                 </DropdownMenu>
                             </div>
                         ) : (
-                            renderViewModeToggle(true)
+                            <div className="space-y-2">
+                                {renderSearchControl(true)}
+                            </div>
                         )
                     ) : undefined}
                     navigation={
@@ -1254,21 +2002,8 @@ export default function CoherenceMatrixPage() {
                     }
                 />
                 
-                <CardContent className="flex-1 min-h-0 overflow-y-auto p-6 pt-4">
-                    {matrixViewMode === 'table' ? (
-                        renderMatrixTable()
-                    ) : (
-                        <div className="space-y-4">
-                            {topLevelItems.map(parentItem => renderMatrixNode(parentItem, 0))}
-                            {topLevelItems.length === 0 && (
-                                <div className="flex flex-col items-center justify-center py-24 text-center opacity-30">
-                                    <Layers className="h-16 w-16 mb-4" />
-                                    <p className="text-sm font-black uppercase tracking-widest text-foreground/90">Coherence Matrix Empty</p>
-                                    <p className="text-xs font-medium text-foreground/80 max-w-xs mt-2">Populate your matrix using the AI upload tool or by seeding standard Part 141 regulations.</p>
-                                </div>
-                            )}
-                        </div>
-                    )}
+                <CardContent className="flex-1 min-h-0 overflow-auto p-6 pt-4">
+                    {renderMatrixTable()}
                 </CardContent>
             </Card>
         </Tabs>
@@ -1346,3 +2081,4 @@ export default function CoherenceMatrixPage() {
     </div>
   );
 }
+

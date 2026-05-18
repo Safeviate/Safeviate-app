@@ -5,6 +5,7 @@ export type AuditFinding = 'Compliant' | 'Non Compliant' | 'Not Applicable';
 export type AuditStatus = 'Scheduled' | 'In Progress' | 'Finalized' | 'Closed' | 'Archived';
 export type CorrectiveActionStatus = 'Open' | 'In Progress' | 'Closed' | 'Cancelled';
 export type AuditScheduleStatus = 'Scheduled' | 'Completed' | 'Pending' | 'Not Scheduled';
+export type GapStatus = 'Open gap' | 'Partial coverage' | 'Covered' | 'Unassessed' | 'Not applicable';
 
 export type IndustryType = 
   | 'Aviation: Flight Training (ATO)' 
@@ -29,6 +30,8 @@ export interface ComplianceRequirement {
     technicalStandard?: string; // The full, detailed body text
     companyReference: string;
     responsibleManagerId: string;
+    gapStatus?: GapStatus;
+    gapStatusDate?: string;
     lastAuditDate?: string; // ISO String
     nextAuditDate?: string; // ISO String
     organizationId?: string | null; // Associated external company ID
