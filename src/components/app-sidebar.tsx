@@ -262,8 +262,11 @@ const SidebarBrandLogoFooter = () => {
 export function AppSidebarMobile() {
     const { openMobile, setOpenMobile } = useSidebar();
     const isMobile = useIsMobile();
+    const { tenant, tenantId } = useUserProfile();
   
     if (!isMobile) return null;
+
+    const tenantLabel = tenant?.name?.trim() || tenantId || 'Safeviate';
   
     return (
       <SidebarMobile open={openMobile} onOpenChange={setOpenMobile}>
@@ -274,7 +277,7 @@ export function AppSidebarMobile() {
           <SidebarHeader className="flex h-[44px] flex-row items-center gap-3 shrink-0 bg-header px-4">
             <SidebarTrigger className="h-8 w-8 text-header-foreground opacity-80" />
             <span className="truncate font-headline text-lg font-bold tracking-tight text-header-foreground">
-              Safeviate
+              {tenantLabel}
             </span>
           </SidebarHeader>
 

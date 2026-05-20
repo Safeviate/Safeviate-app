@@ -1,5 +1,6 @@
 import { authOptions } from '@/auth';
 import { prisma } from '@/lib/prisma';
+import { getTenantIdForRoute } from '@/lib/server/session-tenant';
 import { ensureFlightSessionBlocksSchema, ensureFlightSessionsSchema, ensureFlightTrackPointsSchema } from '@/lib/server/bootstrap-db';
 import { getServerSession } from 'next-auth';
 import { NextResponse } from 'next/server';
@@ -153,22 +154,16 @@ async function saveQueuedTrackPoints(
   }
 }
 
-async function getTenantId() {
-  const session = await getServerSession(authOptions);
-  const email = session?.user?.email?.trim().toLowerCase();
-  if (!email) {
-    return process.env.NODE_ENV === 'development' ? 'safeviate' : null;
-  }
-  const currentUser = await prisma.user.findUnique({ where: { email }, select: { tenantId: true } });
-  return currentUser?.tenantId || 'safeviate';
+async function getTenantId(request: Request) {
+  return getTenantIdForRoute(request, { allowDevelopmentFallback: true });
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     await ensureFlightSessionBlocksSchema();
     await ensureFlightSessionsSchema();
     await ensureFlightTrackPointsSchema();
-    const tenantId = await getTenantId();
+    const tenantId = await getTenantId(request);
     if (!tenantId) return NextResponse.json({ sessions: [] }, { status: 200 });
     const rows = await prisma.$queryRawUnsafe<{ data: unknown }[]>(
       `SELECT data FROM active_flight_sessions WHERE tenant_id = $1 AND id NOT IN (SELECT id FROM active_flight_session_blocks WHERE tenant_id = $1) ORDER BY created_at DESC`,
@@ -186,7 +181,7 @@ export async function POST(request: Request) {
     await ensureFlightSessionBlocksSchema();
     await ensureFlightSessionsSchema();
     await ensureFlightTrackPointsSchema();
-    const tenantId = await getTenantId();
+    const tenantId = await getTenantId(request);
     if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const body = await request.json().catch(() => null);
     const session = body?.session;
@@ -221,7 +216,7 @@ export async function PATCH(request: Request) {
   try {
     await ensureFlightSessionBlocksSchema();
     await ensureFlightSessionsSchema();
-    const tenantId = await getTenantId();
+    const tenantId = await getTenantId(request);
     if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const body = await request.json().catch(() => null);
     const session = body?.session;
@@ -243,7 +238,7 @@ export async function DELETE(request: Request) {
   try {
     await ensureFlightSessionBlocksSchema();
     await ensureFlightSessionsSchema();
-    const tenantId = await getTenantId();
+    const tenantId = await getTenantId(request);
     if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');

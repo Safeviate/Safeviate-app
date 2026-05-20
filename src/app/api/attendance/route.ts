@@ -1,16 +1,13 @@
 import { authOptions } from '@/auth';
 import { isDatabaseAvailable, prisma } from '@/lib/prisma';
 import { ensureAttendanceRecordsSchema, ensurePersonnelSchema } from '@/lib/server/bootstrap-db';
+import { getTenantIdForRoute } from '@/lib/server/session-tenant';
 import { randomUUID } from 'node:crypto';
 import { getServerSession } from 'next-auth';
 import { NextResponse } from 'next/server';
 
-async function getTenantId() {
-  const session = await getServerSession(authOptions);
-  const email = session?.user?.email?.trim().toLowerCase();
-  if (!email) return process.env.NODE_ENV === 'development' ? 'safeviate' : null;
-  const currentUser = await prisma.user.findUnique({ where: { email }, select: { tenantId: true } });
-  return currentUser?.tenantId || 'safeviate';
+async function getTenantId(request: Request) {
+  return getTenantIdForRoute(request, { allowDevelopmentFallback: true });
 }
 
 async function getAttendanceRows(tenantId: string) {
@@ -21,10 +18,10 @@ async function getAttendanceRows(tenantId: string) {
   return rows.map((row) => row.data);
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     await ensureAttendanceRecordsSchema();
-    const tenantId = await getTenantId();
+    const tenantId = await getTenantId(request);
     if (!tenantId) return NextResponse.json({ attendance: [] }, { status: 200 });
     return NextResponse.json({ attendance: await getAttendanceRows(tenantId) }, { status: 200 });
   } catch (error) {
@@ -37,7 +34,7 @@ export async function POST(request: Request) {
   try {
     await ensureAttendanceRecordsSchema();
     await ensurePersonnelSchema();
-    const tenantId = await getTenantId();
+    const tenantId = await getTenantId(request);
     if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await request.json().catch(() => null);
@@ -68,7 +65,7 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
   try {
     await ensureAttendanceRecordsSchema();
-    const tenantId = await getTenantId();
+    const tenantId = await getTenantId(request);
     if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await request.json().catch(() => null);
@@ -94,7 +91,7 @@ export async function PATCH(request: Request) {
 export async function DELETE(request: Request) {
   try {
     await ensureAttendanceRecordsSchema();
-    const tenantId = await getTenantId();
+    const tenantId = await getTenantId(request);
     if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const { searchParams } = new URL(request.url);

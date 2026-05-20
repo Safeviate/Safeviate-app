@@ -36,7 +36,6 @@ import { DeleteActionButton, ViewActionButton } from '@/components/record-action
 import { MainPageHeader } from '@/components/page-header';
 import { ResponsiveTabRow } from '@/components/responsive-tab-row';
 import { parseJsonResponse } from '@/lib/safe-json';
-import { MASTER_TENANT_EMAILS } from '@/lib/tenant-constants';
 
 const parseLocalDate = (value?: string | null) => {
   if (!value) return null;
@@ -99,11 +98,10 @@ export function ViewPersonnelDetails({ user, role, department, actions }: ViewPe
   const isMobile = useIsMobile();
   const firestore = null; // Mock
   const { hasPermission } = usePermissions();
-  const { tenantId, userProfile } = useUserProfile();
+  const { tenantId } = useUserProfile();
   const [instructorDirectory, setInstructorDirectory] = useState<PilotProfile[]>([]);
 
-  const isCurrentUserSuperUser = MASTER_TENANT_EMAILS.includes((userProfile?.email || '').trim().toLowerCase());
-  const canEdit = isCurrentUserSuperUser || hasPermission('users-edit');
+  const canEdit = hasPermission('users-edit');
 
   useEffect(() => {
     setHiddenMenus(user.accessOverrides?.hiddenMenus || []);
@@ -396,7 +394,7 @@ export function ViewPersonnelDetails({ user, role, department, actions }: ViewPe
       const currentPermissions = localPermissions || [];
     const isInherited = roleGrantsPermission(role, permissionId);
 
-    if (!isInherited && !isCurrentUserSuperUser) {
+    if (!isInherited) {
         toast({
             variant: 'destructive',
             title: 'Role Required',
@@ -410,10 +408,6 @@ export function ViewPersonnelDetails({ user, role, department, actions }: ViewPe
     newPermissions = checked
         ? currentPermissions.filter(p => p !== `!${permissionId}`)
         : [...currentPermissions.filter(p => p !== permissionId), `!${permissionId}`];
-
-    if (isCurrentUserSuperUser && checked) {
-      newPermissions = Array.from(new Set([...newPermissions.filter((p) => p !== `!${permissionId}`), permissionId]));
-    }
 
     try {
       await fetch(`/api/personnel/${user.id}`, {
@@ -581,14 +575,18 @@ export function ViewPersonnelDetails({ user, role, department, actions }: ViewPe
                                             <h4 className="text-sm font-black uppercase tracking-tight">Support Documents</h4>
                                             <p className="text-xs text-muted-foreground">Required and uploaded compliance documentation.</p>
                                         </div>
-                                        <DocumentUploader
-                                            onDocumentUploaded={onDocumentUploaded}
-                                            trigger={(openDialog) => (
-                                                <Button size="compact" variant="outline" onClick={() => openDialog()}>
-                                                    <PlusCircle className="mr-2 h-4 w-4" /> Add Document
-                                                </Button>
-                                            )}
-                                        />
+                                        {canEdit ? (
+                                          <DocumentUploader
+                                              onDocumentUploaded={onDocumentUploaded}
+                                              trigger={(openDialog) => (
+                                                  <Button size="compact" variant="outline" onClick={() => openDialog()}>
+                                                      <PlusCircle className="mr-2 h-4 w-4" /> Add Document
+                                                  </Button>
+                                              )}
+                                          />
+                                        ) : (
+                                          <Badge variant="outline" className="text-[10px] font-black uppercase">Read Only</Badge>
+                                        )}
                                     </div>
                                     <div className="rounded-xl border border-slate-200 overflow-hidden">
                                         {combinedDocuments.length > 0 ? (
@@ -617,7 +615,7 @@ export function ViewPersonnelDetails({ user, role, department, actions }: ViewPe
                                                                 </TableCell>
                                                                 <TableCell className='text-center'>
                                                                     <Popover>
-                                                                        <PopoverTrigger asChild><Button variant="outline" size="icon" className='h-8 w-8'><CalendarIcon className="h-4 w-4" /></Button></PopoverTrigger>
+                                                                        <PopoverTrigger asChild><Button variant="outline" size="icon" className='h-8 w-8' disabled={!canEdit}><CalendarIcon className="h-4 w-4" /></Button></PopoverTrigger>
                                                                         <PopoverContent className="w-auto p-0"><CustomCalendar selectedDate={parseLocalDate(doc.expirationDate || undefined) || undefined} onDateSelect={(date) => date && handleExpirationDateChange(doc.name, date)} /></PopoverContent>
                                                                     </Popover>
                                                                 </TableCell>
@@ -625,14 +623,20 @@ export function ViewPersonnelDetails({ user, role, department, actions }: ViewPe
                                                                     {doc.isUploaded ? (
                                                                         <div className="flex gap-2 justify-end">
                                                                             <ViewActionButton onClick={() => handleViewImage(doc.url!)} />
-                                                                            <DeleteActionButton
-                                                                                description={`This will permanently delete "${doc.name}".`}
-                                                                                onDelete={() => handleDocumentDelete(doc.name)}
-                                                                                srLabel="Delete document"
-                                                                            />
+                                                                            {canEdit ? (
+                                                                              <DeleteActionButton
+                                                                                  description={`This will permanently delete "${doc.name}".`}
+                                                                                  onDelete={() => handleDocumentDelete(doc.name)}
+                                                                                  srLabel="Delete document"
+                                                                              />
+                                                                            ) : null}
                                                                         </div>
                                                                     ) : (
-                                                                        <DocumentUploader defaultFileName={doc.name} onDocumentUploaded={onDocumentUploaded} trigger={(openDialog) => (<Button size="compact" onClick={() => openDialog()} variant="secondary"><Upload className="mr-2 h-4 w-4" /> Upload</Button>)} />
+                                                                        canEdit ? (
+                                                                          <DocumentUploader defaultFileName={doc.name} onDocumentUploaded={onDocumentUploaded} trigger={(openDialog) => (<Button size="compact" onClick={() => openDialog()} variant="secondary"><Upload className="mr-2 h-4 w-4" /> Upload</Button>)} />
+                                                                        ) : (
+                                                                          <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Missing</span>
+                                                                        )
                                                                     )}
                                                                 </TableCell>
                                                             </TableRow>
@@ -709,7 +713,7 @@ export function ViewPersonnelDetails({ user, role, department, actions }: ViewPe
                                                                   <Checkbox
                                                                     id={`perm-${permissionId}`}
                                                                     checked={!!isEffective}
-                                                                  disabled={!canEdit || (!isInherited && !isCurrentUserSuperUser)}
+                                                                  disabled={!canEdit || !isInherited}
                                                                   onCheckedChange={(checked) => handlePermissionToggle(permissionId, !!checked)}
                                                                   />
                                                                 <label htmlFor={`perm-${permissionId}`} className={cn("text-[11px] font-bold uppercase cursor-pointer", isInherited && !isDenied && !isOverridden && "text-muted-foreground italic")}>

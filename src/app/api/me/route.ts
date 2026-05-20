@@ -19,6 +19,30 @@ const buildSuperUserProfile = (
   accessOverrides: {},
 });
 
+const buildTenantScopedMasterProfile = (
+  sessionUser: { id?: string | null; email?: string | null; name?: string | null },
+  tenantId: string,
+  personnelProfile?: {
+    role?: string | null;
+    firstName?: string | null;
+    lastName?: string | null;
+    permissions?: unknown;
+    accessOverrides?: unknown;
+  } | null
+) => ({
+  id: sessionUser.id || sessionUser.email || 'safeviate-super-user',
+  tenantId,
+  email: sessionUser.email?.trim().toLowerCase() || '',
+  firstName: personnelProfile?.firstName?.trim() || sessionUser.name?.split(' ')[0] || 'User',
+  lastName: personnelProfile?.lastName?.trim() || sessionUser.name?.split(' ').slice(1).join(' ') || '',
+  role: personnelProfile?.role?.trim() || 'tenant-observer',
+  permissions: Array.isArray(personnelProfile?.permissions) ? (personnelProfile.permissions as string[]) : [],
+  accessOverrides:
+    personnelProfile?.accessOverrides && typeof personnelProfile.accessOverrides === 'object'
+      ? personnelProfile.accessOverrides
+      : {},
+});
+
 const buildFallbackUserIdCandidates = (email: string, authUserId?: string | null) => {
   const normalizedEmailSlug = email.replace(/[^a-z0-9]+/g, '_');
   const candidates = [
@@ -42,6 +66,62 @@ export async function GET(request: Request) {
 
     if (isMasterTenantEmail(email)) {
       const selectedTenantId = await resolveTenantOverride(request, email, MASTER_TENANT_ID);
+      const selectedTenant = await prisma.tenant.findUnique({
+        where: { id: selectedTenantId },
+        select: { id: true, name: true },
+      }).catch(() => null);
+
+      if (selectedTenantId !== MASTER_TENANT_ID) {
+        const personnelProfile = await prisma.personnel.findFirst({
+          where: {
+            tenantId: selectedTenantId,
+            email,
+          },
+          select: {
+            role: true,
+            firstName: true,
+            lastName: true,
+            permissions: true,
+            accessOverrides: true,
+          },
+        }).catch(() => null);
+        const role = personnelProfile?.role?.trim()
+          ? await prisma.role.findFirst({
+              where: {
+                tenantId: selectedTenantId,
+                OR: [
+                  { id: personnelProfile.role.trim() },
+                  { name: personnelProfile.role.trim() },
+                ],
+              },
+            }).catch(() => null)
+          : null;
+        const roleData = role as unknown as { permissions?: unknown; accessOverrides?: { hiddenMenus?: unknown } } | null;
+
+        return NextResponse.json(
+          {
+            profile: buildTenantScopedMasterProfile(
+              {
+                id: session?.user?.id,
+                email,
+                name: session?.user?.name,
+              },
+              selectedTenantId,
+              personnelProfile
+            ),
+            tenant: {
+              id: selectedTenantId,
+              name: selectedTenant?.name || selectedTenantId,
+            },
+            rolePermissions: Array.isArray(roleData?.permissions) ? (roleData.permissions as string[]) : [],
+            roleHiddenMenus: Array.isArray(roleData?.accessOverrides?.hiddenMenus)
+              ? (roleData.accessOverrides?.hiddenMenus as string[])
+              : [],
+          },
+          { status: 200 }
+        );
+      }
+
       return NextResponse.json(
         {
           profile: buildSuperUserProfile({
@@ -49,7 +129,10 @@ export async function GET(request: Request) {
             email,
             name: session?.user?.name,
           }, selectedTenantId),
-          tenant: { id: selectedTenantId, name: selectedTenantId === MASTER_TENANT_ID ? 'Safeviate' : selectedTenantId },
+          tenant: {
+            id: selectedTenantId,
+            name: selectedTenant?.name || (selectedTenantId === MASTER_TENANT_ID ? 'Safeviate' : selectedTenantId),
+          },
           rolePermissions: ['*'],
         },
         { status: 200 }

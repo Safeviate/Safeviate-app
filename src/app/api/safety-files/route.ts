@@ -1,5 +1,6 @@
 import { authOptions } from '@/auth';
 import { prisma } from '@/lib/prisma';
+import { getTenantIdForRoute } from '@/lib/server/session-tenant';
 import {
   ensureSafetyFileAssignmentsSchema,
   ensureSafetyFileProjectsSchema,
@@ -9,31 +10,16 @@ import { getServerSession } from 'next-auth';
 import { NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
 
-async function getTenantId() {
-  const session = await getServerSession(authOptions);
-  const email = session?.user?.email?.trim().toLowerCase();
-  if (!email) return null;
-
-  await prisma.tenant.upsert({
-    where: { id: 'safeviate' },
-    update: { updatedAt: new Date() },
-    create: { id: 'safeviate', name: 'Safeviate' },
-  });
-
-  const currentUser = await prisma.user.findUnique({
-    where: { email },
-    select: { tenantId: true },
-  });
-
-  return currentUser?.tenantId || 'safeviate';
+async function getTenantId(request: Request) {
+  return getTenantIdForRoute(request);
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     await ensureSafetyFileProjectsSchema();
     await ensureSafetyFileAssignmentsSchema();
 
-    const tenantId = await getTenantId();
+    const tenantId = await getTenantId(request);
     if (!tenantId) {
       return NextResponse.json({ projects: [] }, { status: 200 });
     }
@@ -72,7 +58,7 @@ export async function POST(request: Request) {
   try {
     await ensureSafetyFileProjectsSchema();
 
-    const tenantId = await getTenantId();
+    const tenantId = await getTenantId(request);
     if (!tenantId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

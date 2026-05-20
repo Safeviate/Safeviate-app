@@ -15,6 +15,7 @@ import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { useTenantConfig } from '@/hooks/use-tenant-config';
+import { useUserProfile } from '@/hooks/use-user-profile';
 import { useTheme } from '@/components/theme-provider';
 import { cn } from '@/lib/utils';
 import { createNavlogLegFromCoordinates } from '@/lib/flight-planner';
@@ -33,19 +34,20 @@ const RoutePlannerMapLibreShell = dynamic(() => import('@/components/flight-plan
   loading: () => <div className="h-full w-full animate-pulse bg-slate-900 flex items-center justify-center text-white font-black uppercase tracking-widest text-[10px]">Loading MapLibre Engine...</div>
 });
 
-const createEmptyRoute = (): TrainingRoute => ({
+const createEmptyRoute = (tenantId?: string | null): TrainingRoute => ({
   id: uuidv4(),
   name: 'New Route',
   description: '',
   routeType: 'training',
   legs: [],
   hazards: [],
-  tenantId: 'safeviate',
+  tenantId: tenantId || 'safeviate',
   createdAt: new Date().toISOString(),
 });
 
 export default function TrainingRoutesPage() {
   const { tenant, isLoading: isTenantLoading } = useTenantConfig();
+  const { tenantId } = useUserProfile();
   const { uiMode } = useTheme();
   const [routes, setRoutes] = useState<TrainingRoute[]>([]);
   const [activeRoute, setActiveRoute] = useState<TrainingRoute | null>(null);
@@ -98,10 +100,10 @@ export default function TrainingRoutesPage() {
   };
 
   const handleCreateNew = useCallback(() => {
-    const newRoute = createEmptyRoute();
+    const newRoute = createEmptyRoute(tenantId);
     setActiveRoute(newRoute);
     setIsEditing(true);
-  }, []);
+  }, [tenantId]);
 
   const handleAddWaypoint = useCallback((lat: number, lon: number, identifier?: string, frequencies?: string, layerInfo?: string) => {
     if (!isEditing) return;
@@ -192,7 +194,7 @@ export default function TrainingRoutesPage() {
       const nextRoutes = routes.filter((route) => route.id !== routeId);
       setRoutes(nextRoutes);
       if (activeRoute?.id === routeId) {
-        setActiveRoute(nextRoutes[0] ?? createEmptyRoute());
+        setActiveRoute(nextRoutes[0] ?? createEmptyRoute(tenantId));
         setIsEditing(nextRoutes.length === 0);
       }
     } catch (e) {

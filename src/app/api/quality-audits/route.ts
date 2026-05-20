@@ -1,16 +1,16 @@
 import { authOptions } from '@/auth';
 import { prisma } from '@/lib/prisma';
+import { getTenantIdFromSession } from '@/lib/server/session-tenant';
 import { recordSimulationRouteMetric } from '@/lib/server/simulation-telemetry';
 import { getServerSession } from 'next-auth';
 import { NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
 
-async function getTenantId() {
+async function getTenantId(request: Request) {
   const session = await getServerSession(authOptions);
   const email = session?.user?.email?.trim().toLowerCase();
   if (!email) return null;
-  const currentUser = await prisma.user.findUnique({ where: { email }, select: { tenantId: true } });
-  return currentUser?.tenantId || 'safeviate';
+  return (await getTenantIdFromSession(request)) || session?.user?.tenantId?.trim() || 'safeviate';
 }
 
 async function getConfig(tenantId: string) {
@@ -37,11 +37,11 @@ async function loadCaps(tenantId: string) {
   return rows.map((row) => row.data);
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const startedAt = Date.now();
   let tenantId: string | null = null;
   try {
-    tenantId = await getTenantId();
+    tenantId = await getTenantId(request);
     if (!tenantId) return NextResponse.json({ audits: [], templates: [], personnel: [], departments: [], organizations: [], caps: [], findingLevels: [] }, { status: 200 });
 
     const [audits, caps, config] = await Promise.all([loadAudits(tenantId), loadCaps(tenantId), getConfig(tenantId)]);
@@ -81,7 +81,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const startedAt = Date.now();
-  const tenantId = await getTenantId();
+  const tenantId = await getTenantId(request);
   if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const body = await request.json().catch(() => null);
   const audit = body?.audit;
@@ -106,7 +106,7 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   const startedAt = Date.now();
-  const tenantId = await getTenantId();
+  const tenantId = await getTenantId(request);
   if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');

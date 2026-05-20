@@ -22,6 +22,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { NavlogBuilder } from '../../navlog-builder';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { usePermissions } from '@/hooks/use-permissions';
 import { useUserProfile } from '@/hooks/use-user-profile';
 import { BookingDetailHeader } from '@/components/booking-detail-header';
 import { getAircraftHourSnapshot } from '@/lib/aircraft-hours';
@@ -333,6 +334,7 @@ const NotamCard = ({
 export function ViewBookingDetails({ booking }: ViewBookingDetailsProps) {
     const isMobile = useIsMobile();
     const { toast } = useToast();
+    const { hasPermission } = usePermissions();
     const { tenantId, userProfile } = useUserProfile();
     const [activeTab, setActiveTab] = useState('navlog');
     const [isSaving, setIsSaving] = useState(false);
@@ -373,7 +375,7 @@ export function ViewBookingDetails({ booking }: ViewBookingDetailsProps) {
             .sort((a, b) => new Date(b.start).getTime() - new Date(a.start).getTime())[0] || null
         : null;
     const isAssignedInstructor = !!userProfile && booking.instructorId === userProfile.id;
-    const canManuallyApprove = isAssignedInstructor || userProfile?.role?.toLowerCase() === 'developer' || userProfile?.role?.toLowerCase() === 'dev';
+    const canManuallyApprove = isAssignedInstructor || hasPermission('bookings-approve');
     const [graphConfig, setGraphConfig] = useState(DEFAULT_GRAPH_CONFIG);
     const [basicEmpty, setBasicEmpty] = useState(DEFAULT_BASIC_EMPTY);
     const [stations, setStations] = useState<BookingStationState[]>(DEFAULT_STATIONS);

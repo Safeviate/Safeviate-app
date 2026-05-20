@@ -1,5 +1,6 @@
 import { authOptions } from '@/auth';
 import { prisma } from '@/lib/prisma';
+import { getTenantIdForRoute } from '@/lib/server/session-tenant';
 import { getServerSession } from 'next-auth';
 import { NextResponse } from 'next/server';
 
@@ -8,22 +9,8 @@ const RESULT_KEY = 'student-exam-results';
 const TOPIC_KEY = 'exam-topics';
 const POOL_KEY = 'question-pool';
 
-async function getTenantId() {
-  const session = await getServerSession(authOptions);
-  const email = session?.user?.email?.trim().toLowerCase();
-  if (!email) return null;
-
-  await prisma.tenant.upsert({
-    where: { id: 'safeviate' },
-    update: { updatedAt: new Date() },
-    create: { id: 'safeviate', name: 'Safeviate' },
-  });
-
-  const currentUser = await prisma.user.findUnique({
-    where: { email },
-    select: { tenantId: true },
-  });
-  return currentUser?.tenantId || 'safeviate';
+async function getTenantId(request: Request) {
+  return getTenantIdForRoute(request);
 }
 
 async function readConfig(tenantId: string) {
@@ -44,9 +31,9 @@ async function writeConfig(tenantId: string, config: Record<string, unknown>) {
   );
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const tenantId = await getTenantId();
+    const tenantId = await getTenantId(request);
     if (!tenantId) {
       return NextResponse.json({ templates: [], results: [], topics: [], poolItems: [] }, { status: 200 });
     }
@@ -68,7 +55,7 @@ export async function GET() {
 }
 
 export async function PUT(request: Request) {
-  const tenantId = await getTenantId();
+  const tenantId = await getTenantId(request);
   if (!tenantId) {
     return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
   }

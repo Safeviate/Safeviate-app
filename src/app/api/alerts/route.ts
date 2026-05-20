@@ -1,22 +1,19 @@
 import { authOptions } from '@/auth';
 import { prisma } from '@/lib/prisma';
+import { getTenantIdForRoute } from '@/lib/server/session-tenant';
 import { ensureAlertsSchema } from '@/lib/server/bootstrap-db';
 import { getServerSession } from 'next-auth';
 import { NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
 
-async function getTenantId() {
-  const session = await getServerSession(authOptions);
-  const email = session?.user?.email?.trim().toLowerCase();
-  if (!email) return null;
-  const currentUser = await prisma.user.findUnique({ where: { email }, select: { tenantId: true } });
-  return currentUser?.tenantId || 'safeviate';
+async function getTenantId(request: Request) {
+  return getTenantIdForRoute(request);
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     await ensureAlertsSchema();
-    const tenantId = await getTenantId();
+    const tenantId = await getTenantId(request);
     if (!tenantId) return NextResponse.json({ alerts: [] }, { status: 200 });
     const rows = await prisma.$queryRawUnsafe<{ data: unknown }[]>(`SELECT data FROM alerts WHERE tenant_id = $1 ORDER BY created_at DESC`, tenantId);
     return NextResponse.json({ alerts: rows.map((row) => row.data) }, { status: 200 });
@@ -29,7 +26,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     await ensureAlertsSchema();
-    const tenantId = await getTenantId();
+    const tenantId = await getTenantId(request);
     if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const body = await request.json().catch(() => null);
     const alert = body?.alert;
@@ -47,7 +44,7 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
   try {
     await ensureAlertsSchema();
-    const tenantId = await getTenantId();
+    const tenantId = await getTenantId(request);
     if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const body = await request.json().catch(() => null);
     const alert = body?.alert;

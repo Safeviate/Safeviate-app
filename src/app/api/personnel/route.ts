@@ -2,10 +2,11 @@ import { authOptions } from '@/auth';
 import { prisma } from '@/lib/prisma';
 import { ensurePersonnelSchema, ensureRolesSchema } from '@/lib/server/bootstrap-db';
 import { getOrSetRouteCache } from '@/lib/server/route-cache';
+import { getTenantIdForRoute } from '@/lib/server/session-tenant';
 import { getServerSession } from 'next-auth';
 import { NextResponse } from 'next/server';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const session = await getServerSession(authOptions);
     const email = session?.user?.email?.trim().toLowerCase();
@@ -20,11 +21,10 @@ export async function GET() {
       create: { id: 'safeviate', name: 'Safeviate' },
     });
 
-    const currentUser = await prisma.user.findUnique({
-      where: { email },
-      select: { tenantId: true },
-    });
-    const tenantId = currentUser?.tenantId || 'safeviate';
+    const tenantId = await getTenantIdForRoute(request);
+    if (!tenantId) {
+      return NextResponse.json({ roles: [], departments: [], personnel: [] }, { status: 200 });
+    }
 
     await Promise.all([ensurePersonnelSchema(), ensureRolesSchema()]);
     const [roleRows, departmentRows, personnelRows] = await Promise.all([

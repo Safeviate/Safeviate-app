@@ -1,5 +1,6 @@
 import { authOptions } from '@/auth';
 import { prisma } from '@/lib/prisma';
+import { getTenantIdForRoute } from '@/lib/server/session-tenant';
 import { getCompletedAircraftHourPatch } from '@/lib/aircraft-hours';
 import { ensureBookingsSchema } from '@/lib/server/bootstrap-db';
 import { allocateNextBookingNumber } from '@/lib/server/booking-sequence';
@@ -15,36 +16,15 @@ function isCompletedStatus(status: unknown) {
   return status === 'Completed';
 }
 
-async function getTenantId() {
-  const session = await getServerSession(authOptions);
-  const email = session?.user?.email?.trim().toLowerCase();
-  if (!email) {
-    return process.env.NODE_ENV === 'development' ? 'safeviate' : null;
-  }
-
-  const seedEmail = process.env.AUTH_SEED_EMAIL?.trim().toLowerCase();
-  if (SUPER_USERS.includes(email) || (seedEmail && email === seedEmail)) {
-    return 'safeviate';
-  }
-
-  await prisma.tenant.upsert({
-    where: { id: 'safeviate' },
-    update: { updatedAt: new Date() },
-    create: { id: 'safeviate', name: 'Safeviate' },
-  });
-
-  const currentUser = await prisma.user.findUnique({
-    where: { email },
-    select: { tenantId: true },
-  });
-  return currentUser?.tenantId || 'safeviate';
+async function getTenantId(request: Request) {
+  return getTenantIdForRoute(request, { allowDevelopmentFallback: true });
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const startedAt = Date.now();
   let tenantId: string | null = null;
   try {
-    tenantId = await getTenantId();
+    tenantId = await getTenantId(request);
     if (!tenantId) return NextResponse.json({ bookings: [] }, { status: 200 });
 
     await ensureBookingsSchema();
@@ -86,7 +66,7 @@ export async function POST(request: Request) {
   const startedAt = Date.now();
   let tenantId: string | null = null;
   try {
-    tenantId = await getTenantId();
+    tenantId = await getTenantId(request);
     if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const resolvedTenantId = tenantId;
 
@@ -185,7 +165,7 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
   try {
-    const tenantId = await getTenantId();
+    const tenantId = await getTenantId(request);
     if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await request.json().catch(() => null);
@@ -263,7 +243,7 @@ export async function PUT(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
-    const tenantId = await getTenantId();
+    const tenantId = await getTenantId(request);
     if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await request.json().catch(() => null);

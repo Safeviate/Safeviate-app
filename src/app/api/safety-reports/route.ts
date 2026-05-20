@@ -1,30 +1,21 @@
 import { authOptions } from '@/auth';
 import { prisma } from '@/lib/prisma';
+import { getTenantIdForRoute } from '@/lib/server/session-tenant';
 import { ensureSafetyReportsSchema } from '@/lib/server/bootstrap-db';
 import { recordSimulationRouteMetric } from '@/lib/server/simulation-telemetry';
 import { getServerSession } from 'next-auth';
 import { NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
 
-async function getTenantId() {
-  const session = await getServerSession(authOptions);
-  const email = session?.user?.email?.trim().toLowerCase();
-  if (!email) return null;
-
-  await prisma.tenant.upsert({
-    where: { id: 'safeviate' },
-    update: { updatedAt: new Date() },
-    create: { id: 'safeviate', name: 'Safeviate' },
-  });
-  const currentUser = await prisma.user.findUnique({ where: { email }, select: { tenantId: true } });
-  return currentUser?.tenantId || 'safeviate';
+async function getTenantId(request: Request) {
+  return getTenantIdForRoute(request);
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const startedAt = Date.now();
   let tenantId: string | null = null;
   try {
-    tenantId = await getTenantId();
+    tenantId = await getTenantId(request);
     if (!tenantId) return NextResponse.json({ reports: [] }, { status: 200 });
     await ensureSafetyReportsSchema();
 
@@ -59,7 +50,7 @@ export async function POST(request: Request) {
   const startedAt = Date.now();
   let tenantId: string | null = null;
   try {
-    tenantId = await getTenantId();
+    tenantId = await getTenantId(request);
     if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     await ensureSafetyReportsSchema();
 
@@ -104,7 +95,7 @@ export async function DELETE(request: Request) {
   const startedAt = Date.now();
   let tenantId: string | null = null;
   try {
-    tenantId = await getTenantId();
+    tenantId = await getTenantId(request);
     if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     await ensureSafetyReportsSchema();
 

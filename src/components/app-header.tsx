@@ -5,11 +5,12 @@ import { menuConfig } from '@/lib/menu-config';
 import type { MenuItem, SubMenuItem } from '@/lib/menu-config';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
-import { Bell, Search, ChevronDown, LogOut } from 'lucide-react';
+import { Bell, Search, ChevronDown, LogOut, ArrowRightLeft } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useUserProfile } from '@/hooks/use-user-profile';
 import React, { useState, useEffect } from 'react';
 import { signOut, useSession } from 'next-auth/react';
+import { MASTER_TENANT_EMAILS, MASTER_TENANT_ID, TENANT_OVERRIDE_COOKIE } from '@/lib/tenant-constants';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -63,7 +64,7 @@ const getTitle = (pathname: string): string => {
 export function AppHeader() {
   const pathname = usePathname();
   const router = useRouter();
-  const { userProfile } = useUserProfile();
+  const { userProfile, tenant, tenantId } = useUserProfile();
   const { data: session } = useSession();
   const currentPathname = pathname ?? '';
   const title = getTitle(currentPathname);
@@ -89,8 +90,24 @@ export function AppHeader() {
 
   const userDisplayName = userProfile ? `${userProfile.firstName} ${userProfile.lastName}` : 'User';
   const userFallback = userDisplayName.charAt(0).toUpperCase();
+  const tenantLabel = tenant?.name?.trim() || tenantId || 'Safeviate';
+  const canSwitchTenants = MASTER_TENANT_EMAILS.includes((userProfile?.email || '').trim().toLowerCase());
+  const isViewingOverrideTenant = canSwitchTenants && tenantId !== MASTER_TENANT_ID;
   const handleSignOut = () => {
     void signOut({ callbackUrl: '/login' });
+  };
+  const handleReturnToSafeviate = () => {
+    if (typeof window === 'undefined') return;
+
+    window.localStorage.removeItem('safeviate:selected-tenant');
+    window.document.cookie = `${TENANT_OVERRIDE_COOKIE}=${MASTER_TENANT_ID}; path=/; max-age=${60 * 60 * 24 * 365}`;
+    window.dispatchEvent(new CustomEvent('safeviate-tenant-switch', {
+      detail: {
+        tenantId: MASTER_TENANT_ID,
+        tenantName: 'Safeviate',
+      },
+    }));
+    router.refresh();
   };
 
   return (
@@ -101,7 +118,7 @@ export function AppHeader() {
       <div className="flex min-w-0 items-center h-full">
         <div className="flex h-full w-auto shrink-0 items-center gap-2 px-4 sm:w-[--sidebar-width] md:px-4">
            <SidebarTrigger className="-ml-1 h-7 w-7 sm:hidden text-header-foreground" />
-           <span className="app-sidebar-brand-label truncate font-headline text-[15px] font-semibold tracking-[-0.01em]">Safeviate</span>
+           <span className="app-sidebar-brand-label truncate font-headline text-[15px] font-semibold tracking-[-0.01em]">{tenantLabel}</span>
         </div>
         <div className="hidden h-full w-px bg-white/10 sm:block"></div>
         <div className="flex min-w-0 items-center gap-2 px-3">
@@ -150,6 +167,18 @@ export function AppHeader() {
             <DropdownMenuLabel className="text-xs font-semibold uppercase tracking-[0.08em] text-sidebar-foreground/70">
               My Account
             </DropdownMenuLabel>
+            <DropdownMenuLabel className="text-[10px] font-semibold text-sidebar-foreground/80">
+              Active Company: {tenantLabel}
+            </DropdownMenuLabel>
+            {isViewingOverrideTenant ? (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleReturnToSafeviate}>
+                  <ArrowRightLeft className="mr-2 h-4 w-4" />
+                  <span>Return to Safeviate</span>
+                </DropdownMenuItem>
+              </>
+            ) : null}
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleSignOut}>
               <LogOut className="mr-2 h-4 w-4" />

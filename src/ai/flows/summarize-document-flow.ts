@@ -94,6 +94,8 @@ function buildUserContent(input: SummarizeDocumentInput) {
     'If a heading line contains both a code and title, use the code for regulationCode and the title for regulationStatement.',
     'If a line is only a running page header, footer, page number, or repeated document title, ignore it.',
     'Preserve numbering order and wording as closely as possible. Keep the original paragraph flow, do not condense or paraphrase.',
+    'When the source text includes separate paragraphs, list items, or copied rich-text formatting, keep those visible breaks as separate technicalStandardLines instead of merging them into one line.',
+    'If a requirement contains nested paragraph or bullet levels, preserve each visible subparagraph or bullet on its own line in technicalStandardLines, even if the whole block still belongs to the same extracted requirement.',
     'Example: "2. Quality assurance" followed by clauses (1) to (8) should become one requirement with regulationCode "2", regulationStatement "Quality assurance", and all clauses in technicalStandardLines.',
     'Example: "141.01.18.1.1 Quality policy and strategy" followed by clauses (1) to (4) should become one requirement with regulationCode "141.01.18.1.1", regulationStatement "Quality policy and strategy", and those clauses in technicalStandardLines.',
     'Example: if a clause list under a heading contains sub-bullets like (a) through (g), keep them inside technicalStandardLines for that same heading unless the document explicitly prints a deeper heading code.',

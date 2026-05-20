@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -37,7 +38,8 @@ import {
     LayoutDashboard,
     ArrowRightLeft,
     ChevronRight,
-    Users
+    Users,
+    Trash2
 } from 'lucide-react';
 import type { Tenant, IndustryType } from '@/types/quality';
 import { cn } from '@/lib/utils';
@@ -46,6 +48,8 @@ import { HEADER_TAB_LIST_CLASS, HEADER_TAB_TRIGGER_CLASS } from '@/components/pa
 const DEFAULT_MAIN = { background: '#ebf5fb', primary: '#7cc4f7', 'primary-foreground': '#1e293b', accent: '#63b2a7' };
 const TENANT_OVERRIDE_STORAGE_KEY = 'safeviate:selected-tenant';
 const INDUSTRY_OVERRIDE_KEY = 'safeviate:industry-override';
+const LOCAL_TENANT_CONFIG_KEY = 'safeviate:tenant-config-local-override';
+const SAVED_THEMES_KEY_PREFIX = 'safeviate-saved-themes:';
 const TENANT_SETUP_PRIMARY_BUTTON_CLASS = 'h-10 rounded-xl px-6 text-[10px] font-black uppercase tracking-widest shadow-sm';
 type MainTheme = typeof DEFAULT_MAIN;
 
@@ -134,6 +138,7 @@ const formatLayoutLabel = (value: string) =>
     .replace(/\b\w/g, (char) => char.toUpperCase());
 
 export function DatabaseForm() {
+  const router = useRouter();
   const { toast } = useToast();
   const { tenantId: activeTenantId, userProfile } = useUserProfile();
   
@@ -152,6 +157,7 @@ export function DatabaseForm() {
   const [ndaAcceptances, setNdaAcceptances] = useState<BetaNdaAcceptanceRecord[]>([]);
   const [isLoadingNdaAcceptances, setIsLoadingNdaAcceptances] = useState(false);
   const [ndaAcceptancesError, setNdaAcceptancesError] = useState<string | null>(null);
+  const [isDeletingTenant, setIsDeletingTenant] = useState(false);
 
   const normalizeMainTheme = (main?: Record<string, string> | null): MainTheme => ({
     background: main?.background || DEFAULT_MAIN.background,
@@ -284,11 +290,57 @@ export function DatabaseForm() {
 
     window.localStorage.setItem(TENANT_OVERRIDE_STORAGE_KEY, tenant.id);
     window.document.cookie = `${TENANT_OVERRIDE_COOKIE}=${encodeURIComponent(tenant.id)}; path=/; max-age=${60 * 60 * 24 * 365}`;
-    window.dispatchEvent(new Event('safeviate-tenant-switch'));
+    window.dispatchEvent(new CustomEvent('safeviate-tenant-switch', {
+      detail: {
+        tenantId: tenant.id,
+        tenantName: tenant.name,
+      },
+    }));
+    router.refresh();
 
     toast({
       title: 'Active Context Shifted',
       description: `Terminal established as "${tenant.name}".`,
+    });
+  };
+
+  const clearTenantOverride = () => {
+    if (typeof window === 'undefined') return;
+
+    window.localStorage.removeItem(TENANT_OVERRIDE_STORAGE_KEY);
+    window.document.cookie = `${TENANT_OVERRIDE_COOKIE}=safeviate; path=/; max-age=${60 * 60 * 24 * 365}`;
+    window.dispatchEvent(new CustomEvent('safeviate-tenant-switch', {
+      detail: {
+        tenantId: 'safeviate',
+        tenantName: 'Safeviate',
+      },
+    }));
+    router.refresh();
+  };
+
+  const clearDeletedTenantClientState = (tenantId: string) => {
+    if (typeof window === 'undefined') return;
+
+    try {
+      window.localStorage.removeItem(`${SAVED_THEMES_KEY_PREFIX}${tenantId}`);
+      const localTenantConfigRaw = window.localStorage.getItem(LOCAL_TENANT_CONFIG_KEY);
+      if (localTenantConfigRaw) {
+        const parsed = JSON.parse(localTenantConfigRaw) as { id?: unknown } | null;
+        if (parsed && typeof parsed === 'object' && parsed.id === tenantId) {
+          window.localStorage.removeItem(LOCAL_TENANT_CONFIG_KEY);
+        }
+      }
+    } catch {
+      // Ignore browser storage cleanup failures and continue with the delete flow.
+    }
+  };
+
+  const handleStartNewCompany = () => {
+    handleClearForm();
+    clearTenantOverride();
+    toast({
+      title: 'New Company Ready',
+      description: 'The form has been reset to clean defaults. No tenant data was carried over.',
     });
   };
 
@@ -480,12 +532,17 @@ export function DatabaseForm() {
           nextTenants.push(tenantData);
       }
 
-      await fetch('/api/tenants', {
+      const tenantResponse = await fetch('/api/tenants', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tenant: tenantData }),
       });
-      await fetch(`/api/tenant-config?tenantId=${encodeURIComponent(tenantId)}`, {
+      if (!tenantResponse.ok) {
+        const payload = await tenantResponse.json().catch(() => null);
+        throw new Error(payload?.error || 'Failed to save tenant record.');
+      }
+
+      const tenantConfigResponse = await fetch(`/api/tenant-config?tenantId=${encodeURIComponent(tenantId)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -507,8 +564,14 @@ export function DatabaseForm() {
           },
         }),
       });
+      if (!tenantConfigResponse.ok) {
+        const payload = await tenantConfigResponse.json().catch(() => null);
+        throw new Error(payload?.error || 'Failed to save tenant configuration.');
+      }
+
       setTenants(nextTenants);
       window.dispatchEvent(new Event('safeviate-tenants-updated'));
+      window.dispatchEvent(new Event('safeviate-tenant-config-updated'));
       
       toast({
         title: selectedTenantId ? 'Company Updated' : 'Company Created',
@@ -519,6 +582,63 @@ export function DatabaseForm() {
 
     } catch (e: unknown) {
       toast({ variant: 'destructive', title: 'Commit Failure', description: e instanceof Error ? e.message : 'System fault during persistence.' });
+    }
+  };
+
+  const handleDeleteTenant = async () => {
+    if (!selectedTenantId || selectedTenantId === 'safeviate') {
+      return;
+    }
+
+    const tenantIdToDelete = selectedTenantId;
+    const tenant = tenants.find((entry) => entry.id === tenantIdToDelete);
+    const tenantDisplayName = tenant?.name || tenantName || tenantIdToDelete;
+    const isDeletingActiveTenant = activeTenantId === tenantIdToDelete;
+    const confirmed = window.confirm(
+      `Delete company "${tenantDisplayName}"? This will remove the company and all linked tenant data.`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setIsDeletingTenant(true);
+
+    try {
+      const response = await fetch(`/api/tenants?tenantId=${encodeURIComponent(tenantIdToDelete)}`, {
+        method: 'DELETE',
+      });
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Failed to delete company.');
+      }
+
+      setTenants((current) => current.filter((entry) => entry.id !== tenantIdToDelete));
+      window.dispatchEvent(new Event('safeviate-tenants-updated'));
+      window.dispatchEvent(new Event('safeviate-tenant-config-updated'));
+      clearDeletedTenantClientState(tenantIdToDelete);
+
+      if (isDeletingActiveTenant) {
+        clearTenantOverride();
+      } else {
+        router.refresh();
+      }
+
+      handleClearForm();
+
+      toast({
+        title: 'Company Deleted',
+        description: `"${tenantDisplayName}" has been removed.`,
+      });
+    } catch (e: unknown) {
+      toast({
+        variant: 'destructive',
+        title: 'Delete Failed',
+      description: e instanceof Error ? e.message : 'System fault during deletion.',
+      });
+    } finally {
+      setIsDeletingTenant(false);
     }
   };
 
@@ -604,16 +724,33 @@ export function DatabaseForm() {
                 <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
                   <div className="space-y-6">
                       <div className="grid grid-cols-1 gap-6 md:grid-cols-2 items-end">
-                          <div className="space-y-2.5 text-left">
-                              <Label className="ml-1 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Clone Existing Company</Label>
-                              <Select onValueChange={handleLoadTenant} value={selectedTenantId || undefined}>
-                                  <SelectTrigger className="h-10 rounded-xl border-2 bg-background text-[10px] font-bold uppercase shadow-none transition-colors hover:border-primary/50">
-                                    <SelectValue placeholder={isLoadingTenants ? "Accessing Core..." : "Choose company..."} />
-                                  </SelectTrigger>
-                                  <SelectContent className="rounded-xl border-2">
-                                      {sortedTenants.map(t => (<SelectItem key={t.id} value={t.id} className="text-[10px] font-bold uppercase">{t.name}</SelectItem>))}
-                                  </SelectContent>
-                              </Select>
+                          <div className="space-y-2.5 text-left md:col-span-2">
+                              <Label className="ml-1 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Load Existing Company</Label>
+                              <div className="flex flex-col gap-2 sm:flex-row">
+                                <Select onValueChange={handleLoadTenant} value={selectedTenantId || undefined}>
+                                    <SelectTrigger className="h-10 rounded-xl border-2 bg-background text-[10px] font-bold uppercase shadow-none transition-colors hover:border-primary/50">
+                                      <SelectValue placeholder={isLoadingTenants ? "Accessing Core..." : "Choose company..."} />
+                                    </SelectTrigger>
+                                    <SelectContent className="rounded-xl border-2">
+                                        {sortedTenants.map(t => (<SelectItem key={t.id} value={t.id} className="text-[10px] font-bold uppercase">{t.name}</SelectItem>))}
+                                    </SelectContent>
+                                </Select>
+                                <div className="flex gap-2">
+                                  <Button type="button" variant="outline" className={TENANT_SETUP_PRIMARY_BUTTON_CLASS} onClick={handleStartNewCompany}>
+                                    New Company
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="destructive"
+                                    className={TENANT_SETUP_PRIMARY_BUTTON_CLASS}
+                                    onClick={handleDeleteTenant}
+                                    disabled={!selectedTenantId || selectedTenantId === 'safeviate' || isDeletingTenant}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                    {isDeletingTenant ? 'Deleting...' : 'Delete'}
+                                  </Button>
+                                </div>
+                              </div>
                           </div>
                           <div className="space-y-2.5 text-left">
                               <Label htmlFor="tenant-name" className="ml-1 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Company Name</Label>
@@ -947,7 +1084,7 @@ export function DatabaseForm() {
       </Tabs>
 
       <Separator />
-      <div className="shrink-0 bg-background p-6 sm:p-8 flex justify-end">
+      <div className="shrink-0 flex justify-end gap-3 bg-background p-6 sm:p-8">
           <Button onClick={handleSaveTenant} className={cn(TENANT_SETUP_PRIMARY_BUTTON_CLASS, 'w-full gap-3 sm:w-72')}>
               {selectedTenantId ? <><Save className="h-4 w-4" /> Update Company</> : <><PlusCircle className="h-4 w-4" /> Save Company</>}
           </Button>

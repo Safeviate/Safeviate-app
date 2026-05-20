@@ -13,6 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
 import { useDebounce } from '@/hooks/use-debounce';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { usePermissions } from '@/hooks/use-permissions';
 import type { InstructorHourWarning, InstructorHourWarningSettings, StudentMilestoneSettings } from '@/types/training';
 import type { AircraftInspectionWarningSettings, HourWarning } from '@/types/inspection';
 
@@ -64,6 +65,8 @@ const defaultFleetTargetHours = 20;
 
 export default function DocumentDatesPage() {
   const { toast } = useToast();
+  const { hasPermission, isLoading: isPermissionsLoading } = usePermissions();
+  const canManage = hasPermission('admin-settings-manage');
   
   const [expirySettings, setExpirySettings] = useState<DocumentExpirySettings | null>(null);
   const [milestoneSettings, setMilestoneSettings] = useState<StudentMilestoneSettings | null>(null);
@@ -173,6 +176,26 @@ export default function DocumentDatesPage() {
         window.removeEventListener('safeviate-inspection-warning-settings-updated', loadData);
     };
   }, [loadData]);
+
+  if (isPermissionsLoading) {
+    return (
+      <div className="max-w-[1100px] mx-auto w-full px-1 pt-4">
+        <Skeleton className="h-[600px] w-full" />
+      </div>
+    );
+  }
+
+  if (!canManage) {
+    return (
+      <div className="max-w-[1100px] mx-auto w-full px-1 pt-4">
+        <Card className="border shadow-none">
+          <CardContent className="p-6 text-center text-sm text-muted-foreground">
+            Access restricted for this tenant view.
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   const debouncedDefaultColor = useDebounce(defaultColorState, 500);
   const debouncedExpiredColor = useDebounce(expiredColorState, 500);

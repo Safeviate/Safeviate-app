@@ -13,6 +13,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { DeleteActionButton } from '@/components/record-action-buttons';
+import { usePermissions } from '@/hooks/use-permissions';
 
 export interface ExamTopicsSettings {
     id: string;
@@ -33,6 +34,8 @@ const DEFAULT_TOPICS = [
 
 export default function ExamTopicsPage() {
   const { toast } = useToast();
+  const { hasPermission, isLoading: isPermissionsLoading } = usePermissions();
+  const canManage = hasPermission('admin-settings-manage');
   
   const [settings, setSettings] = useState<ExamTopicsSettings | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -141,8 +144,20 @@ export default function ExamTopicsPage() {
     }
   };
 
-  if (isLoading) {
+  if (isPermissionsLoading || isLoading) {
     return <div className="p-8 space-y-6 px-1"><Skeleton className="h-14 w-full" /><Skeleton className="h-[400px] w-full" /></div>;
+  }
+
+  if (!canManage) {
+    return (
+      <div className="max-w-4xl mx-auto w-full px-1 pt-4">
+        <Card className="border shadow-none">
+          <CardContent className="p-6 text-center text-sm text-muted-foreground">
+            Access restricted for this tenant view.
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   return (

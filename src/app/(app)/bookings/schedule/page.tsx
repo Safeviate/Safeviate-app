@@ -142,6 +142,7 @@ const BookingItem = ({
     onManualApprove,
     canManualApprove,
     isApproving,
+    isInteractive,
     selectedDate,
     peopleMap,
     allBookingsForAircraft,
@@ -152,6 +153,7 @@ const BookingItem = ({
     onManualApprove: (booking: Booking) => void;
     canManualApprove: (booking: Booking) => boolean;
     isApproving: boolean;
+    isInteractive: boolean;
     selectedDate: Date;
     peopleMap: Map<string, string>;
     allBookingsForAircraft: Booking[];
@@ -278,6 +280,7 @@ const BookingItem = ({
 const RoomBookingItem = ({
     booking,
     onBookingClick,
+    isInteractive,
     selectedDate,
     peopleMap,
     allBookingsForRoom,
@@ -285,6 +288,7 @@ const RoomBookingItem = ({
 }: {
     booking: Booking;
     onBookingClick: (booking: Booking) => void;
+    isInteractive: boolean;
     selectedDate: Date;
     peopleMap: Map<string, string>;
     allBookingsForRoom: Booking[];
@@ -315,7 +319,8 @@ const RoomBookingItem = ({
                 <div
                     key={`${booking.id}-${index}`}
                     className={cn(
-                        'absolute left-1 right-1 px-1 py-0.5 text-[9px] leading-none shadow-md flex flex-col justify-between items-stretch z-10 border border-gray-400/50 cursor-pointer hover:opacity-90 transition-opacity rounded overflow-hidden',
+                        'absolute left-1 right-1 px-1 py-0.5 text-[9px] leading-none shadow-md flex flex-col justify-between items-stretch z-10 border border-gray-400/50 rounded overflow-hidden',
+                        isInteractive ? 'cursor-pointer hover:opacity-90 transition-opacity' : 'cursor-default',
                         compact && 'px-0.5 py-0.25',
                         sessionType === 'Meeting' && 'bg-indigo-600 text-white border-indigo-700',
                         sessionType === 'Ground School' && 'bg-sky-600 text-white border-sky-700',
@@ -325,6 +330,7 @@ const RoomBookingItem = ({
                     style={{ top: `${top}px`, height: `${height}px` }}
                     onClick={(e) => {
                         e.stopPropagation();
+                        if (!isInteractive) return;
                         onBookingClick(booking);
                     }}
                 >
@@ -583,10 +589,9 @@ export default function SchedulePage() {
 
   const canManualApprove = useCallback((booking: Booking) => {
     const userId = userProfile?.id;
-    const userRole = userProfile?.role?.toLowerCase();
     const canApproveWithPermission = hasPermission('bookings-approve');
-    return ((!!userId && booking.instructorId === userId) || userRole === 'developer' || userRole === 'dev' || canApproveWithPermission);
-  }, [hasPermission, userProfile?.id, userProfile?.role]);
+    return (!!userId && booking.instructorId === userId) || canApproveWithPermission;
+  }, [hasPermission, userProfile?.id]);
 
   const handleManualApproveBooking = useCallback(async (booking: Booking) => {
     if (!canManualApprove(booking)) {
@@ -648,6 +653,14 @@ export default function SchedulePage() {
   }, [selectedDate]);
   
   const handleSlotClick = (ac: Aircraft, hour: number) => {
+    if (!isPermissionsLoading && !canManageSchedule) {
+      toast({
+        title: 'Read-Only Access',
+        description: 'You do not have permission to create or edit bookings from the schedule.',
+      });
+      return;
+    }
+
     const selectedDateKey = format(selectedDate, 'yyyy-MM-dd');
     const activeMaintenance = (ac.maintenanceWindows || []).filter((window) => isDateWithinWindow(selectedDateKey, window));
     if (activeMaintenance.length > 0) {
@@ -687,16 +700,17 @@ export default function SchedulePage() {
 
     setBookingFormData({ aircraft: ac, startTime, allBookingsForAircraft });
     setIsBookingFormOpen(true);
-
-    if (!isPermissionsLoading && !canManageSchedule) {
-        toast({
-            title: 'Read-Only Access',
-            description: 'You can view booking details, but you do not have permission to create or edit bookings.',
-        });
-    }
   };
   
   const handleBookingClick = (booking: Booking) => {
+    if (!canManageSchedule) {
+      toast({
+        title: 'Read-Only Access',
+        description: 'Booking forms are disabled for this tenant view.',
+      });
+      return;
+    }
+
     const aircraftForBooking = aircraft?.find(a => a.id === booking.aircraftId);
     if (aircraftForBooking) {
       const allBookingsForAircraft = allBookings?.filter(b => b.aircraftId === aircraftForBooking.id) || [];
@@ -715,6 +729,14 @@ export default function SchedulePage() {
   }, [bookings, selectedDateKey]);
 
   const handleRoomSlotClick = (room: { id: string; name: string }, hour: number) => {
+    if (!canManageSchedule) {
+      toast({
+        title: 'Read-Only Access',
+        description: 'You do not have permission to create or edit room bookings from the schedule.',
+      });
+      return;
+    }
+
     const slotTime = setMinutes(setHours(selectedDate, hour), 0);
     const currentTime = new Date();
 
@@ -744,6 +766,14 @@ export default function SchedulePage() {
   };
 
   const handleRoomBookingClick = (booking: Booking) => {
+    if (!canManageSchedule) {
+      toast({
+        title: 'Read-Only Access',
+        description: 'Room booking forms are disabled for this tenant view.',
+      });
+      return;
+    }
+
     const room = BRIEFING_ROOMS.find((entry) => entry.id === booking.briefingRoomId);
     if (!room) return;
     const updatedBooking = allBookings?.find((entry) => entry.id === booking.id) || booking;
@@ -1153,6 +1183,7 @@ export default function SchedulePage() {
                                                     onManualApprove={handleManualApproveBooking}
                                                     canManualApprove={canManualApprove}
                                                     isApproving={approvingBookingId === booking.id}
+                                                    isInteractive={canManageSchedule}
                                                     selectedDate={selectedDate}
                                                     peopleMap={peopleMap}
                                                     allBookingsForAircraft={allBookings?.filter((entry) => entry.aircraftId === ac.id) || []}
@@ -1280,6 +1311,7 @@ export default function SchedulePage() {
                                                         key={booking.id}
                                                         booking={booking}
                                                         onBookingClick={handleRoomBookingClick}
+                                                        isInteractive={canManageSchedule}
                                                         selectedDate={selectedDate}
                                                         peopleMap={peopleMap}
                                                         allBookingsForRoom={allBookings?.filter((entry) => entry.briefingRoomId === room.id) || []}

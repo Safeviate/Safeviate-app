@@ -129,6 +129,7 @@ export const useTenantConfig = () => {
   const [error, setError] = useState<Error | null>(null);
   const [industryOverride, setIndustryOverride] = useState<IndustryType | null>(readInitialIndustryOverride);
   const [localOverride, setLocalOverride] = useState<Record<string, unknown> | null>(readInitialLocalOverride);
+  const [configRefreshToken, setConfigRefreshToken] = useState(0);
   const resolvedTenantId = tenantId || FALLBACK_TENANT_ID;
 
   const buildLocalTenant = (override: Record<string, unknown> | null): Tenant => ({
@@ -161,6 +162,32 @@ export const useTenantConfig = () => {
       window.removeEventListener('storage', syncOverride);
     };
   }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleTenantSwitch = (event: Event) => {
+      const tenantSwitchEvent = event as CustomEvent<{ tenantId?: string | null; tenantName?: string | null }>;
+      const nextTenantId = tenantSwitchEvent.detail?.tenantId?.trim() || tenantId || FALLBACK_TENANT_ID;
+      const nextTenantName = tenantSwitchEvent.detail?.tenantName?.trim() || null;
+
+      invalidateClientApiCache(`tenant-config:${resolvedTenantId}`);
+      invalidateClientApiCache(`tenant-config:${nextTenantId}`);
+      setIsLoading(true);
+      setError(null);
+      setTenantData((current) => ({
+        ...(current || {}),
+        id: nextTenantId,
+        name: nextTenantName || (nextTenantId === FALLBACK_TENANT_ID ? FALLBACK_TENANT_NAME : current?.name || nextTenantId),
+      } as Tenant));
+      setConfigRefreshToken((current) => current + 1);
+    };
+
+    window.addEventListener('safeviate-tenant-switch', handleTenantSwitch);
+    return () => {
+      window.removeEventListener('safeviate-tenant-switch', handleTenantSwitch);
+    };
+  }, [resolvedTenantId, tenantId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -275,7 +302,7 @@ export const useTenantConfig = () => {
       cancelled = true;
       window.removeEventListener('safeviate-tenant-config-updated', handleUpdate);
     };
-  }, [tenantId, profileTenant, localOverride, userProfile?.id, isProfileLoading]);
+  }, [tenantId, profileTenant, localOverride, userProfile?.id, isProfileLoading, resolvedTenantId, bootstrapTenant, configRefreshToken]);
 
   const isDeveloper =
     userProfile?.role?.toLowerCase() === 'dev' || userProfile?.role?.toLowerCase() === 'developer' || userProfile?.id === 'DEVELOPER_MODE';

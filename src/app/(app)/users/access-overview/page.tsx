@@ -14,7 +14,6 @@ import Link from 'next/link';
 import { MainPageHeader } from '@/components/page-header';
 
 export default function AccessOverviewPage() {
-  const tenantId = 'safeviate';
   const { tenant, isLoading: isLoadingTenant } = useTenantConfig();
   const [roles, setRoles] = useState<Role[]>([]);
   const [isLoadingRoles, setIsLoadingRoles] = useState(true);

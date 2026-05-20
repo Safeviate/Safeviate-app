@@ -14,6 +14,7 @@ import { ImplementationForm, type ImplementationFormHandle } from './implementat
 import { ApprovalForm } from './approval-form';
 import type { Personnel } from '@/app/(app)/users/personnel/page';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useUserProfile } from '@/hooks/use-user-profile';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -53,6 +54,7 @@ export default function MocDetailPage({ params }: MocDetailPageProps) {
   const [departments, setDepartments] = useState<{ id: string; name: string }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const { tenantId } = useUserProfile();
 
   useEffect(() => {
     let cancelled = false;
@@ -285,7 +287,7 @@ export default function MocDetailPage({ params }: MocDetailPageProps) {
                     ref={implementationFormRef}
                     key={moc.id}
                     moc={moc}
-                    tenantId={'safeviate'}
+                    tenantId={tenantId || 'safeviate'}
                     personnel={personnel || []}
                 />
             </TabsContent>
@@ -313,7 +315,7 @@ export default function MocDetailPage({ params }: MocDetailPageProps) {
             </div>
         </div>
         <Separator className="my-10" />
-        <ImplementationForm moc={moc} tenantId={'safeviate'} personnel={personnel || []} />
+        <ImplementationForm moc={moc} tenantId={tenantId || 'safeviate'} personnel={personnel || []} />
         <ApprovalForm moc={moc} personnel={personnel || []} />
       </div>
     </div>

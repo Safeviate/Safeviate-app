@@ -1,5 +1,8 @@
+import { authOptions } from '@/auth';
 import { prisma } from '@/lib/prisma';
 import { getTenantIdFromSession } from '@/lib/server/session-tenant';
+import { isMasterTenantEmail, MASTER_TENANT_ID } from '@/lib/server/tenant-access';
+import { getServerSession } from 'next-auth';
 import { NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
 
@@ -13,6 +16,8 @@ type ComplianceMatrixEntry = {
   parentRegulationCode?: string | null;
   [key: string]: unknown;
 };
+
+type PermissionSet = Set<string>;
 
 function isWithinDeletionScope(item: ComplianceMatrixEntry, rootCode: string) {
   const itemCode = normalizeRegulationCode(item?.regulationCode);
@@ -34,8 +39,86 @@ function isWithinDeletionScope(item: ComplianceMatrixEntry, rootCode: string) {
 }
 
 async function getTenantId(request: Request) {
-  const tenantIdFromQuery = new URL(request.url).searchParams.get('tenantId')?.trim() || null;
-  return tenantIdFromQuery || await getTenantIdFromSession(request);
+  return getTenantIdFromSession(request);
+}
+
+function mergePermissions(rolePermissions: unknown, overridePermissions: unknown) {
+  const inheritedPermissions = Array.isArray(rolePermissions) ? rolePermissions.filter((permission): permission is string => typeof permission === 'string') : [];
+  const overrideList = Array.isArray(overridePermissions) ? overridePermissions.filter((permission): permission is string => typeof permission === 'string') : [];
+  const deniedPermissions = new Set(
+    overrideList.filter((permission) => permission.startsWith('!')).map((permission) => permission.slice(1))
+  );
+
+  const grantedPermissions = new Set<string>();
+
+  inheritedPermissions.forEach((permission) => {
+    if (!deniedPermissions.has(permission)) {
+      grantedPermissions.add(permission);
+    }
+  });
+
+  overrideList.forEach((permission) => {
+    if (!permission.startsWith('!')) {
+      grantedPermissions.add(permission);
+    }
+  });
+
+  return grantedPermissions;
+}
+
+function hasPermission(permissions: PermissionSet, permissionId: string) {
+  return permissions.has('*') || permissions.has(permissionId);
+}
+
+async function resolveMatrixAccess(request: Request) {
+  const session = await getServerSession(authOptions);
+  const email = session?.user?.email?.trim().toLowerCase() || '';
+  const role = session?.user?.role?.trim().toLowerCase() || '';
+
+  if (!email) {
+    return { tenantId: null as string | null, permissions: new Set<string>() };
+  }
+
+  const tenantId = await getTenantId(request);
+  if (!tenantId) {
+    return { tenantId: null as string | null, permissions: new Set<string>() };
+  }
+
+  if (role === 'dev' || role === 'developer' || (isMasterTenantEmail(email) && tenantId === MASTER_TENANT_ID)) {
+    return { tenantId, permissions: new Set<string>(['*']) };
+  }
+
+  const [userProfile, personnelProfile] = await Promise.all([
+    prisma.user.findUnique({
+      where: { email },
+      select: { role: true },
+    }).catch(() => null),
+    prisma.personnel.findFirst({
+      where: { tenantId, email },
+      select: { permissions: true, role: true },
+    }).catch(() => null),
+  ]);
+
+  const resolvedRole = (personnelProfile?.role?.trim() || userProfile?.role?.trim() || role || '').trim();
+  const rolePermissions = resolvedRole
+    ? await prisma.role.findFirst({
+        where: {
+          tenantId,
+          OR: [
+            { id: resolvedRole },
+            { name: resolvedRole },
+          ],
+        },
+        select: { permissions: true },
+      }).catch(() => null)
+    : null;
+
+  const permissions = mergePermissions(rolePermissions?.permissions, personnelProfile?.permissions);
+
+  return {
+    tenantId,
+    permissions,
+  };
 }
 
 async function getConfig(tenantId: string) {
@@ -59,8 +142,12 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const tenantId = await getTenantId(request);
-  if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const access = await resolveMatrixAccess(request);
+  if (!access.tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!hasPermission(access.permissions, 'quality-matrix-manage')) {
+    return NextResponse.json({ error: 'Unauthorized to modify the coherence matrix.' }, { status: 403 });
+  }
+  const tenantId = access.tenantId;
   const body = await request.json().catch(() => null);
   const item = body?.item;
   if (!item || typeof item !== 'object') return NextResponse.json({ error: 'Invalid item payload' }, { status: 400 });
@@ -80,8 +167,12 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const tenantId = await getTenantId(request);
-  if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const access = await resolveMatrixAccess(request);
+  if (!access.tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!hasPermission(access.permissions, 'quality-matrix-manage')) {
+    return NextResponse.json({ error: 'Unauthorized to modify the coherence matrix.' }, { status: 403 });
+  }
+  const tenantId = access.tenantId;
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
   const regulationCode = normalizeRegulationCode(searchParams.get('code'));

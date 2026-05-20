@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useState, useCallback, useEffect, useRef } from 'react';
+import { Fragment, useState, useCallback, useEffect, useRef, type CSSProperties } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
@@ -18,7 +18,7 @@ import { useToast } from '@/hooks/use-toast';
 import { callAiFlow } from '@/lib/ai-client';
 import { format } from 'date-fns';
 
-import type { ComplianceRequirement, ExternalOrganization } from '@/types/quality';
+import type { ClauseAnalysisEntry, ComplianceRequirement, ExternalOrganization } from '@/types/quality';
 import type { Personnel } from '@/app/(app)/users/personnel/page';
 import { ComplianceItemForm } from './item-form';
 import type { SummarizeDocumentInput, SummarizeDocumentOutput } from '@/ai/flows/summarize-document-flow';
@@ -43,14 +43,20 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { CustomCalendar } from '@/components/ui/custom-calendar';
 import { CalendarIcon } from 'lucide-react';
 import { getPersonnelDisplayName } from '@/lib/personnel-label';
+import { extractClipboardText } from '@/lib/clipboard';
 import type { CorrectiveActionPlan, GapStatus, QualityAudit, QualityAuditChecklistTemplate, QualityFinding } from '@/types/quality';
-import { List } from 'lucide-react';
+import { GripVertical, List } from 'lucide-react';
 
 const REGULATION_TABS = [
     { value: 'sacaa-cars', label: 'SACAA CARs' },
     { value: 'sacaa-cats', label: 'SACAA CATs' },
     { value: 'ohs', label: 'OHS' },
 ] as const;
+const CLAUSE_INSPECTOR_WIDTH_KEY = 'coherence-matrix-clause-inspector-width';
+const CLAUSE_INSPECTOR_MIN_WIDTH = 360;
+const CLAUSE_INSPECTOR_MAX_WIDTH = 640;
+const CLAUSE_INSPECTOR_DEFAULT_WIDTH = 420;
+const CLAUSE_SPLIT_HANDLE_WIDTH = 24;
 type RegulationFamily = (typeof REGULATION_TABS)[number]['value'];
 
 function regulationTabToUiValue(value: RegulationFamily) {
@@ -110,6 +116,27 @@ function getTechnicalExcerpt(value?: string | null) {
     return value?.trim() || '';
 }
 
+function getClauseAnalysisRowId(itemId: string, marker: string) {
+    return `${itemId}::analysis::${marker}`;
+}
+
+function getClauseAnalysisEntries(item: ComplianceRequirement): ClauseAnalysisEntry[] {
+    const structuredLines = getStructuredTechnicalLines(item.technicalStandard).filter((line) => line.marker);
+    const existingEntries = new Map((item.analysisEntries || []).map((entry) => [entry.marker, entry]));
+
+    return structuredLines.map((line, index) => {
+        const existing = existingEntries.get(line.marker);
+        return {
+            id: existing?.id || getClauseAnalysisRowId(item.id, line.marker || `${index}`),
+            marker: line.marker,
+            content: line.content,
+            gapStatus: existing?.gapStatus || 'Unassessed',
+            gapStatusDate: existing?.gapStatusDate,
+            companyReference: existing?.companyReference || '',
+        };
+    });
+}
+
 const GAP_STATUS_OPTIONS: { value: GapStatus; label: string }[] = [
     { value: 'Open gap', label: 'Open gap' },
     { value: 'Partial coverage', label: 'Partial coverage' },
@@ -122,11 +149,36 @@ function formatStructuredTechnicalStandard(value?: string | null) {
     const text = value?.trim() || '';
     if (!text) return '';
 
+    const structuredMarkerPattern = '(?:\\(\\d+\\)|\\([a-z]\\)|\\((?:i|ii|iii|iv|vi|vii|viii|ix|x|xi|xii|xiii|xiv|xv|xvi|xvii|xviii|xix|xx)\\)|\\([A-Z]\\)|Note:)';
+
     return text
-        .replace(/\s+\((\d+)\)\s+/g, '\n($1) ')
-        .replace(/\s+\(([a-z])\)\s+/gi, '\n($1) ')
+        .replace(new RegExp(`\\s+(${structuredMarkerPattern})\\s+`, 'gi'), '\n$1 ')
         .replace(/\s+(Note:)\s+/gi, '\n$1 ')
         .trim();
+}
+
+function getStructuredTechnicalIndent(marker: string) {
+    if (/^Note:/i.test(marker)) {
+        return { indentClassName: 'pl-10', markerClassName: 'w-12', extraClassName: 'italic' };
+    }
+
+    if (/^\(\d+\)$/.test(marker)) {
+        return { indentClassName: 'pl-3', markerClassName: 'w-8', extraClassName: '' };
+    }
+
+    if (/^\((?:i|ii|iii|iv|vi|vii|viii|ix|x|xi|xii|xiii|xiv|xv|xvi|xvii|xviii|xix|xx)\)$/i.test(marker)) {
+        return { indentClassName: 'pl-16', markerClassName: 'w-10', extraClassName: '' };
+    }
+
+    if (/^\([a-z]\)$/i.test(marker)) {
+        return { indentClassName: 'pl-10', markerClassName: 'w-8', extraClassName: '' };
+    }
+
+    if (/^\([A-Z]\)$/.test(marker)) {
+        return { indentClassName: 'pl-16', markerClassName: 'w-10', extraClassName: '' };
+    }
+
+    return { indentClassName: '', markerClassName: 'w-0', extraClassName: '' };
 }
 
 function getStructuredTechnicalLines(value?: string | null) {
@@ -135,23 +187,17 @@ function getStructuredTechnicalLines(value?: string | null) {
         .map((line) => line.trim())
         .filter(Boolean)
         .map((line) => {
-            const markerMatch = line.match(/^(\(\d+\)|\([a-z]\)|Note:)\s*(.*)$/i);
+            const markerMatch = line.match(/^((?:\(\d+\)|\([a-z]\)|\((?:i|ii|iii|iv|vi|vii|viii|ix|x|xi|xii|xiii|xiv|xv|xvi|xvii|xviii|xix|xx)\)|\([A-Z]\)|Note:))\s*(.*)$/i);
             const marker = markerMatch?.[1] || '';
             const content = markerMatch?.[2] || line;
+            const { indentClassName, markerClassName, extraClassName } = getStructuredTechnicalIndent(marker);
 
-            if (/^\([a-z]\)/i.test(line)) {
-                return { marker, content, className: 'pl-10', markerClassName: 'w-8' };
-            }
-
-            if (/^Note:/i.test(line)) {
-                return { marker, content, className: 'pl-10 italic', markerClassName: 'w-12' };
-            }
-
-            if (/^\(\d+\)/.test(line)) {
-                return { marker, content, className: 'pl-3', markerClassName: 'w-8' };
-            }
-
-            return { marker: '', content: line, className: '', markerClassName: 'w-0' };
+            return {
+                marker,
+                content,
+                className: `${indentClassName} ${extraClassName}`.trim(),
+                markerClassName,
+            };
         });
 }
 
@@ -199,14 +245,13 @@ function UploadRegulationsDialog({ tenantId, organizationId, regulationFamily, a
                 }
                 return;
             }
-            if (items[i].type.startsWith('text/plain')) {
-                event.preventDefault();
-                items[i].getAsString((text) => {
-                    setPastedText(text);
-                     toast({ title: 'Text Pasted', description: 'The text has been loaded and is ready to be processed.' });
-                });
-                return; 
-            }
+        }
+
+        const clipboardText = extractClipboardText(event.clipboardData);
+        if (clipboardText) {
+            event.preventDefault();
+            setPastedText(clipboardText);
+            toast({ title: 'Text Pasted', description: 'The text has been loaded and is ready to be processed.' });
         }
     }, [toast]);
 
@@ -523,17 +568,22 @@ export default function CoherenceMatrixPage() {
   const isMobile = useIsMobile();
   const [activeOrgTab, setActiveOrgTab] = useState('internal');
   const [activeRegulationTab, setActiveRegulationTab] = useState<RegulationFamily>('sacaa-cars');
+  const [activeMatrixAnchorId, setActiveMatrixAnchorId] = useState<string | null>(null);
+  const [clauseInspectorWidth, setClauseInspectorWidth] = useState(CLAUSE_INSPECTOR_DEFAULT_WIDTH);
+  const clauseInspectorWidthStyle = { '--clause-inspector-width': `${clauseInspectorWidth}px` } as CSSProperties;
 
-  const userRole = ((userProfile as { role?: string } | null)?.role || '').toLowerCase();
-  const isDeveloperRole = userRole === 'dev' || userRole === 'developer';
-  const canViewMatrix = isDeveloperRole || hasPermission('quality-matrix-view') || hasPermission('quality-matrix-manage');
-  const canManageMatrix = isDeveloperRole || hasPermission('quality-matrix-manage');
+  const canViewMatrix = hasPermission('quality-matrix-view') || hasPermission('quality-matrix-manage');
+  const canManageMatrix = hasPermission('quality-matrix-manage');
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [matrixSearchQuery, setMatrixSearchQuery] = useState('');
   const [matrixIndexQuery, setMatrixIndexQuery] = useState('');
   const [openGapDateRowId, setOpenGapDateRowId] = useState<string | null>(null);
   const [expandedClauseIds, setExpandedClauseIds] = useState<Record<string, boolean>>({});
+  const [expandedIndexCodes, setExpandedIndexCodes] = useState<Record<string, boolean>>({});
+  const [editingClauseTextId, setEditingClauseTextId] = useState<string | null>(null);
+  const [clauseTextDraft, setClauseTextDraft] = useState('');
+  const [isClauseTextSaving, setIsClauseTextSaving] = useState(false);
   const [editingItem, setEditingItem] = useState<ComplianceRequirement | null>(null);
   const [formMode, setFormMode] = useState<'item' | 'header' | 'subheader'>('item');
 
@@ -625,12 +675,14 @@ export default function CoherenceMatrixPage() {
         }
 
         window.dispatchEvent(new Event('safeviate-compliance-updated'));
+        return true;
     } catch (error) {
         toast({
             variant: 'destructive',
             title: 'Update Failed',
             description: error instanceof Error ? error.message : 'Failed to update matrix item.',
         });
+        return false;
     }
   }, [resolvedTenantId, toast]);
 
@@ -649,6 +701,85 @@ export default function CoherenceMatrixPage() {
         [itemId]: !prev[itemId],
     }));
   }, []);
+
+  const beginClauseTextEdit = useCallback((item: ComplianceRequirement) => {
+    setEditingClauseTextId(item.id);
+    setClauseTextDraft(item.technicalStandard || '');
+  }, []);
+
+  const cancelClauseTextEdit = useCallback(() => {
+    setEditingClauseTextId(null);
+    setClauseTextDraft('');
+  }, []);
+
+  const saveClauseTextEdit = useCallback(async (item: ComplianceRequirement) => {
+    setIsClauseTextSaving(true);
+    try {
+        const saved = await updateMatrixItemField(item, { technicalStandard: clauseTextDraft });
+        if (saved) {
+            setEditingClauseTextId(null);
+            setClauseTextDraft('');
+            toast({
+                title: 'Clause text updated',
+                description: `${item.regulationCode} text saved.`,
+            });
+        }
+    } finally {
+        setIsClauseTextSaving(false);
+    }
+  }, [clauseTextDraft, toast, updateMatrixItemField]);
+
+  const clampClauseInspectorWidth = useCallback((value: number) => {
+    return Math.min(CLAUSE_INSPECTOR_MAX_WIDTH, Math.max(CLAUSE_INSPECTOR_MIN_WIDTH, Math.round(value)));
+  }, []);
+
+  const handleClauseResizePointerDown = useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
+    if (isMobile) return;
+
+    event.preventDefault();
+
+    const startX = event.clientX;
+    const startWidth = clauseInspectorWidth;
+    const previousCursor = document.body.style.cursor;
+    const previousUserSelect = document.body.style.userSelect;
+
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+
+    const cleanup = () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', cleanup);
+      window.removeEventListener('pointercancel', cleanup);
+      document.body.style.cursor = previousCursor;
+      document.body.style.userSelect = previousUserSelect;
+    };
+
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      setClauseInspectorWidth(clampClauseInspectorWidth(startWidth + (startX - moveEvent.clientX)));
+    };
+
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', cleanup, { once: true });
+    window.addEventListener('pointercancel', cleanup, { once: true });
+  }, [clauseInspectorWidth, clampClauseInspectorWidth, isMobile]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const storedWidth = window.localStorage.getItem(CLAUSE_INSPECTOR_WIDTH_KEY);
+    if (!storedWidth) return;
+
+    const parsedWidth = Number(storedWidth);
+    if (!Number.isFinite(parsedWidth)) return;
+
+    setClauseInspectorWidth(clampClauseInspectorWidth(parsedWidth));
+  }, [clampClauseInspectorWidth]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    window.localStorage.setItem(CLAUSE_INSPECTOR_WIDTH_KEY, String(clauseInspectorWidth));
+  }, [clauseInspectorWidth]);
 
   useEffect(() => {
     void loadData();
@@ -800,9 +931,6 @@ export default function CoherenceMatrixPage() {
             item.companyReference?.trim()
                 ? { label: 'Manual ref', value: item.companyReference.trim() }
                 : null,
-            item.responsibleManagerId?.trim()
-                ? { label: 'Responsible', value: getManagerLabel(item.responsibleManagerId) }
-                : null,
             item.nextAuditDate?.trim()
                 ? { label: 'Next audit date', value: formatAuditDate(item.nextAuditDate) }
                 : null,
@@ -867,7 +995,14 @@ export default function CoherenceMatrixPage() {
 
     const renderTechnicalStandardText = (value?: string | null) => {
         const lines = getStructuredTechnicalLines(value);
-        if (lines.length === 0) return null;
+        const rawValue = value?.trim() || '';
+        if (lines.length === 0) {
+            return rawValue ? (
+                <p className="whitespace-pre-wrap break-words text-sm font-medium leading-6 text-foreground/80">
+                    {rawValue}
+                </p>
+            ) : null;
+        }
 
         return (
             <div className="space-y-1.5">
@@ -889,6 +1024,109 @@ export default function CoherenceMatrixPage() {
                         </span>
                     </div>
                 ))}
+            </div>
+        );
+    };
+
+    const renderClauseTextCard = (item: ComplianceRequirement, isExpanded: boolean, onToggleExpanded: () => void, canEditClause: boolean) => {
+        const hasTechnicalText = Boolean(item.technicalStandard?.trim());
+        const isEditingClauseText = editingClauseTextId === item.id;
+
+        return (
+            <div className="space-y-2 rounded-md border border-card-border/70 bg-background/60 px-3 py-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                    {hasTechnicalText ? (
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="compact"
+                            className="-ml-1 h-7 whitespace-nowrap px-1.5 text-[9px] font-black uppercase tracking-[0.08em] text-foreground/70 hover:bg-accent/30"
+                            onClick={onToggleExpanded}
+                            disabled={isEditingClauseText}
+                        >
+                            <ChevronDown className={cn('mr-1 h-3.5 w-3.5 transition-transform', isExpanded && 'rotate-180')} />
+                            {isExpanded ? 'Hide text' : 'Show text'}
+                        </Button>
+                    ) : (
+                        <span className="text-[9px] font-black uppercase tracking-[0.12em] text-foreground/45">No clause text</span>
+                    )}
+                    {canEditClause ? (
+                        isEditingClauseText ? (
+                            <div className="flex items-center gap-2">
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="compact"
+                                    className="h-7 px-2 text-[9px] font-black uppercase tracking-[0.08em] text-foreground/70 hover:bg-accent/30"
+                                    onClick={() => setClauseTextDraft((current) => formatStructuredTechnicalStandard(current))}
+                                    disabled={isClauseTextSaving}
+                                >
+                                    <WandSparkles className="mr-1 h-3.5 w-3.5" />
+                                    Auto format
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="compact"
+                                    className="h-7 px-2 text-[9px] font-black uppercase tracking-[0.08em]"
+                                    onClick={() => void saveClauseTextEdit(item)}
+                                    disabled={isClauseTextSaving}
+                                >
+                                    {isClauseTextSaving ? 'Saving...' : 'Save text'}
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="compact"
+                                    className="h-7 px-2 text-[9px] font-black uppercase tracking-[0.08em] text-foreground/70 hover:bg-accent/30"
+                                    onClick={cancelClauseTextEdit}
+                                    disabled={isClauseTextSaving}
+                                >
+                                    Cancel
+                                </Button>
+                            </div>
+                        ) : (
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="compact"
+                                className="h-7 px-2 text-[9px] font-black uppercase tracking-[0.08em] text-foreground/70 hover:bg-accent/30"
+                                onClick={() => beginClauseTextEdit(item)}
+                            >
+                                <Edit className="mr-1 h-3.5 w-3.5" />
+                                Edit text
+                            </Button>
+                        )
+                    ) : null}
+                </div>
+
+                {canEditClause && isEditingClauseText ? (
+                    <div className="space-y-2">
+                        <Textarea
+                            value={clauseTextDraft}
+                            onChange={(event) => setClauseTextDraft(event.target.value)}
+                            onKeyDown={(event) => {
+                                if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === 'f') {
+                                    event.preventDefault();
+                                    setClauseTextDraft((current) => formatStructuredTechnicalStandard(current));
+                                }
+                            }}
+                            className="min-h-[220px] whitespace-pre-wrap font-mono text-[12px] leading-6"
+                            spellCheck={false}
+                        />
+                        <p className="text-[10px] leading-4 text-foreground/55">
+                            Use line breaks and spacing here to correct clause indentation. Press Ctrl+Shift+F to auto format.
+                        </p>
+                    </div>
+                ) : hasTechnicalText ? (
+                    isExpanded ? (
+                        <div className="space-y-1">{renderTechnicalStandardText(item.technicalStandard)}</div>
+                    ) : (
+                        <p className="text-[12px] leading-5 text-foreground/70">{getTechnicalExcerpt(item.technicalStandard)}</p>
+                    )
+                ) : (
+                    <p className="text-[12px] leading-5 text-muted-foreground">No clause text available for this item.</p>
+                )}
             </div>
         );
     };
@@ -928,6 +1166,7 @@ export default function CoherenceMatrixPage() {
         depth: number;
         hasChildren: boolean;
         anchorId: string;
+        firstClauseAnchorId: string | null;
     };
 
     const buildTableRows = (items: ComplianceRequirement[], depth = 0, ancestors: string[] = []): MatrixTableRow[] => {
@@ -943,6 +1182,11 @@ export default function CoherenceMatrixPage() {
             const nextChildItems = normalizedSearchQuery && !itemMatchesSearch(item)
                 ? childItems.filter((child) => branchMatchesSearch(child))
                 : childItems;
+            const childRows = buildTableRows(nextChildItems, depth + 1, [...ancestors, normalizedCode]);
+            const firstClauseDescendant = childRows.find((row) => !row.hasChildren);
+            const firstClauseAnchorId = !nextChildItems.length
+                ? `matrix-row-${item.id}`
+                : firstClauseDescendant?.anchorId || null;
 
             return [
                 {
@@ -950,23 +1194,57 @@ export default function CoherenceMatrixPage() {
                     depth,
                     hasChildren: nextChildItems.length > 0,
                     anchorId: `matrix-row-${item.id}`,
+                    firstClauseAnchorId,
                 },
-                ...buildTableRows(nextChildItems, depth + 1, [...ancestors, normalizedCode]),
+                ...childRows,
             ];
         });
     };
 
-    const scrollToTableRow = (anchorId: string) => {
+    const scrollToTableRow = () => {
         if (typeof document === 'undefined') return;
-        const target = document.getElementById(anchorId);
+        const target = document.getElementById('selected-clause-panel');
         target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
 
     const buildTableIndex = (rows: MatrixTableRow[]) =>
-        rows.filter(({ depth, hasChildren }) => depth === 0 || hasChildren);
+        rows.map((row) => ({
+            ...row,
+            anchorId: row.firstClauseAnchorId || row.anchorId,
+        }));
 
     const normalizedIndexQuery = matrixIndexQuery.trim().toLowerCase();
-    const matrixIndexEntries = buildTableIndex(buildTableRows(topLevelItems));
+    const matrixTableRows = buildTableRows(topLevelItems);
+    const matrixIndexEntries = buildTableIndex(matrixTableRows);
+    const matrixClauseEntries = matrixIndexEntries.filter(({ depth, hasChildren }) => depth > 0 && !hasChildren);
+    const selectedMatrixAnchorId = matrixClauseEntries.some(({ anchorId }) => anchorId === activeMatrixAnchorId)
+        ? activeMatrixAnchorId
+        : matrixClauseEntries[0]?.anchorId || null;
+    const selectedMatrixRow = matrixTableRows.find(
+        (row) => row.anchorId === selectedMatrixAnchorId && row.depth > 0 && !row.hasChildren
+    ) || matrixTableRows.find((row) => row.anchorId === selectedMatrixAnchorId) || null;
+    const selectedMatrixItem = selectedMatrixRow?.item || null;
+    const selectedMatrixAncestorCodes = new Set<string>();
+    if (selectedMatrixItem) {
+        let currentParentCode = normalizeRegulationCode(selectedMatrixItem.parentRegulationCode);
+        while (currentParentCode) {
+            selectedMatrixAncestorCodes.add(currentParentCode);
+            currentParentCode = normalizeRegulationCode(
+                matrixIndexEntries.find((entry) => normalizeRegulationCode(entry.item.regulationCode) === currentParentCode)?.item.parentRegulationCode
+            );
+        }
+    }
+    const matrixIndexEntryByItemId = new Map(matrixIndexEntries.map((entry) => [entry.item.id, entry]));
+    const expandableIndexCodes = Array.from(
+        new Set(
+            matrixIndexEntries
+                .filter(({ hasChildren }) => hasChildren)
+                .map(({ item }) => normalizeRegulationCode(item.regulationCode))
+                .filter(Boolean)
+        )
+    );
+    const selectedMatrixItemCode = normalizeRegulationCode(selectedMatrixItem?.regulationCode);
+    const selectedMatrixItemExpanded = selectedMatrixItem ? (expandedIndexCodes[selectedMatrixItemCode] ?? true) : true;
     const filteredMatrixIndexEntries = normalizedIndexQuery
         ? matrixIndexEntries.filter(({ item }) =>
             [item.regulationCode, item.regulationStatement]
@@ -977,14 +1255,267 @@ export default function CoherenceMatrixPage() {
         )
         : matrixIndexEntries;
 
-    const renderMatrixIndexContent = () => (
-        <>
-            <div className="mb-3 space-y-1">
-                <p className="text-[10px] font-black uppercase tracking-[0.14em] text-foreground/50">Regulation index</p>
-                <p className="text-xs text-foreground/70">
-                    Jump to a header or subheader in the current table. {filteredMatrixIndexEntries.length} entries.
-                </p>
+    const isIndexNodeExpanded = (code: string) => expandedIndexCodes[code] ?? true;
+
+    const areAllIndexBranchesCollapsed =
+        expandableIndexCodes.length > 0 && expandableIndexCodes.every((code) => expandedIndexCodes[code] === false);
+
+    const toggleAllIndexBranches = () => {
+        setExpandedIndexCodes((prev) => {
+            const next = { ...prev };
+            const shouldCollapseAll = expandableIndexCodes.some((code) => next[code] !== false);
+
+            if (shouldCollapseAll) {
+                expandableIndexCodes.forEach((code) => {
+                    next[code] = false;
+                });
+                return next;
+            }
+
+            expandableIndexCodes.forEach((code) => {
+                delete next[code];
+            });
+            return next;
+        });
+    };
+
+    const branchMatchesIndexQuery = (item: ComplianceRequirement): boolean => {
+        if (!normalizedIndexQuery) return true;
+        const normalizedCode = normalizeRegulationCode(item.regulationCode);
+        const directMatch = [item.regulationCode, item.regulationStatement]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase()
+            .includes(normalizedIndexQuery);
+        if (directMatch) return true;
+
+        const technicalLineMatch = getStructuredTechnicalLines(item.technicalStandard).some((line) =>
+            [line.marker, line.content]
+                .filter(Boolean)
+                .join(' ')
+                .toLowerCase()
+                .includes(normalizedIndexQuery)
+        );
+        if (technicalLineMatch) return true;
+
+        const childItems = groupedItems[normalizedCode] || [];
+        return childItems.some((child) => branchMatchesIndexQuery(child));
+    };
+
+    const renderIndexBranch = (items: ComplianceRequirement[], depth = 0): React.ReactNode[] => {
+        return items.flatMap((item) => {
+            const normalizedCode = normalizeRegulationCode(item.regulationCode);
+            if (normalizedIndexQuery && !branchMatchesIndexQuery(item)) {
+                return [];
+            }
+            const childItems = groupedItems[normalizedCode] || [];
+            const hasIndexChildren = childItems.length > 0;
+            const isClauseNode = depth > 0 && !hasIndexChildren;
+            const entryAnchorId = matrixIndexEntryByItemId.get(item.id)?.anchorId || `matrix-row-${item.id}`;
+            const isSelected = isClauseNode && selectedMatrixAnchorId === entryAnchorId;
+            const isExplicitlyCollapsed = expandedIndexCodes[normalizedCode] === false;
+            const shouldForceOpen = normalizedIndexQuery.length > 0 || (selectedMatrixAncestorCodes.has(normalizedCode) && !isExplicitlyCollapsed);
+            const isExpanded = hasIndexChildren ? (shouldForceOpen || isIndexNodeExpanded(normalizedCode)) : false;
+            const isClauseExpanded = isClauseNode ? (normalizedIndexQuery.length > 0 || isSelected || isIndexNodeExpanded(normalizedCode)) : false;
+            return [
+                <div
+                    key={item.id}
+                    id={`matrix-index-node-${item.id}`}
+                    className={cn(
+                        'min-w-0 space-y-0.5',
+                        depth > 0 && 'ml-3'
+                    )}
+                >
+                    <div className={cn('grid w-full min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-1.5 rounded-md border px-2 py-0.5 text-left transition', isSelected ? 'border-primary/30 bg-primary/10 shadow-sm' : 'border-transparent hover:border-border hover:bg-muted/40')}>
+                        {hasIndexChildren ? (
+                            <button
+                                type="button"
+                                aria-label={isExpanded ? `Collapse ${item.regulationCode}` : `Expand ${item.regulationCode}`}
+                                className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-card-border bg-background/90 text-foreground/60 transition hover:bg-muted/60"
+                                onClick={(event) => {
+                                    event.stopPropagation();
+                                    setExpandedIndexCodes((prev) => ({
+                                        ...prev,
+                                        [normalizedCode]: !isExpanded,
+                                    }));
+                                }}
+                            >
+                                <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', isExpanded && 'rotate-180')} />
+                            </button>
+                        ) : (
+                            <span className="h-5 w-5 shrink-0" />
+                        )}
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setActiveMatrixAnchorId(entryAnchorId);
+                                scrollToTableRow();
+                            }}
+                            className="min-w-0 text-left"
+                        >
+                            <span className={cn(
+                                'block text-[9px] font-black tracking-wide',
+                                isSelected ? 'text-foreground/80' : 'text-foreground/60'
+                            )}>
+                                {item.regulationCode}
+                            </span>
+                            <span className={cn(
+                                'block whitespace-normal break-words text-[13px]',
+                                isSelected ? 'font-semibold text-foreground' : 'font-medium text-foreground'
+                            )}>
+                                {item.regulationStatement}
+                            </span>
+                        </button>
+                        {canManageMatrix ? (
+                            <div className="flex shrink-0 items-center gap-1">
+                                {isClauseNode ? (
+                                    <button
+                                        type="button"
+                                        aria-label={isClauseExpanded ? `Collapse ${item.regulationCode}` : `Expand ${item.regulationCode}`}
+                                        className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-card-border bg-background/90 text-foreground/60 transition hover:bg-muted/60"
+                                        onClick={(event) => {
+                                            event.stopPropagation();
+                                            setExpandedIndexCodes((prev) => {
+                                                const nextExpanded = !isClauseExpanded;
+                                                const nextState = {
+                                                    ...prev,
+                                                    [normalizedCode]: nextExpanded,
+                                                };
+                                                return nextState;
+                                            });
+                                        }}
+                                    >
+                                        <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', isClauseExpanded && 'rotate-180')} />
+                                    </button>
+                                ) : null}
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6 shrink-0 text-foreground/45 hover:bg-background/80 hover:text-foreground"
+                                    onClick={(event) => {
+                                        event.stopPropagation();
+                                        handleOpenForm(item, isClauseNode ? 'item' : depth === 0 ? 'header' : 'subheader');
+                                    }}
+                                    aria-label={`Edit ${item.regulationCode}`}
+                                >
+                                    <Edit className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="destructive"
+                                    size="icon"
+                                    className="h-6 w-6 border border-destructive/25 bg-destructive/8 px-0 text-destructive shadow-none hover:bg-destructive/12 hover:text-destructive"
+                                    onClick={(event) => {
+                                        event.stopPropagation();
+                                        handleDeleteItem(item);
+                                    }}
+                                    aria-label={`Delete ${item.regulationCode}`}
+                                >
+                                    <Trash2 className="h-3.5 w-3.5 text-current" />
+                                </Button>
+                            </div>
+                        ) : null}
+                    </div>
+                    {hasIndexChildren && isExpanded ? (
+                        <div className="space-y-0.5">
+                            {renderIndexBranch(childItems, depth + 1)}
+                        </div>
+                    ) : null}
+                </div>
+            ];
+        });
+    };
+
+    const renderSelectedClauseInspector = () => {
+        if (!selectedMatrixItem) {
+            return (
+                <div className="rounded-lg border border-card-border bg-background p-4 shadow-none">
+                    <p className="text-[10px] font-black uppercase tracking-[0.14em] text-foreground/50">Clause inspector</p>
+                    <p className="mt-2 text-sm text-foreground/70">Select a clause in the tree to view its full text and related analysis here.</p>
+                </div>
+            );
+        }
+
+        return (
+            <div id="selected-clause-panel" className="rounded-lg border border-card-border bg-background shadow-none">
+                <div className="border-b border-card-border/70 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-foreground/50">Selected clause</p>
+                            <p className="mt-1 text-[11px] font-black tracking-wide text-foreground/65">{selectedMatrixItem.regulationCode}</p>
+                            <h3 className="mt-1 text-sm font-semibold leading-5 text-foreground break-words">
+                                {selectedMatrixItem.regulationStatement}
+                            </h3>
+                            {selectedMatrixItem.responsibleManagerId?.trim() ? (
+                                <div className="mt-2">
+                                    <Badge variant="outline" className="h-5 border-card-border bg-background/70 px-2 text-[9px] font-black uppercase tracking-[0.08em] text-foreground">
+                                        Responsible {getManagerLabel(selectedMatrixItem.responsibleManagerId) || '-'}
+                                    </Badge>
+                                </div>
+                            ) : null}
+                        </div>
+                        <div className="flex shrink-0 items-center gap-1">
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 text-foreground/45 hover:bg-background/80 hover:text-foreground"
+                                onClick={() => handleOpenForm(selectedMatrixItem, 'item')}
+                                aria-label={`Edit ${selectedMatrixItem.regulationCode}`}
+                            >
+                                <Edit className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                                type="button"
+                                variant="destructive"
+                                size="icon"
+                                className="h-6 w-6 border border-destructive/25 bg-destructive/8 px-0 text-destructive shadow-none hover:bg-destructive/12 hover:text-destructive"
+                                onClick={() => handleDeleteItem(selectedMatrixItem)}
+                                aria-label={`Delete ${selectedMatrixItem.regulationCode}`}
+                            >
+                                <Trash2 className="h-3.5 w-3.5 text-current" />
+                            </Button>
+                        </div>
+                    </div>
+                    {selectedMatrixItem.technicalStandard?.trim() ? (
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="compact"
+                            className="-ml-1 mt-3 h-7 whitespace-nowrap px-1.5 text-[9px] font-black uppercase tracking-[0.08em] text-foreground/70 hover:bg-accent/30"
+                            onClick={() => {
+                                setExpandedIndexCodes((prev) => ({
+                                    ...prev,
+                                    [selectedMatrixItemCode]: !selectedMatrixItemExpanded,
+                                }));
+                            }}
+                        >
+                            <ChevronDown className={cn('mr-1 h-3.5 w-3.5 transition-transform', selectedMatrixItemExpanded && 'rotate-180')} />
+                            {selectedMatrixItemExpanded ? 'Hide text' : 'Show text'}
+                        </Button>
+                    ) : null}
+                </div>
+                <div className="p-4">
+                    {renderClauseTextCard(
+                        selectedMatrixItem,
+                        selectedMatrixItemExpanded,
+                        () => {
+                            setExpandedIndexCodes((prev) => ({
+                                ...prev,
+                                [selectedMatrixItemCode]: !selectedMatrixItemExpanded,
+                            }));
+                        },
+                        canManageMatrix
+                    )}
+                    {renderRequirementMeta(selectedMatrixItem)}
+                </div>
             </div>
+        );
+    };
+
+    const renderMatrixIndexContent = () => (
+        <div className="min-w-0 overflow-hidden pr-1">
             <div className="mb-3">
                 <Input
                     value={matrixIndexQuery}
@@ -993,78 +1524,10 @@ export default function CoherenceMatrixPage() {
                     className="h-8 w-full border-input bg-background text-sm"
                 />
             </div>
-            <ScrollArea className="max-h-[calc(100vh-300px)] pr-2">
+            <ScrollArea className="max-h-[calc(100vh-300px)] w-full min-w-0 pr-4">
                 {filteredMatrixIndexEntries.length > 0 ? (
-                    <div className="space-y-2.5">
-                        <div className="space-y-1">
-                            <div className="flex items-center justify-between gap-2">
-                                <p className="text-[9px] font-black uppercase tracking-[0.16em] text-foreground/45">Headers</p>
-                                <span className="text-[9px] font-black uppercase tracking-[0.16em] text-foreground/40">
-                                    {filteredMatrixIndexEntries.filter(({ depth }) => depth === 0).length}
-                                </span>
-                            </div>
-                            <div className="space-y-1">
-                                {filteredMatrixIndexEntries
-                                    .filter(({ depth }) => depth === 0)
-                                    .map(({ item, anchorId }) => (
-                                        <button
-                                            key={item.id}
-                                            type="button"
-                                            onClick={() => scrollToTableRow(anchorId)}
-                                            className="flex w-full items-start gap-2 rounded-md border border-transparent px-2 py-1 text-left transition hover:border-border hover:bg-muted/40"
-                                        >
-                                            <span className="inline-flex h-5 shrink-0 items-center rounded-full border border-primary/15 bg-primary/5 px-1.5 text-[9px] font-black uppercase tracking-[0.12em] text-primary">
-                                                Header
-                                            </span>
-                                            <span className="min-w-0 flex-1">
-                                                <span className="block text-[10px] font-black tracking-wide text-foreground/60">
-                                                    {item.regulationCode}
-                                                </span>
-                                                <span className="block truncate text-sm font-medium text-foreground">
-                                                    {item.regulationStatement}
-                                                </span>
-                                            </span>
-                                        </button>
-                                    ))}
-                            </div>
-                        </div>
-                        <div className="space-y-1">
-                            <div className="flex items-center justify-between gap-2">
-                                <p className="text-[9px] font-black uppercase tracking-[0.16em] text-foreground/45">Subheaders</p>
-                                <span className="text-[9px] font-black uppercase tracking-[0.16em] text-foreground/40">
-                                    {filteredMatrixIndexEntries.filter(({ depth }) => depth > 0).length}
-                                </span>
-                            </div>
-                            <div className="space-y-1">
-                                {filteredMatrixIndexEntries
-                                    .filter(({ depth }) => depth > 0)
-                                    .map(({ item, depth, anchorId }) => (
-                                        <button
-                                            key={item.id}
-                                            type="button"
-                                            onClick={() => scrollToTableRow(anchorId)}
-                                            className="flex w-full items-start gap-2 rounded-md border border-transparent px-2 py-1 text-left transition hover:border-border hover:bg-muted/40"
-                                        >
-                                            <span
-                                                className={cn(
-                                                    'mt-0.5 inline-flex h-5 shrink-0 items-center rounded-full border border-primary/15 bg-primary/5 px-1.5 text-[9px] font-black uppercase tracking-[0.12em] text-primary',
-                                                    depth > 0 ? 'ml-4' : ''
-                                                )}
-                                            >
-                                                Subheader
-                                            </span>
-                                            <span className="min-w-0 flex-1">
-                                                <span className="block text-[10px] font-black tracking-wide text-foreground/60">
-                                                    {item.regulationCode}
-                                                </span>
-                                                <span className="block truncate text-sm font-medium text-foreground">
-                                                    {item.regulationStatement}
-                                                </span>
-                                            </span>
-                                        </button>
-                                    ))}
-                            </div>
-                        </div>
+                    <div className="space-y-0.5">
+                        {renderIndexBranch(topLevelItems)}
                     </div>
                 ) : (
                     <div className="rounded-md border border-dashed border-card-border/70 px-3 py-4 text-xs text-foreground/60">
@@ -1072,18 +1535,38 @@ export default function CoherenceMatrixPage() {
                     </div>
                 )}
             </ScrollArea>
-        </>
+        </div>
     );
 
     const renderMatrixIndexPanel = () => (
-        <div className="sticky top-0 rounded-lg border border-card-border bg-card/90 p-2.5 shadow-none backdrop-blur-sm">
-            {renderMatrixIndexContent()}
+        <div className="sticky top-0 h-full min-w-0 bg-card/90 p-1 shadow-none backdrop-blur-sm">
+            <div className="group flex w-full items-center justify-between gap-2 rounded-md border border-transparent px-1 py-0.5 text-left transition hover:border-border hover:bg-muted/30 hover:shadow-sm">
+                <div className="min-w-0">
+                    <p className="text-[9px] font-black uppercase tracking-[0.14em] text-foreground/50">Regulation index</p>
+                    <p className="text-[11px] text-foreground/70">
+                        Jump to a section, subheader, or clause in the current table. {filteredMatrixIndexEntries.length} entries.
+                    </p>
+                </div>
+                <button
+                    type="button"
+                    onClick={toggleAllIndexBranches}
+                    className="inline-flex shrink-0 items-center gap-1 rounded-full border border-card-border bg-background/90 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.08em] text-foreground/70 shadow-none"
+                    aria-label={areAllIndexBranchesCollapsed ? 'Expand all regulation sections' : 'Collapse all regulation sections'}
+                >
+                    <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', areAllIndexBranchesCollapsed && 'rotate-180')} />
+                    {areAllIndexBranchesCollapsed ? 'Expand all' : 'Collapse all'}
+                </button>
+            </div>
+            <div className="min-w-0 pt-2">
+                {renderMatrixIndexContent()}
+            </div>
         </div>
     );
 
     const renderMatrixTable = () => {
         const enableGapAnalysis = showGapAnalysis;
         const tableRows = buildTableRows(topLevelItems);
+        const clauseRows = tableRows.filter(({ depth, hasChildren }) => depth > 0 && !hasChildren);
         const auditsSorted = [...qualityAudits].sort((a, b) => {
             const aDate = new Date(a.auditDate || '').getTime() || 0;
             const bDate = new Date(b.auditDate || '').getTime() || 0;
@@ -1206,7 +1689,7 @@ export default function CoherenceMatrixPage() {
             }
         };
 
-        if (tableRows.length === 0) {
+        if (clauseRows.length === 0) {
             return (
                 <div className="flex flex-col items-center justify-center py-24 text-center opacity-30">
                     <Layers className="h-16 w-16 mb-4" />
@@ -1217,7 +1700,7 @@ export default function CoherenceMatrixPage() {
         }
 
         return (
-            <div className="grid items-start gap-4 xl:grid-cols-[260px_minmax(0,1fr)]">
+            <div className="overflow-hidden rounded-lg border border-card-border bg-card shadow-none">
                 <div className="xl:hidden">
                     <details className="rounded-lg border border-card-border bg-card/90 p-3 shadow-none">
                         <summary className="cursor-pointer list-none text-[10px] font-black uppercase tracking-[0.14em] text-foreground/50">
@@ -1228,193 +1711,190 @@ export default function CoherenceMatrixPage() {
                         </div>
                     </details>
                 </div>
-                <div className="hidden xl:block">
+                <div className="hidden xl:block border-b border-card-border bg-card/90">
                     {renderMatrixIndexPanel()}
                 </div>
-                <div className="min-w-0">
-                    <div className="overflow-x-auto rounded-lg border border-card-border bg-background">
-                <Table className="min-w-[1180px] table-fixed">
+                <div className="min-w-0 bg-background">
+                    <div className="border-t border-card-border xl:border-t-0 xl:border-l border-card-border">
+                <Table className="w-full table-fixed">
                     <colgroup>
-                        <col className="w-[38%]" />
-                        <col className="w-[12%]" />
+                        <col className="w-[67%]" />
                         <col className="w-[18%]" />
-                        <col className="w-[10%]" />
-                        <col className="w-[12%]" />
+                        <col className="w-[15%]" />
                     </colgroup>
                     <TableHeader className="sticky top-0 z-10 bg-muted/30">
                         <TableRow className="hover:bg-transparent">
                             <TableHead className="px-2 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-foreground/70">Clause</TableHead>
-                            <TableHead className="px-2 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-foreground/70">Gap status</TableHead>
-                            <TableHead className="px-2 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-foreground/70">Reference / reason</TableHead>
-                            <TableHead className="px-2 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-foreground/70">Status date</TableHead>
-                            <TableHead className="px-2 py-2 text-right text-[10px] font-black uppercase tracking-[0.12em] text-foreground/70">Actions</TableHead>
+                            <TableHead className="px-2 py-2">
+                                <div className="flex flex-col gap-0.5">
+                                    <span className="text-[10px] font-black uppercase tracking-[0.12em] text-foreground/70">Gap status</span>
+                                    <span className="text-[9px] font-black uppercase tracking-[0.12em] text-foreground/45">Date / reference / reason</span>
+                                </div>
+                            </TableHead>
+                            <TableHead className="px-2 py-2">
+                                <div className="flex flex-col gap-0.5">
+                                    <span className="text-[10px] font-black uppercase tracking-[0.12em] text-foreground/70">Actions</span>
+                                    <span className="text-[9px] font-black uppercase tracking-[0.12em] text-foreground/45">Edit / delete</span>
+                                </div>
+                            </TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {tableRows.map(({ item, depth, hasChildren, anchorId }: MatrixTableRow) => {
+                        {clauseRows.map(({ item, depth, hasChildren, anchorId }: MatrixTableRow) => {
                             const isClauseRow = enableGapAnalysis && depth > 0 && !hasChildren;
                             const gapSummary = isClauseRow ? getGapSummary({ item, depth, hasChildren }) : null;
                             const clauseGapStatus: GapStatus | null = isClauseRow
                                 ? item.gapStatus || gapSummary?.gapStatus || 'Unassessed'
                                 : null;
-                            const rowType = depth === 0 ? 'Header' : hasChildren ? 'Subheader' : 'Clause';
                             const isExpanded = Boolean(expandedClauseIds[item.id]);
+                            const isSelected = selectedMatrixAnchorId === anchorId;
                             return (
                                 <Fragment key={item.id}>
-                                    <TableRow id={anchorId} key={item.id} className={cn(depth === 0 && 'bg-muted/15', 'scroll-mt-24')}>
-                                    <TableCell className="align-top px-1.5 py-2">
-                                            <div className="space-y-3" style={{ paddingLeft: `${depth * 0.5}rem` }}>
-                                                <div className="space-y-1">
-                                                    <div className="flex flex-wrap items-center gap-1">
-                                                        <Badge variant="outline" className="h-5 border-primary/20 bg-primary/5 px-1.5 text-[9px] font-black uppercase tracking-[0.12em] text-primary">
-                                                            {rowType}
-                                                        </Badge>
-                                                        <span className="text-[10px] font-black tracking-wide text-foreground/65">
-                                                            {item.regulationCode}
-                                                        </span>
-                                                    </div>
-                                                    <p className="text-[13px] font-semibold leading-5 text-foreground break-words">
-                                                        {item.regulationStatement}
-                                                    </p>
-                                                </div>
-                                                {item.technicalStandard?.trim() ? (
-                                                    <div className="space-y-2">
-                                                        <div className="flex items-center gap-2">
-                                                            <Button
-                                                                type="button"
-                                                                variant="ghost"
-                                                                size="compact"
-                                                                className="h-7 px-2 text-[9px] font-black uppercase tracking-[0.08em] text-foreground/70 hover:bg-accent/30"
-                                                                onClick={() => toggleClauseDetails(item.id)}
-                                                            >
-                                                                <ChevronDown className={cn('mr-1 h-3.5 w-3.5 transition-transform', isExpanded && 'rotate-180')} />
-                                                                {isExpanded ? 'Hide text' : 'Show text'}
-                                                            </Button>
-                                                            {!isExpanded ? (
-                                                                <p className="line-clamp-2 min-w-0 flex-1 text-[12px] leading-5 text-foreground/70">
-                                                                    {getTechnicalExcerpt(item.technicalStandard)}
-                                                                </p>
-                                                            ) : null}
-                                                        </div>
-                                                    </div>
+                                    <TableRow
+                                        id={anchorId}
+                                        key={item.id}
+                                        className={cn(
+                                            'scroll-mt-24 transition-colors',
+                                            depth === 0 && 'bg-muted/15',
+                                            isSelected && 'bg-primary/5 ring-1 ring-inset ring-primary/20'
+                                        )}
+                                    >
+                                        <TableCell className="align-top px-0.5 py-2">
+                                            <div
+                                                className="space-y-1.5 rounded-md border border-card-border/70 bg-background px-3 py-2"
+                                                style={{ paddingLeft: `${Math.max(depth - 1, 0) * 0.35 + 0.75}rem` }}
+                                            >
+                                        <div className="space-y-0.5">
+                                            <div className="flex flex-wrap items-center gap-1">
+                                                <span className="text-[10px] font-black tracking-wide text-foreground/65">
+                                                    {item.regulationCode}
+                                                </span>
+                                                {item.responsibleManagerId?.trim() ? (
+                                                    <Badge variant="outline" className="h-5 border-card-border bg-background/70 px-1.5 text-[9px] font-black uppercase tracking-[0.08em] text-foreground">
+                                                        {getManagerLabel(item.responsibleManagerId) || 'Unassigned'}
+                                                    </Badge>
                                                 ) : null}
                                             </div>
-                                        </TableCell>
-                                        <TableCell className="align-top px-1.5 py-2">
-                                            {isClauseRow ? (
-                                                canManageMatrix ? (
-                                                    <Select
-                                                        value={clauseGapStatus || 'Unassessed'}
-                                                        onValueChange={(value) => void updateGapStatus(item, value as GapStatus)}
-                                                    >
-                                                    <SelectTrigger className="h-8 w-full max-w-[160px]">
-                                                            <SelectValue placeholder="Select status" />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            {GAP_STATUS_OPTIONS.map((option) => (
-                                                                <SelectItem key={option.value} value={option.value}>
-                                                                    {option.label}
-                                                                </SelectItem>
-                                                            ))}
-                                                        </SelectContent>
-                                                    </Select>
+                                            <p className="text-[13px] font-semibold leading-5 text-foreground break-words">
+                                                {item.regulationStatement}
+                                            </p>
+                                        </div>
+                                        {renderClauseTextCard(item, isExpanded, () => toggleClauseDetails(item.id), canManageMatrix && depth > 0 && !hasChildren)}
+                                    </div>
+                                </TableCell>
+                                        <TableCell className="align-top px-0.5 py-2">
+                                            <div className="ml-auto w-full max-w-[170px] space-y-1">
+                                                {isClauseRow ? (
+                                                    canManageMatrix ? (
+                                                        <>
+                                                            <Popover
+                                                                open={openGapDateRowId === item.id}
+                                                                onOpenChange={(open) => setOpenGapDateRowId(open ? item.id : null)}
+                                                            >
+                                                                <PopoverTrigger asChild>
+                                                                    <Button type="button" variant="outline" size="compact" className="h-7 w-full justify-between border-slate-200 bg-background/90 px-2 text-[10px] shadow-none">
+                                                                        <span className={cn('truncate', !item.gapStatusDate?.trim() && 'text-muted-foreground')}>
+                                                                            {item.gapStatusDate?.trim() ? formatAuditDate(item.gapStatusDate) : 'Set date'}
+                                                                        </span>
+                                                                        <CalendarIcon className="h-3.5 w-3.5 shrink-0 opacity-60" />
+                                                                    </Button>
+                                                                </PopoverTrigger>
+                                                                <PopoverContent className="w-auto p-0" align="start">
+                                                                    <CustomCalendar
+                                                                        selectedDate={parseLocalDate(item.gapStatusDate)}
+                                                                        onDateSelect={(date) => {
+                                                                            void updateMatrixItemField(item, { gapStatusDate: toNoonUtcIso(date) });
+                                                                            setOpenGapDateRowId(null);
+                                                                        }}
+                                                                    />
+                                                                </PopoverContent>
+                                                            </Popover>
+                                                            <Select
+                                                                value={clauseGapStatus || 'Unassessed'}
+                                                                onValueChange={(value) => void updateGapStatus(item, value as GapStatus)}
+                                                            >
+                                                                <SelectTrigger className="h-7 w-full border-slate-200 bg-background/90 text-[10.5px] shadow-none">
+                                                                    <SelectValue placeholder="Select status" />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    {GAP_STATUS_OPTIONS.map((option) => (
+                                                                        <SelectItem key={option.value} value={option.value}>
+                                                                            {option.label}
+                                                                        </SelectItem>
+                                                                    ))}
+                                                                </SelectContent>
+                                                            </Select>
+                                                        </>
+                                                    ) : (
+                                                        <Badge variant={gapStatusVariant(clauseGapStatus || 'Unassessed')} className="text-[9px] font-black uppercase tracking-[0.08em]">
+                                                            {clauseGapStatus}
+                                                        </Badge>
+                                                    )
                                                 ) : (
-                                                    <Badge variant={gapStatusVariant(clauseGapStatus || 'Unassessed')} className="text-[9px] font-black uppercase tracking-[0.08em]">
-                                                        {clauseGapStatus}
-                                                    </Badge>
-                                                )
-                                            ) : (
-                                                <span className="text-[12px] text-muted-foreground">-</span>
-                                            )}
-                                        </TableCell>
-                                        <TableCell className="align-top px-1.5 py-2">
-                                            {isClauseRow ? (
-                                                canManageMatrix ? (
-                                                    <Input
-                                                        defaultValue={item.companyReference || ''}
-                                                        placeholder="Reference or reason"
-                                                        className="h-8 max-w-[220px]"
-                                                        onBlur={(event) => {
-                                                            const nextValue = event.target.value.trim();
-                                                            if ((item.companyReference || '').trim() === nextValue) return;
-                                                            void updateMatrixItemField(item, { companyReference: nextValue });
-                                                        }}
-                                                    />
+                                                    <span className="text-[12px] text-muted-foreground">-</span>
+                                                )}
+                                                {isClauseRow ? (
+                                                    canManageMatrix ? (
+                                                        <Textarea
+                                                            key={`${item.id}-${item.companyReference || ''}`}
+                                                            defaultValue={item.companyReference || ''}
+                                                            placeholder="Reference or reason"
+                                                            rows={1}
+                                                            className="min-h-[40px] w-full resize-none overflow-hidden border-slate-200 bg-background/90 py-2 text-[11px] leading-5 text-foreground/90 shadow-none"
+                                                            ref={(element) => {
+                                                                if (!element) return;
+                                                                element.style.height = 'auto';
+                                                                element.style.height = `${element.scrollHeight}px`;
+                                                            }}
+                                                            onInput={(event) => {
+                                                                const target = event.currentTarget;
+                                                                target.style.height = 'auto';
+                                                                target.style.height = `${target.scrollHeight}px`;
+                                                            }}
+                                                            onFocus={(event) => {
+                                                                const target = event.currentTarget;
+                                                                target.style.height = 'auto';
+                                                                target.style.height = `${target.scrollHeight}px`;
+                                                            }}
+                                                            onBlur={(event) => {
+                                                                const nextValue = event.target.value.trim();
+                                                                if ((item.companyReference || '').trim() === nextValue) return;
+                                                                void updateMatrixItemField(item, { companyReference: nextValue });
+                                                            }}
+                                                        />
+                                                    ) : (
+                                                        <span className="block truncate text-[12px] text-foreground/80">
+                                                            {item.companyReference?.trim() || '-'}
+                                                        </span>
+                                                    )
                                                 ) : (
-                                                    <span className="block truncate text-[12px] text-foreground/80">
-                                                        {item.companyReference?.trim() || '-'}
-                                                    </span>
-                                                )
-                                            ) : (
-                                                <span className="text-[12px] text-muted-foreground">-</span>
-                                            )}
+                                                    <span className="text-[12px] text-muted-foreground">-</span>
+                                                )}
+                                            </div>
                                         </TableCell>
-                                        <TableCell className="align-top px-1.5 py-2 text-[12px] text-foreground/80 whitespace-nowrap">
-                                            {isClauseRow ? (
-                                                canManageMatrix ? (
-                                                    <Popover
-                                                        open={openGapDateRowId === item.id}
-                                                        onOpenChange={(open) => setOpenGapDateRowId(open ? item.id : null)}
-                                                    >
-                                                        <PopoverTrigger asChild>
-                                                        <Button type="button" variant="outline" size="compact" className="h-8 w-full max-w-[150px] justify-between px-3">
-                                                                <span className={cn('truncate', !item.gapStatusDate?.trim() && 'text-muted-foreground')}>
-                                                                    {item.gapStatusDate?.trim() ? formatAuditDate(item.gapStatusDate) : 'Set date'}
-                                                                </span>
-                                                                <CalendarIcon className="h-4 w-4 shrink-0 opacity-60" />
-                                                            </Button>
-                                                        </PopoverTrigger>
-                                                        <PopoverContent className="w-auto p-0" align="start">
-                                                            <CustomCalendar
-                                                                selectedDate={parseLocalDate(item.gapStatusDate)}
-                                                                onDateSelect={(date) => {
-                                                                    void updateMatrixItemField(item, { gapStatusDate: toNoonUtcIso(date) });
-                                                                    setOpenGapDateRowId(null);
-                                                                }}
-                                                            />
-                                                        </PopoverContent>
-                                                    </Popover>
+                                        <TableCell className="align-top px-0.5 py-2">
+                                            <div className="ml-auto w-full max-w-[180px] space-y-1 overflow-hidden">
+                                                {isClauseRow ? (
+                                                    canManageMatrix ? (
+                                                        <>
+                                                            <div className="grid w-full grid-cols-2 gap-0.5">
+                                                                <Button variant="outline" size="icon" className="h-7 w-full border-slate-200 bg-background/90 px-0 shadow-none hover:bg-accent/40" onClick={() => handleOpenForm(item)}>
+                                                                    <Edit className="h-3.5 w-3.5 text-foreground/80" />
+                                                                </Button>
+                                                                <Button variant="destructive" size="icon" className="h-7 w-full border border-destructive/25 bg-destructive/8 px-0 text-destructive shadow-none hover:bg-destructive/12 hover:text-destructive" onClick={() => handleDeleteItem(item)}>
+                                                                    <Trash2 className="h-3.5 w-3.5 text-current" />
+                                                                </Button>
+                                                            </div>
+                                                        </>
+                                                    ) : (
+                                                        null
+                                                    )
                                                 ) : (
-                                                    item.gapStatusDate?.trim() ? formatAuditDate(item.gapStatusDate) : '-'
-                                                )
-                                            ) : (
-                                                '-'
-                                            )}
-                                        </TableCell>
-                                        <TableCell className="align-top px-2 py-2">
-                                            <div className="flex justify-end gap-1">
-                                                {depth === 0 && canManageMatrix ? (
-                                                    <>
-                                                        <Button variant="outline" size="icon" className="h-7 w-7 border-slate-300" onClick={() => handleOpenForm(item, 'header')}>
-                                                            <Edit className="h-3.5 w-3.5" />
-                                                        </Button>
-                                                        <Button variant="destructive" size="icon" className="h-7 w-7" onClick={() => handleDeleteSection(item)}>
-                                                            <Trash2 className="h-3.5 w-3.5" />
-                                                        </Button>
-                                                    </>
-                                                ) : depth !== 0 && canManageMatrix ? (
-                                                    <>
-                                                        <Button variant="outline" size="icon" className="h-7 w-7 border-slate-300" onClick={() => handleOpenForm(item)}>
-                                                            <Edit className="h-3.5 w-3.5" />
-                                                        </Button>
-                                                        <Button variant="destructive" size="icon" className="h-7 w-7" onClick={() => handleDeleteItem(item)}>
-                                                            <Trash2 className="h-3.5 w-3.5" />
-                                                        </Button>
-                                                    </>
-                                                ) : null}
+                                                    null
+                                                )}
                                             </div>
                                         </TableCell>
                                     </TableRow>
-                                    {isClauseRow && isExpanded ? (
-                                        <TableRow key={`${item.id}-detail`} className="bg-muted/10">
-                                            <TableCell colSpan={5} className="px-1.5 pb-3 pt-0">
-                                                <div className="w-full rounded-md border border-card-border/70 bg-background pl-6 pr-3 py-2 text-[12px] leading-5 text-foreground/80 break-words">
-                                                    <p className="mb-1 text-[9px] font-black uppercase tracking-[0.14em] text-foreground/50">Clause details</p>
-                                                    {renderTechnicalStandardText(item.technicalStandard)}
-                                                </div>
-                                            </TableCell>
-                                        </TableRow>
-                                    ) : null}
                                 </Fragment>
                             );
                         })}
@@ -1558,6 +2038,313 @@ export default function CoherenceMatrixPage() {
             }
         };
 
+        const selectedGapRow = rows.find(({ anchorId }) => anchorId === selectedMatrixAnchorId)
+            || rows.find(({ depth, hasChildren }) => depth > 0 && !hasChildren)
+            || rows[0]
+            || null;
+
+        const renderClauseInspector = () => {
+            if (!selectedGapRow) {
+            return (
+                <div className="sticky top-0 rounded-lg border border-card-border bg-background p-4 shadow-none">
+                    <p className="text-[10px] font-black uppercase tracking-[0.14em] text-foreground/50">Inspector</p>
+                    <p className="mt-2 text-sm text-foreground/70">Select a clause to review its gap status, reference, date, and actions.</p>
+                </div>
+                );
+            }
+
+            const { item, gapStatus, mappedCount, assessedCount, openCapCount, latestFinding } = selectedGapRow;
+            const isExpanded = Boolean(expandedClauseIds[item.id]);
+            const canEditClause = canManageMatrix && selectedGapRow.depth > 0;
+            const analysisEntries = getClauseAnalysisEntries(item);
+            const assessedAnalysisCount = analysisEntries.filter((entry) => entry.gapStatus && entry.gapStatus !== 'Unassessed').length;
+
+            const updateAnalysisEntry = async (marker: string, patch: Partial<ClauseAnalysisEntry>) => {
+                const nextEntries = analysisEntries.map((entry) =>
+                    entry.marker === marker
+                        ? { ...entry, ...patch }
+                        : entry
+                );
+                await updateMatrixItemField(item, { analysisEntries: nextEntries });
+            };
+
+            return (
+                <div className="sticky top-0 rounded-lg border border-card-border bg-card/95 p-3 shadow-none">
+                    <div className="space-y-3">
+                        <div className="space-y-1">
+                            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-foreground/50">Selected clause</p>
+                            <div className="flex flex-wrap items-center gap-1">
+                                <span className="text-[10px] font-black tracking-wide text-foreground/65">{item.regulationCode}</span>
+                            </div>
+                            <p className="text-sm font-semibold leading-5 text-foreground">{item.regulationStatement}</p>
+                        </div>
+
+                        {renderClauseTextCard(item, isExpanded, () => toggleClauseDetails(item.id), canEditClause)}
+
+                        {analysisEntries.length > 0 ? (
+                            <div className="space-y-2 rounded-md border border-card-border/70 bg-background/60 px-3 py-2">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <p className="text-[9px] font-black uppercase tracking-[0.12em] text-foreground/50">Requirement analyses</p>
+                                    <p className="text-[9px] font-black uppercase tracking-[0.12em] text-foreground/45">
+                                        {assessedAnalysisCount}/{analysisEntries.length} assessed
+                                    </p>
+                                </div>
+                                <div className="space-y-2">
+                                    {analysisEntries.map((entry) => (
+                                        <div key={entry.id} className="rounded-md border border-card-border/70 bg-card/80 p-2.5">
+                                            <div className="flex items-start justify-between gap-2">
+                                                <div className="min-w-0">
+                                                    <p className="text-[9px] font-black uppercase tracking-[0.12em] text-foreground/50">{entry.marker}</p>
+                                                    <p className="text-[12px] font-semibold leading-5 text-foreground">{entry.content}</p>
+                                                </div>
+                                                <Badge variant={statusVariant(entry.gapStatus || 'Unassessed')} className="text-[8px] font-black uppercase tracking-[0.08em]">
+                                                    {entry.gapStatus || 'Unassessed'}
+                                                </Badge>
+                                            </div>
+                                            <div className="mt-2 space-y-2">
+                                                <div className="space-y-1">
+                                                    <p className="text-[9px] font-black uppercase tracking-[0.12em] text-foreground/50">Date</p>
+                                                    {canEditClause ? (
+                                                        <Popover
+                                                            open={openGapDateRowId === entry.id}
+                                                            onOpenChange={(open) => setOpenGapDateRowId(open ? entry.id : null)}
+                                                        >
+                                                            <PopoverTrigger asChild>
+                                                                <Button type="button" variant="outline" size="compact" className="h-7 w-full justify-between border-slate-200 bg-background/90 px-2 text-[10px] shadow-none">
+                                                                    <span className={cn('truncate', !entry.gapStatusDate?.trim() && 'text-muted-foreground')}>
+                                                                        {entry.gapStatusDate?.trim() ? formatAuditDate(entry.gapStatusDate) : 'Set date'}
+                                                                    </span>
+                                                                    <CalendarIcon className="h-3.5 w-3.5 shrink-0 opacity-60" />
+                                                                </Button>
+                                                            </PopoverTrigger>
+                                                            <PopoverContent className="w-auto p-0" align="start">
+                                                                <CustomCalendar
+                                                                    selectedDate={parseLocalDate(entry.gapStatusDate)}
+                                                                    onDateSelect={(date) => {
+                                                                        void updateAnalysisEntry(entry.marker, {
+                                                                            gapStatusDate: toNoonUtcIso(date),
+                                                                        });
+                                                                        setOpenGapDateRowId(null);
+                                                                    }}
+                                                                />
+                                                            </PopoverContent>
+                                                        </Popover>
+                                                    ) : (
+                                                        <span className="block rounded-md border border-card-border/70 bg-background/70 px-2 py-2 text-[12px] text-foreground/80">
+                                                            {entry.gapStatusDate?.trim() ? formatAuditDate(entry.gapStatusDate) : '-'}
+                                                        </span>
+                                                    )}
+                                                </div>
+
+                                                <div className="space-y-1">
+                                                    <p className="text-[9px] font-black uppercase tracking-[0.12em] text-foreground/50">Gap status</p>
+                                                    {canEditClause ? (
+                                                        <Select
+                                                            value={entry.gapStatus || 'Unassessed'}
+                                                            onValueChange={(value) => {
+                                                                void updateAnalysisEntry(entry.marker, {
+                                                                    gapStatus: value as GapStatus,
+                                                                    gapStatusDate: new Date().toISOString(),
+                                                                });
+                                                            }}
+                                                        >
+                                                            <SelectTrigger className="h-7 w-full border-slate-200 bg-background/90 text-[10.5px] shadow-none">
+                                                                <SelectValue placeholder="Select status" />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                {GAP_STATUS_OPTIONS.map((option) => (
+                                                                    <SelectItem key={option.value} value={option.value}>
+                                                                        {option.label}
+                                                                    </SelectItem>
+                                                                ))}
+                                                            </SelectContent>
+                                                        </Select>
+                                                    ) : (
+                                                        <Badge variant={statusVariant(entry.gapStatus || 'Unassessed')} className="text-[9px] font-black uppercase tracking-[0.08em]">
+                                                            {entry.gapStatus || 'Unassessed'}
+                                                        </Badge>
+                                                    )}
+                                                </div>
+
+                                                <div className="space-y-1">
+                                                    <p className="text-[9px] font-black uppercase tracking-[0.12em] text-foreground/50">Reference / reason</p>
+                                                    {canEditClause ? (
+                                                        <Textarea
+                                                            key={`${item.id}-${entry.id}-${entry.companyReference || ''}`}
+                                                            defaultValue={entry.companyReference || ''}
+                                                            placeholder="Reference or reason"
+                                                            rows={1}
+                                                            className="min-h-[40px] w-full resize-none overflow-hidden border-slate-200 bg-background/90 py-2 text-[11px] leading-5 text-foreground/90 shadow-none"
+                                                            ref={(element) => {
+                                                                if (!element) return;
+                                                                element.style.height = 'auto';
+                                                                element.style.height = `${element.scrollHeight}px`;
+                                                            }}
+                                                            onInput={(event) => {
+                                                                const target = event.currentTarget;
+                                                                target.style.height = 'auto';
+                                                                target.style.height = `${target.scrollHeight}px`;
+                                                            }}
+                                                            onFocus={(event) => {
+                                                                const target = event.currentTarget;
+                                                                target.style.height = 'auto';
+                                                                target.style.height = `${target.scrollHeight}px`;
+                                                            }}
+                                                            onBlur={(event) => {
+                                                                const nextValue = event.target.value.trim();
+                                                                if ((entry.companyReference || '').trim() === nextValue) return;
+                                                                void updateAnalysisEntry(entry.marker, { companyReference: nextValue });
+                                                            }}
+                                                        />
+                                                    ) : (
+                                                        <span className="block rounded-md border border-card-border/70 bg-background/70 px-2 py-2 text-[12px] text-foreground/80">
+                                                            {entry.companyReference?.trim() || '-'}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ) : null}
+
+                        <div className="space-y-3">
+                            <div className="space-y-1">
+                                <p className="text-[9px] font-black uppercase tracking-[0.12em] text-foreground/50">Status date</p>
+                                {canEditClause ? (
+                                    <Popover
+                                        open={openGapDateRowId === item.id}
+                                        onOpenChange={(open) => setOpenGapDateRowId(open ? item.id : null)}
+                                    >
+                                        <PopoverTrigger asChild>
+                                            <Button type="button" variant="outline" size="compact" className="h-8 w-full justify-between border-slate-200 bg-background/90 px-2 text-[10px] shadow-none">
+                                                <span className={cn('truncate', !item.gapStatusDate?.trim() && 'text-muted-foreground')}>
+                                                    {item.gapStatusDate?.trim() ? formatAuditDate(item.gapStatusDate) : 'Set date'}
+                                                </span>
+                                                <CalendarIcon className="h-3.5 w-3.5 shrink-0 opacity-60" />
+                                            </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-auto p-0" align="start">
+                                            <CustomCalendar
+                                                selectedDate={parseLocalDate(item.gapStatusDate)}
+                                                onDateSelect={(date) => {
+                                                    void updateMatrixItemField(item, { gapStatusDate: toNoonUtcIso(date) });
+                                                    setOpenGapDateRowId(null);
+                                                }}
+                                            />
+                                        </PopoverContent>
+                                    </Popover>
+                                ) : (
+                                    <span className="block rounded-md border border-card-border/70 bg-background/70 px-2 py-2 text-[12px] text-foreground/80">
+                                        {item.gapStatusDate?.trim() ? formatAuditDate(item.gapStatusDate) : '-'}
+                                    </span>
+                                )}
+                            </div>
+
+                            <div className="space-y-1">
+                                <p className="text-[9px] font-black uppercase tracking-[0.12em] text-foreground/50">Gap status</p>
+                                {canEditClause ? (
+                                    <Select
+                                        value={gapStatus || 'Unassessed'}
+                                        onValueChange={(value) => void updateGapStatus(item, value as GapStatus)}
+                                    >
+                                        <SelectTrigger className="h-8 w-full border-slate-200 bg-background/90 text-[10.5px] shadow-none">
+                                            <SelectValue placeholder="Select status" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {GAP_STATUS_OPTIONS.map((option) => (
+                                                <SelectItem key={option.value} value={option.value}>
+                                                    {option.label}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                ) : (
+                                    <Badge variant={statusVariant(gapStatus)} className="text-[9px] font-black uppercase tracking-[0.08em]">
+                                        {gapStatus}
+                                    </Badge>
+                                )}
+                            </div>
+
+                            <div className="space-y-1">
+                                <p className="text-[9px] font-black uppercase tracking-[0.12em] text-foreground/50">Reference / reason</p>
+                                {canEditClause ? (
+                                    <Textarea
+                                        key={`${item.id}-${item.companyReference || ''}`}
+                                        defaultValue={item.companyReference || ''}
+                                        placeholder="Reference or reason"
+                                        rows={1}
+                                        className="min-h-[40px] w-full resize-none overflow-hidden border-slate-200 bg-background/90 py-2 text-[11px] leading-5 text-foreground/90 shadow-none"
+                                        ref={(element) => {
+                                            if (!element) return;
+                                            element.style.height = 'auto';
+                                            element.style.height = `${element.scrollHeight}px`;
+                                        }}
+                                        onInput={(event) => {
+                                            const target = event.currentTarget;
+                                            target.style.height = 'auto';
+                                            target.style.height = `${target.scrollHeight}px`;
+                                        }}
+                                        onFocus={(event) => {
+                                            const target = event.currentTarget;
+                                            target.style.height = 'auto';
+                                            target.style.height = `${target.scrollHeight}px`;
+                                        }}
+                                        onBlur={(event) => {
+                                            const nextValue = event.target.value.trim();
+                                            if ((item.companyReference || '').trim() === nextValue) return;
+                                            void updateMatrixItemField(item, { companyReference: nextValue });
+                                        }}
+                                    />
+                                ) : (
+                                    <span className="block rounded-md border border-card-border/70 bg-background/70 px-2 py-2 text-[12px] text-foreground/80">
+                                        {item.companyReference?.trim() || '-'}
+                                    </span>
+                                )}
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2">
+                                {canManageMatrix ? (
+                                    <>
+                                        <Button variant="outline" size="icon" className="h-8 w-full border-slate-200 bg-background/90 px-0 shadow-none hover:bg-accent/40" onClick={() => handleOpenForm(item)}>
+                                            <Edit className="h-3.5 w-3.5 text-foreground/80" />
+                                        </Button>
+                                        <Button variant="destructive" size="icon" className="h-8 w-full border border-destructive/25 bg-destructive/8 px-0 text-destructive shadow-none hover:bg-destructive/12 hover:text-destructive" onClick={() => handleDeleteItem(item)}>
+                                            <Trash2 className="h-3.5 w-3.5 text-current" />
+                                        </Button>
+                                    </>
+                                ) : null}
+                            </div>
+
+                            <div className="space-y-1 rounded-md border border-card-border/70 bg-muted/20 px-3 py-2">
+                                <div className="flex flex-wrap gap-1.5">
+                                    <Badge variant={statusVariant(gapStatus)} className="text-[9px] font-black uppercase tracking-[0.08em]">
+                                        {gapStatus}
+                                    </Badge>
+                                    <Badge variant="outline" className="text-[9px] font-black uppercase tracking-[0.08em]">
+                                        {mappedCount === 0 ? 'No mapping' : `${assessedCount}/${mappedCount} assessed`}
+                                    </Badge>
+                                    {openCapCount > 0 ? (
+                                        <Badge variant="destructive" className="text-[9px] font-black uppercase tracking-[0.08em]">
+                                            {openCapCount} open CAP{openCapCount === 1 ? '' : 's'}
+                                        </Badge>
+                                    ) : null}
+                                </div>
+                                {latestFinding ? (
+                                    <p className="text-[11px] leading-5 text-foreground/75">
+                                        Latest: <span className="font-semibold uppercase">{latestFinding.finding}</span> · {latestFinding.auditNumber} · {formatAuditDate(latestFinding.auditDate)}
+                                    </p>
+                                ) : (
+                                    <p className="text-[11px] leading-5 text-muted-foreground italic">No audit finding linked yet.</p>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
         if (rows.length === 0) {
             return (
                 <div className="flex flex-col items-center justify-center py-24 text-center opacity-30">
@@ -1569,7 +2356,11 @@ export default function CoherenceMatrixPage() {
         }
 
         return (
-            <div className="rounded-lg border border-card-border bg-background">
+            <div
+                className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_24px_var(--clause-inspector-width)]"
+                style={clauseInspectorWidthStyle}
+            >
+                <div className="rounded-lg border border-card-border bg-background">
                 <Table className="min-w-[1350px] table-fixed">
                     <colgroup>
                         <col className="w-[17%]" />
@@ -1599,6 +2390,11 @@ export default function CoherenceMatrixPage() {
                                                 {depth === 0 ? 'Header' : hasChildren ? 'Subheader' : 'Clause'}
                                             </Badge>
                                             <span className="text-[10px] font-black tracking-wide text-foreground/65">{item.regulationCode}</span>
+                                            {item.responsibleManagerId?.trim() ? (
+                                                <Badge variant="outline" className="h-5 border-card-border bg-background/70 px-1.5 text-[9px] font-black uppercase tracking-[0.08em] text-foreground">
+                                                    Responsible {getManagerLabel(item.responsibleManagerId) || '-'}
+                                                </Badge>
+                                            ) : null}
                                         </div>
                                         <p className="line-clamp-2 text-[12.5px] font-semibold leading-[1.35] text-foreground break-words">
                                             {item.regulationStatement}
@@ -1607,6 +2403,36 @@ export default function CoherenceMatrixPage() {
                                 </TableCell>
                                 <TableCell className="align-top px-2 py-2">
                                     <div className="space-y-1.5">
+                                        {depth > 0 && !hasChildren ? (
+                                            canManageMatrix ? (
+                                                <Popover
+                                                    open={openGapDateRowId === item.id}
+                                                    onOpenChange={(open) => setOpenGapDateRowId(open ? item.id : null)}
+                                                >
+                                                    <PopoverTrigger asChild>
+                                                        <Button type="button" variant="outline" size="compact" className="h-7 w-full justify-between border-slate-200 bg-background/90 px-2 text-[10px] shadow-none">
+                                                            <span className={cn('truncate', !item.gapStatusDate?.trim() && 'text-muted-foreground')}>
+                                                                {item.gapStatusDate?.trim() ? formatAuditDate(item.gapStatusDate) : 'Set date'}
+                                                            </span>
+                                                            <CalendarIcon className="h-3.5 w-3.5 shrink-0 opacity-60" />
+                                                        </Button>
+                                                    </PopoverTrigger>
+                                                    <PopoverContent className="w-auto p-0" align="start">
+                                                        <CustomCalendar
+                                                            selectedDate={parseLocalDate(item.gapStatusDate)}
+                                                            onDateSelect={(date) => {
+                                                                void updateMatrixItemField(item, { gapStatusDate: toNoonUtcIso(date) });
+                                                                setOpenGapDateRowId(null);
+                                                            }}
+                                                        />
+                                                    </PopoverContent>
+                                                </Popover>
+                                            ) : (
+                                                <span className="text-[12px] text-muted-foreground">
+                                                    {item.gapStatusDate?.trim() ? formatAuditDate(item.gapStatusDate) : '-'}
+                                                </span>
+                                            )
+                                        ) : null}
                                         <div className="flex flex-wrap gap-1.5">
                                             <Badge variant={statusVariant(gapStatus)} className="text-[9px] font-black uppercase tracking-[0.08em]">
                                                 {gapStatus}
@@ -1671,6 +2497,22 @@ export default function CoherenceMatrixPage() {
                         ))}
                     </TableBody>
                 </Table>
+                </div>
+                <div className="hidden xl:flex items-stretch justify-center">
+                    <button
+                        type="button"
+                        className="flex h-full w-full cursor-col-resize items-center justify-center rounded-full border border-transparent text-foreground/35 transition hover:border-border hover:bg-muted/40 hover:text-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 touch-none select-none"
+                        onPointerDown={handleClauseResizePointerDown}
+                        aria-label="Resize clause inspector"
+                        aria-orientation="vertical"
+                        title="Drag to resize"
+                    >
+                        <GripVertical className="h-5 w-5" />
+                    </button>
+                </div>
+                <div className="xl:sticky xl:top-4">
+                    {renderClauseInspector()}
+                </div>
             </div>
         );
     };
@@ -2003,9 +2845,43 @@ export default function CoherenceMatrixPage() {
                 />
                 
                 <CardContent className="flex-1 min-h-0 overflow-auto p-6 pt-4">
-                    {renderMatrixTable()}
-                </CardContent>
-            </Card>
+            <div
+                className={cn('grid gap-4', `xl:grid-cols-[minmax(0,1fr)_${CLAUSE_SPLIT_HANDLE_WIDTH}px_var(--clause-inspector-width)]`)}
+                style={clauseInspectorWidthStyle}
+            >
+                <div className="space-y-4">
+                    <div className="xl:hidden">
+                        <details className="rounded-lg border border-card-border bg-card/90 p-3 shadow-none">
+                                    <summary className="cursor-pointer list-none text-[10px] font-black uppercase tracking-[0.14em] text-foreground/50">
+                                        Regulation index
+                                    </summary>
+                                    <div className="mt-3">
+                                        {renderMatrixIndexContent()}
+                                    </div>
+                                </details>
+                            </div>
+                    <div className="hidden xl:block">
+                        {renderMatrixIndexPanel()}
+                    </div>
+                </div>
+                <div className="hidden xl:flex items-stretch justify-center">
+                    <button
+                        type="button"
+                        className="flex h-full w-full cursor-col-resize items-center justify-center rounded-full border border-transparent text-foreground/35 transition hover:border-border hover:bg-muted/40 hover:text-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 touch-none select-none"
+                        onPointerDown={handleClauseResizePointerDown}
+                        aria-label="Resize clause inspector"
+                        aria-orientation="vertical"
+                        title="Drag to resize"
+                    >
+                        <GripVertical className="h-5 w-5" />
+                    </button>
+                </div>
+                <div className="xl:sticky xl:top-4">
+                    {renderSelectedClauseInspector()}
+                </div>
+            </div>
+        </CardContent>
+    </Card>
         </Tabs>
     );
   };

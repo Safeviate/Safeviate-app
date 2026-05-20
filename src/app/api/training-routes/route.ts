@@ -1,5 +1,6 @@
 import { authOptions } from '@/auth';
 import { prisma } from '@/lib/prisma';
+import { getTenantIdForRoute } from '@/lib/server/session-tenant';
 import { ensureTrainingRoutesSchema } from '@/lib/server/bootstrap-db';
 import { getServerSession } from 'next-auth';
 import { NextResponse } from 'next/server';
@@ -11,25 +12,14 @@ const normalizeRoute = (route: Record<string, unknown>, tenantId: string) => ({
   tenantId,
 });
 
-async function getTenantId() {
-  const session = await getServerSession(authOptions);
-  const email = session?.user?.email?.trim().toLowerCase();
-  if (!email) return null;
-
-  await prisma.tenant.upsert({
-    where: { id: 'safeviate' },
-    update: { updatedAt: new Date() },
-    create: { id: 'safeviate', name: 'Safeviate' },
-  });
-
-  const currentUser = await prisma.user.findUnique({ where: { email }, select: { tenantId: true } });
-  return currentUser?.tenantId || 'safeviate';
+async function getTenantId(request: Request) {
+  return getTenantIdForRoute(request);
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     await ensureTrainingRoutesSchema();
-    const tenantId = await getTenantId();
+    const tenantId = await getTenantId(request);
     if (!tenantId) {
       return NextResponse.json({ routes: [] }, { status: 200 });
     }
@@ -49,7 +39,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     await ensureTrainingRoutesSchema();
-    const tenantId = await getTenantId();
+    const tenantId = await getTenantId(request);
     if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await request.json().catch(() => null);
@@ -80,7 +70,7 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
   try {
     await ensureTrainingRoutesSchema();
-    const tenantId = await getTenantId();
+    const tenantId = await getTenantId(request);
     if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await request.json().catch(() => null);
@@ -106,7 +96,7 @@ export async function PATCH(request: Request) {
 export async function DELETE(request: Request) {
   try {
     await ensureTrainingRoutesSchema();
-    const tenantId = await getTenantId();
+    const tenantId = await getTenantId(request);
     if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const { searchParams } = new URL(request.url);

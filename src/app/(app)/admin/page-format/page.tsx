@@ -4,17 +4,13 @@ import { Card } from '@/components/ui/card';
 import { usePermissions } from '@/hooks/use-permissions';
 import { MainPageHeader } from '@/components/page-header';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useUserProfile } from '@/hooks/use-user-profile';
 import { ColorThemeForm } from '../../settings/color-theme-form';
 
 export default function PageFormatPage() {
   const { hasPermission, isLoading: isPermissionsLoading } = usePermissions();
-  const { userProfile, isLoading: isProfileLoading } = useUserProfile();
-  const isDeveloperRole = ((userProfile as { role?: string } | null)?.role || '').toLowerCase() === 'dev'
-    || ((userProfile as { role?: string } | null)?.role || '').toLowerCase() === 'developer';
-  const canManage = isDeveloperRole || hasPermission('admin-settings-manage');
+  const canManage = hasPermission('admin-settings-manage');
 
-  if ((!canManage && isPermissionsLoading) || isProfileLoading || !userProfile) {
+  if (isPermissionsLoading) {
     return (
       <div className="lg:max-w-[1100px] mx-auto flex flex-1 min-h-0 w-full flex-col gap-6 overflow-hidden px-1 pb-4">
         <Skeleton className="h-20 w-full" />

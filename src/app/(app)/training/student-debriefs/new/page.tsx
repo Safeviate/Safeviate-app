@@ -177,7 +177,6 @@ function NewDebriefContent() {
     const searchParams = useSearchParams();
     const bookingId = searchParams?.get('bookingId') ?? '';
     const { toast } = useToast();
-    const tenantId = 'safeviate';
     const { tenant } = useTenantConfig();
     const { hasPermission } = usePermissions();
     const canEditDebrief = hasPermission('training-debriefs-edit') || hasPermission('admin-view');

@@ -43,3 +43,14 @@ export function invalidatePersonnelDirectoryCaches(tenantId: string) {
   invalidateRouteCache(`dashboard-summary:${tenantId}`);
   invalidateRouteCache(`schedule-data:${tenantId}`);
 }
+
+export function invalidateTenantScopedCaches(tenantId: string) {
+  invalidateRouteCache(`tenant-config:${tenantId}`);
+  invalidateRouteCache(`dashboard-summary:${tenantId}`);
+  invalidateRouteCache(`dashboard-summary:v2:${tenantId}`);
+  invalidateRouteCache(`dashboard-summary:tenant-config:${tenantId}`);
+  invalidateRouteCache(`schedule-data:${tenantId}`);
+  invalidateRouteCache(`aircraft:${tenantId}`);
+  invalidateRouteCache(`vehicle-usage:${tenantId}`);
+  invalidatePersonnelDirectoryCaches(tenantId);
+}

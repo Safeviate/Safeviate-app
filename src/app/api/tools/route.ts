@@ -1,22 +1,19 @@
 import { authOptions } from '@/auth';
 import { prisma } from '@/lib/prisma';
+import { getTenantIdForRoute } from '@/lib/server/session-tenant';
 import { ensureToolsSchema } from '@/lib/server/bootstrap-db';
 import { getServerSession } from 'next-auth';
 import { NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
 
-async function getTenantId() {
-  const session = await getServerSession(authOptions);
-  const email = session?.user?.email?.trim().toLowerCase();
-  if (!email) return null;
-  const currentUser = await prisma.user.findUnique({ where: { email }, select: { tenantId: true } });
-  return currentUser?.tenantId || 'safeviate';
+async function getTenantId(request: Request) {
+  return getTenantIdForRoute(request);
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     await ensureToolsSchema();
-    const tenantId = await getTenantId();
+    const tenantId = await getTenantId(request);
     if (!tenantId) return NextResponse.json({ tools: [] }, { status: 200 });
     const rows = await prisma.$queryRawUnsafe<{ data: unknown }[]>(
       `SELECT data FROM tools WHERE tenant_id = $1 ORDER BY created_at ASC`,
@@ -31,7 +28,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   await ensureToolsSchema();
-  const tenantId = await getTenantId();
+  const tenantId = await getTenantId(request);
   if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const body = await request.json().catch(() => null);
   const tool = body?.tool;

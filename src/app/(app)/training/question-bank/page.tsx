@@ -33,6 +33,7 @@ import type { ExamTopicsSettings } from '../../admin/exam-topics/page';
 import { useUserProfile } from '@/hooks/use-user-profile';
 import { AiExamGenerator } from '../exams/ai-exam-generator';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { usePermissions } from '@/hooks/use-permissions';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -44,6 +45,8 @@ export default function QuestionBankPage() {
   const { toast } = useToast();
   const { tenantId } = useUserProfile();
   const isMobile = useIsMobile();
+  const { hasPermission, isLoading: isPermissionsLoading } = usePermissions();
+  const canManage = hasPermission('training-exams-manage');
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTopic, setSelectedTopic] = useState<string>('');
@@ -132,11 +135,23 @@ export default function QuestionBankPage() {
     }
   };
 
-  if (isLoadingTopics || (isLoading && !poolItems)) {
+  if (isPermissionsLoading || isLoadingTopics || (isLoading && !poolItems)) {
     return (
       <div className="lg:max-w-[1100px] mx-auto w-full p-8 pt-4 space-y-6">
         <Skeleton className="h-14 w-full px-1" />
         <Skeleton className="h-[400px] w-full px-1" />
+      </div>
+    );
+  }
+
+  if (!canManage) {
+    return (
+      <div className="lg:max-w-[1100px] mx-auto w-full px-1 pt-4">
+        <Card className="border shadow-none">
+          <CardContent className="p-6 text-center text-sm text-muted-foreground">
+            Access restricted for this tenant view.
+          </CardContent>
+        </Card>
       </div>
     );
   }

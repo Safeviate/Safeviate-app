@@ -1,27 +1,19 @@
 import { authOptions } from '@/auth';
 import { prisma } from '@/lib/prisma';
+import { getTenantIdForRoute } from '@/lib/server/session-tenant';
 import { ensureRolesSchema } from '@/lib/server/bootstrap-db';
 import { getServerSession } from 'next-auth';
 import { NextRequest, NextResponse } from 'next/server';
 import { invalidatePersonnelDirectoryCaches } from '@/lib/server/route-cache';
 
-async function getTenantId() {
-  const session = await getServerSession(authOptions);
-  const email = session?.user?.email?.trim().toLowerCase();
-  if (!email) return null;
-
-  const currentUser = await prisma.user.findUnique({
-    where: { email },
-    select: { tenantId: true },
-  });
-
-  return currentUser?.tenantId || 'safeviate';
+async function getTenantId(request: Request) {
+  return getTenantIdForRoute(request);
 }
 
-export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   await ensureRolesSchema();
   const { id } = await params;
-  const tenantId = await getTenantId();
+  const tenantId = await getTenantId(request);
   if (!tenantId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -38,7 +30,7 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   await ensureRolesSchema();
   const { id } = await params;
-  const tenantId = await getTenantId();
+  const tenantId = await getTenantId(request);
   if (!tenantId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }

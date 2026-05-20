@@ -1,24 +1,21 @@
 import { authOptions } from '@/auth';
 import { prisma } from '@/lib/prisma';
+import { getTenantIdForRoute } from '@/lib/server/session-tenant';
 import { ensureRisksSchema } from '@/lib/server/bootstrap-db';
 import { recordSimulationRouteMetric } from '@/lib/server/simulation-telemetry';
 import { getServerSession } from 'next-auth';
 import { NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
 
-async function getTenantId() {
-  const session = await getServerSession(authOptions);
-  const email = session?.user?.email?.trim().toLowerCase();
-  if (!email) return null;
-  const currentUser = await prisma.user.findUnique({ where: { email }, select: { tenantId: true } });
-  return currentUser?.tenantId || 'safeviate';
+async function getTenantId(request: Request) {
+  return getTenantIdForRoute(request);
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const startedAt = Date.now();
   let tenantId: string | null = null;
   try {
-    tenantId = await getTenantId();
+    tenantId = await getTenantId(request);
     if (!tenantId) return NextResponse.json({ risks: [] }, { status: 200 });
     await ensureRisksSchema();
     const rows = await prisma.$queryRawUnsafe<{ data: unknown }[]>(`SELECT data FROM risks WHERE tenant_id = $1 ORDER BY created_at ASC`, tenantId);
@@ -46,7 +43,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const startedAt = Date.now();
-  const tenantId = await getTenantId();
+  const tenantId = await getTenantId(request);
   if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   await ensureRisksSchema();
   const body = await request.json();

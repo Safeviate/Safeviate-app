@@ -19,3 +19,23 @@ export async function getTenantIdFromSession(request: Request, fallbackTenantId 
   return baseTenantId;
 }
 
+export async function getTenantIdForRoute(
+  request: Request,
+  options?: {
+    allowDevelopmentFallback?: boolean;
+    fallbackTenantId?: string;
+  }
+) {
+  const fallbackTenantId = options?.fallbackTenantId || MASTER_TENANT_ID;
+  const tenantId = await getTenantIdFromSession(request, fallbackTenantId);
+
+  if (tenantId) {
+    return tenantId;
+  }
+
+  if (options?.allowDevelopmentFallback && process.env.NODE_ENV === 'development') {
+    return fallbackTenantId;
+  }
+
+  return null;
+}

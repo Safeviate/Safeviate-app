@@ -19,6 +19,15 @@ export async function GET(request: Request) {
     await ensureTenantConfigSchema();
 
     const tenantId = tenantIdFromQuery || (await getTenantIdFromSession(request, MASTER_TENANT_ID)) || MASTER_TENANT_ID;
+    const tenantExists = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { id: true },
+    }).catch(() => null);
+
+    if (!tenantExists) {
+      invalidateRouteCache(`tenant-config:${tenantId}`);
+      return NextResponse.json({ config: null }, { status: 200 });
+    }
 
     const configRow = await getOrSetRouteCache(
       `tenant-config:${tenantId}`,

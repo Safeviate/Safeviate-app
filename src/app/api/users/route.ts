@@ -1,6 +1,7 @@
 import { authOptions } from '@/auth';
 import { prisma } from '@/lib/prisma';
 import { ensurePersonnelSchema, ensureRolesSchema } from '@/lib/server/bootstrap-db';
+import { getTenantIdForRoute } from '@/lib/server/session-tenant';
 import { getServerSession } from 'next-auth';
 import { NextResponse } from 'next/server';
 
@@ -8,7 +9,7 @@ const INSTRUCTOR_TYPES = new Set(['Instructor']);
 const STUDENT_TYPES = new Set(['Student']);
 const PRIVATE_PILOT_TYPES = new Set(['Private Pilot']);
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const session = await getServerSession(authOptions);
     const email = session?.user?.email?.trim().toLowerCase();
@@ -31,11 +32,18 @@ export async function GET() {
       create: { id: 'safeviate', name: 'Safeviate' },
     });
 
-    const currentUser = await prisma.user.findUnique({
-      where: { email },
-      select: { tenantId: true },
-    });
-    const tenantId = currentUser?.tenantId || 'safeviate';
+    const tenantId = await getTenantIdForRoute(request);
+    if (!tenantId) {
+      return NextResponse.json({
+        users: [],
+        personnel: [],
+        instructors: [],
+        students: [],
+        privatePilots: [],
+        roles: [],
+        departments: [],
+      }, { status: 200 });
+    }
 
     await Promise.all([ensurePersonnelSchema(), ensureRolesSchema()]);
     const [roleRows, departmentRows, userRows, authRows] = await Promise.all([

@@ -142,7 +142,8 @@ export default function RiskRegisterPage() {
   const [hazardAreas, setHazardAreas] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const canManageAreas = hasPermission('risk-register-manage-definitions');
+  const canManageRiskRegister = hasPermission('risk-register-manage-definitions');
+  const canManageAreas = canManageRiskRegister;
 
   useEffect(() => {
     let cancelled = false;
@@ -217,7 +218,11 @@ export default function RiskRegisterPage() {
     return new Map(personnel.map((p) => [p.id, `${p.firstName} ${p.lastName}`]));
   }, [personnel]);
 
-  const handleEditClick = (risk: Risk) => setEditingRisk(risk);
+  const handleEditClick = (risk: Risk) => {
+    if (!canManageRiskRegister) return;
+    setEditingRisk(risk);
+    setIsDialogOpen(true);
+  };
   const showTabs = useTabVisibility('risk-register', shouldShowOrganizationTabs) && isSectionEnabled('organization-scope');
   const showHazardAreaTabs = isSectionEnabled('hazard-areas');
 
@@ -239,7 +244,13 @@ export default function RiskRegisterPage() {
         {risks.length > 0 ? (
           risks.map((hazard) => (
             <tbody key={hazard.id} className="border-b">
-              <RiskGroup hazard={hazard} personnelMap={personnelMap} onEditClick={handleEditClick} isMobile={isMobile} />
+              <RiskGroup
+                hazard={hazard}
+                personnelMap={personnelMap}
+                onEditClick={handleEditClick}
+                canManage={canManageRiskRegister}
+                isMobile={isMobile}
+              />
             </tbody>
           ))
         ) : (
@@ -317,23 +328,36 @@ export default function RiskRegisterPage() {
                   className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-[var(--radix-dropdown-menu-trigger-width)]"
                 >
                   {canManageAreas && <ManageAreasDialog settings={hazardAreas} onAreasChange={setHazardAreas} trigger={<DropdownMenuItem onSelect={(e) => e.preventDefault()}><Settings2 className="mr-2 h-4 w-4" />Manage Areas</DropdownMenuItem>} />}
-                  <DropdownMenuItem asChild>
-                    <Link href={`/safety/risk-register/new?orgId=${orgId}`}>
+                  {canManageRiskRegister ? (
+                    <DropdownMenuItem asChild>
+                      <Link href={`/safety/risk-register/new?orgId=${orgId}`}>
+                        <PlusCircle className="mr-2 h-4 w-4" />
+                        Add Hazard
+                      </Link>
+                    </DropdownMenuItem>
+                  ) : (
+                    <DropdownMenuItem disabled>
                       <PlusCircle className="mr-2 h-4 w-4" />
-                      Add Hazard
-                    </Link>
-                  </DropdownMenuItem>
+                      Read Only
+                    </DropdownMenuItem>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             ) : (
               <div className="flex w-full items-center gap-3 sm:w-auto">
                 {canManageAreas && <ManageAreasDialog settings={hazardAreas} onAreasChange={setHazardAreas} />}
-                <Button asChild size="sm" className={cn(HEADER_SECONDARY_BUTTON_CLASS, HEADER_COMPACT_CONTROL_CLASS)}>
-                  <Link href={`/safety/risk-register/new?orgId=${orgId}`}>
-                    <PlusCircle className="h-4 w-4" />
-                    Add Hazard
-                  </Link>
-                </Button>
+                {canManageRiskRegister ? (
+                  <Button asChild size="sm" className={cn(HEADER_SECONDARY_BUTTON_CLASS, HEADER_COMPACT_CONTROL_CLASS)}>
+                    <Link href={`/safety/risk-register/new?orgId=${orgId}`}>
+                      <PlusCircle className="h-4 w-4" />
+                      Add Hazard
+                    </Link>
+                  </Button>
+                ) : (
+                  <Badge variant="outline" className="h-9 gap-1.5 bg-muted/20 px-3 text-[10px] font-bold uppercase text-muted-foreground">
+                    Read Only
+                  </Badge>
+                )}
               </div>
             )
           }
@@ -421,7 +445,19 @@ export default function RiskRegisterPage() {
   );
 }
 
-function RiskGroup({ hazard, personnelMap, onEditClick, isMobile }: { hazard: Risk; personnelMap: Map<string, string>; onEditClick: (risk: Risk) => void; isMobile?: boolean }) {
+function RiskGroup({
+  hazard,
+  personnelMap,
+  onEditClick,
+  canManage,
+  isMobile,
+}: {
+  hazard: Risk;
+  personnelMap: Map<string, string>;
+  onEditClick: (risk: Risk) => void;
+  canManage: boolean;
+  isMobile?: boolean;
+}) {
   const hazardRisks = hazard.risks || [];
   const totalRowsForHazard = hazardRisks.reduce((acc, r) => acc + Math.max(1, (r.mitigations || []).length), 0);
 
@@ -431,9 +467,11 @@ function RiskGroup({ hazard, personnelMap, onEditClick, isMobile }: { hazard: Ri
         <TableCell className="font-bold text-sm text-primary whitespace-normal align-top">{hazard.hazard}</TableCell>
         <TableCell colSpan={isMobile ? 4 : 6} className="text-center text-muted-foreground text-xs italic">No risks defined.</TableCell>
         <TableCell className="text-right align-top">
-          <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-muted" onClick={() => onEditClick(hazard)}>
-            <Edit className="h-3.5 w-3.5" />
-          </Button>
+          {canManage ? (
+            <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-muted" onClick={() => onEditClick(hazard)}>
+              <Edit className="h-3.5 w-3.5" />
+            </Button>
+          ) : null}
         </TableCell>
       </TableRow>
     );
@@ -473,9 +511,11 @@ function RiskGroup({ hazard, personnelMap, onEditClick, isMobile }: { hazard: Ri
           <TableCell className={cn('text-xs font-bold whitespace-nowrap py-4', isMobile && 'hidden')}>{mitigation.reviewDate ? format(parseLocalDate(mitigation.reviewDate), 'dd MMM yy') : 'N/A'}</TableCell>
           {showHazardCell && (
             <TableCell rowSpan={totalRowsForHazard} className="text-right align-top pt-4">
-              <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-muted" onClick={() => onEditClick(hazard)}>
-                <Edit className="h-3.5 w-3.5" />
-              </Button>
+              {canManage ? (
+                <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-muted" onClick={() => onEditClick(hazard)}>
+                  <Edit className="h-3.5 w-3.5" />
+                </Button>
+              ) : null}
             </TableCell>
           )}
         </TableRow>

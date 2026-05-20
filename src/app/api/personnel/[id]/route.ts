@@ -2,11 +2,12 @@ import { authOptions } from '@/auth';
 import { prisma } from '@/lib/prisma';
 import { ensurePersonnelSchema } from '@/lib/server/bootstrap-db';
 import { invalidatePersonnelDirectoryCaches } from '@/lib/server/route-cache';
+import { getTenantIdForRoute } from '@/lib/server/session-tenant';
 import { getServerSession } from 'next-auth';
 import { NextResponse } from 'next/server';
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   await ensurePersonnelSchema();
@@ -18,11 +19,10 @@ export async function DELETE(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const currentUser = await prisma.user.findUnique({
-    where: { email },
-    select: { tenantId: true },
-  });
-  const tenantId = currentUser?.tenantId || 'safeviate';
+  const tenantId = await getTenantIdForRoute(request);
+  if (!tenantId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
 
   const deletedPersonnel = await prisma.personnel.deleteMany({
     where: { id, tenantId },
@@ -48,17 +48,17 @@ export async function PATCH(
   await ensurePersonnelSchema();
   const session = await getServerSession(authOptions);
   const email = session?.user?.email?.trim().toLowerCase();
+  const currentUserId = session?.user?.id?.trim() || null;
   const { id } = await params;
 
   if (!email) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const currentUser = await prisma.user.findUnique({
-    where: { email },
-    select: { tenantId: true, id: true },
-  });
-  const tenantId = currentUser?.tenantId || 'safeviate';
+  const tenantId = await getTenantIdForRoute(request);
+  if (!tenantId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
 
   const body = await request.json().catch(() => null);
   const personnel = body?.personnel;
@@ -114,7 +114,7 @@ export async function PATCH(
             changedAt: new Date().toISOString(),
             effectiveDate: new Date().toISOString(),
             changedByEmail: email,
-            changedByUserId: currentUser?.id || null,
+            changedByUserId: currentUserId,
           },
         ]
       : baseAssignmentHistory;
@@ -132,10 +132,10 @@ export async function PATCH(
           recommendationComment: typeof nextProgressionRecommendation.recommendationComment === 'string' ? nextProgressionRecommendation.recommendationComment : '',
           recommendedAt: new Date().toISOString(),
           recommendedByEmail: email,
-          recommendedByUserId: currentUser?.id || null,
+          recommendedByUserId: currentUserId,
           reviewedAt: new Date().toISOString(),
           reviewedByEmail: email,
-          reviewedByUserId: currentUser?.id || null,
+          reviewedByUserId: currentUserId,
         },
       ]
     : existingProgressionReviewHistory;

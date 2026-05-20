@@ -54,6 +54,7 @@ export default function ExternalCompaniesPage() {
   }, [loadOrgs]);
 
   const handleOpenForm = (org: ExternalOrganization | null = null) => {
+    if (!canManage) return;
     setEditingOrg(org);
     setName(org?.name || '');
     setEmail(org?.contactEmail || '');
@@ -62,6 +63,7 @@ export default function ExternalCompaniesPage() {
   };
 
   const handleSave = async () => {
+    if (!canManage) return;
     if (!name.trim()) {
       toast({ variant: 'destructive', title: 'Error', description: 'Organization name is required.' });
       return;
@@ -89,6 +91,7 @@ export default function ExternalCompaniesPage() {
   };
 
   const handleDelete = async (id: string) => {
+    if (!canManage) return;
     try {
         const response = await fetch(`/api/external-organizations/${id}`, { method: 'DELETE' });
         if (!response.ok) throw new Error('Failed to delete organization');
@@ -152,14 +155,18 @@ export default function ExternalCompaniesPage() {
                       <TableCell>{org.contactEmail || 'N/A'}</TableCell>
                       <TableCell className="max-w-[200px] truncate">{org.address || 'N/A'}</TableCell>
                       <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <EditActionButton onClick={() => handleOpenForm(org)} label="Edit company" />
-                          <DeleteActionButton
-                            description={`This will permanently delete external company "${org.name}".`}
-                            onDelete={() => handleDelete(org.id)}
-                            srLabel="Delete company"
-                          />
-                        </div>
+                        {canManage ? (
+                          <div className="flex justify-end gap-2">
+                            <EditActionButton onClick={() => handleOpenForm(org)} label="Edit company" />
+                            <DeleteActionButton
+                              description={`This will permanently delete external company "${org.name}".`}
+                              onDelete={() => handleDelete(org.id)}
+                              srLabel="Delete company"
+                            />
+                          </div>
+                        ) : (
+                          <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Read only</span>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}

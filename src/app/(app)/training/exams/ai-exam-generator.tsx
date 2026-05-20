@@ -19,6 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2, ClipboardPaste, Wand2, FileText, Image as ImageIcon, Type, Sparkles } from 'lucide-react';
 import { callAiFlow } from '@/lib/ai-client';
+import { extractClipboardText } from '@/lib/clipboard';
 import type { GenerateExamOutput } from '@/ai/flows/generate-exam-flow';
 import type { ExamTemplate } from '@/types/training';
 import { Badge } from '@/components/ui/badge';
@@ -59,14 +60,13 @@ export function AiExamGenerator({ onGenerated, trigger }: AiExamGeneratorProps) 
         }
         return;
       }
-      if (items[i].type.startsWith('text/plain')) {
-        event.preventDefault();
-        items[i].getAsString((text) => {
-          setPastedText(text);
-          toast({ title: 'Text Pasted', description: 'The text has been loaded.' });
-        });
-        return;
-      }
+    }
+
+    const clipboardText = extractClipboardText(event.clipboardData);
+    if (clipboardText) {
+      event.preventDefault();
+      setPastedText(clipboardText);
+      toast({ title: 'Text Pasted', description: 'The text has been loaded.' });
     }
   }, [toast]);
 

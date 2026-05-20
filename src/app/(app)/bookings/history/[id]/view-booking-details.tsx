@@ -25,6 +25,7 @@ import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { NavlogBuilder } from '../../navlog-builder';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { usePermissions } from '@/hooks/use-permissions';
 import { useUserProfile } from '@/hooks/use-user-profile';
 import { BookingDetailHeader } from '@/components/booking-detail-header';
 import { BackNavButton } from '@/components/back-nav-button';
@@ -350,6 +351,7 @@ export function ViewBookingDetails({ booking }: ViewBookingDetailsProps) {
     const router = useRouter();
     const isMobile = useIsMobile();
     const { toast } = useToast();
+    const { hasPermission } = usePermissions();
     const { tenantId, userProfile } = useUserProfile();
     const [activeTab, setActiveTab] = useState('flight-details');
     const [isSaving, setIsSaving] = useState(false);
@@ -378,7 +380,7 @@ export function ViewBookingDetails({ booking }: ViewBookingDetailsProps) {
         return student ? `${student.firstName} ${student.lastName}` : booking.studentId;
     }, [personnel, booking.studentId]);
     const isAssignedInstructor = !!userProfile && booking.instructorId === userProfile.id;
-    const canManuallyApprove = isAssignedInstructor || userProfile?.role?.toLowerCase() === 'developer' || userProfile?.role?.toLowerCase() === 'dev';
+    const canManuallyApprove = isAssignedInstructor || hasPermission('bookings-approve');
     const requiresPlanningAndNavlog = !!workflowCompletion.weatherPlanningNavlogRequired;
     const preFlightPhotos = ((booking.preFlightData as (typeof booking.preFlightData & { photos?: ChecklistPhoto[] }) | undefined)?.photos || []) as ChecklistPhoto[];
     const postFlightPhotos = (booking.postFlightData?.photos || []) as ChecklistPhoto[];

@@ -19,6 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2, ClipboardPaste, Wand2 } from 'lucide-react';
 import { callAiFlow } from '@/lib/ai-client';
+import { extractClipboardText } from '@/lib/clipboard';
 import type { GenerateChecklistOutput } from '@/ai/flows/generate-checklist-flow';
 import type { ChecklistSection } from '@/types/quality';
 
@@ -56,14 +57,13 @@ export function AiChecklistGenerator({ onGenerated }: AiChecklistGeneratorProps)
         }
         return;
       }
-      if (items[i].type.startsWith('text/plain')) {
-        event.preventDefault();
-        items[i].getAsString((text) => {
-          setPastedText(text);
-          toast({ title: 'Text Pasted', description: 'The text has been loaded.' });
-        });
-        return;
-      }
+    }
+
+    const clipboardText = extractClipboardText(event.clipboardData);
+    if (clipboardText) {
+      event.preventDefault();
+      setPastedText(clipboardText);
+      toast({ title: 'Text Pasted', description: 'The text has been loaded.' });
     }
   }, [toast]);
 

@@ -2,23 +2,20 @@
 
 import { useCallback, useMemo } from 'react';
 import { useUserProfile } from './use-user-profile';
+import { useTenantConfig } from './use-tenant-config';
 import { menuConfig } from '@/lib/menu-config';
 import type { MenuItem, SubMenuItem } from '@/lib/menu-config';
 import type { Personnel } from '@/app/(app)/users/personnel/page';
 import { isHrefEnabledForIndustry, shouldBypassIndustryRestrictions } from '@/lib/industry-access';
-import { MASTER_TENANT_EMAILS } from '@/lib/tenant-constants';
-
-const isSuperUserEmail = (email?: string | null) =>
-  MASTER_TENANT_EMAILS.includes((email || '').trim().toLowerCase());
 
 export const usePermissions = () => {
   const {
     userProfile,
-    tenant,
     rolePermissions,
     roleHiddenMenus,
     isLoading: isProfileLoading,
   } = useUserProfile();
+  const { tenant, isLoading: isTenantLoading } = useTenantConfig();
 
   const effectivePermissions = useMemo(() => {
     const inheritedPermissions = rolePermissions || [];
@@ -49,20 +46,11 @@ export const usePermissions = () => {
     return new Set([...roleHiddenMenus, ...userHiddenMenus]);
   }, [roleHiddenMenus, userProfile]);
 
-  const isLoading = isProfileLoading;
+  const isLoading = isProfileLoading || isTenantLoading;
 
   const hasPermission = useCallback(
     (permissionId: string) => {
       if (isLoading || !userProfile) return false;
-
-      if (isSuperUserEmail(userProfile.email)) {
-        return true;
-      }
-
-      const userRole = (userProfile as Personnel).role?.toLowerCase();
-      if (userRole === 'dev' || userRole === 'developer') {
-        return true;
-      }
 
       if (effectivePermissions.has('*')) {
         return true;
@@ -78,19 +66,7 @@ export const usePermissions = () => {
       if (isLoading || !userProfile) return false;
 
       const itemHref = item.href;
-      if (isSuperUserEmail(userProfile.email)) {
-        return true;
-      }
-
-      const userRole = (userProfile as Personnel).role?.toLowerCase();
       const isCompanyDashboard = itemHref === '/dashboard';
-      if (userRole === 'dev' || userRole === 'developer') {
-        return !hiddenMenus.has(itemHref);
-      }
-
-      if (effectivePermissions.has('*')) {
-        return !hiddenMenus.has(itemHref);
-      }
 
       if (isCompanyDashboard) {
         return !hiddenMenus.has(itemHref);

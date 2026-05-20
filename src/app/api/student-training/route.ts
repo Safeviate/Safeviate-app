@@ -1,5 +1,6 @@
 import { authOptions } from '@/auth';
 import { prisma } from '@/lib/prisma';
+import { getTenantIdForRoute } from '@/lib/server/session-tenant';
 import { recordSimulationRouteMetric } from '@/lib/server/simulation-telemetry';
 import { getServerSession } from 'next-auth';
 import { NextResponse } from 'next/server';
@@ -7,24 +8,8 @@ import { NextResponse } from 'next/server';
 const REPORTS_KEY = 'student-progress-reports';
 const MILESTONES_KEY = 'student-milestones';
 
-async function getTenantId() {
-  const session = await getServerSession(authOptions);
-  const email = session?.user?.email?.trim().toLowerCase();
-
-  if (!email) return null;
-
-  await prisma.tenant.upsert({
-    where: { id: 'safeviate' },
-    update: { updatedAt: new Date() },
-    create: { id: 'safeviate', name: 'Safeviate' },
-  });
-
-  const currentUser = await prisma.user.findUnique({
-    where: { email },
-    select: { tenantId: true },
-  });
-
-  return currentUser?.tenantId || 'safeviate';
+async function getTenantId(request: Request) {
+  return getTenantIdForRoute(request);
 }
 
 async function readConfig(tenantId: string) {
@@ -46,11 +31,11 @@ async function writeConfig(tenantId: string, config: Record<string, unknown>) {
   );
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const startedAt = Date.now();
   let tenantId: string | null = null;
   try {
-    tenantId = await getTenantId();
+    tenantId = await getTenantId(request);
     if (!tenantId) {
       return NextResponse.json({ reports: [], milestones: null }, { status: 200 });
     }
@@ -86,7 +71,7 @@ export async function GET() {
 
 export async function PUT(request: Request) {
   const startedAt = Date.now();
-  const tenantId = await getTenantId();
+  const tenantId = await getTenantId(request);
   if (!tenantId) {
     return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
   }

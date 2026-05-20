@@ -1,24 +1,15 @@
 import { authOptions } from '@/auth';
 import { prisma } from '@/lib/prisma';
+import { getTenantIdForRoute } from '@/lib/server/session-tenant';
 import { getServerSession } from 'next-auth';
 import { NextResponse } from 'next/server';
 
-async function getTenantId() {
-  const session = await getServerSession(authOptions);
-  const email = session?.user?.email?.trim().toLowerCase();
-  if (!email) return null;
-
-  await prisma.tenant.upsert({
-    where: { id: 'safeviate' },
-    update: { updatedAt: new Date() },
-    create: { id: 'safeviate', name: 'Safeviate' },
-  });
-  const currentUser = await prisma.user.findUnique({ where: { email }, select: { tenantId: true } });
-  return currentUser?.tenantId || 'safeviate';
+async function getTenantId(request: Request) {
+  return getTenantIdForRoute(request);
 }
 
 export async function PUT(request: Request, context: { params: Promise<{ reportId: string }> }) {
-  const tenantId = await getTenantId();
+  const tenantId = await getTenantId(request);
   if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { reportId } = await context.params;
@@ -39,9 +30,9 @@ export async function PUT(request: Request, context: { params: Promise<{ reportI
   return NextResponse.json({ report: data }, { status: 200 });
 }
 
-export async function GET(_request: Request, context: { params: Promise<{ reportId: string }> }) {
+export async function GET(request: Request, context: { params: Promise<{ reportId: string }> }) {
   try {
-    const tenantId = await getTenantId();
+    const tenantId = await getTenantId(request);
     if (!tenantId) return NextResponse.json({ report: null }, { status: 200 });
 
     const { reportId } = await context.params;

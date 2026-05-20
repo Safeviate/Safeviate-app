@@ -14,7 +14,7 @@ export default function ToolsPage() {
   const [tools, setTools] = useState<Tool[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const canManageAssets = hasPermission('maintenance-view') || hasPermission('admin-view');
+  const canManageAssets = hasPermission('maintenance-manage') || hasPermission('admin-view');
 
   const loadTools = useCallback(() => {
     setIsLoading(true);

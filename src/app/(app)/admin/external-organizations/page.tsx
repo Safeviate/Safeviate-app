@@ -55,6 +55,7 @@ export default function ExternalOrganizationsPage() {
   }, [loadOrgs]);
 
   const handleOpenForm = (org: ExternalOrganization | null = null) => {
+    if (!canManage) return;
     setEditingOrg(org);
     setName(org?.name || '');
     setEmail(org?.contactEmail || '');
@@ -63,6 +64,7 @@ export default function ExternalOrganizationsPage() {
   };
 
   const handleSave = async () => {
+    if (!canManage) return;
     if (!name.trim()) {
       toast({ variant: 'destructive', title: 'Error', description: 'Organization name is required.' });
       return;
@@ -86,6 +88,7 @@ export default function ExternalOrganizationsPage() {
   };
 
   const handleDelete = async (id: string) => {
+    if (!canManage) return;
     try {
         const response = await fetch(`/api/external-organizations/${id}`, { method: 'DELETE' });
         const result = await response.json().catch(() => ({}));
@@ -122,14 +125,20 @@ export default function ExternalOrganizationsPage() {
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <EditActionButton onClick={() => handleOpenForm(org)} label="Edit organization" />
-          <DeleteActionButton
-            description={`This will permanently delete external organization "${org.name}".`}
-            onDelete={() => handleDelete(org.id)}
-            srLabel="Delete organization"
-          />
-        </div>
+        {canManage ? (
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <EditActionButton onClick={() => handleOpenForm(org)} label="Edit organization" />
+            <DeleteActionButton
+              description={`This will permanently delete external organization "${org.name}".`}
+              onDelete={() => handleDelete(org.id)}
+              srLabel="Delete organization"
+            />
+          </div>
+        ) : (
+          <div className="flex justify-end">
+            <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Read only</span>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

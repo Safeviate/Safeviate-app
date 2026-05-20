@@ -21,6 +21,15 @@ export interface AuditScheduleItem {
     status: AuditScheduleStatus;
 }
 
+export interface ClauseAnalysisEntry {
+    id: string;
+    marker: string;
+    content: string;
+    gapStatus?: GapStatus;
+    gapStatusDate?: string;
+    companyReference?: string;
+}
+
 export interface ComplianceRequirement {
     id: string;
     regulationFamily?: 'sacaa-cars' | 'sacaa-cats' | 'ohs';
@@ -35,6 +44,7 @@ export interface ComplianceRequirement {
     lastAuditDate?: string; // ISO String
     nextAuditDate?: string; // ISO String
     organizationId?: string | null; // Associated external company ID
+    analysisEntries?: ClauseAnalysisEntry[];
 }
 
 export interface AuditChecklistItem {

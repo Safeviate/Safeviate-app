@@ -36,6 +36,7 @@ type MePayload = {
     roleHiddenMenus?: string[];
 };
 const TENANT_OVERRIDE_STORAGE_KEY = 'safeviate:selected-tenant';
+const TENANT_OVERRIDE_COOKIE_KEY = 'safeviate:selected-tenant';
 const USER_PROFILE_CACHE_TTL_MS = 5 * 60_000;
 
 interface UserProfileContextType {
@@ -100,6 +101,19 @@ export const UserProfileProvider = ({ children }: { children: ReactNode }) => {
                     }
                 );
                 if (!cancelled) {
+                    const selectedTenantId = payload?.tenant?.id?.trim() || null;
+                    const activeOverride = getTenantOverride()?.trim() || null;
+                    if (typeof window !== 'undefined' && activeOverride && selectedTenantId && activeOverride !== selectedTenantId) {
+                        if (selectedTenantId === MASTER_TENANT_ID) {
+                            window.localStorage.removeItem(TENANT_OVERRIDE_STORAGE_KEY);
+                            window.document.cookie = `${TENANT_OVERRIDE_COOKIE_KEY}=${MASTER_TENANT_ID}; path=/; max-age=${60 * 60 * 24 * 365}`;
+                            setTenantOverride(null);
+                        } else {
+                            window.localStorage.setItem(TENANT_OVERRIDE_STORAGE_KEY, selectedTenantId);
+                            window.document.cookie = `${TENANT_OVERRIDE_COOKIE_KEY}=${encodeURIComponent(selectedTenantId)}; path=/; max-age=${60 * 60 * 24 * 365}`;
+                            setTenantOverride(selectedTenantId);
+                        }
+                    }
                     setDbProfile(payload?.profile ?? null);
                     setTenant(payload?.tenant ?? null);
                     setRolePermissions(Array.isArray(payload?.rolePermissions) ? payload.rolePermissions : []);
@@ -151,18 +165,33 @@ export const UserProfileProvider = ({ children }: { children: ReactNode }) => {
             setProfileRefreshToken((current) => current + 1);
         };
         const syncTenantOverride = () => setTenantOverride(getTenantOverride());
+        const handleTenantSwitch = (event: Event) => {
+            const nextTenantId = getTenantOverride() || MASTER_TENANT_ID;
+            const tenantSwitchEvent = event as CustomEvent<{ tenantId?: string | null; tenantName?: string | null }>;
+            const nextTenantName = tenantSwitchEvent.detail?.tenantName?.trim() || null;
+
+            setTenantOverride(nextTenantId);
+            setTenant((current) => ({
+                ...(current || {}),
+                id: nextTenantId,
+                name: nextTenantName || (nextTenantId === MASTER_TENANT_ID ? 'Safeviate' : current?.name || nextTenantId),
+            }));
+
+            invalidateClientApiCache(profileCacheKey);
+            setProfileRefreshToken((current) => current + 1);
+        };
 
         syncTenantOverride();
         window.addEventListener('safeviate-profile-updated', handleProfileUpdate);
         window.addEventListener('storage', syncTenantOverride);
-        window.addEventListener('safeviate-tenant-switch', syncTenantOverride);
+        window.addEventListener('safeviate-tenant-switch', handleTenantSwitch);
 
         return () => {
             window.removeEventListener('safeviate-profile-updated', handleProfileUpdate);
             window.removeEventListener('storage', syncTenantOverride);
-            window.removeEventListener('safeviate-tenant-switch', syncTenantOverride);
+            window.removeEventListener('safeviate-tenant-switch', handleTenantSwitch);
         };
-    }, []);
+    }, [profileCacheKey]);
 
     const value = useMemo(() => ({
         userProfile: dbProfile ? ({

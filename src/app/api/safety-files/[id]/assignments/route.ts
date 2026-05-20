@@ -1,27 +1,21 @@
 import { authOptions } from '@/auth';
 import { prisma } from '@/lib/prisma';
+import { getTenantIdForRoute } from '@/lib/server/session-tenant';
 import { ensureSafetyFileAssignmentsSchema } from '@/lib/server/bootstrap-db';
 import type { SafetyFileAssignment } from '@/types/safety-file';
 import { getServerSession } from 'next-auth';
 import { NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
 
-async function getTenantId() {
-  const session = await getServerSession(authOptions);
-  const email = session?.user?.email?.trim().toLowerCase();
-  if (!email) return null;
-  const currentUser = await prisma.user.findUnique({
-    where: { email },
-    select: { tenantId: true },
-  });
-  return currentUser?.tenantId || 'safeviate';
+async function getTenantId(request: Request) {
+  return getTenantIdForRoute(request);
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     await ensureSafetyFileAssignmentsSchema();
 
-    const tenantId = await getTenantId();
+    const tenantId = await getTenantId(request);
     if (!tenantId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

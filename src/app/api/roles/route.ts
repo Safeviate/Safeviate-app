@@ -1,33 +1,22 @@
 import { authOptions } from '@/auth';
 import { prisma } from '@/lib/prisma';
+import { getTenantIdForRoute } from '@/lib/server/session-tenant';
 import { ensureRolesSchema } from '@/lib/server/bootstrap-db';
 import { getServerSession } from 'next-auth';
 import { NextResponse } from 'next/server';
-import { isMasterTenantEmail } from '@/lib/server/tenant-access';
 import { invalidatePersonnelDirectoryCaches } from '@/lib/server/route-cache';
 
-async function getTenantId() {
-  const session = await getServerSession(authOptions);
-  const email = session?.user?.email?.trim().toLowerCase();
-  if (!email) return null;
-
-  const currentUser = await prisma.user.findUnique({
-    where: { email },
-    select: { tenantId: true },
-  });
-
-  return currentUser?.tenantId || 'safeviate';
+async function getTenantId(request: Request) {
+  return getTenantIdForRoute(request);
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     await ensureRolesSchema();
-    const tenantId = await getTenantId();
+    const tenantId = await getTenantId(request);
     if (!tenantId) {
       return NextResponse.json({ roles: [] }, { status: 200 });
     }
-    const session = await getServerSession(authOptions);
-    const email = session?.user?.email?.trim().toLowerCase();
 
     const roles = await prisma.role.findMany({
       where: { tenantId },
@@ -43,14 +32,6 @@ export async function GET() {
         : { hiddenMenus: [] as string[] },
     }));
 
-    if (rolesWithOverrides.length === 0 && isMasterTenantEmail(email) && tenantId !== 'safeviate') {
-      const fallbackRoles = await prisma.role.findMany({
-        where: { tenantId: 'safeviate' },
-        orderBy: { name: 'asc' },
-      });
-      return NextResponse.json({ roles: fallbackRoles.map((role) => ({ ...role, accessOverrides: { hiddenMenus: [] } })) }, { status: 200 });
-    }
-
     return NextResponse.json({ roles: rolesWithOverrides }, { status: 200 });
   } catch (error) {
     console.error('[roles] fallback to empty list:', error);
@@ -60,7 +41,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   await ensureRolesSchema();
-  const tenantId = await getTenantId();
+  const tenantId = await getTenantId(request);
   if (!tenantId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }

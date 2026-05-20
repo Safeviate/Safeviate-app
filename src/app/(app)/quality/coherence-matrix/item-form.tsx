@@ -61,6 +61,11 @@ function splitCompositeRegulationInput(value?: string | null) {
     };
 }
 
+function normalizeResponsibleManagerId(value?: string | null) {
+    const normalized = value?.trim() || '';
+    return normalized === '__unassigned__' ? '' : normalized;
+}
+
 const formSchema = z.object({
     regulationFamily: z.enum(['sacaa-cars', 'sacaa-cats', 'ohs']).optional(),
     parentRegulationCode: z.string().optional(),
@@ -77,6 +82,7 @@ const headerFormSchema = z.object({
     regulationFamily: z.enum(['sacaa-cars', 'sacaa-cats', 'ohs']),
     regulationCode: z.string().min(1, 'Code is required.'),
     regulationStatement: z.string().min(1, 'Title is required.'),
+    responsibleManagerId: z.string().min(1, 'Responsible person is required.'),
 });
 
 const subheaderFormSchema = z.object({
@@ -84,6 +90,7 @@ const subheaderFormSchema = z.object({
     parentRegulationCode: z.string().min(1, 'Parent header is required.'),
     regulationCode: z.string().min(1, 'Code is required.'),
     regulationStatement: z.string().min(1, 'Title is required.'),
+    responsibleManagerId: z.string().min(1, 'Responsible person is required.'),
 });
 
 interface ComplianceItemFormProps {
@@ -166,7 +173,7 @@ export function ComplianceItemForm({ personnel, existingItem, onFormSubmit, tena
                 regulationStatement: values.regulationStatement.trim(),
                 technicalStandard: '',
                 companyReference: '',
-                responsibleManagerId: '',
+                responsibleManagerId: normalizeResponsibleManagerId(values.responsibleManagerId),
                 nextAuditDate: null,
                 organizationId: null,
             }
@@ -178,7 +185,7 @@ export function ComplianceItemForm({ personnel, existingItem, onFormSubmit, tena
                 regulationStatement: values.regulationStatement.trim() || splitInput.regulationStatement,
                 technicalStandard: '',
                 companyReference: '',
-                responsibleManagerId: '',
+                responsibleManagerId: normalizeResponsibleManagerId(values.responsibleManagerId),
                 nextAuditDate: null,
                 organizationId: null,
             }
@@ -367,6 +374,26 @@ export function ComplianceItemForm({ personnel, existingItem, onFormSubmit, tena
                                 <FormMessage />
                             </FormItem>
                         )} />
+                        <FormField control={form.control} name="responsibleManagerId" render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Responsible person</FormLabel>
+                                <Select onValueChange={field.onChange} defaultValue={field.value || undefined}>
+                                    <FormControl>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Select personnel" />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                <SelectContent>
+                                        {personnel.map((person) => (
+                                            <SelectItem key={person.id} value={person.id}>
+                                                {person.firstName} {person.lastName}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage />
+                            </FormItem>
+                        )} />
                     </>
                 ) : null}
                 {mode === 'header' ? (
@@ -395,6 +422,27 @@ export function ComplianceItemForm({ personnel, existingItem, onFormSubmit, tena
                                 <FormControl>
                                     <Input placeholder="e.g., SA-CATS 141 Aviation Training Organisations" {...field} />
                                 </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )} />
+                        <FormField control={form.control} name="responsibleManagerId" render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Responsible person</FormLabel>
+                                <Select onValueChange={field.onChange} defaultValue={field.value || undefined}>
+                                    <FormControl>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Select personnel" />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        <SelectItem value="__unassigned__">Unassigned</SelectItem>
+                                        {personnel.map((person) => (
+                                            <SelectItem key={person.id} value={person.id}>
+                                                {person.firstName} {person.lastName}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                                 <FormMessage />
                             </FormItem>
                         )} />
