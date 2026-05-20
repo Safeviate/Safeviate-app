@@ -98,6 +98,15 @@ const normalizeTenantSummary = (
   } as Tenant;
 };
 
+const getScopedLocalOverride = (
+  override: Record<string, unknown> | null,
+  tenantId: string
+) => {
+  if (!override || typeof override !== 'object') return null;
+  const overrideTenantId = typeof override.id === 'string' ? override.id.trim() : '';
+  return overrideTenantId === tenantId ? override : null;
+};
+
 /**
  * A custom hook to fetch the configuration for the current tenant.
  * Supports a developer override for testing industry-specific layouts.
@@ -131,6 +140,10 @@ export const useTenantConfig = () => {
   const [localOverride, setLocalOverride] = useState<Record<string, unknown> | null>(readInitialLocalOverride);
   const [configRefreshToken, setConfigRefreshToken] = useState(0);
   const resolvedTenantId = tenantId || FALLBACK_TENANT_ID;
+  const scopedLocalOverride = useMemo(
+    () => getScopedLocalOverride(localOverride, resolvedTenantId),
+    [localOverride, resolvedTenantId]
+  );
 
   const buildLocalTenant = (override: Record<string, unknown> | null): Tenant => ({
     id: FALLBACK_TENANT_ID,
@@ -226,7 +239,7 @@ export const useTenantConfig = () => {
           tenantConfig && typeof tenantConfig === 'object'
             ? (tenantConfig as Record<string, unknown>)
             : null,
-          localOverride
+          scopedLocalOverride
         );
         const tenantConfigWithoutIndustry = stripIndustryFromConfig(mergedConfig);
 
@@ -242,8 +255,8 @@ export const useTenantConfig = () => {
                   }
                 : (current || bootstrapTenant || null);
             });
-          } else if (localOverride) {
-            setTenantData(buildLocalTenant(localOverride));
+          } else if (scopedLocalOverride) {
+            setTenantData(buildLocalTenant(scopedLocalOverride));
           } else if (bootstrapTenant) {
             setTenantData(bootstrapTenant);
           } else {
@@ -254,7 +267,7 @@ export const useTenantConfig = () => {
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err : new Error('Failed to load tenant configuration.'));
-          if (!bootstrapTenant && !localOverride) {
+          if (!bootstrapTenant && !scopedLocalOverride) {
             setTenantData((current) => current);
           }
         }
@@ -281,7 +294,7 @@ export const useTenantConfig = () => {
               payload?.config && typeof payload.config === 'object'
                 ? (payload.config as Record<string, unknown>)
                 : null,
-              localOverride
+              scopedLocalOverride
             );
             const nextConfigWithoutIndustry = stripIndustryFromConfig(nextConfig);
             if (nextConfigWithoutIndustry && Object.keys(nextConfigWithoutIndustry).length > 0) {
@@ -302,7 +315,7 @@ export const useTenantConfig = () => {
       cancelled = true;
       window.removeEventListener('safeviate-tenant-config-updated', handleUpdate);
     };
-  }, [tenantId, profileTenant, localOverride, userProfile?.id, isProfileLoading, resolvedTenantId, bootstrapTenant, configRefreshToken]);
+  }, [tenantId, profileTenant, scopedLocalOverride, userProfile?.id, isProfileLoading, resolvedTenantId, bootstrapTenant, configRefreshToken]);
 
   const isDeveloper =
     userProfile?.role?.toLowerCase() === 'dev' || userProfile?.role?.toLowerCase() === 'developer' || userProfile?.id === 'DEVELOPER_MODE';

@@ -127,6 +127,7 @@ function buildThemeBootstrapScript(bootstrap: TenantBootstrapConfig) {
   const LOCAL_TENANT_CONFIG_KEY = 'safeviate:tenant-config-local-override';
   const SCALE_KEY = 'safeviate-scale';
   const serverTheme = ${serializedServerTheme};
+  const serverTenant = ${serializedServerTenant};
   const authRoutes = ['/login', '/forgot-password', '/setup-password', '/beta-nda'];
 
   const defaults = {
@@ -241,7 +242,10 @@ function buildThemeBootstrapScript(bootstrap: TenantBootstrapConfig) {
     const isAuthRoute = authRoutes.some((route) => pathname === route || pathname.startsWith(route + '/'));
     const raw = window.localStorage.getItem(LOCAL_TENANT_CONFIG_KEY);
     const parsed = raw ? JSON.parse(raw) : null;
-    const localTheme = !isAuthRoute && parsed && parsed.theme && typeof parsed.theme === 'object' ? parsed.theme : null;
+    const serverTenantId = serverTenant && typeof serverTenant.id === 'string' ? serverTenant.id.trim() : '';
+    const parsedTenantId = parsed && typeof parsed.id === 'string' ? parsed.id.trim() : '';
+    const scopedLocalOverride = !isAuthRoute && serverTenantId && parsedTenantId === serverTenantId ? parsed : null;
+    const localTheme = scopedLocalOverride && scopedLocalOverride.theme && typeof scopedLocalOverride.theme === 'object' ? scopedLocalOverride.theme : null;
 
     applyColorGroup({ ...defaults.main, ...(serverTheme && serverTheme.main ? serverTheme.main : {}), ...(localTheme && localTheme.main ? localTheme.main : {}) });
     applyColorGroup({ ...defaults.button, ...(serverTheme && serverTheme.button ? serverTheme.button : {}), ...(localTheme && localTheme.button ? localTheme.button : {}) });
