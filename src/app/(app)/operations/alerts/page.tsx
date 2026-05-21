@@ -11,9 +11,12 @@ import { useUserProfile } from '@/hooks/use-user-profile';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { ListFilter } from 'lucide-react';
 import { ResponsiveTabRow } from '@/components/responsive-tab-row';
+import { TenantLayoutDisabledState } from '@/components/tenant-layout-disabled-state';
+import { useTenantRouteAccess } from '@/hooks/use-tenant-route-access';
 
 export default function AlertsPage() {
   const { userProfile } = useUserProfile();
+  const { isLoading: isAccessLoading, isAllowed } = useTenantRouteAccess({ href: '/operations/alerts' });
   const [activeTab, setActiveTab] = useState('red-tags');
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -23,6 +26,10 @@ export default function AlertsPage() {
   const canEditAlerts = hasPermission('operations-alerts-edit');
   const canDeleteAlerts = hasPermission('operations-alerts-delete');
   const organizationId = userProfile?.organizationId || 'default';
+
+  if (!isAccessLoading && !isAllowed) {
+    return <TenantLayoutDisabledState />;
+  }
 
   useEffect(() => {
     let cancelled = false;

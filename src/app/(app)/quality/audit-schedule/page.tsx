@@ -46,6 +46,8 @@ import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useUserProfile } from '@/hooks/use-user-profile';
 import type { AuditScheduleItem, AuditScheduleStatus } from '@/types/quality';
+import { TenantLayoutDisabledState } from '@/components/tenant-layout-disabled-state';
+import { useTenantRouteAccess } from '@/hooks/use-tenant-route-access';
 
 const INITIAL_AUDIT_AREAS = [
   'Personnel & Training',
@@ -191,6 +193,7 @@ function AreaActions({ area, onEdit, onDelete }: AreaActionsProps) {
 }
 
 export default function AuditSchedulePage() {
+  const { isLoading: isAccessLoading, isAllowed } = useTenantRouteAccess({ href: '/quality/audit-schedule' });
   const isMobile = useIsMobile();
   const { tenantId } = useUserProfile();
   const currentYear = new Date().getFullYear();
@@ -222,6 +225,10 @@ export default function AuditSchedulePage() {
     window.addEventListener('safeviate-audit-schedule-updated', loadData);
     return () => window.removeEventListener('safeviate-audit-schedule-updated', loadData);
   }, [loadData]);
+
+  if (!isAccessLoading && !isAllowed) {
+    return <TenantLayoutDisabledState />;
+  }
 
   const handleStatusChange = async (area: string, month: string, status: AuditScheduleStatus) => {
     setOpenPopoverId(null);

@@ -10,6 +10,8 @@ import { usePermissions } from '@/hooks/use-permissions';
 import { useUserProfile } from '@/hooks/use-user-profile';
 import { ResponsiveCardGrid } from '@/components/responsive-card-grid';
 import { Skeleton } from '@/components/ui/skeleton';
+import { TenantLayoutDisabledState } from '@/components/tenant-layout-disabled-state';
+import { useTenantRouteAccess } from '@/hooks/use-tenant-route-access';
 
 export type Department = {
   id: string;
@@ -18,12 +20,17 @@ export type Department = {
 
 export default function DepartmentPage() {
   const { hasPermission } = usePermissions();
+  const { isLoading: isAccessLoading, isAllowed } = useTenantRouteAccess({ href: '/admin/department' });
   const { tenantId } = useUserProfile();
   const canManage = hasPermission('admin-departments-manage');
   
   const [departments, setDepartments] = useState<Department[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+
+  if (!isAccessLoading && !isAllowed) {
+    return <TenantLayoutDisabledState />;
+  }
 
   const loadDepartments = useCallback(() => {
     let cancelled = false;

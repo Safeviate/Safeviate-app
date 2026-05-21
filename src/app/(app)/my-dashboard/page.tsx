@@ -15,6 +15,9 @@ import { useMemo, useState, useEffect } from 'react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { ResponsiveTabRow } from '@/components/responsive-tab-row';
 import { cn } from '@/lib/utils';
+import { TenantLayoutDisabledState } from '@/components/tenant-layout-disabled-state';
+import { useTenantRouteAccess } from '@/hooks/use-tenant-route-access';
+import { usePageLayout } from '@/hooks/use-page-layout';
 
 const parseLocalDate = (value: string) => {
     const [year, month, day] = value.split('-').map(Number);
@@ -26,6 +29,8 @@ const parseLocalDate = (value: string) => {
 
 export default function MyDashboardPage() {
     const { myTasks, myMessages, isLoading, userProfile, tenant } = useDashboardData();
+    const { isLoading: isAccessLoading, isAllowed } = useTenantRouteAccess({ href: '/my-dashboard' });
+    const { isSectionEnabled } = usePageLayout('my-dashboard');
     const isMobile = useIsMobile();
     const [activeTab, setActiveTab] = useState('tasks');
     
@@ -42,14 +47,16 @@ export default function MyDashboardPage() {
             { id: 'tasks', label: 'Tasks', href: '/my-dashboard/tasks' },
             { id: 'messages', label: 'Messages', href: '/my-dashboard/messages', showBadge: true },
             { id: 'logbook', label: 'My Logbook', href: '/my-dashboard/logbook' },
-        ].filter(tab => !isHidden(tab.href));
-    }, [userProfile, tenant]);
+        ].filter(tab => !isHidden(tab.href) && isSectionEnabled(tab.id));
+    }, [isSectionEnabled, userProfile, tenant]);
 
     useEffect(() => {
         if (availableTabs.length > 0 && !availableTabs.find(t => t.id === activeTab)) {
             setActiveTab(availableTabs[0].id);
         }
     }, [availableTabs, activeTab]);
+
+    if (!isAccessLoading && !isAllowed) return <TenantLayoutDisabledState />;
 
     if (isLoading) return (
         <div className="max-w-[1100px] mx-auto w-full space-y-6">

@@ -4,10 +4,20 @@ import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/ca
 import Link from 'next/link';
 import { menuConfig } from '@/lib/menu-config';
 import { usePermissions } from '@/hooks/use-permissions';
+import { useTenantConfig } from '@/hooks/use-tenant-config';
+import { isTenantHrefEnabledByLayout } from '@/lib/tenant-layout-access';
+import { TenantLayoutDisabledState } from '@/components/tenant-layout-disabled-state';
+import { useTenantRouteAccess } from '@/hooks/use-tenant-route-access';
 
 export default function OperationsPage() {
+  const { tenant } = useTenantConfig();
   const { canAccessMenuItem } = usePermissions();
+  const { isLoading, isAllowed } = useTenantRouteAccess({ href: '/operations' });
   const operationsMenu = menuConfig.find(item => item.href === '/operations');
+
+  if (!isLoading && !isAllowed) {
+    return <TenantLayoutDisabledState />;
+  }
 
   if (!operationsMenu || !operationsMenu.subItems) {
     return (
@@ -18,7 +28,7 @@ export default function OperationsPage() {
   }
 
   const visibleSubItems = operationsMenu.subItems.filter(
-    (item) => canAccessMenuItem(item, operationsMenu)
+    (item) => canAccessMenuItem(item, operationsMenu) && isTenantHrefEnabledByLayout(tenant, item.href)
   );
 
   return (

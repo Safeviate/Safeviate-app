@@ -21,16 +21,23 @@ import { Building2, ChevronDown, Play } from 'lucide-react';
 import { HEADER_SECONDARY_BUTTON_CLASS } from '@/components/page-header';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { CARD_HEADER_BAND_CLASS } from '@/components/page-header';
+import { TenantLayoutDisabledState } from '@/components/tenant-layout-disabled-state';
+import { useTenantRouteAccess } from '@/hooks/use-tenant-route-access';
 
 export default function EmergencyResponsePage() {
   const { tenantId } = useUserProfile();
   const { hasPermission } = usePermissions();
+  const { isLoading: isAccessLoading, isAllowed } = useTenantRouteAccess({ href: '/operations/emergency-response' });
   const isMobile = useIsMobile();
   const [activeCompanyTab, setActiveCompanyTab] = useState('internal');
   const [activeTab, setActiveTab] = useState('diary');
   const [isStartOpen, setIsStartOpen] = useState(false);
   
   const [organizations, setOrganizations] = useState<ExternalOrganization[]>([]);
+
+  if (!isAccessLoading && !isAllowed) {
+    return <TenantLayoutDisabledState />;
+  }
 
   useEffect(() => {
     fetch('/api/external-organizations', { cache: 'no-store' })

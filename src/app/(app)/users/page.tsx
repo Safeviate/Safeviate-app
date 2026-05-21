@@ -12,12 +12,19 @@ import { ArrowRight, PlusCircle } from 'lucide-react';
 import { RoleForm } from '../admin/roles/role-form';
 import { useIsMobile } from '@/hooks/use-mobile';
 import type { Role } from '../admin/roles/page';
+import { TenantLayoutDisabledState } from '@/components/tenant-layout-disabled-state';
+import { useTenantRouteAccess } from '@/hooks/use-tenant-route-access';
 
 export default function UsersPage() {
+  const { isLoading: isAccessLoading, isAllowed } = useTenantRouteAccess({ href: '/users' });
   const isMobile = useIsMobile();
   const { tenantId } = useUserProfile();
   const [roles, setRoles] = useState<Role[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  if (!isAccessLoading && !isAllowed) {
+    return <TenantLayoutDisabledState />;
+  }
 
   useEffect(() => {
     let cancelled = false;

@@ -7,6 +7,7 @@ import { menuConfig } from '@/lib/menu-config';
 import type { MenuItem, SubMenuItem } from '@/lib/menu-config';
 import type { Personnel } from '@/app/(app)/users/personnel/page';
 import { isHrefEnabledForIndustry, shouldBypassIndustryRestrictions } from '@/lib/industry-access';
+import { isTenantHrefEnabledByLayout } from '@/lib/tenant-layout-access';
 
 export const usePermissions = () => {
   const {
@@ -61,15 +62,21 @@ export const usePermissions = () => {
     [effectivePermissions, isLoading, userProfile]
   );
 
-    const canAccessMenuItem = useCallback(
+  const canAccessMenuItem = useCallback(
     (item: MenuItem | SubMenuItem, parentItem?: MenuItem) => {
       if (isLoading || !userProfile) return false;
 
       const itemHref = item.href;
       const isCompanyDashboard = itemHref === '/dashboard';
+      const isSafeviateOnlyAdminSurface =
+        itemHref.startsWith('/admin') || itemHref === '/users/access-overview';
+
+      if (isSafeviateOnlyAdminSurface && tenant?.id && tenant.id !== 'safeviate') {
+        return false;
+      }
 
       if (isCompanyDashboard) {
-        return !hiddenMenus.has(itemHref);
+        return !hiddenMenus.has(itemHref) && isTenantHrefEnabledByLayout(tenant, itemHref);
       }
 
       const isExplicitlyEnabled = tenant?.enabledMenus?.includes(itemHref) ?? false;
@@ -80,11 +87,12 @@ export const usePermissions = () => {
 
       if (hiddenMenus.has(itemHref)) return false;
 
+      if (!isTenantHrefEnabledByLayout(tenant, itemHref)) return false;
+
       const isEnabledByTenant =
         bypassIndustryRestrictions ||
         !tenant?.enabledMenus ||
-        tenant.enabledMenus.includes(itemHref) ||
-        (parentItem ? tenant.enabledMenus.includes(parentItem.href) : false);
+        tenant.enabledMenus.includes(itemHref);
       if (!isEnabledByTenant) return false;
 
       if (item.permissionId && !hasPermission(item.permissionId)) return false;

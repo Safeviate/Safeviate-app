@@ -42,6 +42,8 @@ import type { Risk as SafetyRisk } from '@/types/risk';
 import type { SafetyReport } from '@/types/safety-report';
 import type { InstructorHourWarningSettings, MilestoneWarning, StudentMilestoneSettings, StudentProgressReport } from '@/types/training';
 import type { IndustryType } from '@/types/quality';
+import { TenantLayoutDisabledState } from '@/components/tenant-layout-disabled-state';
+import { useTenantRouteAccess } from '@/hooks/use-tenant-route-access';
 
 type DashboardIndustry = 'ATO' | 'AOC' | 'AMO' | 'OHS';
 type IndustryTab = { value: string; label: string };
@@ -660,6 +662,7 @@ const buildTrendBuckets = (period: FleetPeriod) => {
 };
 
 export default function DashboardPage() {
+  const { isLoading: isAccessLoading, isAllowed } = useTenantRouteAccess({ href: '/dashboard' });
   const { uiMode } = useTheme();
   const { tenant } = useTenantConfig();
   const isMobile = useIsMobile();
@@ -710,6 +713,10 @@ export default function DashboardPage() {
       cancelled = true;
     };
   }, []);
+
+  if (!isAccessLoading && !isAllowed) {
+    return <TenantLayoutDisabledState />;
+  }
 
   useEffect(() => {
     let cancelled = false;

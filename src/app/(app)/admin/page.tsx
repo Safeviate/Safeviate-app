@@ -4,10 +4,20 @@ import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/ca
 import Link from 'next/link';
 import { menuConfig } from '@/lib/menu-config';
 import { usePermissions } from '@/hooks/use-permissions';
+import { useTenantConfig } from '@/hooks/use-tenant-config';
+import { isTenantHrefEnabledByLayout } from '@/lib/tenant-layout-access';
+import { TenantLayoutDisabledState } from '@/components/tenant-layout-disabled-state';
+import { useTenantRouteAccess } from '@/hooks/use-tenant-route-access';
 
 export default function AdminPage() {
+  const { tenant } = useTenantConfig();
   const { canAccessMenuItem } = usePermissions();
+  const { isLoading, isAllowed } = useTenantRouteAccess({ href: '/admin' });
   const adminMenu = menuConfig.find(item => item.href === '/admin');
+
+  if (!isLoading && !isAllowed) {
+    return <TenantLayoutDisabledState />;
+  }
 
   if (!adminMenu) {
     return (
@@ -18,7 +28,7 @@ export default function AdminPage() {
   }
   
   const visibleSubItems = (adminMenu.subItems || []).filter(
-    item => canAccessMenuItem(item, adminMenu)
+    item => canAccessMenuItem(item, adminMenu) && isTenantHrefEnabledByLayout(tenant, item.href)
   );
 
   if (visibleSubItems.length === 0) {

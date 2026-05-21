@@ -12,9 +12,12 @@ import { Skeleton } from '@/components/ui/skeleton';
 import type { Role } from '../../admin/roles/page';
 import Link from 'next/link';
 import { MainPageHeader } from '@/components/page-header';
+import { TenantLayoutDisabledState } from '@/components/tenant-layout-disabled-state';
+import { useTenantRouteAccess } from '@/hooks/use-tenant-route-access';
 
 export default function AccessOverviewPage() {
   const { tenant, isLoading: isLoadingTenant } = useTenantConfig();
+  const { isAllowed } = useTenantRouteAccess({ href: '/users/access-overview' });
   const [roles, setRoles] = useState<Role[]>([]);
   const [isLoadingRoles, setIsLoadingRoles] = useState(true);
 
@@ -52,6 +55,10 @@ export default function AccessOverviewPage() {
         isHrefEnabledForIndustry(m.href, tenant?.industry)
     );
   }, [tenant?.industry]);
+
+  if (!isLoading && !isAllowed) {
+    return <TenantLayoutDisabledState />;
+  }
 
   if (isLoading) {
     return (

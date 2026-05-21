@@ -1,537 +1,330 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
+import { Building2, ChevronRight, PlusCircle, Save, Search, Trash2 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useToast } from '@/hooks/use-toast';
-import { Separator } from '@/components/ui/separator';
-import { Checkbox } from '@/components/ui/checkbox';
-import { menuConfig } from '@/lib/menu-config';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { Skeleton } from '@/components/ui/skeleton';
+import { useToast } from '@/hooks/use-toast';
 import { useUserProfile } from '@/hooks/use-user-profile';
-import { TENANT_OVERRIDE_COOKIE } from '@/lib/tenant-constants';
-import {
-  SAFETY_QUALITY_LAYOUT_DEFINITIONS,
-  buildDefaultPageLayoutSettings,
-  type PageLayoutSettings,
-} from '@/lib/tenant-setup-presets';
-import { 
-    Building2, 
-    CheckCircle2, 
-    PlusCircle, 
-    Save, 
-    Briefcase, 
-    MonitorSmartphone,
-    ShieldCheck,
-    LayoutDashboard,
-    ArrowRightLeft,
-    ChevronRight,
-    Users,
-    Trash2
-} from 'lucide-react';
-import type { Tenant, IndustryType } from '@/types/quality';
+import { menuConfig, type MenuItem } from '@/lib/menu-config';
 import { cn } from '@/lib/utils';
-import { HEADER_TAB_LIST_CLASS, HEADER_TAB_TRIGGER_CLASS } from '@/components/page-header';
+import { HEADER_TAB_TRIGGER_CLASS, HEADER_TAB_LIST_CLASS } from '@/components/page-header';
+import { TenantLayoutDisabledState } from '@/components/tenant-layout-disabled-state';
+import { useTenantRouteAccess } from '@/hooks/use-tenant-route-access';
+import type { IndustryType, Tenant, PageLayoutSettings } from '@/types/quality';
+import { buildDefaultPageLayoutSettings } from '@/lib/tenant-setup-presets';
 
-const DEFAULT_MAIN = { background: '#ebf5fb', primary: '#7cc4f7', 'primary-foreground': '#1e293b', accent: '#63b2a7' };
+const TENANT_PAGE_BUTTON_CLASS = 'h-10 rounded-xl px-6 text-[10px] font-black uppercase tracking-widest shadow-sm';
 const TENANT_OVERRIDE_STORAGE_KEY = 'safeviate:selected-tenant';
-const INDUSTRY_OVERRIDE_KEY = 'safeviate:industry-override';
+const TENANT_OVERRIDE_COOKIE = 'safeviate-tenant-override';
 const LOCAL_TENANT_CONFIG_KEY = 'safeviate:tenant-config-local-override';
-const SAVED_THEMES_KEY_PREFIX = 'safeviate-saved-themes:';
-const TENANT_SETUP_PRIMARY_BUTTON_CLASS = 'h-10 rounded-xl px-6 text-[10px] font-black uppercase tracking-widest shadow-sm';
-type MainTheme = typeof DEFAULT_MAIN;
-
-type BetaNdaAcceptanceRecord = {
-  id: string;
-  email: string;
-  name: string;
-  ndaVersion: string;
-  acceptedAt: string;
-  ipAddress?: string | null;
-  userAgent?: string | null;
-};
 
 const INDUSTRY_TYPES: IndustryType[] = [
   'Aviation: Flight Training (ATO)',
   'Aviation: Charter / Ops (AOC)',
   'Aviation: Maintenance (AMO)',
-  'General: Occupational Health & Safety (OHS)'
+  'General: Occupational Health & Safety (OHS)',
 ];
 
-const PAGE_LAYOUT_TAB_ID = 'layout';
+type TenantFormProps = {
+  initialTenantId?: string | null;
+  lockTenantSelection?: boolean;
+  detailBasePath?: string;
+  returnHref?: string;
+};
+
+type TenantConfigPayload = {
+  id: string;
+  name: string;
+  industry?: IndustryType;
+  logoUrl?: string;
+  enabledMenus?: string[];
+  pageLayoutSettings?: PageLayoutSettings | null;
+  tabVisibilitySettings?: { id: string; visibilities: Record<string, boolean> } | null;
+};
+
+type TenantSummary = Tenant;
+
+const readFileAsDataUrl = (file: File) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        resolve(reader.result);
+      } else {
+        reject(new Error('Could not read file.'));
+      }
+    };
+    reader.onerror = () => reject(new Error('Could not read file.'));
+    reader.readAsDataURL(file);
+  });
 
 const buildDefaultEnabledHrefs = () =>
   new Set(
     menuConfig.flatMap((menu) => [
       menu.href,
       ...(menu.subItems?.map((subItem) => subItem.href) || []),
-    ])
+    ]).filter((href) => href !== '/admin/page-format')
   );
 
-const buildDisabledPageLayoutSettings = (): PageLayoutSettings => ({
-  id: 'page-layout-settings',
-  pages: SAFETY_QUALITY_LAYOUT_DEFINITIONS.reduce<Record<string, { enabled: boolean; sections: Record<string, boolean>; tabs: Record<string, boolean> }>>((acc, page) => {
-    acc[page.id] = {
-      enabled: false,
-      sections: page.sections.reduce<Record<string, boolean>>((sectionAcc, section) => {
-        sectionAcc[section.id] = false;
-        return sectionAcc;
-      }, {}),
-      tabs: page.sections.reduce<Record<string, boolean>>((tabAcc, section) => {
-        (section.tabs || []).forEach((tab) => {
-          tabAcc[tab.id] = false;
-        });
-        return tabAcc;
-      }, {}),
-    };
-    return acc;
-  }, {}),
-});
+const isTenantMenuHref = (href: string) => href !== '/admin/page-format';
 
-const normalizePageLayoutSettings = (value: unknown): PageLayoutSettings => {
-  const fallback = buildDefaultPageLayoutSettings();
-  if (!value || typeof value !== 'object') {
-    return fallback;
-  }
-
-  const config = value as { id?: string; pages?: Record<string, unknown> };
-  const pages = config.pages && typeof config.pages === 'object' ? config.pages : {};
-  return {
-    id: typeof config.id === 'string' ? config.id : fallback.id,
-    pages: SAFETY_QUALITY_LAYOUT_DEFINITIONS.reduce<Record<string, { enabled: boolean; sections: Record<string, boolean>; tabs: Record<string, boolean> }>>((acc, page) => {
-      const storedPage = pages[page.id] && typeof pages[page.id] === 'object'
-        ? (pages[page.id] as { enabled?: boolean; sections?: Record<string, boolean>; tabs?: Record<string, boolean> })
-        : null;
-      acc[page.id] = {
-        enabled: typeof storedPage?.enabled === 'boolean' ? storedPage.enabled : true,
-        sections: page.sections.reduce<Record<string, boolean>>((sectionAcc, section) => {
-          sectionAcc[section.id] = storedPage?.sections?.[section.id] ?? true;
-          return sectionAcc;
-        }, {}),
-        tabs: page.sections.reduce<Record<string, boolean>>((tabAcc, section) => {
-          (section.tabs || []).forEach((tab) => {
-            tabAcc[tab.id] = storedPage?.tabs?.[tab.id] ?? true;
-          });
-          return tabAcc;
-        }, {}),
-      };
-      return acc;
-    }, {}),
-  };
+const normalizeTenantConfig = (value: unknown): TenantConfigPayload | null => {
+  if (!value || typeof value !== 'object') return null;
+  return value as TenantConfigPayload;
 };
 
-const formatLayoutLabel = (value: string) =>
-  value
-    .replace(/-/g, ' ')
-    .replace(/\b\w/g, (char) => char.toUpperCase());
+const getTenantMenuState = (tenant: TenantSummary | null, config: TenantConfigPayload | null) => {
+  const tenantMenus = Array.isArray(config?.enabledMenus) ? config.enabledMenus : tenant?.enabledMenus || [];
+  return new Set(tenantMenus.length > 0 ? tenantMenus : Array.from(buildDefaultEnabledHrefs()));
+};
 
-export function DatabaseForm() {
+const getDefaultTenantMenuState = () => new Set(buildDefaultEnabledHrefs());
+
+const getTenantPageLayoutSettings = (config: TenantConfigPayload | null) =>
+  config?.pageLayoutSettings && typeof config.pageLayoutSettings === 'object'
+    ? config.pageLayoutSettings
+    : buildDefaultPageLayoutSettings();
+
+export function DatabaseForm({
+  initialTenantId = null,
+  lockTenantSelection = false,
+  detailBasePath,
+  returnHref,
+}: TenantFormProps = {}) {
   const router = useRouter();
   const { toast } = useToast();
   const { tenantId: activeTenantId, userProfile } = useUserProfile();
-  
-  const [tenants, setTenants] = useState<Tenant[]>([]);
-  const [isLoadingTenants, setIsLoadingTenants] = useState(true);
+  const { isLoading: isAccessLoading, isAllowed } = useTenantRouteAccess({ href: '/admin/page-format' });
 
+  const [tenants, setTenants] = useState<TenantSummary[]>([]);
+  const [isLoadingTenants, setIsLoadingTenants] = useState(true);
   const [selectedTenantId, setSelectedTenantId] = useState<string | null>(null);
   const [tenantName, setTenantName] = useState('');
   const [industry, setIndustry] = useState<IndustryType>('Aviation: Flight Training (ATO)');
-  const [logoPreview, setLogoPreview] = useState<string | null>(null);
-  const [localIndustryOverride, setLocalIndustryOverride] = useState<string>('');
-  
-  const [mainTheme, setMainTheme] = useState<MainTheme>(DEFAULT_MAIN);
+  const [logoPreview, setLogoPreview] = useState('');
   const [enabledHrefs, setEnabledHrefs] = useState<Set<string>>(() => buildDefaultEnabledHrefs());
   const [pageLayoutSettings, setPageLayoutSettings] = useState<PageLayoutSettings>(() => buildDefaultPageLayoutSettings());
-  const [ndaAcceptances, setNdaAcceptances] = useState<BetaNdaAcceptanceRecord[]>([]);
-  const [isLoadingNdaAcceptances, setIsLoadingNdaAcceptances] = useState(false);
-  const [ndaAcceptancesError, setNdaAcceptancesError] = useState<string | null>(null);
-  const [isDeletingTenant, setIsDeletingTenant] = useState(false);
+  const [menuFilter, setMenuFilter] = useState('');
 
-  const normalizeMainTheme = (main?: Record<string, string> | null): MainTheme => ({
-    background: main?.background || DEFAULT_MAIN.background,
-    primary: main?.primary || DEFAULT_MAIN.primary,
-    'primary-foreground': main?.['primary-foreground'] || DEFAULT_MAIN['primary-foreground'],
-    accent: main?.accent || DEFAULT_MAIN.accent,
-  });
+  const sortedTenants = useMemo(() => {
+    return [...tenants].sort((a, b) => {
+      if (a.id === 'safeviate') return -1;
+      if (b.id === 'safeviate') return 1;
+      return a.name.localeCompare(b.name);
+    });
+  }, [tenants]);
+  const clientTenants = useMemo(() => sortedTenants.filter((tenant) => tenant.id !== 'safeviate'), [sortedTenants]);
 
-  const totalMenuCount = useMemo(() => buildDefaultEnabledHrefs().size, []);
-  const totalPageCount = SAFETY_QUALITY_LAYOUT_DEFINITIONS.length;
-  const totalSectionCount = useMemo(
-    () => SAFETY_QUALITY_LAYOUT_DEFINITIONS.reduce((count, page) => count + page.sections.length, 0),
+  const menuRows = useMemo(() => menuConfig, []);
+  const tenantMenuRows = useMemo(
+    () =>
+      menuConfig.filter((menu) => isTenantMenuHref(menu.href)),
     []
   );
-  const totalTabCount = useMemo(
+  const totalMenuCount = useMemo(
     () =>
-      SAFETY_QUALITY_LAYOUT_DEFINITIONS.reduce(
-        (count, page) => count + page.sections.reduce((sectionCount, section) => sectionCount + (section.tabs?.length || 0), 0),
+      tenantMenuRows.reduce(
+        (count, item) => count + 1 + (item.subItems?.filter((subItem) => isTenantMenuHref(subItem.href)).length || 0),
         0
       ),
-    []
+    [tenantMenuRows]
   );
-  const enabledMenuCount = enabledHrefs.size;
-  const enabledPageCount = Object.values(pageLayoutSettings.pages).filter((page) => page.enabled).length;
-  const enabledSectionCount = Object.values(pageLayoutSettings.pages).reduce(
-    (count, page) => count + Object.values(page.sections || {}).filter(Boolean).length,
-    0
-  );
-  const enabledTabCount = Object.values(pageLayoutSettings.pages).reduce(
-    (count, page) => count + Object.values(page.tabs || {}).filter(Boolean).length,
-    0
+  const selectedMenuCount = useMemo(
+    () =>
+      tenantMenuRows.reduce((count, item) => {
+        const subItems = item.subItems?.filter((subItem) => isTenantMenuHref(subItem.href)) || [];
+        const itemSelected = enabledHrefs.has(item.href) ? 1 : 0;
+        const subSelected = subItems.reduce((subCount, subItem) => subCount + (enabledHrefs.has(subItem.href) ? 1 : 0), 0);
+        return count + itemSelected + subSelected;
+      }, 0),
+    [enabledHrefs, tenantMenuRows]
   );
 
-  // Load Tenants from LocalStorage
-  useEffect(() => {
-    const loadTenants = () => {
-        fetch('/api/tenants', { cache: 'no-store' })
-          .then((response) => response.json())
-          .then((payload) => {
-            const rows = Array.isArray(payload?.tenants) ? payload.tenants : [];
-            if (rows.length > 0) {
-              setTenants(rows as Tenant[]);
-            } else {
-              const initial: Tenant[] = [{
-                id: 'safeviate',
-                name: 'Safeviate Standard',
-                industry: 'Aviation: Flight Training (ATO)',
-                enabledMenus: Array.from(buildDefaultEnabledHrefs()),
-                theme: {
-                  primaryColour: DEFAULT_MAIN.primary,
-                  backgroundColour: DEFAULT_MAIN.background,
-                  accentColour: DEFAULT_MAIN.accent,
-                  main: DEFAULT_MAIN
-                },
-                pageLayoutSettings: buildDefaultPageLayoutSettings(),
-              }];
-              setTenants(initial);
-            }
-          })
-          .catch((e) => console.error('Failed to load tenants', e))
-          .finally(() => setIsLoadingTenants(false));
-    };
+  const loadTenants = async () => {
+    setIsLoadingTenants(true);
+    try {
+      const response = await fetch('/api/tenants', { cache: 'no-store' });
+      const payload = await response.json().catch(() => ({ tenants: [] }));
+      const rows = Array.isArray(payload?.tenants) ? (payload.tenants as TenantSummary[]) : [];
+      setTenants(
+        rows.length > 0
+          ? rows
+          : [{ id: 'safeviate', name: 'Safeviate', industry: 'Aviation: Flight Training (ATO)' } as TenantSummary]
+      );
+    } catch {
+      setTenants([{ id: 'safeviate', name: 'Safeviate', industry: 'Aviation: Flight Training (ATO)' } as TenantSummary]);
+    } finally {
+      setIsLoadingTenants(false);
+    }
+  };
 
-    loadTenants();
-    
-    if (typeof window !== 'undefined') {
-        setLocalIndustryOverride(window.localStorage.getItem(INDUSTRY_OVERRIDE_KEY) || 'none');
+  const loadTenant = async (tenantId: string) => {
+    const tenant = tenants.find((row) => row.id === tenantId);
+    if (!tenant) return;
+
+    setSelectedTenantId(tenant.id);
+    setTenantName(tenant.name);
+    setIndustry(tenant.industry || 'Aviation: Flight Training (ATO)');
+    setLogoPreview(tenant.logoUrl || '');
+
+    try {
+      const response = await fetch(`/api/tenant-config?tenantId=${encodeURIComponent(tenant.id)}`, { cache: 'no-store' });
+      const payload = await response.json().catch(() => ({}));
+      const config = normalizeTenantConfig(payload?.config);
+      const nextEnabledHrefs = getTenantMenuState(tenant, config);
+      setEnabledHrefs(nextEnabledHrefs.size > 0 ? nextEnabledHrefs : getDefaultTenantMenuState());
+      setPageLayoutSettings(getTenantPageLayoutSettings(config));
+    } catch {
+      setEnabledHrefs(getDefaultTenantMenuState());
+      setPageLayoutSettings(buildDefaultPageLayoutSettings());
     }
 
-    const handleUpdate = () => loadTenants();
+    toast({
+      title: 'Tenant Loaded',
+      description: `Configuration for "${tenant.name}" is ready.`,
+    });
+  };
+
+  useEffect(() => {
+    void loadTenants();
+  }, []);
+
+  useEffect(() => {
+    if (!initialTenantId || isLoadingTenants) return;
+    if (selectedTenantId === initialTenantId) return;
+    if (tenants.some((tenant) => tenant.id === initialTenantId)) {
+      void loadTenant(initialTenantId);
+    }
+  }, [initialTenantId, isLoadingTenants, selectedTenantId, tenants]);
+
+  useEffect(() => {
+    const handleUpdate = () => void loadTenants();
     window.addEventListener('safeviate-tenants-updated', handleUpdate);
     return () => window.removeEventListener('safeviate-tenants-updated', handleUpdate);
   }, []);
 
-  const sortedTenants = useMemo(() => {
-    return [...tenants].sort((a, b) => a.name.localeCompare(b.name));
-  }, [tenants]);
-
-  const handleLoadTenant = async (tenantId: string) => {
-    const t = tenants.find(tenant => tenant.id === tenantId);
-    if (!t) return;
-
-    setSelectedTenantId(t.id);
-    setTenantName(t.name);
-    setIndustry(t.industry || 'Aviation: Flight Training (ATO)');
-    setLogoPreview(t.logoUrl || null);
-    setMainTheme(normalizeMainTheme(t.theme?.main || {
-        ...DEFAULT_MAIN,
-        primary: t.theme?.primaryColour || DEFAULT_MAIN.primary,
-        background: t.theme?.backgroundColour || DEFAULT_MAIN.background,
-        accent: t.theme?.accentColour || DEFAULT_MAIN.accent
-    }));
-    try {
-      const response = await fetch(`/api/tenant-config?tenantId=${encodeURIComponent(t.id)}`, { cache: 'no-store' });
-      const payload = await response.json().catch(() => ({}));
-      const config = payload?.config && typeof payload.config === 'object' ? (payload.config as Record<string, unknown>) : {};
-      const tenantMenus = Array.isArray(config.enabledMenus) ? config.enabledMenus.filter((value): value is string => typeof value === 'string') : (t.enabledMenus || []);
-      setEnabledHrefs(new Set(tenantMenus.length > 0 ? tenantMenus : Array.from(buildDefaultEnabledHrefs())));
-      setPageLayoutSettings(normalizePageLayoutSettings(config.pageLayoutSettings));
-    } catch {
-      const tenantMenus = new Set(t.enabledMenus || []);
-      setEnabledHrefs(new Set(tenantMenus.size > 0 ? tenantMenus : Array.from(buildDefaultEnabledHrefs())));
-      setPageLayoutSettings(buildDefaultPageLayoutSettings());
-    }
-
-    toast({ title: 'System Context Loaded', description: `Configuration for "${t.name}" inherited.` });
-  };
-
-  const handleIndustryChange = (newIndustry: IndustryType) => {
-    setIndustry(newIndustry);
-
-    setEnabledHrefs(buildDefaultEnabledHrefs());
-    toast({ title: 'Company Logic Calibrated', description: `Module permissions synthesized for ${newIndustry}.` });
-  };
-
-  const handleApplyIndustryOverride = (val: string) => {
-    if (typeof window === 'undefined') return;
-    setLocalIndustryOverride(val);
-    if (val === 'none') {
-        window.localStorage.removeItem(INDUSTRY_OVERRIDE_KEY);
-    } else {
-        window.localStorage.setItem(INDUSTRY_OVERRIDE_KEY, val);
-    }
-    window.dispatchEvent(new Event('safeviate-industry-switch'));
-    toast({ title: 'Simulation Parameter Set', description: `Interface synchronized to ${val === 'none' ? 'Company Default' : val}.` });
-  };
-
-  const handleSwitchTenant = (tenant: Tenant) => {
-    if (typeof window === 'undefined') return;
-
-    window.localStorage.setItem(TENANT_OVERRIDE_STORAGE_KEY, tenant.id);
-    window.document.cookie = `${TENANT_OVERRIDE_COOKIE}=${encodeURIComponent(tenant.id)}; path=/; max-age=${60 * 60 * 24 * 365}`;
-    window.dispatchEvent(new CustomEvent('safeviate-tenant-switch', {
-      detail: {
-        tenantId: tenant.id,
-        tenantName: tenant.name,
-      },
-    }));
-    router.refresh();
-
-    toast({
-      title: 'Active Context Shifted',
-      description: `Terminal established as "${tenant.name}".`,
-    });
-  };
-
-  const clearTenantOverride = () => {
-    if (typeof window === 'undefined') return;
-
-    window.localStorage.removeItem(TENANT_OVERRIDE_STORAGE_KEY);
-    window.document.cookie = `${TENANT_OVERRIDE_COOKIE}=safeviate; path=/; max-age=${60 * 60 * 24 * 365}`;
-    window.dispatchEvent(new CustomEvent('safeviate-tenant-switch', {
-      detail: {
-        tenantId: 'safeviate',
-        tenantName: 'Safeviate',
-      },
-    }));
-    router.refresh();
-  };
-
-  const clearDeletedTenantClientState = (tenantId: string) => {
-    if (typeof window === 'undefined') return;
-
-    try {
-      window.localStorage.removeItem(`${SAVED_THEMES_KEY_PREFIX}${tenantId}`);
-      const localTenantConfigRaw = window.localStorage.getItem(LOCAL_TENANT_CONFIG_KEY);
-      if (localTenantConfigRaw) {
-        const parsed = JSON.parse(localTenantConfigRaw) as { id?: unknown } | null;
-        if (parsed && typeof parsed === 'object' && parsed.id === tenantId) {
-          window.localStorage.removeItem(LOCAL_TENANT_CONFIG_KEY);
-        }
-      }
-    } catch {
-      // Ignore browser storage cleanup failures and continue with the delete flow.
-    }
-  };
-
-  const handleStartNewCompany = () => {
-    handleClearForm();
-    clearTenantOverride();
-    toast({
-      title: 'New Company Ready',
-      description: 'The form has been reset to clean defaults. No tenant data was carried over.',
-    });
-  };
-
-  const tenantContextId = selectedTenantId || activeTenantId || 'safeviate';
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const loadNdaAcceptances = async () => {
-      if (!tenantContextId) {
-        setNdaAcceptances([]);
-        return;
-      }
-
-      setIsLoadingNdaAcceptances(true);
-      setNdaAcceptancesError(null);
-
-      try {
-        const params = new URLSearchParams({ tenantId: tenantContextId });
-        const response = await fetch(`/api/beta-nda-acceptances?${params.toString()}`, { cache: 'no-store' });
-        const payload = await response.json().catch(() => null);
-        if (cancelled) return;
-
-        if (!response.ok) {
-          throw new Error(payload?.error || 'Failed to load NDA acceptances.');
-        }
-
-        setNdaAcceptances(Array.isArray(payload?.acceptances) ? payload.acceptances : []);
-      } catch (error) {
-        if (!cancelled) {
-          setNdaAcceptances([]);
-          setNdaAcceptancesError(error instanceof Error ? error.message : 'Failed to load NDA acceptances.');
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoadingNdaAcceptances(false);
-        }
-      }
-    };
-
-    void loadNdaAcceptances();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [tenantContextId]);
-
-  const handleClearForm = () => {
+  const clearForm = () => {
     setSelectedTenantId(null);
     setTenantName('');
     setIndustry('Aviation: Flight Training (ATO)');
-    setLogoPreview(null);
-    setMainTheme(DEFAULT_MAIN);
-    setEnabledHrefs(buildDefaultEnabledHrefs());
+    setLogoPreview('');
+    setEnabledHrefs(getDefaultTenantMenuState());
     setPageLayoutSettings(buildDefaultPageLayoutSettings());
+    setMenuFilter('');
   };
 
-  const handleResetCompanyDefaults = () => {
-    setEnabledHrefs(buildDefaultEnabledHrefs());
-    setPageLayoutSettings(buildDefaultPageLayoutSettings());
+  const handleCreateNewTenant = () => {
+    clearForm();
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem(TENANT_OVERRIDE_STORAGE_KEY);
+      window.document.cookie = `${TENANT_OVERRIDE_COOKIE}=safeviate; path=/; max-age=${60 * 60 * 24 * 365}`;
+      window.dispatchEvent(new CustomEvent('safeviate-tenant-switch', { detail: { tenantId: 'safeviate', tenantName: 'Safeviate' } }));
+      window.dispatchEvent(new Event('safeviate-tenant-config-updated'));
+    }
     toast({
-      title: 'Company Defaults Restored',
-      description: 'Baseline menus and page layout settings have been restored.',
+      title: 'New Tenant Ready',
+      description: 'The form has been reset to clean defaults.',
     });
   };
 
-  const handleEnableAllMenuItems = () => {
-    setEnabledHrefs(buildDefaultEnabledHrefs());
+  const handleTenantSelect = async (tenantId: string) => {
+    await loadTenant(tenantId);
   };
 
-  const handleClearAllMenuItems = () => {
-    setEnabledHrefs(new Set());
+  const toggleMenu = (href: string, subHrefs: string[] = []) => {
+    setEnabledHrefs((current) => {
+      const next = new Set(current);
+      const shouldEnable = !next.has(href);
+      if (shouldEnable) {
+        next.add(href);
+        subHrefs.forEach((subHref) => next.add(subHref));
+      } else {
+        next.delete(href);
+        subHrefs.forEach((subHref) => next.delete(subHref));
+      }
+      return next;
+    });
   };
 
-  const handleEnableAllPages = () => {
-    setPageLayoutSettings(buildDefaultPageLayoutSettings());
+  const toggleSubMenu = (parentHref: string, subHref: string, siblings: string[]) => {
+    setEnabledHrefs((current) => {
+      const next = new Set(current);
+      const shouldEnable = !next.has(subHref);
+      if (shouldEnable) {
+        next.add(subHref);
+        next.add(parentHref);
+      } else {
+        next.delete(subHref);
+      }
+
+      const anySiblingSelected = siblings.some((href) => href === subHref ? shouldEnable : next.has(href));
+      if (!anySiblingSelected) {
+        next.delete(parentHref);
+      }
+
+      return next;
+    });
   };
 
-  const handleDisableAllPages = () => {
-    setPageLayoutSettings(buildDisabledPageLayoutSettings());
+  const isParentMixed = (parentHref: string, subHrefs: string[]) => {
+    const selectedChildren = subHrefs.filter((href) => enabledHrefs.has(href)).length;
+    return selectedChildren > 0 && selectedChildren < subHrefs.length;
   };
 
-  const toggleMenu = (href: string, subHrefs?: string[]) => {
-    const newEnabled = new Set(enabledHrefs);
-    if (newEnabled.has(href)) {
-      newEnabled.delete(href);
-      subHrefs?.forEach(sh => newEnabled.delete(sh));
-    } else {
-      newEnabled.add(href);
-      subHrefs?.forEach(sh => newEnabled.add(sh));
+  const handleLogoUpload = async (file: File | undefined) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast({ variant: 'destructive', title: 'Invalid logo', description: 'Please upload an image file.' });
+      return;
     }
-    setEnabledHrefs(newEnabled);
-  };
 
-  const toggleSubMenu = (parentHref: string, href: string) => {
-    const newEnabled = new Set(enabledHrefs);
-    if (newEnabled.has(href)) {
-      newEnabled.delete(href);
-    } else {
-      newEnabled.add(href);
-      newEnabled.add(parentHref);
+    try {
+      setLogoPreview(await readFileAsDataUrl(file));
+      toast({ title: 'Logo Updated', description: 'The preview has been updated.' });
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Logo Upload Failed',
+        description: error instanceof Error ? error.message : 'Could not load the tenant logo.',
+      });
     }
-    setEnabledHrefs(newEnabled);
-  };
-
-  const toggleLayoutPage = (pageId: string) => {
-    setPageLayoutSettings((current) => ({
-      ...current,
-      pages: {
-        ...current.pages,
-        [pageId]: {
-          ...current.pages[pageId],
-          enabled: !current.pages[pageId]?.enabled,
-        },
-      },
-    }));
-  };
-
-  const toggleLayoutSection = (pageId: string, sectionId: string) => {
-    setPageLayoutSettings((current) => ({
-      ...current,
-      pages: {
-        ...current.pages,
-        [pageId]: {
-          ...current.pages[pageId],
-          sections: {
-            ...current.pages[pageId]?.sections,
-            [sectionId]: !current.pages[pageId]?.sections?.[sectionId],
-          },
-        },
-      },
-    }));
-  };
-
-  const toggleLayoutTab = (pageId: string, tabId: string) => {
-    setPageLayoutSettings((current) => ({
-      ...current,
-      pages: {
-        ...current.pages,
-        [pageId]: {
-          ...current.pages[pageId],
-          tabs: {
-            ...current.pages[pageId]?.tabs,
-            [tabId]: !current.pages[pageId]?.tabs?.[tabId],
-          },
-        },
-      },
-    }));
   };
 
   const handleSaveTenant = async () => {
-    if (!tenantName) {
-      toast({ variant: 'destructive', title: 'Invalid Operation', description: 'Company name is required.' });
+    if (!tenantName.trim()) {
+      toast({ variant: 'destructive', title: 'Invalid Operation', description: 'Tenant name is required.' });
       return;
     }
-    
-    const tenantId = selectedTenantId || tenantName.toLowerCase().replace(/\s+/g, '-');
+
+    const tenantId = selectedTenantId || tenantName.trim().toLowerCase().replace(/\s+/g, '-');
+    const effectiveEnabledHrefs = Array.from(enabledHrefs);
+    const tenantData: Tenant = {
+      id: tenantId,
+      name: tenantName.trim(),
+      industry,
+      logoUrl: logoPreview || '',
+      enabledMenus: effectiveEnabledHrefs,
+      pageLayoutSettings,
+      tabVisibilitySettings: {
+        id: 'tab-visibility',
+        visibilities: Object.fromEntries(
+          Object.entries(pageLayoutSettings.pages).map(([pageKey, layout]) => [pageKey, layout.enabled])
+        ),
+      },
+    };
 
     try {
-      const nextTenants = [...tenants];
-      const index = nextTenants.findIndex(t => t.id === tenantId);
-      
-      const tenantData: Tenant = {
-          id: tenantId,
-          name: tenantName,
-          industry: industry,
-          logoUrl: logoPreview || '',
-          theme: {
-            primaryColour: mainTheme.primary,
-            backgroundColour: mainTheme.background,
-            accentColour: mainTheme.accent,
-            main: mainTheme,
-          },
-          enabledMenus: Array.from(new Set([
-            ...enabledHrefs,
-          ])),
-          pageLayoutSettings,
-          tabVisibilitySettings: {
-            id: 'tab-visibility',
-            visibilities: Object.fromEntries(
-              Object.entries(pageLayoutSettings.pages).map(([pageKey, layout]) => [pageKey, layout.enabled])
-            ),
-          },
-      };
-
-      if (index >= 0) {
-          nextTenants[index] = tenantData;
-      } else {
-          nextTenants.push(tenantData);
-      }
-
       const tenantResponse = await fetch('/api/tenants', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -548,19 +341,12 @@ export function DatabaseForm() {
         body: JSON.stringify({
           config: {
             id: tenantId,
-            name: tenantName,
+            name: tenantData.name,
             industry,
             logoUrl: logoPreview || '',
-            enabledMenus: Array.from(new Set([
-              ...enabledHrefs,
-            ])),
+            enabledMenus: effectiveEnabledHrefs,
             pageLayoutSettings,
-            tabVisibilitySettings: {
-              id: 'tab-visibility',
-              visibilities: Object.fromEntries(
-                Object.entries(pageLayoutSettings.pages).map(([pageKey, layout]) => [pageKey, layout.enabled])
-              ),
-            },
+            tabVisibilitySettings: tenantData.tabVisibilitySettings,
           },
         }),
       });
@@ -569,526 +355,353 @@ export function DatabaseForm() {
         throw new Error(payload?.error || 'Failed to save tenant configuration.');
       }
 
-      setTenants(nextTenants);
-      window.dispatchEvent(new Event('safeviate-tenants-updated'));
-      window.dispatchEvent(new Event('safeviate-tenant-config-updated'));
-      
-      toast({
-        title: selectedTenantId ? 'Company Updated' : 'Company Created',
-        description: `"${tenantName}" has been saved in the database.`,
+      setTenants((current) => {
+        const next = [...current];
+        const index = next.findIndex((entry) => entry.id === tenantId);
+        if (index >= 0) {
+          next[index] = tenantData;
+        } else {
+          next.push(tenantData);
+        }
+        return next;
       });
 
-      if (!selectedTenantId) handleClearForm();
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('safeviate-tenants-updated'));
+        window.dispatchEvent(new Event('safeviate-tenant-config-updated'));
+      }
 
-    } catch (e: unknown) {
-      toast({ variant: 'destructive', title: 'Commit Failure', description: e instanceof Error ? e.message : 'System fault during persistence.' });
+      toast({
+        title: selectedTenantId ? 'Tenant Updated' : 'Tenant Created',
+        description: `"${tenantData.name}" has been saved.`,
+      });
+
+      if (!selectedTenantId) {
+        if (detailBasePath) {
+          router.push(`${detailBasePath}/${encodeURIComponent(tenantId)}`);
+          return;
+        }
+        clearForm();
+      }
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Commit Failure',
+        description: error instanceof Error ? error.message : 'System fault during persistence.',
+      });
     }
   };
 
   const handleDeleteTenant = async () => {
-    if (!selectedTenantId || selectedTenantId === 'safeviate') {
+    if (!selectedTenantId) {
+      toast({ variant: 'destructive', title: 'Invalid Operation', description: 'Select a tenant first.' });
       return;
     }
 
-    const tenantIdToDelete = selectedTenantId;
-    const tenant = tenants.find((entry) => entry.id === tenantIdToDelete);
-    const tenantDisplayName = tenant?.name || tenantName || tenantIdToDelete;
-    const isDeletingActiveTenant = activeTenantId === tenantIdToDelete;
-    const confirmed = window.confirm(
-      `Delete company "${tenantDisplayName}"? This will remove the company and all linked tenant data.`
-    );
-
-    if (!confirmed) {
+    if (selectedTenantId === 'safeviate') {
+      toast({
+        variant: 'destructive',
+        title: 'Delete blocked',
+        description: 'The Safeviate baseline tenant cannot be deleted.',
+      });
       return;
     }
 
-    setIsDeletingTenant(true);
+    if (!window.confirm(`Delete "${tenantName || selectedTenantId}"? This cannot be undone.`)) {
+      return;
+    }
 
     try {
-      const response = await fetch(`/api/tenants?tenantId=${encodeURIComponent(tenantIdToDelete)}`, {
+      const response = await fetch(`/api/tenants?tenantId=${encodeURIComponent(selectedTenantId)}`, {
         method: 'DELETE',
       });
       const payload = await response.json().catch(() => ({}));
-
       if (!response.ok) {
-        throw new Error(payload?.error || 'Failed to delete company.');
+        throw new Error(payload?.error || 'Failed to delete tenant.');
       }
 
-      setTenants((current) => current.filter((entry) => entry.id !== tenantIdToDelete));
-      window.dispatchEvent(new Event('safeviate-tenants-updated'));
-      window.dispatchEvent(new Event('safeviate-tenant-config-updated'));
-      clearDeletedTenantClientState(tenantIdToDelete);
+      setTenants((current) => current.filter((entry) => entry.id !== selectedTenantId));
+      clearForm();
 
-      if (isDeletingActiveTenant) {
-        clearTenantOverride();
-      } else {
-        router.refresh();
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('safeviate-tenants-updated'));
       }
-
-      handleClearForm();
 
       toast({
-        title: 'Company Deleted',
-        description: `"${tenantDisplayName}" has been removed.`,
+        title: 'Tenant Deleted',
+        description: `"${payload?.deletedTenantId || selectedTenantId}" has been removed.`,
       });
-    } catch (e: unknown) {
+
+      if (detailBasePath) {
+        router.push(detailBasePath);
+      }
+    } catch (error) {
       toast({
         variant: 'destructive',
         title: 'Delete Failed',
-      description: e instanceof Error ? e.message : 'System fault during deletion.',
+        description: error instanceof Error ? error.message : 'System fault during deletion.',
       });
-    } finally {
-      setIsDeletingTenant(false);
     }
   };
 
-  return (
-    <Card className="flex h-full flex-col overflow-hidden rounded-3xl border bg-background shadow-none">
-      <CardHeader className="relative shrink-0 overflow-hidden border-b bg-muted/5 p-8">
-        <div className="absolute right-0 top-0 p-8 opacity-5">
-            <Building2 className="h-32 w-32 rotate-12" />
-        </div>
-        <div className="relative z-10 flex items-center justify-between">
-            <div className="space-y-4 text-left">
-                <Badge variant="outline" className="h-7 px-4 text-[10px] font-black uppercase tracking-widest text-primary border-primary/30 bg-primary/5">
-                    <ShieldCheck className="mr-2 h-3.5 w-3.5" />
-                    Company Setup Admin
-                </Badge>
-                <div>
-                    <CardTitle className="text-4xl font-black uppercase leading-none tracking-tighter">Company Setup Console</CardTitle>
-                    <CardDescription className="mt-2 text-xs font-bold uppercase tracking-widest text-muted-foreground opacity-70">
-                        Create companies, choose default modules, and control page access before saving.
-                    </CardDescription>
-                </div>
-            </div>
-            <Button onClick={handleClearForm} className={TENANT_SETUP_PRIMARY_BUTTON_CLASS}>
-              <PlusCircle className="mr-3 h-4 w-4" /> New Company
-            </Button>
-        </div>
-      </CardHeader>
+  if (isAccessLoading) {
+    return (
+      <div className="flex h-full min-h-0 w-full flex-col gap-6 overflow-hidden px-1 pb-4 lg:max-w-[1100px] mx-auto">
+        <Skeleton className="h-24 w-full" />
+        <Skeleton className="h-[640px] w-full" />
+      </div>
+    );
+  }
 
-      <Tabs defaultValue="setup" className="flex min-h-0 flex-1 flex-col">
-        <div className="border-b bg-muted/5 px-4 py-3 sm:px-8">
-          <TabsList className={cn(HEADER_TAB_LIST_CLASS, 'w-full overflow-x-auto')}>
-            <TabsTrigger value="setup" className={cn(HEADER_TAB_TRIGGER_CLASS, 'text-[10px]')}>Setup</TabsTrigger>
-            <TabsTrigger value="access" className={cn(HEADER_TAB_TRIGGER_CLASS, 'text-[10px]')}>Access & Visibility</TabsTrigger>
-            <TabsTrigger value={PAGE_LAYOUT_TAB_ID} className={cn(HEADER_TAB_TRIGGER_CLASS, 'text-[10px]')}>Pages & Layout</TabsTrigger>
-          </TabsList>
-        </div>
+  if (!isAllowed) {
+    return <TenantLayoutDisabledState />;
+  }
+
+  return (
+    <div className="mx-auto flex h-full min-h-0 w-full flex-col gap-6 overflow-hidden px-1 pb-4 lg:max-w-[1100px]">
+      <Card className="flex min-h-0 flex-1 flex-col overflow-hidden border bg-background shadow-none">
+        <CardHeader className="relative shrink-0 overflow-hidden border-b bg-muted/5 p-6 sm:p-8">
+          <div className="absolute right-0 top-0 p-6 opacity-5">
+            <Building2 className="h-28 w-28 rotate-12" />
+          </div>
+          <div className="relative z-10 flex items-start justify-between gap-4">
+            <div className="space-y-3 text-left">
+              <Badge variant="outline" className="h-7 border-primary/30 bg-primary/5 px-4 text-[10px] font-black uppercase tracking-widest text-primary">
+                Tenant Cards
+              </Badge>
+              <div>
+                <CardTitle className="text-4xl font-black uppercase leading-none tracking-tighter">Tenant Setup</CardTitle>
+                <CardDescription className="mt-2 text-xs font-bold uppercase tracking-widest text-muted-foreground opacity-70">
+                  Add a tenant, then open its separate card to edit identity, logo, and menu visibility.
+                </CardDescription>
+              </div>
+              <div className="grid max-w-xl gap-2">
+                <Label htmlFor="tenant-name-header" className="ml-1 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                  Tenant Name
+                </Label>
+                <Input
+                  id="tenant-name-header"
+                  placeholder="Safeviate Aviation"
+                  className="h-11 rounded-xl border-2 text-sm font-black uppercase tracking-tight focus-visible:ring-primary/20"
+                  value={tenantName}
+                  onChange={(event) => setTenantName(event.target.value)}
+                />
+              </div>
+            </div>
+            {!lockTenantSelection ? (
+              <Button onClick={handleCreateNewTenant} className={TENANT_PAGE_BUTTON_CLASS}>
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Add Tenant
+              </Button>
+            ) : null}
+          </div>
+        </CardHeader>
 
         <CardContent className="flex-1 min-h-0 overflow-hidden bg-muted/5 p-0">
           <ScrollArea className="h-full">
-            <div className="space-y-8 p-8 pb-6">
-              <TabsContent value="setup" className="mt-0 space-y-8">
-                <Card className="border shadow-none bg-background">
-                  <CardContent className="space-y-4 p-4 sm:p-5">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Company setup summary</p>
-                        <p className="mt-1 text-sm font-semibold text-foreground">
-                          Create a new company profile or clone an existing one, then tune its menu and layout defaults before saving.
-                        </p>
+            <div className="space-y-8 p-4 pb-6 sm:p-6">
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-[360px_minmax(0,1fr)]">
+                <div className="space-y-6">
+                  <Card className="border bg-background shadow-none">
+                    <CardContent className="space-y-4 p-4 sm:p-5">
+                      <div className="space-y-2">
+                        <Label className="ml-1 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Tenant Logo</Label>
+                        <div className="flex flex-col gap-4 rounded-3xl border bg-muted/5 p-4 sm:flex-row sm:items-center">
+                          <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-2xl border bg-background">
+                            {logoPreview ? (
+                              <Image src={logoPreview} alt="Tenant logo preview" width={96} height={96} className="h-full w-full object-contain" />
+                            ) : (
+                              <span className="px-3 text-center text-[9px] font-black uppercase tracking-widest text-muted-foreground">No Logo</span>
+                            )}
+                          </div>
+                          <div className="flex-1 space-y-3">
+                            <Input
+                              type="file"
+                              accept="image/*"
+                              className="h-10 rounded-xl border-2 text-[10px] font-bold uppercase"
+                              onChange={(event) => void handleLogoUpload(event.target.files?.[0])}
+                            />
+                            <Button type="button" variant="outline" className={TENANT_PAGE_BUTTON_CLASS} onClick={() => setLogoPreview('')} disabled={!logoPreview}>
+                              Remove Logo
+                            </Button>
+                          </div>
+                        </div>
                       </div>
-                      <Badge variant="outline" className="rounded-full border-primary/20 bg-primary/5 px-3 py-1 text-[9px] font-black uppercase tracking-widest text-primary">
-                        {selectedTenantId ? 'Editing existing company' : 'Creating new company'}
-                      </Badge>
+
+                      <div className="space-y-2">
+                        <Label className="ml-1 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Industry</Label>
+                        <Select onValueChange={(value) => setIndustry(value as IndustryType)} value={industry}>
+                          <SelectTrigger className="h-10 rounded-xl border-2 bg-background text-[10px] font-black uppercase tracking-tight shadow-none">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-xl border-2">
+                            {INDUSTRY_TYPES.map((value) => (
+                              <SelectItem key={value} value={value} className="text-[10px] font-black uppercase">
+                                {value}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <Card className="border bg-background shadow-none">
+                  <CardHeader className="flex flex-row items-start justify-between gap-4 border-b bg-muted/10 px-4 py-3">
+                    <div className="space-y-1">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-primary">Menu Visibility</p>
+                      <CardTitle className="text-xl font-black uppercase tracking-tight">Menus and Submenus</CardTitle>
+                      <CardDescription className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground opacity-60">
+                        Choose exactly which items should be visible for this tenant.
+                      </CardDescription>
                     </div>
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
-                      <div className="rounded-2xl border bg-muted/5 px-3 py-3">
-                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Companies</p>
-                        <p className="mt-1 text-lg font-black">{sortedTenants.length}</p>
+                    <Badge variant="outline" className="rounded-full border-primary/20 bg-primary/5 px-3 py-1 text-[9px] font-black uppercase tracking-widest text-primary">
+                      {selectedMenuCount} selected
+                    </Badge>
+                  </CardHeader>
+                  <CardContent className="space-y-4 p-4 sm:p-5">
+                    <div className="flex flex-wrap items-center gap-2 rounded-2xl border bg-muted/5 px-4 py-3">
+                      <Button type="button" variant="outline" className={TENANT_PAGE_BUTTON_CLASS} onClick={() => setEnabledHrefs(buildDefaultEnabledHrefs())}>
+                        Select All
+                      </Button>
+                      <Button type="button" variant="outline" className={TENANT_PAGE_BUTTON_CLASS} onClick={() => setEnabledHrefs(new Set())}>
+                        Clear All
+                      </Button>
+                      <div className="ml-auto text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                        {selectedMenuCount} of {totalMenuCount} items enabled
                       </div>
-                      <div className="rounded-2xl border bg-muted/5 px-3 py-3">
-                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Menus</p>
-                        <p className="mt-1 text-lg font-black">{enabledMenuCount}/{totalMenuCount}</p>
-                      </div>
-                      <div className="rounded-2xl border bg-muted/5 px-3 py-3">
-                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Pages</p>
-                        <p className="mt-1 text-lg font-black">{enabledPageCount}/{totalPageCount}</p>
-                      </div>
-                      <div className="rounded-2xl border bg-muted/5 px-3 py-3">
-                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Sections</p>
-                        <p className="mt-1 text-lg font-black">{enabledSectionCount}/{totalSectionCount}</p>
-                      </div>
-                      <div className="rounded-2xl border bg-muted/5 px-3 py-3">
-                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Tabs</p>
-                        <p className="mt-1 text-lg font-black">{enabledTabCount}/{totalTabCount}</p>
-                      </div>
-                      <div className="rounded-2xl border bg-muted/5 px-3 py-3">
-                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Mode</p>
-                        <p className="mt-1 text-lg font-black">{industry}</p>
-                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                      {tenantMenuRows
+                        .filter((menu) => {
+                          const term = menuFilter.trim().toLowerCase();
+                          if (!term) return true;
+                          if (menu.label.toLowerCase().includes(term) || menu.href.toLowerCase().includes(term)) return true;
+                          return menu.subItems?.some(
+                            (sub) =>
+                              isTenantMenuHref(sub.href) &&
+                              (sub.label.toLowerCase().includes(term) || sub.href.toLowerCase().includes(term))
+                          ) ?? false;
+                        })
+                        .map((menu) => {
+                        const subHrefs = menu.subItems?.map((sub) => sub.href).filter(isTenantMenuHref) || [];
+                        const isSelected = enabledHrefs.has(menu.href);
+                        const isMixed = menu.subItems?.length ? isParentMixed(menu.href, subHrefs) : false;
+                        const stateLabel = isMixed ? 'Partial' : isSelected ? 'Selected' : 'Clear';
+
+                        return (
+                          <Card
+                            key={menu.href}
+                            className={cn(
+                              'border shadow-none transition-all',
+                              isSelected ? 'border-primary bg-primary/5' : 'border-slate-200',
+                              isMixed ? 'ring-1 ring-amber-400/40' : ''
+                            )}
+                          >
+                            <CardContent className="space-y-4 p-4 sm:p-5">
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-3">
+                                  <div className={cn('rounded-lg p-2', isSelected ? 'bg-primary text-white' : 'bg-muted text-muted-foreground')}>
+                                    <menu.icon className="h-5 w-5" />
+                                  </div>
+                                  <div className="space-y-0.5">
+                                    <p className="text-sm font-black uppercase tracking-tight text-foreground">{menu.label}</p>
+                                    <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">{menu.href}</p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Badge
+                                    variant="outline"
+                                    className={cn(
+                                      'rounded-full px-2 py-1 text-[9px] font-black uppercase tracking-widest',
+                                      isMixed
+                                        ? 'border-amber-400/40 bg-amber-50 text-amber-700'
+                                        : isSelected
+                                          ? 'border-primary/20 bg-primary/5 text-primary'
+                                          : 'border-slate-200 bg-muted/5 text-muted-foreground'
+                                    )}
+                                  >
+                                    {stateLabel}
+                                  </Badge>
+                                  <Checkbox
+                                    checked={isMixed ? 'indeterminate' : isSelected}
+                                    onCheckedChange={() => toggleMenu(menu.href, subHrefs)}
+                                    className="h-6 w-6 border-2 data-[state=checked]:bg-primary"
+                                    aria-label={`${menu.label} menu ${isMixed ? 'partially selected' : isSelected ? 'selected' : 'not selected'}`}
+                                  />
+                                </div>
+                              </div>
+
+                              {menu.subItems?.length ? (
+                                <div className="space-y-2 border-t pt-3">
+                                  {menu.subItems.filter((sub) => isTenantMenuHref(sub.href)).map((sub) => {
+                                    const isSubSelected = enabledHrefs.has(sub.href);
+                                    return (
+                                      <div key={sub.href} className="flex items-center justify-between gap-3 rounded-xl border bg-background px-3 py-2">
+                                        <div className="flex items-center gap-2">
+                                          <ChevronRight className="h-3 w-3 text-muted-foreground opacity-40" />
+                                          <div className="space-y-0.5">
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-foreground">{sub.label}</p>
+                                            <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">{sub.href}</p>
+                                          </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          <Badge
+                                            variant="outline"
+                                            className={cn(
+                                              'rounded-full px-2 py-1 text-[9px] font-black uppercase tracking-widest',
+                                              isSubSelected
+                                                ? 'border-primary/20 bg-primary/5 text-primary'
+                                                : 'border-slate-200 bg-muted/5 text-muted-foreground'
+                                            )}
+                                          >
+                                            {isSubSelected ? 'Selected' : 'Clear'}
+                                          </Badge>
+                                          <Checkbox
+                                            checked={isSubSelected}
+                                            onCheckedChange={() => toggleSubMenu(menu.href, sub.href, subHrefs)}
+                                            className="h-4 w-4 border-2 data-[state=checked]:bg-primary"
+                                            aria-label={`${sub.label} submenu ${isSubSelected ? 'selected' : 'not selected'}`}
+                                          />
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              ) : null}
+                            </CardContent>
+                          </Card>
+                        );
+                      })}
                     </div>
                   </CardContent>
                 </Card>
-                <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
-                  <div className="space-y-6">
-                      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 items-end">
-                          <div className="space-y-2.5 text-left md:col-span-2">
-                              <Label className="ml-1 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Load Existing Company</Label>
-                              <div className="flex flex-col gap-2 sm:flex-row">
-                                <Select onValueChange={handleLoadTenant} value={selectedTenantId || undefined}>
-                                    <SelectTrigger className="h-10 rounded-xl border-2 bg-background text-[10px] font-bold uppercase shadow-none transition-colors hover:border-primary/50">
-                                      <SelectValue placeholder={isLoadingTenants ? "Accessing Core..." : "Choose company..."} />
-                                    </SelectTrigger>
-                                    <SelectContent className="rounded-xl border-2">
-                                        {sortedTenants.map(t => (<SelectItem key={t.id} value={t.id} className="text-[10px] font-bold uppercase">{t.name}</SelectItem>))}
-                                    </SelectContent>
-                                </Select>
-                                <div className="flex gap-2">
-                                  <Button type="button" variant="outline" className={TENANT_SETUP_PRIMARY_BUTTON_CLASS} onClick={handleStartNewCompany}>
-                                    New Company
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    variant="destructive"
-                                    className={TENANT_SETUP_PRIMARY_BUTTON_CLASS}
-                                    onClick={handleDeleteTenant}
-                                    disabled={!selectedTenantId || selectedTenantId === 'safeviate' || isDeletingTenant}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                    {isDeletingTenant ? 'Deleting...' : 'Delete'}
-                                  </Button>
-                                </div>
-                              </div>
-                          </div>
-                          <div className="space-y-2.5 text-left">
-                              <Label htmlFor="tenant-name" className="ml-1 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Company Name</Label>
-                              <Input id="tenant-name" placeholder="Safeviate Aviation" className="h-10 rounded-xl border-2 text-sm font-black uppercase tracking-tight focus-visible:ring-primary/20" value={tenantName} onChange={(e) => setTenantName(e.target.value)} />
-                          </div>
-                          <div className="col-span-full space-y-2.5 text-left">
-                              <Label className="ml-1 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                                <Briefcase className="h-3.5 w-3.5 text-primary" />
-                                Industry Logic Profile
-                              </Label>
-                              <Select onValueChange={(v) => handleIndustryChange(v as IndustryType)} value={industry}>
-                                  <SelectTrigger className="h-10 rounded-xl border-2 bg-background text-[10px] font-black uppercase tracking-tight shadow-none">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent className="rounded-xl border-2">
-                                      {INDUSTRY_TYPES.map(t => <SelectItem key={t} value={t} className="text-[10px] font-black uppercase">{t}</SelectItem>)}
-                                  </SelectContent>
-                              </Select>
-                          </div>
-                      </div>
-                  </div>
-
-                  <div className="space-y-6">
-                      <div className="group relative overflow-hidden rounded-3xl border bg-background p-6 shadow-none">
-                          <div className="absolute right-0 top-0 p-4 opacity-5 transition-opacity group-hover:opacity-10">
-                              <LayoutDashboard className="h-20 w-20" />
-                          </div>
-                          <div className="relative z-10 flex flex-col gap-2 text-left">
-                              <div>
-                                  <h3 className="mb-1 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-primary">
-                                    <MonitorSmartphone className="h-4 w-4" />
-                                    Interface Vector Simulation
-                                  </h3>
-                                  <p className="text-[10px] font-bold uppercase opacity-50 text-muted-foreground">Local override for aesthetic validation.</p>
-                              </div>
-                              <div className="pt-4">
-                                <Select value={localIndustryOverride} onValueChange={handleApplyIndustryOverride}>
-                                    <SelectTrigger className="h-10 rounded-xl border-2 border-dashed bg-muted/5 text-[10px] font-bold uppercase shadow-none group-hover:border-primary/50">
-                                        <SelectValue placeholder="Bypass Active" />
-                                    </SelectTrigger>
-                                    <SelectContent className="rounded-xl">
-                                        <SelectItem value="none" className="text-[10px] font-bold uppercase">No Simulation (Default)</SelectItem>
-                                        {INDUSTRY_TYPES.map(t => <SelectItem key={t} value={t} className="text-[10px] font-bold uppercase">{t}</SelectItem>)}
-                                    </SelectContent>
-                                </Select>
-                              </div>
-                          </div>
-                      </div>
-
-                      <div className="relative overflow-hidden rounded-3xl border bg-background p-6 shadow-none">
-                          <div className="flex flex-col gap-2 text-left">
-                              <div className="mb-2 flex items-center justify-between">
-                                  <h3 className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-primary">
-                                      <ArrowRightLeft className="h-4 w-4" />
-                                      System Impersonation
-                                  </h3>
-                                  <Badge variant="outline" className="h-6 gap-2 rounded-full border-2 border-primary/20 px-3 text-[9px] font-black uppercase tracking-widest text-primary">
-                                      <CheckCircle2 className="h-3 w-3" />
-                                      {(sortedTenants.find((tenant) => tenant.id === activeTenantId)?.name) || activeTenantId || 'None'}
-                                  </Badge>
-                              </div>
-                              <div className="flex flex-wrap gap-2 pt-2">
-                                  {sortedTenants.slice(0, 4).map((tenant) => {
-                                      const isActive = tenant.id === activeTenantId;
-                                      return (
-                                          <Button
-                                              key={tenant.id}
-                                              variant={isActive ? 'secondary' : 'outline'}
-                                              size="sm"
-                                              className={cn(
-                                                  'h-8 rounded-xl px-3 text-[9px] font-black uppercase tracking-widest shadow-none transition-all',
-                                                  isActive ? 'bg-primary text-white' : 'hover:border-primary/50 hover:bg-primary/5'
-                                              )}
-                                              onClick={() => handleSwitchTenant(tenant)}
-                                              disabled={isActive}
-                                          >
-                                              {tenant.name}
-                                          </Button>
-                                  );
-                              })}
-                              </div>
-                          </div>
-                      </div>
-
-                      <div className="relative overflow-hidden rounded-3xl border bg-background p-6 shadow-none">
-                          <div className="flex items-start justify-between gap-4 text-left">
-                              <div>
-                                  <h3 className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-primary">
-                                      <ShieldCheck className="h-4 w-4" />
-                                      NDA Acceptances
-                                  </h3>
-                                  <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground opacity-60">
-                                      Signed beta access records for the selected tenant.
-                                  </p>
-                              </div>
-                              <Badge variant="outline" className="h-6 rounded-full border-2 border-primary/20 px-3 text-[9px] font-black uppercase tracking-widest text-primary">
-                                  {tenantContextId}
-                              </Badge>
-                          </div>
-
-                          <div className="mt-4 space-y-3">
-                              {isLoadingNdaAcceptances ? (
-                                  <div className="rounded-2xl border border-dashed border-slate-200 bg-muted/5 px-4 py-5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                                      Loading signed records...
-                                  </div>
-                              ) : ndaAcceptancesError ? (
-                                  <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-4 text-sm text-rose-700">
-                                      {ndaAcceptancesError}
-                                  </div>
-                              ) : ndaAcceptances.length > 0 ? (
-                                  ndaAcceptances.map((acceptance) => (
-                                      <div key={acceptance.id} className="rounded-2xl border border-slate-200 bg-muted/5 px-4 py-4">
-                                          <div className="flex flex-wrap items-start justify-between gap-3">
-                                              <div>
-                                                  <div className="text-sm font-black uppercase tracking-tight text-foreground">{acceptance.name}</div>
-                                                  <div className="mt-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{acceptance.email}</div>
-                                              </div>
-                                              <Badge variant="outline" className="h-6 rounded-full border-2 border-primary/20 px-3 text-[9px] font-black uppercase tracking-widest text-primary">
-                                                  {acceptance.ndaVersion}
-                                              </Badge>
-                                          </div>
-                                          <div className="mt-3 grid grid-cols-1 gap-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground sm:grid-cols-2">
-                                              <div>
-                                                  Accepted
-                                                  <div className="mt-1 text-[11px] font-black tracking-tight text-foreground">
-                                                      {new Date(acceptance.acceptedAt).toLocaleString()}
-                                                  </div>
-                                              </div>
-                                              <div>
-                                                  Signature
-                                                  <div className="mt-1 text-[11px] font-black tracking-tight text-foreground">
-                                                      Recorded electronically
-                                                  </div>
-                                              </div>
-                                          </div>
-                                      </div>
-                                  ))
-                              ) : (
-                                  <div className="rounded-2xl border border-dashed border-slate-200 bg-muted/5 px-4 py-5 text-sm text-muted-foreground">
-                                      No NDA acceptances recorded for this tenant yet.
-                                  </div>
-                              )}
-                          </div>
-                      </div>
-                  </div>
-                </div>
-              </TabsContent>
-
-              <TabsContent value="access" className="mt-0 space-y-8">
-                <div className="space-y-8">
-                    <div className="flex items-center gap-4 text-left">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary shadow-none">
-                            <Users className="h-5 w-5" />
-                        </div>
-                        <div>
-                            <h3 className="text-2xl font-black uppercase tracking-tighter">Access & Visibility</h3>
-                            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground opacity-60">Choose which modules, menus, and linked pages this company can see.</p>
-                        </div>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-2 rounded-2xl border bg-background px-4 py-3">
-                      <Button type="button" variant="outline" className={TENANT_SETUP_PRIMARY_BUTTON_CLASS} onClick={handleEnableAllMenuItems}>
-                        Enable All Menus
-                      </Button>
-                      <Button type="button" variant="outline" className={TENANT_SETUP_PRIMARY_BUTTON_CLASS} onClick={handleClearAllMenuItems}>
-                        Clear All Menus
-                      </Button>
-                      <Button type="button" variant="outline" className={TENANT_SETUP_PRIMARY_BUTTON_CLASS} onClick={handleResetCompanyDefaults}>
-                        Reset Company Defaults
-                      </Button>
-                      <div className="ml-auto text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                        {enabledMenuCount} of {totalMenuCount} menus enabled
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-                        {menuConfig.map((menu) => {
-                            const subHrefs = menu.subItems?.map(s => s.href) || [];
-                            const isEnabled = enabledHrefs.has(menu.href);
-                            return (
-                                <div 
-                                    key={menu.href} 
-                                    className={cn(
-                                        'group/menu space-y-4 rounded-3xl border bg-background p-6 shadow-none transition-all',
-                                        isEnabled ? 'border-primary bg-primary/5' : 'border-slate-200'
-                                    )}
-                                >
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center space-x-3">
-                                            <div className={cn('rounded-lg p-2 transition-colors', isEnabled ? 'bg-primary text-white' : 'bg-muted text-muted-foreground group-hover/menu:bg-primary/10 group-hover/menu:text-primary')}>
-                                                <menu.icon className="h-5 w-5" />
-                                            </div>
-                                            <Label htmlFor={`menu-${menu.href}`} className="cursor-pointer text-sm font-black uppercase tracking-tight leading-none">
-                                                {menu.label}
-                                            </Label>
-                                        </div>
-                                        <Checkbox 
-                                            id={`menu-${menu.href}`} 
-                                            checked={isEnabled} 
-                                            onCheckedChange={() => toggleMenu(menu.href, subHrefs)}
-                                            className="h-6 w-6 border-2 data-[state=checked]:bg-primary"
-                                        />
-                                    </div>
-                                    
-                                    {menu.subItems && (
-                                        <div className="space-y-3 border-t border-slate-100 pl-4 pt-4">
-                                            {menu.subItems.map((sub) => (
-                                                <div key={sub.href} className="group/sub flex items-center justify-between">
-                                                    <div className="flex items-center gap-2">
-                                                        <ChevronRight className="h-3 w-3 text-muted-foreground opacity-30" />
-                                                        <Label htmlFor={`sub-${sub.href}`} className="cursor-pointer text-[11px] font-bold uppercase tracking-widest opacity-60 transition-opacity group-hover/sub:opacity-100">{sub.label}</Label>
-                                                    </div>
-                                                    <Checkbox 
-                                                        id={`sub-${sub.href}`} 
-                                                        checked={enabledHrefs.has(sub.href)} 
-                                                        onCheckedChange={() => toggleSubMenu(menu.href, sub.href)}
-                                                        className="h-4 w-4 border-2 data-[state=checked]:bg-primary"
-                                                    />
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                        })}
-                    </div>
-                </div>
-              </TabsContent>
-
-              <TabsContent value={PAGE_LAYOUT_TAB_ID} className="mt-0 space-y-8">
-                <div className="space-y-6">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                    <div className="space-y-2 text-left">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="rounded-full border-primary/20 bg-primary/5 px-3 py-1 text-[9px] font-black uppercase tracking-widest text-primary">
-                          Layout Assignment
-                        </Badge>
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                          {Object.values(pageLayoutSettings.pages).filter((page) => page.enabled).length} pages enabled
-                        </span>
-                      </div>
-                      <h3 className="text-2xl font-black uppercase tracking-tighter">Pages, Sections, and Tabs</h3>
-                      <p className="max-w-3xl text-[10px] font-bold uppercase tracking-widest text-muted-foreground opacity-60">
-                        Switch pages on or off, then decide which sections and tabs remain available inside each one.
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Button type="button" variant="outline" className={TENANT_SETUP_PRIMARY_BUTTON_CLASS} onClick={handleEnableAllPages}>
-                        Enable All Pages
-                      </Button>
-                      <Button type="button" variant="outline" className={TENANT_SETUP_PRIMARY_BUTTON_CLASS} onClick={handleDisableAllPages}>
-                        Disable All Pages
-                      </Button>
-                      <Button type="button" variant="outline" className={TENANT_SETUP_PRIMARY_BUTTON_CLASS} onClick={handleResetCompanyDefaults}>
-                        Reset Layout Defaults
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-                    {SAFETY_QUALITY_LAYOUT_DEFINITIONS.map((page) => {
-                      const layout = pageLayoutSettings.pages[page.id] || buildDefaultPageLayoutSettings().pages[page.id];
-                      return (
-                        <Card key={page.id} className={cn('border shadow-none', layout?.enabled ? 'border-primary/20 bg-primary/5' : 'border-slate-200')}>
-                          <CardHeader className="flex flex-row items-start justify-between gap-4 border-b bg-muted/10 px-4 py-3">
-                            <div className="space-y-1">
-                              <p className="text-sm font-black uppercase tracking-tight text-foreground">{page.label}</p>
-                              <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground">{page.description}</p>
-                              <p className="text-[9px] font-black uppercase tracking-[0.18em] text-muted-foreground">
-                                {page.sections.length} sections · {page.sections.reduce((count, section) => count + (section.tabs?.length || 0), 0)} tabs
-                              </p>
-                            </div>
-                            <Checkbox
-                              checked={layout?.enabled ?? true}
-                              onCheckedChange={() => toggleLayoutPage(page.id)}
-                              className="h-5 w-5 shrink-0"
-                            />
-                          </CardHeader>
-                          <CardContent className="space-y-4 px-4 py-4">
-                            {page.sections.map((section) => (
-                              <div key={section.id} className="space-y-3 rounded-2xl border bg-background p-3">
-                                <div className="flex items-center justify-between gap-3">
-                                  <div className="space-y-1">
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-foreground">
-                                      {formatLayoutLabel(section.label)}
-                                    </p>
-                                    <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
-                                      Section on this page
-                                    </p>
-                                  </div>
-                                  <Checkbox
-                                    checked={layout?.sections?.[section.id] ?? true}
-                                    onCheckedChange={() => toggleLayoutSection(page.id, section.id)}
-                                    className="h-4 w-4 shrink-0"
-                                  />
-                                </div>
-
-                                {section.tabs && section.tabs.length > 0 && (
-                                  <div className="space-y-2 border-t pt-3">
-                                    <p className="text-[9px] font-black uppercase tracking-[0.18em] text-muted-foreground">
-                                      Tabs
-                                    </p>
-                                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                                      {section.tabs.map((tab) => (
-                                        <div key={tab.id} className="flex items-center justify-between gap-3 rounded-xl border bg-muted/5 px-3 py-2">
-                                          <span className="text-[10px] font-black uppercase tracking-tight text-foreground">
-                                            {tab.label}
-                                          </span>
-                                          <Checkbox
-                                            checked={layout?.tabs?.[tab.id] ?? true}
-                                            onCheckedChange={() => toggleLayoutTab(page.id, tab.id)}
-                                            className="h-4 w-4 shrink-0"
-                                          />
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            ))}
-                          </CardContent>
-                        </Card>
-                      );
-                    })}
-                  </div>
-                </div>
-              </TabsContent>
+              </div>
             </div>
           </ScrollArea>
         </CardContent>
-      </Tabs>
 
-      <Separator />
-      <div className="shrink-0 flex justify-end gap-3 bg-background p-6 sm:p-8">
-          <Button onClick={handleSaveTenant} className={cn(TENANT_SETUP_PRIMARY_BUTTON_CLASS, 'w-full gap-3 sm:w-72')}>
-              {selectedTenantId ? <><Save className="h-4 w-4" /> Update Company</> : <><PlusCircle className="h-4 w-4" /> Save Company</>}
+        <Separator />
+        <div className="flex justify-end gap-3 bg-background p-4 sm:p-6">
+          {selectedTenantId && selectedTenantId !== 'safeviate' ? (
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => void handleDeleteTenant()}
+              className={cn(TENANT_PAGE_BUTTON_CLASS, 'w-full gap-3 sm:w-52')}
+            >
+              <Trash2 className="h-4 w-4" />
+              Delete Tenant
+            </Button>
+          ) : null}
+          <Button onClick={() => void handleSaveTenant()} className={cn(TENANT_PAGE_BUTTON_CLASS, 'w-full gap-3 sm:w-72')}>
+            <Save className="h-4 w-4" />
+            {selectedTenantId ? 'Update Tenant' : 'Save Tenant'}
           </Button>
-      </div>
-    </Card>
+        </div>
+      </Card>
+    </div>
   );
 }

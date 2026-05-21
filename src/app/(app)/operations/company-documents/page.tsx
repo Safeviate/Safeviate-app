@@ -22,6 +22,8 @@ import { DeleteActionButton, ViewActionButton } from '@/components/record-action
 import type { DocumentExpirySettings } from '@/app/(app)/admin/document-dates/page';
 import { getContrastingTextColor, getDocumentExpiryBadgeStyle } from '@/lib/document-expiry';
 import { ResponsiveCardGrid } from '@/components/responsive-card-grid';
+import { TenantLayoutDisabledState } from '@/components/tenant-layout-disabled-state';
+import { useTenantRouteAccess } from '@/hooks/use-tenant-route-access';
 
 const parseLocalDate = (value?: string | null) => {
   if (!value) return null;
@@ -43,6 +45,7 @@ interface CompanyDocument {
 }
 
 export default function CompanyDocumentsPage() {
+  const { isLoading: isAccessLoading, isAllowed } = useTenantRouteAccess({ href: '/operations/company-documents' });
   const { toast } = useToast();
   const { tenantId } = useUserProfile();
   const { hasPermission } = usePermissions();
@@ -55,6 +58,10 @@ export default function CompanyDocumentsPage() {
   const [documents, setDocuments] = useState<CompanyDocument[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [expirySettings, setExpirySettings] = useState<DocumentExpirySettings | null>(null);
+
+  if (!isAccessLoading && !isAllowed) {
+    return <TenantLayoutDisabledState />;
+  }
 
   useEffect(() => {
     setViewingImageError(false);

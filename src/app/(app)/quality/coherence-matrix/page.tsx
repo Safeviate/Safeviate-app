@@ -46,6 +46,8 @@ import { getPersonnelDisplayName } from '@/lib/personnel-label';
 import { extractClipboardText } from '@/lib/clipboard';
 import type { CorrectiveActionPlan, GapStatus, QualityAudit, QualityAuditChecklistTemplate, QualityFinding } from '@/types/quality';
 import { GripVertical, List } from 'lucide-react';
+import { TenantLayoutDisabledState } from '@/components/tenant-layout-disabled-state';
+import { useTenantRouteAccess } from '@/hooks/use-tenant-route-access';
 
 const REGULATION_TABS = [
     { value: 'sacaa-cars', label: 'SACAA CARs' },
@@ -560,6 +562,7 @@ function UploadRegulationsDialog({ tenantId, organizationId, regulationFamily, a
 }
 
 export default function CoherenceMatrixPage() {
+  const { isLoading: isAccessLoading, isAllowed } = useTenantRouteAccess({ href: '/quality/coherence-matrix' });
   const { toast } = useToast();
   const { tenantId, userProfile, isLoading: isProfileLoading } = useUserProfile();
   const { matrixTheme } = useTheme();
@@ -655,6 +658,10 @@ export default function CoherenceMatrixPage() {
         });
     }
   }, [resolvedTenantId, toast]);
+
+  if (!isAccessLoading && !isAllowed) {
+    return <TenantLayoutDisabledState />;
+  }
 
   const updateMatrixItemField = useCallback(async (item: ComplianceRequirement, patch: Partial<ComplianceRequirement>) => {
     try {

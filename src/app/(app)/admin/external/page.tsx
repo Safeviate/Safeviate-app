@@ -18,10 +18,13 @@ import { ChevronsUpDown } from 'lucide-react';
 import { DeleteActionButton, EditActionButton } from '@/components/record-action-buttons';
 import { cn } from '@/lib/utils';
 import { CARD_HEADER_BAND_CLASS, HEADER_COMPACT_CONTROL_CLASS, HEADER_SECONDARY_BUTTON_CLASS } from '@/components/page-header';
+import { TenantLayoutDisabledState } from '@/components/tenant-layout-disabled-state';
+import { useTenantRouteAccess } from '@/hooks/use-tenant-route-access';
 
 export default function ExternalCompaniesPage() {
   const { toast } = useToast();
   const { hasPermission } = usePermissions();
+  const { isLoading: isAccessLoading, isAllowed } = useTenantRouteAccess({ href: '/admin/external' });
   const isMobile = useIsMobile();
   const canManage = hasPermission('admin-external-orgs-manage');
 
@@ -33,6 +36,10 @@ export default function ExternalCompaniesPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [address, setAddress] = useState('');
+
+  if (!isAccessLoading && !isAllowed) {
+    return <TenantLayoutDisabledState />;
+  }
 
   const loadOrgs = useCallback(async () => {
     setIsLoadingOrgs(true);

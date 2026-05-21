@@ -13,6 +13,8 @@ import { ViewActionButton } from '@/components/record-action-buttons';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import { ResponsiveCardGrid } from '@/components/responsive-card-grid';
+import { TenantLayoutDisabledState } from '@/components/tenant-layout-disabled-state';
+import { useTenantRouteAccess } from '@/hooks/use-tenant-route-access';
 
 import type { ManagementOfChange } from '@/types/moc';
 import type { SafetyReport } from '@/types/safety-report';
@@ -43,6 +45,7 @@ type UnifiedTask = {
 export default function TaskTrackerPage() {
   const { tenantId } = useUserProfile();
   const { scopedOrganizationId, shouldShowOrganizationTabs } = useOrganizationScope({ viewAllPermissionId: 'quality-tasks-view' });
+  const { isLoading: isAccessLoading, isAllowed } = useTenantRouteAccess({ href: '/quality/task-tracker' });
   const isMobile = useIsMobile();
   const [activeOrgTab, setActiveOrgTab] = useState('internal');
 
@@ -167,6 +170,10 @@ export default function TaskTrackerPage() {
 
     return tasks.sort((a, b) => parseLocalDate(a.dueDate).getTime() - parseLocalDate(b.dueDate).getTime());
   }, [mocs, safetyReports, caps, audits, personnel, isLoading]);
+
+  if (!isAccessLoading && !isAllowed) {
+    return <TenantLayoutDisabledState />;
+  }
 
   const getStatusBadgeVariant = (status: UnifiedTask['status']): 'default' | 'secondary' | 'destructive' | 'outline' => {
     switch (status) {

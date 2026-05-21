@@ -188,7 +188,7 @@ export function ColorThemeForm({ showHeader = true }: ColorThemeFormProps) {
   const [isLoadingTenants, setIsLoadingTenants] = useState(true);
   const [isSavingOrganization, setIsSavingOrganization] = useState(false);
   const [isSidebarLogoSaved, setIsSidebarLogoSaved] = useState(false);
-  const [openAdvancedSections, setOpenAdvancedSections] = useState<string[]>(['buttons', 'headers', 'sidebar']);
+  const [openAdvancedSections, setOpenAdvancedSections] = useState<string[]>([]);
   const sidebarLogoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const canManageOrganization = hasPermission('admin-settings-manage') || hasPermission('settings-manage');
@@ -1333,53 +1333,7 @@ export function ColorThemeForm({ showHeader = true }: ColorThemeFormProps) {
             </div>
           </div>
 
-          <Card className="overflow-hidden border shadow-none">
-            <CardHeader className="border-b bg-muted/20 px-4 py-3">
-              <CardTitle className="text-sm font-black uppercase tracking-tight">Personal Browser Theme</CardTitle>
-              <CardDescription className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                Save your current look as a browser-only preset for this device.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4 px-4 py-4">
-              <div className="flex flex-col gap-3 sm:flex-row">
-                <Input placeholder="Personal theme name..." value={themeName} onChange={(e) => setThemeName(e.target.value)} className="h-11 font-black text-sm uppercase placeholder:font-black placeholder:text-[10px] placeholder:italic" />
-                <Button onClick={handleSaveTheme} className={`w-full sm:w-auto ${PAGE_FORMAT_PRIMARY_BUTTON_CLASS}`}>Save Browser Preset</Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          {isMounted && savedThemes.length > 0 && (
-            <Card className="overflow-hidden border shadow-none">
-              <CardHeader className="border-b bg-muted/20 px-4 py-3">
-                <CardTitle className="text-sm font-black uppercase tracking-tight">Saved Browser Presets</CardTitle>
-                <CardDescription className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                  Reload any local preset on this device.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3 px-4 py-4">
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {savedThemes.map((theme) => (
-                    <div key={theme.name} className="space-y-3 rounded-xl border bg-background p-3 shadow-sm transition-colors hover:border-primary/20">
-                      <div className="flex items-start justify-between gap-3">
-                        <span className="font-black text-[10px] uppercase tracking-tight text-foreground">{theme.name}</span>
-                        <Badge variant="outline" className="border-primary/20 bg-primary/5 text-[8px] font-black uppercase tracking-widest">
-                          Local
-                        </Badge>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <Button variant="outline" size="sm" onClick={() => handleApplyTheme(theme)} className={PAGE_FORMAT_SECONDARY_BUTTON_CLASS}>Apply</Button>
-                        <Button variant="outline" size="icon" onClick={() => handleDeleteTheme(theme.name)} className={PAGE_FORMAT_ICON_BUTTON_CLASS}><Trash2 className="h-4 w-4" /></Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          <div className="flex justify-start">
-            <Button onClick={handleReset} variant="outline" className={PAGE_FORMAT_SECONDARY_BUTTON_CLASS}>Reset This Device Only</Button>
-          </div>
+      {isMounted && savedThemes.length > 0 && false ? null : null}
         </CardContent>
       </Card>
     </div>

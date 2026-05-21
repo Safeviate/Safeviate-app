@@ -11,6 +11,8 @@ import { usePermissions } from '@/hooks/use-permissions';
 import { useUserProfile } from '@/hooks/use-user-profile';
 import { ResponsiveCardGrid } from '@/components/responsive-card-grid';
 import { Skeleton } from '@/components/ui/skeleton';
+import { TenantLayoutDisabledState } from '@/components/tenant-layout-disabled-state';
+import { useTenantRouteAccess } from '@/hooks/use-tenant-route-access';
 
 export type Role = {
   id: string;
@@ -24,10 +26,15 @@ export type Role = {
 
 export default function RolesPage() {
   const { hasPermission } = usePermissions();
+  const { isLoading: isAccessLoading, isAllowed } = useTenantRouteAccess({ href: '/admin/roles' });
   const { tenantId } = useUserProfile();
   const canManage = hasPermission('admin-roles-manage');
   const [roles, setRoles] = useState<Role[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  if (!isAccessLoading && !isAllowed) {
+    return <TenantLayoutDisabledState />;
+  }
 
   const loadRoles = useCallback(() => {
     let cancelled = false;

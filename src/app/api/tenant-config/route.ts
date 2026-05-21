@@ -11,6 +11,7 @@ export async function GET(request: Request) {
   try {
     const session = await getServerSession(authOptions);
     const email = session?.user?.email?.trim().toLowerCase();
+    const role = session?.user?.role?.trim().toLowerCase() || '';
     const tenantIdFromQuery = new URL(request.url).searchParams.get('tenantId')?.trim() || null;
     if (!email) {
       return NextResponse.json({ config: null }, { status: 200 });
@@ -18,7 +19,10 @@ export async function GET(request: Request) {
 
     await ensureTenantConfigSchema();
 
-    const tenantId = tenantIdFromQuery || (await getTenantIdFromSession(request, MASTER_TENANT_ID)) || MASTER_TENANT_ID;
+    const isDeveloper = role === 'dev' || role === 'developer';
+    const isMaster = isMasterTenantEmail(email);
+    const sessionTenantId = (await getTenantIdFromSession(request, MASTER_TENANT_ID)) || MASTER_TENANT_ID;
+    const tenantId = tenantIdFromQuery && (isDeveloper || isMaster) ? tenantIdFromQuery : sessionTenantId;
     const tenantExists = await prisma.tenant.findUnique({
       where: { id: tenantId },
       select: { id: true },

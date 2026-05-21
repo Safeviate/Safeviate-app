@@ -35,8 +35,11 @@ const buildTenantScopedMasterProfile = (
   email: sessionUser.email?.trim().toLowerCase() || '',
   firstName: personnelProfile?.firstName?.trim() || sessionUser.name?.split(' ')[0] || 'User',
   lastName: personnelProfile?.lastName?.trim() || sessionUser.name?.split(' ').slice(1).join(' ') || '',
-  role: personnelProfile?.role?.trim() || 'tenant-observer',
-  permissions: Array.isArray(personnelProfile?.permissions) ? (personnelProfile.permissions as string[]) : [],
+  // Master/developer users keep super-user capability while viewing another tenant.
+  // Tenant menus/layout still control visible pages, but switching should not silently
+  // downgrade the operator into an observer role and hide permission-gated screens.
+  role: 'developer',
+  permissions: ['*'],
   accessOverrides:
     personnelProfile?.accessOverrides && typeof personnelProfile.accessOverrides === 'object'
       ? personnelProfile.accessOverrides
@@ -113,7 +116,7 @@ export async function GET(request: Request) {
               id: selectedTenantId,
               name: selectedTenant?.name || selectedTenantId,
             },
-            rolePermissions: Array.isArray(roleData?.permissions) ? (roleData.permissions as string[]) : [],
+            rolePermissions: ['*'],
             roleHiddenMenus: Array.isArray(roleData?.accessOverrides?.hiddenMenus)
               ? (roleData.accessOverrides?.hiddenMenus as string[])
               : [],

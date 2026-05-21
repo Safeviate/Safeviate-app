@@ -5,7 +5,7 @@ import { menuConfig } from '@/lib/menu-config';
 import type { MenuItem, SubMenuItem } from '@/lib/menu-config';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
-import { Bell, Search, ChevronDown, LogOut, ArrowRightLeft } from 'lucide-react';
+import { Bell, Search, ChevronDown, LogOut, ArrowRightLeft, Check } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useUserProfile } from '@/hooks/use-user-profile';
 import React, { useState, useEffect } from 'react';
@@ -19,6 +19,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import type { Tenant } from '@/types/quality';
 
 const findCurrentItem = (
   items: (MenuItem | SubMenuItem)[],
@@ -69,6 +70,12 @@ export function AppHeader() {
   const currentPathname = pathname ?? '';
   const title = getTitle(currentPathname);
   const [headerOpacity, setHeaderOpacity] = useState(0.8);
+  const [tenants, setTenants] = useState<Tenant[]>([]);
+  const userDisplayName = userProfile ? `${userProfile.firstName} ${userProfile.lastName}` : 'User';
+  const userFallback = userDisplayName.charAt(0).toUpperCase();
+  const tenantLabel = tenant?.name?.trim() || tenantId || 'Safeviate';
+  const canSwitchTenants = MASTER_TENANT_EMAILS.includes((userProfile?.email || '').trim().toLowerCase());
+  const isViewingOverrideTenant = canSwitchTenants && tenantId !== MASTER_TENANT_ID;
 
   useEffect(() => {
     const handleOpacityUpdate = () => {
@@ -88,11 +95,38 @@ export function AppHeader() {
     };
   }, []);
 
-  const userDisplayName = userProfile ? `${userProfile.firstName} ${userProfile.lastName}` : 'User';
-  const userFallback = userDisplayName.charAt(0).toUpperCase();
-  const tenantLabel = tenant?.name?.trim() || tenantId || 'Safeviate';
-  const canSwitchTenants = MASTER_TENANT_EMAILS.includes((userProfile?.email || '').trim().toLowerCase());
-  const isViewingOverrideTenant = canSwitchTenants && tenantId !== MASTER_TENANT_ID;
+  useEffect(() => {
+    if (!canSwitchTenants) return;
+
+    let cancelled = false;
+    const loadTenants = async () => {
+      try {
+        const response = await fetch('/api/tenants', { cache: 'no-store' });
+        const payload = await response.json().catch(() => ({ tenants: [] }));
+        if (!cancelled) {
+          const rows = Array.isArray(payload?.tenants) ? (payload.tenants as Tenant[]) : [];
+          const sorted = [...rows].sort((a, b) => {
+            if (a.id === MASTER_TENANT_ID) return -1;
+            if (b.id === MASTER_TENANT_ID) return 1;
+            return a.name.localeCompare(b.name);
+          });
+          setTenants(sorted);
+        }
+      } catch {
+        if (!cancelled) {
+          setTenants([]);
+        }
+      }
+    };
+
+    void loadTenants();
+    window.addEventListener('safeviate-tenants-updated', loadTenants);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('safeviate-tenants-updated', loadTenants);
+    };
+  }, [canSwitchTenants]);
+
   const handleSignOut = () => {
     void signOut({ callbackUrl: '/login' });
   };
@@ -105,6 +139,24 @@ export function AppHeader() {
       detail: {
         tenantId: MASTER_TENANT_ID,
         tenantName: 'Safeviate',
+      },
+    }));
+    router.refresh();
+  };
+
+  const handleSwitchTenant = (nextTenant: Tenant) => {
+    if (typeof window === 'undefined') return;
+    if (nextTenant.id === MASTER_TENANT_ID) {
+      handleReturnToSafeviate();
+      return;
+    }
+
+    window.localStorage.setItem('safeviate:selected-tenant', nextTenant.id);
+    window.document.cookie = `${TENANT_OVERRIDE_COOKIE}=${encodeURIComponent(nextTenant.id)}; path=/; max-age=${60 * 60 * 24 * 365}`;
+    window.dispatchEvent(new CustomEvent('safeviate-tenant-switch', {
+      detail: {
+        tenantId: nextTenant.id,
+        tenantName: nextTenant.name,
       },
     }));
     router.refresh();
@@ -170,6 +222,32 @@ export function AppHeader() {
             <DropdownMenuLabel className="text-[10px] font-semibold text-sidebar-foreground/80">
               Active Company: {tenantLabel}
             </DropdownMenuLabel>
+            {canSwitchTenants ? (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs font-semibold uppercase tracking-[0.08em] text-sidebar-foreground/70">
+                  Switch Tenant
+                </DropdownMenuLabel>
+                {tenants.map((tenantOption) => {
+                  const isActiveTenant = (tenantOption.id || '').trim() === (tenantId || MASTER_TENANT_ID).trim();
+                  return (
+                    <DropdownMenuItem
+                      key={tenantOption.id}
+                      onClick={() => handleSwitchTenant(tenantOption)}
+                      className="flex items-center justify-between gap-2"
+                    >
+                      <div className="min-w-0">
+                        <div className="truncate">{tenantOption.name}</div>
+                        <div className="truncate text-[9px] uppercase tracking-widest text-sidebar-foreground/45">
+                          {tenantOption.id}
+                        </div>
+                      </div>
+                      {isActiveTenant ? <Check className="h-4 w-4 shrink-0" /> : null}
+                    </DropdownMenuItem>
+                  );
+                })}
+              </>
+            ) : null}
             {isViewingOverrideTenant ? (
               <>
                 <DropdownMenuSeparator />

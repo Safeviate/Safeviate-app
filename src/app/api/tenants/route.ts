@@ -25,6 +25,14 @@ export async function GET(request: Request) {
       return NextResponse.json({ tenants: [] }, { status: 200 });
     }
 
+    if (!(await canManageTenants())) {
+      const tenant = await prisma.tenant.findUnique({
+        where: { id: tenantId },
+        select: { id: true, name: true },
+      }).catch(() => null);
+      return NextResponse.json({ tenants: tenant ? [tenant] : [] }, { status: 200 });
+    }
+
     const tenants = await prisma.tenant.findMany({ orderBy: { name: 'asc' } }).catch(() => []);
     return NextResponse.json({ tenants }, { status: 200 });
   } catch (error) {
