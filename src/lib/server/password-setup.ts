@@ -37,6 +37,15 @@ export async function createPasswordSetupInvite(
 ) {
   const email = normalizeEmail(input.email);
   const name = input.name.trim() || email.split('@')[0] || 'User';
+  const existingUser = await prisma.user.findUnique({
+    where: { email },
+    select: { id: true, tenantId: true },
+  });
+
+  if (existingUser && existingUser.tenantId !== input.tenantId) {
+    throw new Error('This email address is already assigned to a different tenant.');
+  }
+
   const token = crypto.randomBytes(32).toString('hex');
   const tokenHash = hashToken(token);
   const expiresAt = new Date(Date.now() + INVITE_TTL_DAYS * 24 * 60 * 60 * 1000);
@@ -104,11 +113,17 @@ export async function completePasswordSetup(token: string, password: string): Pr
   const existingUser = invite.user || (await prisma.user.findUnique({ where: { email } }));
 
   if (existingUser) {
+    if (existingUser.tenantId !== invite.tenantId) {
+      return {
+        success: false,
+        error: 'This email address is already assigned to a different tenant.',
+      };
+    }
+
     await prisma.user.update({
       where: { id: existingUser.id },
       data: {
         passwordHash,
-        tenantId: invite.tenantId,
         firstName: existingUser.firstName || firstName,
         lastName: existingUser.lastName || lastName,
         updatedAt: new Date(),

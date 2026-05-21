@@ -352,6 +352,7 @@ export type PersonnelOrderByWithRelationInput = {
 
 export type PersonnelWhereUniqueInput = Prisma.AtLeast<{
   id?: string
+  email?: string
   AND?: Prisma.PersonnelWhereInput | Prisma.PersonnelWhereInput[]
   OR?: Prisma.PersonnelWhereInput[]
   NOT?: Prisma.PersonnelWhereInput | Prisma.PersonnelWhereInput[]
@@ -359,7 +360,6 @@ export type PersonnelWhereUniqueInput = Prisma.AtLeast<{
   userNumber?: Prisma.StringNullableFilter<"Personnel"> | string | null
   firstName?: Prisma.StringFilter<"Personnel"> | string
   lastName?: Prisma.StringFilter<"Personnel"> | string
-  email?: Prisma.StringFilter<"Personnel"> | string
   contactNumber?: Prisma.StringNullableFilter<"Personnel"> | string | null
   organizationId?: Prisma.StringNullableFilter<"Personnel"> | string | null
   department?: Prisma.StringNullableFilter<"Personnel"> | string | null
@@ -380,7 +380,7 @@ export type PersonnelWhereUniqueInput = Prisma.AtLeast<{
   createdAt?: Prisma.DateTimeFilter<"Personnel"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Personnel"> | Date | string
   tenant?: Prisma.XOR<Prisma.TenantScalarRelationFilter, Prisma.TenantWhereInput>
-}, "id">
+}, "id" | "email">
 
 export type PersonnelOrderByWithAggregationInput = {
   id?: Prisma.SortOrder

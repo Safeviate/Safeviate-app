@@ -48,40 +48,59 @@ export async function POST(request: Request) {
 
     await ensurePersonnelSchema();
 
-    const uid = `user_${email.replace(/[^a-z0-9]+/g, '_')}`;
-
-    await prisma.user.upsert({
-      where: { email },
-      update: {
-        id: uid,
-        tenantId,
-        passwordHash: null,
-        firstName,
-        lastName,
-        role,
-        profilePath: `tenants/${tenantId}/personnel/${uid}`,
-        updatedAt: new Date(),
-      },
-      create: {
-        id: uid,
-        tenantId,
-        email,
-        passwordHash: null,
-        firstName,
-        lastName,
-        role,
-        profilePath: `tenants/${tenantId}/personnel/${uid}`,
-      },
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const generatedUserId = `user_${normalizedEmail.replace(/[^a-z0-9]+/g, '_')}`;
+    const existingUser = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
+      select: { id: true, tenantId: true },
     });
 
+    if (existingUser && existingUser.tenantId !== tenantId) {
+      return NextResponse.json(
+        {
+          error: 'This email address is already assigned to a different tenant. User emails are limited to one tenant.',
+        },
+        { status: 409 }
+      );
+    }
+
+    const resolvedUserId = existingUser?.id || generatedUserId;
+
+    if (existingUser) {
+      await prisma.user.update({
+        where: { id: existingUser.id },
+        data: {
+          passwordHash: null,
+          firstName,
+          lastName,
+          role,
+          profilePath: `tenants/${tenantId}/personnel/${resolvedUserId}`,
+          updatedAt: new Date(),
+        },
+      });
+    } else {
+      await prisma.user.create({
+        data: {
+          id: resolvedUserId,
+          tenantId,
+          email: normalizedEmail,
+          passwordHash: null,
+          firstName,
+          lastName,
+          role,
+          profilePath: `tenants/${tenantId}/personnel/${resolvedUserId}`,
+        },
+      });
+    }
+
     await prisma.personnel.upsert({
-      where: { id: uid },
+      where: { id: resolvedUserId },
       update: {
         tenantId,
         userNumber: userNumber || null,
         firstName,
         lastName,
-        email,
+        email: normalizedEmail,
         department: department || null,
         organizationId: organizationId || null,
         role,
@@ -98,12 +117,12 @@ export async function POST(request: Request) {
         updatedAt: new Date(),
       },
       create: {
-        id: uid,
+        id: resolvedUserId,
         tenantId,
         userNumber: userNumber || null,
         firstName,
         lastName,
-        email,
+        email: normalizedEmail,
         department: department || null,
         organizationId: organizationId || null,
         role,
@@ -124,9 +143,9 @@ export async function POST(request: Request) {
 
     const invite = await createPasswordSetupInvite(request, {
       tenantId,
-      email,
+      email: normalizedEmail,
       name: `${firstName} ${lastName}`,
-      userId: uid,
+      userId: resolvedUserId,
     });
 
     const emailResult = await sendWelcomeEmail({ email, name: `${firstName} ${lastName}`, setupLink: invite.setupLink });
@@ -143,13 +162,17 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       ok: true,
-      uid,
+      uid: resolvedUserId,
       message: emailResult.diagnostics?.hasApiKey === false
         ? 'User created. Invite email was skipped because mail is not configured.'
         : 'User created and setup link sent.',
       diagnostics: { ...(emailResult.diagnostics || {}), inviteLink: invite.setupLink },
     });
   } catch (error: any) {
+    if (error?.message === 'This email address is already assigned to a different tenant.') {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
+
     console.error('User creation failed:', error);
     return NextResponse.json({ error: error.message || 'Internal server error during user creation.' }, { status: 500 });
   }

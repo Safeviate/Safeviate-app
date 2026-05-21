@@ -128,7 +128,7 @@ model Personnel {
   userNumber           String?  @map("user_number")
   firstName            String   @map("first_name")
   lastName             String   @map("last_name")
-  email                String
+  email                String   @unique
   contactNumber        String?  @map("contact_number")
   organizationId       String?  @map("organization_id")
   department           String?

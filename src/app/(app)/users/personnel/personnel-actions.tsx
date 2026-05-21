@@ -126,7 +126,10 @@ export function PersonnelActions({ tenantId, user }: PersonnelActionsProps) {
 
       if (!response.ok) {
         const error = (await parseJsonResponse<{ error?: string }>(response)) ?? {};
-        throw new Error(error.error || 'Failed to send password reset email');
+        const fallbackMessage = response.status === 409
+          ? 'This email already belongs to a different tenant. Password reset can only be sent within the user tenant.'
+          : 'Failed to send password reset email';
+        throw new Error(error.error || fallbackMessage);
       }
 
       toast({

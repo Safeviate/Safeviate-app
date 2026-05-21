@@ -167,7 +167,10 @@ export function PersonnelForm({
 
         const result = await parseJsonResponse<{ error?: string }>(response);
         if (!response.ok) {
-          throw new Error(result?.error || 'Server error during user creation.');
+          const fallbackMessage = response.status === 409
+            ? 'This email already belongs to a different tenant. Each user email can only exist in one tenant.'
+            : 'Server error during user creation.';
+          throw new Error(result?.error || fallbackMessage);
         }
 
         toast({ title: 'User Created', description: 'The new account and profile have been established.' });

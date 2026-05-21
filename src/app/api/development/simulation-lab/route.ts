@@ -989,29 +989,42 @@ async function persistSimulationRun(context: TenantContext, settings: Simulation
     },
     async () => prisma.$transaction(async (tx) => {
       for (const person of [...instructors, ...students, ...personnel]) {
-        await tx.user.upsert({
-          where: { email: person.email },
-          update: {
-            id: person.id,
-            tenantId: context.tenantId,
-            firstName: person.firstName,
-            lastName: person.lastName,
-            role: person.role,
-            passwordHash: null,
-            profilePath: `tenants/${context.tenantId}/personnel/${person.id}`,
-            updatedAt: new Date(),
-          },
-          create: {
-            id: person.id,
-            tenantId: context.tenantId,
-            email: person.email,
-            firstName: person.firstName,
-            lastName: person.lastName,
-            role: person.role,
-            passwordHash: null,
-            profilePath: `tenants/${context.tenantId}/personnel/${person.id}`,
-          },
+        const normalizedEmail = person.email.trim().toLowerCase();
+        const existingUser = await tx.user.findUnique({
+          where: { email: normalizedEmail },
+          select: { id: true, tenantId: true },
         });
+
+        if (existingUser && existingUser.tenantId !== context.tenantId) {
+          throw new Error(`Simulation seed conflict: ${normalizedEmail} already belongs to tenant ${existingUser.tenantId}.`);
+        }
+
+        if (existingUser) {
+          await tx.user.update({
+            where: { id: existingUser.id },
+            data: {
+              firstName: person.firstName,
+              lastName: person.lastName,
+              role: person.role,
+              passwordHash: null,
+              profilePath: `tenants/${context.tenantId}/personnel/${existingUser.id}`,
+              updatedAt: new Date(),
+            },
+          });
+        } else {
+          await tx.user.create({
+            data: {
+              id: person.id,
+              tenantId: context.tenantId,
+              email: normalizedEmail,
+              firstName: person.firstName,
+              lastName: person.lastName,
+              role: person.role,
+              passwordHash: null,
+              profilePath: `tenants/${context.tenantId}/personnel/${person.id}`,
+            },
+          });
+        }
 
         await tx.personnel.upsert({
           where: { id: person.id },
@@ -1020,7 +1033,7 @@ async function persistSimulationRun(context: TenantContext, settings: Simulation
             userNumber: person.userNumber,
             firstName: person.firstName,
             lastName: person.lastName,
-            email: person.email,
+            email: normalizedEmail,
             department: person.department,
             organizationId: context.tenantId,
             role: person.role,
@@ -1036,7 +1049,7 @@ async function persistSimulationRun(context: TenantContext, settings: Simulation
             userNumber: person.userNumber,
             firstName: person.firstName,
             lastName: person.lastName,
-            email: person.email,
+            email: normalizedEmail,
             department: person.department,
             organizationId: context.tenantId,
             role: person.role,

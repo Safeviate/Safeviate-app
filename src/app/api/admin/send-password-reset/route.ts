@@ -68,6 +68,10 @@ export async function POST(request: Request) {
       diagnostics: { ...(result.diagnostics || {}), inviteLink: invite.setupLink },
     });
   } catch (error: any) {
+    if (error?.message === 'This email address is already assigned to a different tenant.') {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
+
     console.error('Password reset dispatch failed:', error);
     return NextResponse.json({ error: error.message || 'Internal server error.' }, { status: 500 });
   }

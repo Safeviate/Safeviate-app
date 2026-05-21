@@ -91,6 +91,38 @@ export async function PATCH(
     id,
     tenantId,
   };
+  const normalizedEmail = typeof data.email === 'string' ? data.email.trim().toLowerCase() : '';
+
+  if (!normalizedEmail) {
+    return NextResponse.json({ error: 'Email is required.' }, { status: 400 });
+  }
+
+  const conflictingUser = await prisma.user.findUnique({
+    where: { email: normalizedEmail },
+    select: { id: true, tenantId: true },
+  });
+
+  if (conflictingUser && conflictingUser.id !== id) {
+    return NextResponse.json(
+      { error: 'This email address is already assigned to a different tenant. User emails are limited to one tenant.' },
+      { status: 409 }
+    );
+  }
+
+  const conflictingPersonnel = await prisma.personnel.findFirst({
+    where: {
+      email: normalizedEmail,
+      id: { not: id },
+    },
+    select: { id: true, tenantId: true },
+  });
+
+  if (conflictingPersonnel) {
+    return NextResponse.json(
+      { error: 'This email address is already assigned to a different tenant. User emails are limited to one tenant.' },
+      { status: 409 }
+    );
+  }
 
   const incomingPrimaryInstructorId =
     typeof data.primaryInstructorId === 'string' && data.primaryInstructorId.trim().length > 0
@@ -170,7 +202,7 @@ export async function PATCH(
     data.userNumber || null,
     data.firstName,
     data.lastName,
-    data.email,
+    normalizedEmail,
     data.userType || existing.userType,
     typeof data.canBeInstructor === 'boolean' ? data.canBeInstructor : existing.canBeInstructor,
     typeof data.canBeStudent === 'boolean' ? data.canBeStudent : existing.canBeStudent,
@@ -199,7 +231,7 @@ export async function PATCH(
     data: {
       firstName: data.firstName,
       lastName: data.lastName,
-      email: data.email,
+      email: normalizedEmail,
       role: data.role,
       updatedAt: new Date(),
     },
