@@ -196,6 +196,8 @@ export const PersonnelScalarFieldEnum = {
   role: 'role',
   primaryInstructorId: 'primaryInstructorId',
   instructorAssignmentHistory: 'instructorAssignmentHistory',
+  progressionRecommendation: 'progressionRecommendation',
+  progressionReviewHistory: 'progressionReviewHistory',
   permissions: 'permissions',
   accessOverrides: 'accessOverrides',
   documents: 'documents',

@@ -6,5 +6,8 @@ type PageProps = {
 
 export default async function NewTenantPage({ searchParams }: PageProps) {
   const params = searchParams ? await searchParams : undefined;
-  return <DatabaseForm initialTenantId={params?.tenantId || null} returnHref="/development/database" />;
+  const requestedTenantId = params?.tenantId || null;
+  const initialTenantId = requestedTenantId && requestedTenantId !== 'safeviate' ? requestedTenantId : null;
+
+  return <DatabaseForm initialTenantId={initialTenantId} returnHref="/development/database" />;
 }

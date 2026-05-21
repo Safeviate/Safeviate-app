@@ -3,8 +3,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { Building2, ChevronRight, PlusCircle, Save, Search, Trash2 } from 'lucide-react';
+import { ChevronRight, PlusCircle, Save, Search, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { HEADER_COMPACT_CONTROL_CLASS, HEADER_SECONDARY_BUTTON_CLASS, MainPageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -12,13 +13,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { useUserProfile } from '@/hooks/use-user-profile';
 import { menuConfig, type MenuItem } from '@/lib/menu-config';
 import { cn } from '@/lib/utils';
-import { HEADER_TAB_TRIGGER_CLASS, HEADER_TAB_LIST_CLASS } from '@/components/page-header';
 import { TenantLayoutDisabledState } from '@/components/tenant-layout-disabled-state';
 import { useTenantRouteAccess } from '@/hooks/use-tenant-route-access';
 import type { IndustryType, Tenant, PageLayoutSettings } from '@/types/quality';
@@ -28,6 +27,8 @@ const TENANT_PAGE_BUTTON_CLASS = 'h-10 rounded-xl px-6 text-[10px] font-black up
 const TENANT_OVERRIDE_STORAGE_KEY = 'safeviate:selected-tenant';
 const TENANT_OVERRIDE_COOKIE = 'safeviate-tenant-override';
 const LOCAL_TENANT_CONFIG_KEY = 'safeviate:tenant-config-local-override';
+const MASTER_TENANT_ID = 'safeviate';
+const MASTER_TENANT_NAME = 'Safeviate';
 
 const INDUSTRY_TYPES: IndustryType[] = [
   'Aviation: Flight Training (ATO)',
@@ -74,10 +75,10 @@ const buildDefaultEnabledHrefs = () =>
     menuConfig.flatMap((menu) => [
       menu.href,
       ...(menu.subItems?.map((subItem) => subItem.href) || []),
-    ]).filter((href) => href !== '/admin/page-format')
+    ])
   );
 
-const isTenantMenuHref = (href: string) => href !== '/admin/page-format';
+const isTenantMenuHref = (_href: string) => true;
 
 const normalizeTenantConfig = (value: unknown): TenantConfigPayload | null => {
   if (!value || typeof value !== 'object') return null;
@@ -95,6 +96,13 @@ const getTenantPageLayoutSettings = (config: TenantConfigPayload | null) =>
   config?.pageLayoutSettings && typeof config.pageLayoutSettings === 'object'
     ? config.pageLayoutSettings
     : buildDefaultPageLayoutSettings();
+
+const buildTenantIdFromName = (value: string) =>
+  value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
 
 export function DatabaseForm({
   initialTenantId = null,
@@ -116,11 +124,18 @@ export function DatabaseForm({
   const [enabledHrefs, setEnabledHrefs] = useState<Set<string>>(() => buildDefaultEnabledHrefs());
   const [pageLayoutSettings, setPageLayoutSettings] = useState<PageLayoutSettings>(() => buildDefaultPageLayoutSettings());
   const [menuFilter, setMenuFilter] = useState('');
+  const isEditingExistingTenant = Boolean(selectedTenantId);
+  const isCreatingNewTenant = !selectedTenantId;
+  const headerDescription = isEditingExistingTenant
+    ? 'You are editing an existing client tenant. Saving will update that tenant record and its tenant configuration.'
+    : 'You are creating a new client tenant. Saving will create a separate tenant record, tenant config, and tenant id.';
+  const modeBadgeLabel = isEditingExistingTenant ? 'Editing Existing Tenant' : 'Creating New Tenant';
+  const saveButtonLabel = isCreatingNewTenant ? 'Save Tenant' : 'Update Tenant';
 
   const sortedTenants = useMemo(() => {
     return [...tenants].sort((a, b) => {
-      if (a.id === 'safeviate') return -1;
-      if (b.id === 'safeviate') return 1;
+      if (a.id === MASTER_TENANT_ID) return -1;
+      if (b.id === MASTER_TENANT_ID) return 1;
       return a.name.localeCompare(b.name);
     });
   }, [tenants]);
@@ -160,10 +175,10 @@ export function DatabaseForm({
       setTenants(
         rows.length > 0
           ? rows
-          : [{ id: 'safeviate', name: 'Safeviate', industry: 'Aviation: Flight Training (ATO)' } as TenantSummary]
+          : [{ id: MASTER_TENANT_ID, name: MASTER_TENANT_NAME, industry: 'Aviation: Flight Training (ATO)' } as TenantSummary]
       );
     } catch {
-      setTenants([{ id: 'safeviate', name: 'Safeviate', industry: 'Aviation: Flight Training (ATO)' } as TenantSummary]);
+      setTenants([{ id: MASTER_TENANT_ID, name: MASTER_TENANT_NAME, industry: 'Aviation: Flight Training (ATO)' } as TenantSummary]);
     } finally {
       setIsLoadingTenants(false);
     }
@@ -228,9 +243,12 @@ export function DatabaseForm({
     clearForm();
     if (typeof window !== 'undefined') {
       window.localStorage.removeItem(TENANT_OVERRIDE_STORAGE_KEY);
-      window.document.cookie = `${TENANT_OVERRIDE_COOKIE}=safeviate; path=/; max-age=${60 * 60 * 24 * 365}`;
-      window.dispatchEvent(new CustomEvent('safeviate-tenant-switch', { detail: { tenantId: 'safeviate', tenantName: 'Safeviate' } }));
+      window.document.cookie = `${TENANT_OVERRIDE_COOKIE}=${MASTER_TENANT_ID}; path=/; max-age=${60 * 60 * 24 * 365}`;
+      window.dispatchEvent(new CustomEvent('safeviate-tenant-switch', { detail: { tenantId: MASTER_TENANT_ID, tenantName: MASTER_TENANT_NAME } }));
       window.dispatchEvent(new Event('safeviate-tenant-config-updated'));
+    }
+    if (returnHref) {
+      router.push('/development/database/new');
     }
     toast({
       title: 'New Tenant Ready',
@@ -307,11 +325,33 @@ export function DatabaseForm({
       return;
     }
 
-    const tenantId = selectedTenantId || tenantName.trim().toLowerCase().replace(/\s+/g, '-');
+    const normalizedTenantName = tenantName.trim();
+    const nextTenantId = buildTenantIdFromName(normalizedTenantName);
+    const tenantId = selectedTenantId || nextTenantId;
+    const isNewTenant = !selectedTenantId;
+
+    if (!tenantId) {
+      toast({
+        variant: 'destructive',
+        title: 'Invalid Operation',
+        description: 'Tenant name must include letters or numbers.',
+      });
+      return;
+    }
+
+    if (isNewTenant && tenants.some((entry) => entry.id === tenantId)) {
+      toast({
+        variant: 'destructive',
+        title: 'Tenant Already Exists',
+        description: `A tenant with id "${tenantId}" already exists. Use a different tenant name.`,
+      });
+      return;
+    }
+
     const effectiveEnabledHrefs = Array.from(enabledHrefs);
     const tenantData: Tenant = {
       id: tenantId,
-      name: tenantName.trim(),
+      name: normalizedTenantName,
       industry,
       logoUrl: logoPreview || '',
       enabledMenus: effectiveEnabledHrefs,
@@ -328,7 +368,7 @@ export function DatabaseForm({
       const tenantResponse = await fetch('/api/tenants', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tenant: tenantData }),
+        body: JSON.stringify({ tenant: tenantData, isNewTenant }),
       });
       if (!tenantResponse.ok) {
         const payload = await tenantResponse.json().catch(() => null);
@@ -398,7 +438,7 @@ export function DatabaseForm({
       return;
     }
 
-    if (selectedTenantId === 'safeviate') {
+    if (selectedTenantId === MASTER_TENANT_ID) {
       toast({
         variant: 'destructive',
         title: 'Delete blocked',
@@ -460,46 +500,73 @@ export function DatabaseForm({
   return (
     <div className="mx-auto flex h-full min-h-0 w-full flex-col gap-6 overflow-hidden px-1 pb-4 lg:max-w-[1100px]">
       <Card className="flex min-h-0 flex-1 flex-col overflow-hidden border bg-background shadow-none">
-        <CardHeader className="relative shrink-0 overflow-hidden border-b bg-muted/5 p-6 sm:p-8">
-          <div className="absolute right-0 top-0 p-6 opacity-5">
-            <Building2 className="h-28 w-28 rotate-12" />
-          </div>
-          <div className="relative z-10 flex items-start justify-between gap-4">
-            <div className="space-y-3 text-left">
-              <Badge variant="outline" className="h-7 border-primary/30 bg-primary/5 px-4 text-[10px] font-black uppercase tracking-widest text-primary">
-                Tenant Cards
+        <MainPageHeader
+          title="Tenant Setup"
+          description={headerDescription}
+          actions={
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <Badge variant="outline" className="rounded-full border-primary/20 bg-primary/5 px-3 py-1 text-[9px] font-black uppercase tracking-widest text-primary">
+                {modeBadgeLabel}
               </Badge>
-              <div>
-                <CardTitle className="text-4xl font-black uppercase leading-none tracking-tighter">Tenant Setup</CardTitle>
-                <CardDescription className="mt-2 text-xs font-bold uppercase tracking-widest text-muted-foreground opacity-70">
-                  Add a tenant, then open its separate card to edit identity, logo, and menu visibility.
-                </CardDescription>
-              </div>
-              <div className="grid max-w-xl gap-2">
-                <Label htmlFor="tenant-name-header" className="ml-1 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                  Tenant Name
-                </Label>
-                <Input
-                  id="tenant-name-header"
-                  placeholder="Safeviate Aviation"
-                  className="h-11 rounded-xl border-2 text-sm font-black uppercase tracking-tight focus-visible:ring-primary/20"
-                  value={tenantName}
-                  onChange={(event) => setTenantName(event.target.value)}
-                />
-              </div>
-            </div>
-            {!lockTenantSelection ? (
-              <Button onClick={handleCreateNewTenant} className={TENANT_PAGE_BUTTON_CLASS}>
-                <PlusCircle className="mr-2 h-4 w-4" />
-                Add Tenant
+              {selectedTenantId && selectedTenantId !== MASTER_TENANT_ID ? (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={() => void handleDeleteTenant()}
+                  className={cn(HEADER_COMPACT_CONTROL_CLASS, 'px-4')}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Delete Tenant
+                </Button>
+              ) : null}
+              <Button
+                onClick={() => void handleSaveTenant()}
+                className={cn(
+                  HEADER_COMPACT_CONTROL_CLASS,
+                  'border-[hsl(var(--button-primary-border))] bg-[hsl(var(--button-primary-background))] px-4 text-[hsl(var(--button-primary-foreground))] hover:bg-[hsl(var(--button-primary-accent))] hover:text-[hsl(var(--button-primary-accent-foreground))]'
+                )}
+              >
+                <Save className="h-3.5 w-3.5" />
+                {saveButtonLabel}
               </Button>
-            ) : null}
-          </div>
-        </CardHeader>
+              {!lockTenantSelection ? (
+                <Button
+                  onClick={handleCreateNewTenant}
+                  variant="outline"
+                  className={cn(HEADER_SECONDARY_BUTTON_CLASS, 'text-[9px] font-black uppercase tracking-[0.08em]')}
+                >
+                  <PlusCircle className="h-3.5 w-3.5" />
+                  Add Tenant
+                </Button>
+              ) : null}
+            </div>
+          }
+        />
 
         <CardContent className="flex-1 min-h-0 overflow-hidden bg-muted/5 p-0">
           <ScrollArea className="h-full">
             <div className="space-y-8 p-4 pb-6 sm:p-6">
+              <Card className="border bg-background shadow-none">
+                <CardContent className="p-4 sm:p-5">
+                  <div className="grid gap-2">
+                    <Label htmlFor="tenant-name-header" className="ml-1 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                      Tenant Name
+                    </Label>
+                    <Input
+                      id="tenant-name-header"
+                      placeholder="Acme Aviation"
+                      className="h-11 rounded-xl border-2 text-sm font-black uppercase tracking-tight focus-visible:ring-primary/20"
+                      value={tenantName}
+                      onChange={(event) => setTenantName(event.target.value)}
+                    />
+                    {isCreatingNewTenant ? (
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                        Saving in this state creates a brand-new tenant record and config.
+                      </p>
+                    ) : null}
+                  </div>
+                </CardContent>
+              </Card>
               <div className="grid grid-cols-1 gap-6 lg:grid-cols-[360px_minmax(0,1fr)]">
                 <div className="space-y-6">
                   <Card className="border bg-background shadow-none">
@@ -683,24 +750,6 @@ export function DatabaseForm({
           </ScrollArea>
         </CardContent>
 
-        <Separator />
-        <div className="flex justify-end gap-3 bg-background p-4 sm:p-6">
-          {selectedTenantId && selectedTenantId !== 'safeviate' ? (
-            <Button
-              type="button"
-              variant="destructive"
-              onClick={() => void handleDeleteTenant()}
-              className={cn(TENANT_PAGE_BUTTON_CLASS, 'w-full gap-3 sm:w-52')}
-            >
-              <Trash2 className="h-4 w-4" />
-              Delete Tenant
-            </Button>
-          ) : null}
-          <Button onClick={() => void handleSaveTenant()} className={cn(TENANT_PAGE_BUTTON_CLASS, 'w-full gap-3 sm:w-72')}>
-            <Save className="h-4 w-4" />
-            {selectedTenantId ? 'Update Tenant' : 'Save Tenant'}
-          </Button>
-        </div>
       </Card>
     </div>
   );

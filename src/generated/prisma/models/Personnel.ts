@@ -81,6 +81,8 @@ export type PersonnelCountAggregateOutputType = {
   role: number
   primaryInstructorId: number
   instructorAssignmentHistory: number
+  progressionRecommendation: number
+  progressionReviewHistory: number
   permissions: number
   accessOverrides: number
   documents: number
@@ -153,6 +155,8 @@ export type PersonnelCountAggregateInputType = {
   role?: true
   primaryInstructorId?: true
   instructorAssignmentHistory?: true
+  progressionRecommendation?: true
+  progressionReviewHistory?: true
   permissions?: true
   accessOverrides?: true
   documents?: true
@@ -252,6 +256,8 @@ export type PersonnelGroupByOutputType = {
   role: string
   primaryInstructorId: string | null
   instructorAssignmentHistory: runtime.JsonValue
+  progressionRecommendation: runtime.JsonValue
+  progressionReviewHistory: runtime.JsonValue
   permissions: runtime.JsonValue
   accessOverrides: runtime.JsonValue | null
   documents: runtime.JsonValue
@@ -299,6 +305,8 @@ export type PersonnelWhereInput = {
   role?: Prisma.StringFilter<"Personnel"> | string
   primaryInstructorId?: Prisma.StringNullableFilter<"Personnel"> | string | null
   instructorAssignmentHistory?: Prisma.JsonFilter<"Personnel">
+  progressionRecommendation?: Prisma.JsonFilter<"Personnel">
+  progressionReviewHistory?: Prisma.JsonFilter<"Personnel">
   permissions?: Prisma.JsonFilter<"Personnel">
   accessOverrides?: Prisma.JsonNullableFilter<"Personnel">
   documents?: Prisma.JsonFilter<"Personnel">
@@ -326,6 +334,8 @@ export type PersonnelOrderByWithRelationInput = {
   role?: Prisma.SortOrder
   primaryInstructorId?: Prisma.SortOrderInput | Prisma.SortOrder
   instructorAssignmentHistory?: Prisma.SortOrder
+  progressionRecommendation?: Prisma.SortOrder
+  progressionReviewHistory?: Prisma.SortOrder
   permissions?: Prisma.SortOrder
   accessOverrides?: Prisma.SortOrderInput | Prisma.SortOrder
   documents?: Prisma.SortOrder
@@ -356,6 +366,8 @@ export type PersonnelWhereUniqueInput = Prisma.AtLeast<{
   role?: Prisma.StringFilter<"Personnel"> | string
   primaryInstructorId?: Prisma.StringNullableFilter<"Personnel"> | string | null
   instructorAssignmentHistory?: Prisma.JsonFilter<"Personnel">
+  progressionRecommendation?: Prisma.JsonFilter<"Personnel">
+  progressionReviewHistory?: Prisma.JsonFilter<"Personnel">
   permissions?: Prisma.JsonFilter<"Personnel">
   accessOverrides?: Prisma.JsonNullableFilter<"Personnel">
   documents?: Prisma.JsonFilter<"Personnel">
@@ -383,6 +395,8 @@ export type PersonnelOrderByWithAggregationInput = {
   role?: Prisma.SortOrder
   primaryInstructorId?: Prisma.SortOrderInput | Prisma.SortOrder
   instructorAssignmentHistory?: Prisma.SortOrder
+  progressionRecommendation?: Prisma.SortOrder
+  progressionReviewHistory?: Prisma.SortOrder
   permissions?: Prisma.SortOrder
   accessOverrides?: Prisma.SortOrderInput | Prisma.SortOrder
   documents?: Prisma.SortOrder
@@ -415,6 +429,8 @@ export type PersonnelScalarWhereWithAggregatesInput = {
   role?: Prisma.StringWithAggregatesFilter<"Personnel"> | string
   primaryInstructorId?: Prisma.StringNullableWithAggregatesFilter<"Personnel"> | string | null
   instructorAssignmentHistory?: Prisma.JsonWithAggregatesFilter<"Personnel">
+  progressionRecommendation?: Prisma.JsonWithAggregatesFilter<"Personnel">
+  progressionReviewHistory?: Prisma.JsonWithAggregatesFilter<"Personnel">
   permissions?: Prisma.JsonWithAggregatesFilter<"Personnel">
   accessOverrides?: Prisma.JsonNullableWithAggregatesFilter<"Personnel">
   documents?: Prisma.JsonWithAggregatesFilter<"Personnel">
@@ -440,6 +456,8 @@ export type PersonnelCreateInput = {
   role: string
   primaryInstructorId?: string | null
   instructorAssignmentHistory?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  progressionRecommendation?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  progressionReviewHistory?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   permissions?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   accessOverrides?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   documents?: Prisma.JsonNullValueInput | runtime.InputJsonValue
@@ -467,6 +485,8 @@ export type PersonnelUncheckedCreateInput = {
   role: string
   primaryInstructorId?: string | null
   instructorAssignmentHistory?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  progressionRecommendation?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  progressionReviewHistory?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   permissions?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   accessOverrides?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   documents?: Prisma.JsonNullValueInput | runtime.InputJsonValue
@@ -492,6 +512,8 @@ export type PersonnelUpdateInput = {
   role?: Prisma.StringFieldUpdateOperationsInput | string
   primaryInstructorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   instructorAssignmentHistory?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  progressionRecommendation?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  progressionReviewHistory?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   permissions?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   accessOverrides?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   documents?: Prisma.JsonNullValueInput | runtime.InputJsonValue
@@ -519,6 +541,8 @@ export type PersonnelUncheckedUpdateInput = {
   role?: Prisma.StringFieldUpdateOperationsInput | string
   primaryInstructorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   instructorAssignmentHistory?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  progressionRecommendation?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  progressionReviewHistory?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   permissions?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   accessOverrides?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   documents?: Prisma.JsonNullValueInput | runtime.InputJsonValue
@@ -545,6 +569,8 @@ export type PersonnelCreateManyInput = {
   role: string
   primaryInstructorId?: string | null
   instructorAssignmentHistory?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  progressionRecommendation?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  progressionReviewHistory?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   permissions?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   accessOverrides?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   documents?: Prisma.JsonNullValueInput | runtime.InputJsonValue
@@ -570,6 +596,8 @@ export type PersonnelUpdateManyMutationInput = {
   role?: Prisma.StringFieldUpdateOperationsInput | string
   primaryInstructorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   instructorAssignmentHistory?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  progressionRecommendation?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  progressionReviewHistory?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   permissions?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   accessOverrides?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   documents?: Prisma.JsonNullValueInput | runtime.InputJsonValue
@@ -596,6 +624,8 @@ export type PersonnelUncheckedUpdateManyInput = {
   role?: Prisma.StringFieldUpdateOperationsInput | string
   primaryInstructorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   instructorAssignmentHistory?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  progressionRecommendation?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  progressionReviewHistory?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   permissions?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   accessOverrides?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   documents?: Prisma.JsonNullValueInput | runtime.InputJsonValue
@@ -632,6 +662,8 @@ export type PersonnelCountOrderByAggregateInput = {
   role?: Prisma.SortOrder
   primaryInstructorId?: Prisma.SortOrder
   instructorAssignmentHistory?: Prisma.SortOrder
+  progressionRecommendation?: Prisma.SortOrder
+  progressionReviewHistory?: Prisma.SortOrder
   permissions?: Prisma.SortOrder
   accessOverrides?: Prisma.SortOrder
   documents?: Prisma.SortOrder
@@ -747,6 +779,8 @@ export type PersonnelCreateWithoutTenantInput = {
   role: string
   primaryInstructorId?: string | null
   instructorAssignmentHistory?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  progressionRecommendation?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  progressionReviewHistory?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   permissions?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   accessOverrides?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   documents?: Prisma.JsonNullValueInput | runtime.InputJsonValue
@@ -772,6 +806,8 @@ export type PersonnelUncheckedCreateWithoutTenantInput = {
   role: string
   primaryInstructorId?: string | null
   instructorAssignmentHistory?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  progressionRecommendation?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  progressionReviewHistory?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   permissions?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   accessOverrides?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   documents?: Prisma.JsonNullValueInput | runtime.InputJsonValue
@@ -827,6 +863,8 @@ export type PersonnelScalarWhereInput = {
   role?: Prisma.StringFilter<"Personnel"> | string
   primaryInstructorId?: Prisma.StringNullableFilter<"Personnel"> | string | null
   instructorAssignmentHistory?: Prisma.JsonFilter<"Personnel">
+  progressionRecommendation?: Prisma.JsonFilter<"Personnel">
+  progressionReviewHistory?: Prisma.JsonFilter<"Personnel">
   permissions?: Prisma.JsonFilter<"Personnel">
   accessOverrides?: Prisma.JsonNullableFilter<"Personnel">
   documents?: Prisma.JsonFilter<"Personnel">
@@ -852,6 +890,8 @@ export type PersonnelCreateManyTenantInput = {
   role: string
   primaryInstructorId?: string | null
   instructorAssignmentHistory?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  progressionRecommendation?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  progressionReviewHistory?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   permissions?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   accessOverrides?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   documents?: Prisma.JsonNullValueInput | runtime.InputJsonValue
@@ -877,6 +917,8 @@ export type PersonnelUpdateWithoutTenantInput = {
   role?: Prisma.StringFieldUpdateOperationsInput | string
   primaryInstructorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   instructorAssignmentHistory?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  progressionRecommendation?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  progressionReviewHistory?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   permissions?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   accessOverrides?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   documents?: Prisma.JsonNullValueInput | runtime.InputJsonValue
@@ -902,6 +944,8 @@ export type PersonnelUncheckedUpdateWithoutTenantInput = {
   role?: Prisma.StringFieldUpdateOperationsInput | string
   primaryInstructorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   instructorAssignmentHistory?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  progressionRecommendation?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  progressionReviewHistory?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   permissions?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   accessOverrides?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   documents?: Prisma.JsonNullValueInput | runtime.InputJsonValue
@@ -927,6 +971,8 @@ export type PersonnelUncheckedUpdateManyWithoutTenantInput = {
   role?: Prisma.StringFieldUpdateOperationsInput | string
   primaryInstructorId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   instructorAssignmentHistory?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  progressionRecommendation?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  progressionReviewHistory?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   permissions?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   accessOverrides?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   documents?: Prisma.JsonNullValueInput | runtime.InputJsonValue
@@ -955,6 +1001,8 @@ export type PersonnelSelect<ExtArgs extends runtime.Types.Extensions.InternalArg
   role?: boolean
   primaryInstructorId?: boolean
   instructorAssignmentHistory?: boolean
+  progressionRecommendation?: boolean
+  progressionReviewHistory?: boolean
   permissions?: boolean
   accessOverrides?: boolean
   documents?: boolean
@@ -982,6 +1030,8 @@ export type PersonnelSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Ext
   role?: boolean
   primaryInstructorId?: boolean
   instructorAssignmentHistory?: boolean
+  progressionRecommendation?: boolean
+  progressionReviewHistory?: boolean
   permissions?: boolean
   accessOverrides?: boolean
   documents?: boolean
@@ -1009,6 +1059,8 @@ export type PersonnelSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Ext
   role?: boolean
   primaryInstructorId?: boolean
   instructorAssignmentHistory?: boolean
+  progressionRecommendation?: boolean
+  progressionReviewHistory?: boolean
   permissions?: boolean
   accessOverrides?: boolean
   documents?: boolean
@@ -1036,6 +1088,8 @@ export type PersonnelSelectScalar = {
   role?: boolean
   primaryInstructorId?: boolean
   instructorAssignmentHistory?: boolean
+  progressionRecommendation?: boolean
+  progressionReviewHistory?: boolean
   permissions?: boolean
   accessOverrides?: boolean
   documents?: boolean
@@ -1049,7 +1103,7 @@ export type PersonnelSelectScalar = {
   updatedAt?: boolean
 }
 
-export type PersonnelOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "tenantId" | "userNumber" | "firstName" | "lastName" | "email" | "contactNumber" | "organizationId" | "department" | "role" | "primaryInstructorId" | "instructorAssignmentHistory" | "permissions" | "accessOverrides" | "documents" | "userType" | "canBeInstructor" | "canBeStudent" | "canBePIC" | "isErpIncerfaContact" | "isErpAlerfaContact" | "createdAt" | "updatedAt", ExtArgs["result"]["personnel"]>
+export type PersonnelOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "tenantId" | "userNumber" | "firstName" | "lastName" | "email" | "contactNumber" | "organizationId" | "department" | "role" | "primaryInstructorId" | "instructorAssignmentHistory" | "progressionRecommendation" | "progressionReviewHistory" | "permissions" | "accessOverrides" | "documents" | "userType" | "canBeInstructor" | "canBeStudent" | "canBePIC" | "isErpIncerfaContact" | "isErpAlerfaContact" | "createdAt" | "updatedAt", ExtArgs["result"]["personnel"]>
 export type PersonnelInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   tenant?: boolean | Prisma.TenantDefaultArgs<ExtArgs>
 }
@@ -1078,6 +1132,8 @@ export type $PersonnelPayload<ExtArgs extends runtime.Types.Extensions.InternalA
     role: string
     primaryInstructorId: string | null
     instructorAssignmentHistory: runtime.JsonValue
+    progressionRecommendation: runtime.JsonValue
+    progressionReviewHistory: runtime.JsonValue
     permissions: runtime.JsonValue
     accessOverrides: runtime.JsonValue | null
     documents: runtime.JsonValue
@@ -1525,6 +1581,8 @@ export interface PersonnelFieldRefs {
   readonly role: Prisma.FieldRef<"Personnel", 'String'>
   readonly primaryInstructorId: Prisma.FieldRef<"Personnel", 'String'>
   readonly instructorAssignmentHistory: Prisma.FieldRef<"Personnel", 'Json'>
+  readonly progressionRecommendation: Prisma.FieldRef<"Personnel", 'Json'>
+  readonly progressionReviewHistory: Prisma.FieldRef<"Personnel", 'Json'>
   readonly permissions: Prisma.FieldRef<"Personnel", 'Json'>
   readonly accessOverrides: Prisma.FieldRef<"Personnel", 'Json'>
   readonly documents: Prisma.FieldRef<"Personnel", 'Json'>

@@ -68,8 +68,7 @@ export const usePermissions = () => {
 
       const itemHref = item.href;
       const isCompanyDashboard = itemHref === '/dashboard';
-      const isSafeviateOnlyAdminSurface =
-        itemHref.startsWith('/admin') || itemHref === '/users/access-overview';
+      const isSafeviateOnlyAdminSurface = itemHref === '/users/access-overview';
 
       if (isSafeviateOnlyAdminSurface && tenant?.id && tenant.id !== 'safeviate') {
         return false;

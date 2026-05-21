@@ -7,6 +7,8 @@ import { getTenantIdFromSession } from '@/lib/server/session-tenant';
 import { getServerSession } from 'next-auth';
 import { NextResponse } from 'next/server';
 
+const MASTER_TENANT_NAME = 'Safeviate';
+
 export async function GET(request: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -84,6 +86,7 @@ export async function PUT(request: Request) {
     const mergedData = {
       ...existingData,
       ...config,
+      ...(resolvedTenantId === MASTER_TENANT_ID ? { name: MASTER_TENANT_NAME } : {}),
     };
 
     await prisma.tenantConfig.upsert({

@@ -6,6 +6,9 @@ import { isMasterTenantEmail } from '@/lib/server/tenant-access';
 import { getServerSession } from 'next-auth';
 import { NextResponse } from 'next/server';
 
+const MASTER_TENANT_ID = 'safeviate';
+const MASTER_TENANT_NAME = 'Safeviate';
+
 async function getTenantId(request: Request) {
   return getTenantIdForRoute(request);
 }
@@ -49,21 +52,63 @@ export async function PUT(request: Request) {
 
   const body = await request.json().catch(() => null);
   const tenant = body?.tenant;
+  const isNewTenant = body?.isNewTenant === true;
   if (!tenant || !tenant.id || !tenant.name) {
     return NextResponse.json({ error: 'Invalid tenant payload.' }, { status: 400 });
   }
 
-  await prisma.tenant.upsert({
-    where: { id: tenant.id },
-    update: {
-      name: tenant.name,
-      updatedAt: new Date(),
-    },
-    create: {
-      id: tenant.id,
-      name: tenant.name,
-    },
+  const normalizedTenantId = String(tenant.id).trim().toLowerCase();
+  const normalizedTenantName =
+    normalizedTenantId === MASTER_TENANT_ID ? MASTER_TENANT_NAME : String(tenant.name).trim();
+
+  if (!normalizedTenantId || !normalizedTenantName) {
+    return NextResponse.json({ error: 'Invalid tenant payload.' }, { status: 400 });
+  }
+
+  if (isNewTenant) {
+    const existingTenant = await prisma.tenant.findUnique({
+      where: { id: normalizedTenantId },
+      select: { id: true },
+    });
+
+    if (existingTenant) {
+      return NextResponse.json({ error: 'Tenant already exists.' }, { status: 409 });
+    }
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.tenant.upsert({
+      where: { id: normalizedTenantId },
+      update: {
+        name: normalizedTenantName,
+        updatedAt: new Date(),
+      },
+      create: {
+        id: normalizedTenantId,
+        name: normalizedTenantName,
+      },
+    });
+
+    await tx.tenantConfig.upsert({
+      where: { tenantId: normalizedTenantId },
+      create: {
+        tenantId: normalizedTenantId,
+        data: {
+          id: normalizedTenantId,
+          name: normalizedTenantName,
+        },
+      },
+      update: {
+        data: {
+          id: normalizedTenantId,
+          name: normalizedTenantName,
+        },
+        updatedAt: new Date(),
+      },
+    });
   });
+
+  invalidateTenantScopedCaches(normalizedTenantId);
 
   return NextResponse.json({ ok: true }, { status: 200 });
 }

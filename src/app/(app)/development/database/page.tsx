@@ -1,31 +1,39 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ChevronRight, PlusCircle, Trash2 } from 'lucide-react';
+import { MainPageHeader, HEADER_SECONDARY_BUTTON_CLASS } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
 import type { Tenant } from '@/types/quality';
 
 export default function DatabasePage() {
   const { toast } = useToast();
   const [tenants, setTenants] = useState<Tenant[]>([]);
 
-  useEffect(() => {
-    const loadTenants = async () => {
-      try {
-        const response = await fetch('/api/tenants', { cache: 'no-store' });
-        const payload = await response.json().catch(() => ({ tenants: [] }));
-        const rows = Array.isArray(payload?.tenants) ? (payload.tenants as Tenant[]) : [];
-        setTenants(rows.filter((tenant) => tenant.id !== 'safeviate'));
-      } catch {
-        setTenants([]);
-      }
-    };
-
-    void loadTenants();
+  const loadTenants = useCallback(async () => {
+    try {
+      const response = await fetch('/api/tenants', { cache: 'no-store' });
+      const payload = await response.json().catch(() => ({ tenants: [] }));
+      const rows = Array.isArray(payload?.tenants) ? (payload.tenants as Tenant[]) : [];
+      setTenants(rows.filter((tenant) => tenant.id !== 'safeviate'));
+    } catch {
+      setTenants([]);
+    }
   }, []);
+
+  useEffect(() => {
+    void loadTenants();
+  }, [loadTenants]);
+
+  useEffect(() => {
+    const handleUpdate = () => void loadTenants();
+    window.addEventListener('safeviate-tenants-updated', handleUpdate);
+    return () => window.removeEventListener('safeviate-tenants-updated', handleUpdate);
+  }, [loadTenants]);
 
   const handleDeleteTenant = async (tenantId: string, tenantName: string) => {
     if (!window.confirm(`Delete "${tenantName}"? This cannot be undone.`)) {
@@ -58,23 +66,24 @@ export default function DatabasePage() {
 
   return (
     <div className="mx-auto flex h-full min-h-0 w-full max-w-[1100px] flex-col gap-6 overflow-hidden px-1 pb-4">
-      <div className="flex items-start justify-between gap-4 rounded-3xl border bg-background px-6 py-6 shadow-none">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-black uppercase leading-none tracking-tighter sm:text-3xl">Safeviate Tenant Setup</h1>
-          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-            Tenant setup belongs here only. Client tenants do not get their own setup surface.
-          </p>
-        </div>
-        <Button asChild className="h-10 rounded-xl px-6 text-[10px] font-black uppercase tracking-widest shadow-sm">
-          <Link href="/development/database/new?tenantId=safeviate">
-            <PlusCircle className="mr-2 h-4 w-4" />
-            Open Setup
-          </Link>
-        </Button>
-      </div>
-
-      <Card className="border shadow-none">
-        <CardContent className="p-6">
+      <Card className="flex min-h-0 flex-1 flex-col overflow-hidden border shadow-none">
+        <MainPageHeader
+          title="Tenant Setup"
+          description="Create additional client tenants for companies that will use this app, then return here to edit or remove those tenant records."
+          actions={
+            <Button
+              asChild
+              variant="outline"
+              className={cn(HEADER_SECONDARY_BUTTON_CLASS, 'text-[9px] font-black uppercase tracking-[0.08em]')}
+            >
+              <Link href="/development/database/new">
+                <PlusCircle className="h-3.5 w-3.5" />
+                Add Tenant
+              </Link>
+            </Button>
+          }
+        />
+        <CardContent className="flex-1 min-h-0 overflow-auto bg-background p-4 sm:p-6">
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {tenants.length > 0 ? (
               tenants.map((tenant) => (
