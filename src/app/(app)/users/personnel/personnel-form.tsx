@@ -250,33 +250,33 @@ export function PersonnelForm({
           </SelectContent>
         </Select>
       </div>
-      <div className="grid grid-cols-4 items-center gap-4">
+      <div className="grid grid-cols-4 items-start gap-4">
         <Label className="text-right">ERP</Label>
-        <div className="col-span-3 flex items-center space-x-4">
-          <div className="flex items-center gap-2">
+        <div className="col-span-3 flex flex-wrap items-start gap-4">
+          <div className="flex min-w-[110px] items-center gap-2">
             <Switch id="incerfa" checked={isIncerfaContact} onCheckedChange={setIsIncerfaContact} />
             <Label htmlFor="incerfa" className="text-xs font-normal cursor-pointer">INCERFA</Label>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex min-w-[110px] items-center gap-2">
             <Switch id="alerfa" checked={isAlerfaContact} onCheckedChange={setIsAlerfaContact} />
             <Label htmlFor="alerfa" className="text-xs font-normal cursor-pointer">ALERFA</Label>
           </div>
         </div>
       </div>
-      <div className="grid grid-cols-4 items-center gap-4">
+      <div className="grid grid-cols-4 items-start gap-4">
         <Label className="text-right">Bookings</Label>
-          <div className="col-span-3 flex items-center space-x-4">
-            <div className="flex items-center gap-2">
+          <div className="col-span-3 flex flex-wrap items-start gap-4">
+            <div className="flex min-w-[110px] items-center gap-2">
               <Switch id="assign-instructor" checked={canBeInstructor} onCheckedChange={setCanBeInstructor} />
-              <Label htmlFor="assign-instructor" className="text-xs font-normal cursor-pointer">Assignable as Instructor</Label>
+              <Label htmlFor="assign-instructor" className="max-w-[90px] text-xs font-normal leading-4 cursor-pointer">Assignable as Instructor</Label>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex min-w-[110px] items-center gap-2">
               <Switch id="assign-student" checked={canBeStudent} onCheckedChange={setCanBeStudent} />
-              <Label htmlFor="assign-student" className="text-xs font-normal cursor-pointer">Assignable as Student</Label>
+              <Label htmlFor="assign-student" className="max-w-[90px] text-xs font-normal leading-4 cursor-pointer">Assignable as Student</Label>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex min-w-[110px] items-center gap-2">
               <Switch id="assign-pic" checked={canBePIC} onCheckedChange={setCanBePIC} />
-              <Label htmlFor="assign-pic" className="text-xs font-normal cursor-pointer">Assignable as PIC</Label>
+              <Label htmlFor="assign-pic" className="max-w-[90px] text-xs font-normal leading-4 cursor-pointer">Assignable as PIC</Label>
             </div>
           </div>
         </div>
