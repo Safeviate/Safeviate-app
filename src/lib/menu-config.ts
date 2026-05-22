@@ -218,6 +218,12 @@ export const menuConfig: MenuItem[] = [
         permissionId: 'quality-templates-manage',
       },
       {
+        href: '/quality/gap-analyses',
+        label: 'Gap Analyses',
+        description: 'Create gap analysis templates and sessions from the coherence matrix.',
+        permissionId: 'quality-audits-view',
+      },
+      {
         href: '/quality/audit-schedule',
         label: 'Audit Schedule',
         description: 'Plan and view the annual audit schedule.',

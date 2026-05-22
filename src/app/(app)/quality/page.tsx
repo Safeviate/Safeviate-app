@@ -11,6 +11,7 @@ import { useTenantRouteAccess } from '@/hooks/use-tenant-route-access';
 
 const QUALITY_FALLBACKS = [
   '/quality/audit-checklists',
+  '/quality/gap-analyses',
   '/quality/audit-schedule',
   '/quality/coherence-matrix',
   '/quality/risk-plan',

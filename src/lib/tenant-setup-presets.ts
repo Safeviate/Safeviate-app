@@ -167,6 +167,7 @@ export const SAFETY_QUALITY_LAYOUT_DEFINITIONS: PageLayoutDefinition[] = [
         label: 'Core Quality Modules',
         tabs: [
           { id: 'audit-checklists', label: 'Audit Checklists' },
+          { id: 'gap-analyses', label: 'Gap Analyses' },
           { id: 'audit-schedule', label: 'Audit Schedule' },
           { id: 'coherence-matrix', label: 'Coherence Matrix' },
           { id: 'risk-plan', label: 'Risk Plan' },
