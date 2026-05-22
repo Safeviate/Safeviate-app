@@ -2,6 +2,7 @@ import { authOptions } from '@/auth';
 import { prisma } from '@/lib/prisma';
 import { ensureMeetingsSchema, ensurePersonnelSchema } from '@/lib/server/bootstrap-db';
 import { sendMeetingEmail } from '@/lib/server/mail';
+import { getTenantIdFromSession } from '@/lib/server/session-tenant';
 import { recordSimulationRouteMetric } from '@/lib/server/simulation-telemetry';
 import type { MeetingRecordData } from '@/types/meeting';
 import { getServerSession } from 'next-auth';
@@ -10,23 +11,24 @@ import { randomUUID } from 'node:crypto';
 
 type MeetingAction = 'save' | 'sendAgenda' | 'sendMinutes';
 
-async function getTenantContext() {
+async function getTenantContext(request: Request) {
   const session = await getServerSession(authOptions);
   const email = session?.user?.email?.trim().toLowerCase();
   if (!email) return null;
-
-  await prisma.tenant.upsert({
-    where: { id: 'safeviate' },
-    update: { updatedAt: new Date() },
-    create: { id: 'safeviate', name: 'Safeviate' },
-  });
+  const tenantId = await getTenantIdFromSession(request);
+  if (!tenantId) return null;
 
   const currentUser = await prisma.user.findUnique({
     where: { email },
-    select: { id: true, tenantId: true, firstName: true, lastName: true },
+    select: { id: true, firstName: true, lastName: true },
   });
 
-  return currentUser || null;
+  if (!currentUser) return null;
+
+  return {
+    ...currentUser,
+    tenantId,
+  };
 }
 
 function toMeetingRecord(row: { data: unknown; updated_at?: string; created_at?: string }): MeetingRecordData {
@@ -86,12 +88,12 @@ async function getMeetingRows(tenantId: string) {
   return rows;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const startedAt = Date.now();
   let tenantId: string | null = null;
   try {
     await ensureMeetingsSchema();
-    const context = await getTenantContext();
+    const context = await getTenantContext(request);
     if (!context) {
       return NextResponse.json({ meetings: [] }, { status: 200 });
     }
@@ -126,7 +128,7 @@ export async function POST(request: Request) {
   try {
     await ensureMeetingsSchema();
     await ensurePersonnelSchema();
-    const context = await getTenantContext();
+    const context = await getTenantContext(request);
     if (!context) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -185,7 +187,7 @@ export async function PATCH(request: Request) {
   try {
     await ensureMeetingsSchema();
     await ensurePersonnelSchema();
-    const context = await getTenantContext();
+    const context = await getTenantContext(request);
     if (!context) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

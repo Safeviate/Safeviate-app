@@ -1,53 +1,22 @@
 import { authOptions } from '@/auth';
 import { prisma } from '@/lib/prisma';
 import { ensureErpStateSchema } from '@/lib/server/bootstrap-db';
+import { getTenantIdFromSession } from '@/lib/server/session-tenant';
 import { getServerSession } from 'next-auth';
 import { NextResponse } from 'next/server';
 
-async function getTenantIdForSession() {
+async function getTenantIdForSession(request: Request) {
   const session = await getServerSession(authOptions);
-  const email = session?.user?.email?.trim().toLowerCase();
-  const authUserId = session?.user?.id?.trim();
-
-  if (!email) {
+  if (!session?.user?.email?.trim().toLowerCase()) {
     return null;
   }
-
-  await prisma.tenant.upsert({
-    where: { id: 'safeviate' },
-    update: { updatedAt: new Date() },
-    create: { id: 'safeviate', name: 'Safeviate' },
-  });
-
-  let profile = await prisma.user.findUnique({ where: { email } });
-  if (!profile) {
-    profile = await prisma.user.upsert({
-      where: { email },
-      update: {
-        tenantId: 'safeviate',
-        firstName: session?.user?.name?.split(' ')[0] ?? 'User',
-        lastName: session?.user?.name?.split(' ').slice(1).join(' ') || '',
-        role: 'developer',
-        updatedAt: new Date(),
-      },
-      create: {
-        id: authUserId || `user_${email.replace(/[^a-z0-9]+/g, '_')}`,
-        tenantId: 'safeviate',
-        email,
-        firstName: session?.user?.name?.split(' ')[0] ?? 'User',
-        lastName: session?.user?.name?.split(' ').slice(1).join(' ') || '',
-        role: 'developer',
-      },
-    });
-  }
-
-  return profile.tenantId;
+  return getTenantIdFromSession(request);
 }
 
 export async function GET(request: Request) {
   try {
     await ensureErpStateSchema();
-    const tenantId = await getTenantIdForSession();
+    const tenantId = await getTenantIdForSession(request);
     const { searchParams } = new URL(request.url);
     const category = searchParams.get('category')?.trim();
 
@@ -72,7 +41,7 @@ export async function GET(request: Request) {
 export async function PUT(request: Request) {
   try {
     await ensureErpStateSchema();
-    const tenantId = await getTenantIdForSession();
+    const tenantId = await getTenantIdForSession(request);
     if (!tenantId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

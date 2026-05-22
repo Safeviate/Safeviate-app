@@ -4,9 +4,9 @@ import { resolveQuickReportContext } from '@/lib/server/quick-report-context';
 import { NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const context = await resolveQuickReportContext({ publicTenantId: null });
+    const context = await resolveQuickReportContext({ request, publicTenantId: null });
     if (!context) return NextResponse.json({ reports: [] }, { status: 200 });
 
     await ensureQuickSafetyReportsSchema();
@@ -27,6 +27,7 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => null);
     const incoming = body?.report ?? {};
     const context = await resolveQuickReportContext({
+      request,
       publicTenantId: typeof incoming?.tenantId === 'string' ? incoming.tenantId : null,
     });
     if (!context) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -68,6 +69,7 @@ export async function PUT(request: Request) {
     const body = await request.json().catch(() => null);
     const incoming = body?.report ?? {};
     const context = await resolveQuickReportContext({
+      request,
       publicTenantId: typeof incoming?.tenantId === 'string' ? incoming.tenantId : null,
     });
     if (!context) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

@@ -1,6 +1,7 @@
 import { authOptions } from '@/auth';
 import { buildUploadViewUrl, getAzureBlobContainerClient } from '@/lib/server/azure-blob';
 import { enforceRateLimit, validateUploadFile } from '@/lib/server/request-security';
+import { getTenantIdFromSession } from '@/lib/server/session-tenant';
 import { getServerSession } from 'next-auth';
 import { NextResponse } from 'next/server';
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -33,6 +34,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const tenantId = await getTenantIdFromSession(request);
+  if (!tenantId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   const formData = await request.formData();
   const file = formData.get('file');
   const displayNameRaw = formData.get('displayName');
@@ -51,7 +57,7 @@ export async function POST(request: Request) {
   const datePrefix = now.toISOString().slice(0, 10);
   const safeDisplayName = sanitizeFileName(displayName);
   const safeFileName = sanitizeFileName(file.name);
-  const blobPath = `uploads/${datePrefix}/${safeDisplayName}-${Date.now()}-${safeFileName}`;
+  const blobPath = `tenants/${tenantId}/uploads/${datePrefix}/${safeDisplayName}-${Date.now()}-${safeFileName}`;
 
   const containerClient = getAzureBlobContainerClient();
   if (containerClient) {

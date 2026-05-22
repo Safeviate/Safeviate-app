@@ -88,18 +88,12 @@ async function resolveMatrixAccess(request: Request) {
     return { tenantId, permissions: new Set<string>(['*']) };
   }
 
-  const [userProfile, personnelProfile] = await Promise.all([
-    prisma.user.findUnique({
-      where: { email },
-      select: { role: true },
-    }).catch(() => null),
-    prisma.personnel.findFirst({
+  const personnelProfile = await prisma.personnel.findFirst({
       where: { tenantId, email },
       select: { permissions: true, role: true },
-    }).catch(() => null),
-  ]);
+    }).catch(() => null);
 
-  const resolvedRole = (personnelProfile?.role?.trim() || userProfile?.role?.trim() || role || '').trim();
+  const resolvedRole = (personnelProfile?.role?.trim() || role || '').trim();
   const rolePermissions = resolvedRole
     ? await prisma.role.findFirst({
         where: {

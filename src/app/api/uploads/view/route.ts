@@ -1,6 +1,7 @@
 import { authOptions } from '@/auth';
 import { getAzureBlobContainerClient } from '@/lib/server/azure-blob';
 import { enforceRateLimit } from '@/lib/server/request-security';
+import { getTenantIdFromSession } from '@/lib/server/session-tenant';
 import { readFile } from 'node:fs/promises';
 import { getServerSession } from 'next-auth';
 import { NextResponse } from 'next/server';
@@ -50,11 +51,21 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const tenantId = await getTenantIdFromSession(request);
+  if (!tenantId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   const url = new URL(request.url);
   const blobPath = url.searchParams.get('path')?.trim();
 
   if (!blobPath || blobPath.includes('..') || blobPath.startsWith('/')) {
     return NextResponse.json({ error: 'Invalid file path.' }, { status: 400 });
+  }
+
+  const expectedPrefix = `tenants/${tenantId}/`;
+  if (!blobPath.startsWith(expectedPrefix)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
   const containerClient = getAzureBlobContainerClient();

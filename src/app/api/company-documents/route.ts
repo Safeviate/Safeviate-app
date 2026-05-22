@@ -1,50 +1,22 @@
 import { authOptions } from '@/auth';
 import { prisma } from '@/lib/prisma';
 import { ensureCompanyDocumentsSchema } from '@/lib/server/bootstrap-db';
+import { getTenantIdFromSession } from '@/lib/server/session-tenant';
 import { getServerSession } from 'next-auth';
 import { NextResponse } from 'next/server';
 
-async function getTenantIdForSession() {
+async function getTenantIdForSession(request: Request) {
   const session = await getServerSession(authOptions);
-  const email = session?.user?.email?.trim().toLowerCase();
-  const authUserId = session?.user?.id?.trim();
-
-  if (!email) {
+  if (!session?.user?.email?.trim().toLowerCase()) {
     return null;
   }
-
-  await prisma.tenant.upsert({
-    where: { id: 'safeviate' },
-    update: { updatedAt: new Date() },
-    create: { id: 'safeviate', name: 'Safeviate' },
-  });
-
-  const profile = await prisma.user.upsert({
-    where: { email },
-    update: {
-      tenantId: 'safeviate',
-      firstName: session?.user?.name?.split(' ')[0] ?? 'User',
-      lastName: session?.user?.name?.split(' ').slice(1).join(' ') || '',
-      role: 'developer',
-      updatedAt: new Date(),
-    },
-    create: {
-      id: authUserId || `user_${email.replace(/[^a-z0-9]+/g, '_')}`,
-      tenantId: 'safeviate',
-      email,
-      firstName: session?.user?.name?.split(' ')[0] ?? 'User',
-      lastName: session?.user?.name?.split(' ').slice(1).join(' ') || '',
-      role: 'developer',
-    },
-  });
-
-  return profile.tenantId;
+  return getTenantIdFromSession(request);
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     await ensureCompanyDocumentsSchema();
-    const tenantId = await getTenantIdForSession();
+    const tenantId = await getTenantIdForSession(request);
     if (!tenantId) {
       return NextResponse.json({ documents: [] }, { status: 200 });
     }
@@ -73,7 +45,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     await ensureCompanyDocumentsSchema();
-    const tenantId = await getTenantIdForSession();
+    const tenantId = await getTenantIdForSession(request);
     if (!tenantId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -112,7 +84,7 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
   try {
     await ensureCompanyDocumentsSchema();
-    const tenantId = await getTenantIdForSession();
+    const tenantId = await getTenantIdForSession(request);
     if (!tenantId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -142,7 +114,7 @@ export async function PATCH(request: Request) {
 export async function DELETE(request: Request) {
   try {
     await ensureCompanyDocumentsSchema();
-    const tenantId = await getTenantIdForSession();
+    const tenantId = await getTenantIdForSession(request);
     if (!tenantId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

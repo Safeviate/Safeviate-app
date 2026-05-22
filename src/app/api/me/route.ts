@@ -146,15 +146,18 @@ export async function GET(request: Request) {
       return NextResponse.json({ profile: null }, { status: 200 });
     }
 
-    await prisma.tenant.upsert({
-      where: { id: 'safeviate' },
-      update: { updatedAt: new Date() },
-      create: { id: 'safeviate', name: 'Safeviate' },
-    });
-
     let profile = email ? await prisma.user.findUnique({ where: { email } }) : null;
 
-    if (!profile && email) {
+    const sessionRole = session?.user?.role?.trim().toLowerCase() || '';
+    const canBootstrapMasterProfile = sessionRole === 'dev' || sessionRole === 'developer';
+
+    if (!profile && email && canBootstrapMasterProfile) {
+      await prisma.tenant.upsert({
+        where: { id: 'safeviate' },
+        update: { updatedAt: new Date() },
+        create: { id: 'safeviate', name: 'Safeviate' },
+      });
+
       const firstName = session?.user?.name?.split(' ')[0] ?? 'User';
       const lastName = session?.user?.name?.split(' ').slice(1).join(' ') || '';
 

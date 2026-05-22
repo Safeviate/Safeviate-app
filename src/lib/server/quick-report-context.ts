@@ -1,5 +1,6 @@
 import { authOptions } from '@/auth';
 import { prisma } from '@/lib/prisma';
+import { getTenantIdFromSession } from '@/lib/server/session-tenant';
 import { getServerSession } from 'next-auth';
 
 type QuickReportContext = {
@@ -14,32 +15,25 @@ const normalizeTenantId = (value: unknown) => {
   return value.trim();
 };
 
-async function resolveAuthenticatedQuickReportContext(): Promise<QuickReportContext | null> {
+async function resolveAuthenticatedQuickReportContext(request: Request): Promise<QuickReportContext | null> {
   const session = await getServerSession(authOptions);
   const email = session?.user?.email?.trim().toLowerCase();
 
   if (!email) {
     return null;
   }
-
-  await prisma.tenant.upsert({
-    where: { id: 'safeviate' },
-    update: { updatedAt: new Date() },
-    create: { id: 'safeviate', name: 'Safeviate' },
-  });
-
-  const currentUser = await prisma.user.findUnique({
-    where: { email },
-    select: { tenantId: true },
-  });
+  const tenantId = await getTenantIdFromSession(request);
+  if (!tenantId) {
+    return null;
+  }
 
   const personnel = await prisma.personnel.findFirst({
-    where: { email },
+    where: { tenantId, email },
     select: { id: true, firstName: true, lastName: true },
   });
 
   return {
-    tenantId: currentUser?.tenantId || 'safeviate',
+    tenantId,
     email,
     userId: personnel?.id || null,
     userName: personnel ? `${personnel.firstName} ${personnel.lastName}`.trim() : email,
@@ -66,11 +60,14 @@ async function resolvePublicQuickReportContext(tenantId: string | null): Promise
 }
 
 export async function resolveQuickReportContext(options: {
+  request?: Request | null;
   publicTenantId?: string | null;
 }) {
-  const authenticatedContext = await resolveAuthenticatedQuickReportContext();
-  if (authenticatedContext) {
-    return authenticatedContext;
+  if (options.request) {
+    const authenticatedContext = await resolveAuthenticatedQuickReportContext(options.request);
+    if (authenticatedContext) {
+      return authenticatedContext;
+    }
   }
 
   return resolvePublicQuickReportContext(options.publicTenantId ?? null);
