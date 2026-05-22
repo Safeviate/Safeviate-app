@@ -25,6 +25,8 @@ import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import React from 'react';
 import { dispatchSafeviateEvent, SAFEVIATE_SAFETY_REPORTS_UPDATED } from '@/lib/client-events';
+import { SignaturePad } from '@/components/ui/signature-pad';
+import { useUserProfile } from '@/hooks/use-user-profile';
 
 // --- Helper Functions ---
 const getRiskLevel = (score: number): 'Low' | 'Medium' | 'High' | 'Critical' => {
@@ -91,6 +93,8 @@ interface FinalReviewProps {
 
 export function FinalReview({ report, tenantId, personnel, riskMatrixColors, isStacked = false }: FinalReviewProps) {
   const { toast } = useToast();
+  const { userProfile } = useUserProfile();
+  const [signatureDataUrl, setSignatureDataUrl] = React.useState('');
 
   const form = useForm<FormValues>({
     resolver: zodResolver(reportReviewSchema),
@@ -136,14 +140,24 @@ export function FinalReview({ report, tenantId, personnel, riskMatrixColors, isS
   };
 
   const handleSignReport = async () => {
-    const currentUser = personnel[0]; // Logic for current user auth needed here
+    const currentUser = userProfile && userProfile.id
+      ? personnel.find((person) => person.id === userProfile.id) || userProfile
+      : null;
     if (!currentUser) return;
+    if (!signatureDataUrl) {
+      toast({
+        variant: 'destructive',
+        title: 'Signature Required',
+        description: 'Please provide your signature before signing the report.',
+      });
+      return;
+    }
 
     const newSignature = {
         userId: currentUser.id,
         userName: `${currentUser.firstName} ${currentUser.lastName}`,
-        role: "Safety Manager", 
-        signatureUrl: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/Pj2IeAAAAABJRU5ErkJggg==", 
+        role: currentUser.role || "Safety Manager",
+        signatureUrl: signatureDataUrl,
         signedAt: new Date().toISOString(),
     };
     
@@ -162,6 +176,7 @@ export function FinalReview({ report, tenantId, personnel, riskMatrixColors, isS
         throw new Error(payload?.error || 'Unable to sign this report right now.');
       }
       toast({title: "Report Signed"});
+      setSignatureDataUrl('');
       dispatchSafeviateEvent(SAFEVIATE_SAFETY_REPORTS_UPDATED);
     } catch (error) {
       toast({
@@ -183,12 +198,12 @@ export function FinalReview({ report, tenantId, personnel, riskMatrixColors, isS
             <form onSubmit={form.handleSubmit(onSubmit)} className="h-full flex flex-col">
               {isStacked ? (
                 <div className="p-6 space-y-10">
-                  <ReviewFields form={form} hazardFields={hazardFields} riskMatrixColors={riskMatrixColors} handleSignReport={handleSignReport} />
+                    <ReviewFields form={form} hazardFields={hazardFields} riskMatrixColors={riskMatrixColors} handleSignReport={handleSignReport} signatureDataUrl={signatureDataUrl} onSignatureChange={setSignatureDataUrl} />
                 </div>
               ) : (
                 <ScrollArea className="flex-1 p-6">
                   <div className="space-y-10">
-                    <ReviewFields form={form} hazardFields={hazardFields} riskMatrixColors={riskMatrixColors} handleSignReport={handleSignReport} />
+                    <ReviewFields form={form} hazardFields={hazardFields} riskMatrixColors={riskMatrixColors} handleSignReport={handleSignReport} signatureDataUrl={signatureDataUrl} onSignatureChange={setSignatureDataUrl} />
                   </div>
                 </ScrollArea>
               )}
@@ -212,9 +227,11 @@ type ReviewFieldsProps = {
   hazardFields: FieldArrayWithId<FormValues, 'hazards', 'id'>[];
   riskMatrixColors?: Record<string, string>;
   handleSignReport: () => void | Promise<void>;
+  signatureDataUrl: string;
+  onSignatureChange: (value: string) => void;
 };
 
-function ReviewFields({ form, hazardFields, riskMatrixColors, handleSignReport }: ReviewFieldsProps) {
+function ReviewFields({ form, hazardFields, riskMatrixColors, handleSignReport, signatureDataUrl, onSignatureChange }: ReviewFieldsProps) {
   const signatures = form.watch('signatures') ?? [];
 
   return (
@@ -276,6 +293,10 @@ function ReviewFields({ form, hazardFields, riskMatrixColors, handleSignReport }
                   <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Awaiting Sign-off</p>
               </div>
           )}
+        </div>
+        <div className="mt-6 rounded-xl border bg-muted/10 p-4 space-y-3 no-print">
+          <Label className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Your Signature</Label>
+          <SignaturePad onSignatureEnd={onSignatureChange} initialDataUrl={signatureDataUrl} height={140} />
         </div>
       </section>
     </>

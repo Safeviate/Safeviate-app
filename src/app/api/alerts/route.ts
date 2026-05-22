@@ -28,11 +28,13 @@ export async function POST(request: Request) {
     await ensureAlertsSchema();
     const tenantId = await getTenantId(request);
     if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const session = await getServerSession(authOptions);
+    const actorId = session?.user?.id?.trim() || '';
     const body = await request.json().catch(() => null);
     const alert = body?.alert;
     if (!alert || typeof alert !== 'object') return NextResponse.json({ error: 'Invalid alert payload.' }, { status: 400 });
     const id = alert.id || randomUUID();
-    const data = { ...alert, id };
+    const data = { ...alert, id, createdBy: actorId || alert.createdBy };
     await prisma.$executeRawUnsafe(`INSERT INTO alerts (id, tenant_id, data, created_at, updated_at) VALUES ($1, $2, $3::jsonb, NOW(), NOW()) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`, id, tenantId, JSON.stringify(data));
     return NextResponse.json({ alert: data }, { status: 200 });
   } catch (error) {
@@ -46,10 +48,21 @@ export async function PATCH(request: Request) {
     await ensureAlertsSchema();
     const tenantId = await getTenantId(request);
     if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const session = await getServerSession(authOptions);
+    const actorId = session?.user?.id?.trim() || '';
     const body = await request.json().catch(() => null);
     const alert = body?.alert;
     if (!alert || typeof alert !== 'object' || !alert.id) {
       return NextResponse.json({ error: 'Invalid alert payload.' }, { status: 400 });
+    }
+
+    const rows = await prisma.$queryRawUnsafe<{ data: unknown }[]>(`SELECT data FROM alerts WHERE id = $1 AND tenant_id = $2 LIMIT 1`, alert.id, tenantId);
+    const existingAlert = (rows[0]?.data as Record<string, unknown> | null) || null;
+    if (existingAlert?.signatureUrl && alert.signatureUrl !== existingAlert.signatureUrl) {
+      const createdBy = typeof existingAlert.createdBy === 'string' ? existingAlert.createdBy : '';
+      if (!actorId || createdBy !== actorId) {
+        return NextResponse.json({ error: 'Only the user who posted the alert can change its signature.' }, { status: 403 });
+      }
     }
 
     await prisma.$executeRawUnsafe(

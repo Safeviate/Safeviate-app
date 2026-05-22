@@ -15,6 +15,7 @@ import { FileUp, Camera, Trash2, ZoomIn, Edit, Save, ShieldCheck } from 'lucide-
 import Image from 'next/image';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useMemo, useState } from 'react';
+import { format } from 'date-fns';
 import type { FindingLevel } from '@/app/(app)/admin/features/page';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
@@ -36,6 +37,8 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { usePermissions } from '@/hooks/use-permissions';
+import { useUserProfile } from '@/hooks/use-user-profile';
+import { SignaturePad } from '@/components/ui/signature-pad';
 
 type EnrichedAudit = QualityAudit & { template: QualityAuditChecklistTemplate };
 type EnrichedCorrectiveActionPlan = CorrectiveActionPlan & {
@@ -92,8 +95,11 @@ type FormValues = z.infer<typeof formSchema>;
 export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel }: AuditChecklistProps) {
     const { toast } = useToast();
     const { hasPermission } = usePermissions();
+    const { userProfile } = useUserProfile();
     const [isImageViewerOpen, setIsImageViewerOpen] = useState(false);
     const [viewingImageUrl, setViewingImageUrl] = useState<string | null>(null);
+    const [auditorSignatureDataUrl, setAuditorSignatureDataUrl] = useState('');
+    const [auditeeSignatureDataUrl, setAuditeeSignatureDataUrl] = useState('');
 
     const [isCapDialogOpen, setIsCapDialogOpen] = useState(false);
     const [selectedCap, setSelectedCap] = useState<EnrichedCorrectiveActionPlan | null>(null);
@@ -124,6 +130,9 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
         [normalizedSections]
     );
     const effectiveFindingLevels = findingLevels.length > 0 ? findingLevels : defaultFindingLevels;
+    const canAuditorSign = !!userProfile?.id && userProfile.id === audit.auditorId;
+    const auditeePerson = personnel.find((person) => person.id === audit.auditeeId) || null;
+    const canAuditeeSign = !!userProfile?.id && !!auditeePerson && userProfile.id === audit.auditeeId;
 
     const persistAudit = async (nextAudit: Partial<QualityAudit>, toastMessage?: { title: string; description: string }) => {
         const response = await fetch('/api/quality-audits', {
@@ -146,6 +155,88 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
 
         if (toastMessage) {
             toast(toastMessage);
+        }
+    };
+
+    const handleAuditorSignoff = async () => {
+        if (!canAuditorSign || !userProfile) {
+            toast({
+                variant: 'destructive',
+                title: 'Permission Denied',
+                description: 'Only the assigned auditor can sign this audit.',
+            });
+            return;
+        }
+
+        if (!auditorSignatureDataUrl) {
+            toast({
+                variant: 'destructive',
+                title: 'Signature Required',
+                description: 'Please provide the auditor signature first.',
+            });
+            return;
+        }
+
+        try {
+            await persistAudit(
+                {
+                    auditorSignoff: {
+                        signedById: userProfile.id,
+                        signedByName: `${userProfile.firstName} ${userProfile.lastName}`.trim(),
+                        signatureUrl: auditorSignatureDataUrl,
+                        signedAt: new Date().toISOString(),
+                    },
+                },
+                { title: 'Auditor Signed', description: 'The assigned auditor sign-off has been recorded.' }
+            );
+            setAuditorSignatureDataUrl('');
+        } catch (error) {
+            toast({
+                variant: 'destructive',
+                title: 'Auditor Sign-off Failed',
+                description: error instanceof Error ? error.message : 'Failed to sign this audit.',
+            });
+        }
+    };
+
+    const handleAuditeeSignoff = async () => {
+        if (!canAuditeeSign || !userProfile) {
+            toast({
+                variant: 'destructive',
+                title: 'Permission Denied',
+                description: 'Only the assigned auditee can sign this audit.',
+            });
+            return;
+        }
+
+        if (!auditeeSignatureDataUrl) {
+            toast({
+                variant: 'destructive',
+                title: 'Signature Required',
+                description: 'Please provide the auditee signature first.',
+            });
+            return;
+        }
+
+        try {
+            await persistAudit(
+                {
+                    auditeeSignoff: {
+                        signedById: userProfile.id,
+                        signedByName: `${userProfile.firstName} ${userProfile.lastName}`.trim(),
+                        signatureUrl: auditeeSignatureDataUrl,
+                        signedAt: new Date().toISOString(),
+                    },
+                },
+                { title: 'Auditee Signed', description: 'The assigned auditee sign-off has been recorded.' }
+            );
+            setAuditeeSignatureDataUrl('');
+        } catch (error) {
+            toast({
+                variant: 'destructive',
+                title: 'Auditee Sign-off Failed',
+                description: error instanceof Error ? error.message : 'Failed to sign this audit.',
+            });
         }
     };
 
@@ -562,6 +653,65 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
                             </div>
                         </div>
                     )}
+
+                    <div className="border-t bg-background p-4">
+                        <Card className="border shadow-none">
+                            <CardHeader className="border-b bg-muted/10">
+                                <CardTitle className="text-sm font-black uppercase tracking-tight">Assigned Sign-off</CardTitle>
+                            </CardHeader>
+                            <CardContent className="grid gap-6 pt-6 md:grid-cols-2">
+                                <div className="space-y-3 rounded-xl border bg-muted/5 p-4">
+                                    <div className="space-y-1">
+                                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Assigned Auditor</p>
+                                        <p className="text-sm font-semibold">{getPersonnelDisplayName(personnel, audit.auditorId) || audit.auditorId}</p>
+                                    </div>
+                                    {audit.auditorSignoff ? (
+                                        <div className="rounded-lg border bg-background p-3 space-y-2">
+                                            <p className="text-sm font-semibold">{audit.auditorSignoff.signedByName}</p>
+                                            <img src={audit.auditorSignoff.signatureUrl} alt="Auditor signature" className="max-h-16 rounded border bg-white p-1" />
+                                            <p className="text-xs text-muted-foreground">Signed on {format(new Date(audit.auditorSignoff.signedAt), 'PPP p')}</p>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <SignaturePad onSignatureEnd={setAuditorSignatureDataUrl} initialDataUrl={auditorSignatureDataUrl} height={140} isReadOnly={!canAuditorSign} />
+                                            {!canAuditorSign && <p className="text-xs text-muted-foreground">Only the assigned auditor can sign here.</p>}
+                                            <div className="flex justify-end">
+                                                <Button type="button" onClick={handleAuditorSignoff} disabled={!canAuditorSign || !auditorSignatureDataUrl}>
+                                                    Sign as Auditor
+                                                </Button>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+
+                                <div className="space-y-3 rounded-xl border bg-muted/5 p-4">
+                                    <div className="space-y-1">
+                                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Assigned Auditee</p>
+                                        <p className="text-sm font-semibold">{auditeePerson ? `${auditeePerson.firstName} ${auditeePerson.lastName}` : 'Department or external organization'}</p>
+                                    </div>
+                                    {audit.auditeeSignoff ? (
+                                        <div className="rounded-lg border bg-background p-3 space-y-2">
+                                            <p className="text-sm font-semibold">{audit.auditeeSignoff.signedByName}</p>
+                                            <img src={audit.auditeeSignoff.signatureUrl} alt="Auditee signature" className="max-h-16 rounded border bg-white p-1" />
+                                            <p className="text-xs text-muted-foreground">Signed on {format(new Date(audit.auditeeSignoff.signedAt), 'PPP p')}</p>
+                                        </div>
+                                    ) : auditeePerson ? (
+                                        <>
+                                            <SignaturePad onSignatureEnd={setAuditeeSignatureDataUrl} initialDataUrl={auditeeSignatureDataUrl} height={140} isReadOnly={!canAuditeeSign} />
+                                            {!canAuditeeSign && <p className="text-xs text-muted-foreground">Only the assigned auditee can sign here.</p>}
+                                            <div className="flex justify-end">
+                                                <Button type="button" onClick={handleAuditeeSignoff} disabled={!canAuditeeSign || !auditeeSignatureDataUrl}>
+                                                    Sign as Auditee
+                                                </Button>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <p className="text-xs text-muted-foreground">This audit target is a department or external organization, so a person-specific auditee signature is not required on this screen.</p>
+                                    )}
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </div>
                 </form>
             </Form>
 

@@ -4,6 +4,7 @@ import { getTenantIdForRoute } from '@/lib/server/session-tenant';
 import { recordSimulationRouteMetric } from '@/lib/server/simulation-telemetry';
 import { getServerSession } from 'next-auth';
 import { NextResponse } from 'next/server';
+import type { StudentProgressReport } from '@/types/training';
 
 const REPORTS_KEY = 'student-progress-reports';
 const MILESTONES_KEY = 'student-milestones';
@@ -29,6 +30,39 @@ async function writeConfig(tenantId: string, config: Record<string, unknown>) {
     tenantId,
     JSON.stringify(config)
   );
+}
+
+function signatureChanged(previousValue: unknown, nextValue: unknown) {
+  return (typeof previousValue === 'string' ? previousValue : '') !== (typeof nextValue === 'string' ? nextValue : '');
+}
+
+function validateDebriefSignatureMutation(
+  existingReport: StudentProgressReport | null,
+  incomingReport: StudentProgressReport,
+  actorId: string | null,
+) {
+  if (!actorId) {
+    if (incomingReport.instructorSignatureUrl || incomingReport.studentSignatureUrl) {
+      return 'You must be signed in to record a debrief signature.';
+    }
+    return null;
+  }
+
+  if (signatureChanged(existingReport?.instructorSignatureUrl, incomingReport.instructorSignatureUrl)) {
+    const assignedInstructorId = incomingReport.instructorId?.trim();
+    if (!assignedInstructorId || actorId !== assignedInstructorId) {
+      return 'Only the assigned instructor can sign the instructor debrief section.';
+    }
+  }
+
+  if (signatureChanged(existingReport?.studentSignatureUrl, incomingReport.studentSignatureUrl)) {
+    const assignedStudentId = incomingReport.studentId?.trim();
+    if (!assignedStudentId || actorId !== assignedStudentId) {
+      return 'Only the assigned student can sign the student acknowledgement section.';
+    }
+  }
+
+  return null;
 }
 
 export async function GET(request: Request) {
@@ -75,17 +109,33 @@ export async function PUT(request: Request) {
   if (!tenantId) {
     return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
   }
+  const session = await getServerSession(authOptions);
+  const actorId = session?.user?.id?.trim() || null;
 
   const body = await request.json().catch(() => null);
   const config = (await readConfig(tenantId)) as Record<string, unknown>;
+  const currentReports = Array.isArray(config[REPORTS_KEY]) ? (config[REPORTS_KEY] as StudentProgressReport[]) : [];
 
   if (body?.report && typeof body.report === 'object') {
-    const currentReports = Array.isArray(config[REPORTS_KEY]) ? config[REPORTS_KEY] : [];
-    config[REPORTS_KEY] = [body.report, ...currentReports];
+    const incomingReport = body.report as StudentProgressReport;
+    const existingReport = currentReports.find((report) => report.id === incomingReport.id) || null;
+    const signatureError = validateDebriefSignatureMutation(existingReport, incomingReport, actorId);
+    if (signatureError) {
+      return NextResponse.json({ error: signatureError }, { status: 403 });
+    }
+    config[REPORTS_KEY] = [incomingReport, ...currentReports];
   }
 
   if (Array.isArray(body?.reports)) {
-    config[REPORTS_KEY] = body.reports;
+    const incomingReports = body.reports as StudentProgressReport[];
+    for (const report of incomingReports) {
+      const existingReport = currentReports.find((item) => item.id === report.id) || null;
+      const signatureError = validateDebriefSignatureMutation(existingReport, report, actorId);
+      if (signatureError) {
+        return NextResponse.json({ error: signatureError }, { status: 403 });
+      }
+    }
+    config[REPORTS_KEY] = incomingReports;
   }
 
   if (body?.milestones) {

@@ -29,6 +29,7 @@ import { Badge } from '@/components/ui/badge';
 import type { HumanFactorsStatus, InstructorRecommendationAction, StudentProgressCriterionRating, StudentProgressHumanFactor } from '@/types/training';
 import { useTenantConfig } from '@/hooks/use-tenant-config';
 import { usePermissions } from '@/hooks/use-permissions';
+import { useUserProfile } from '@/hooks/use-user-profile';
 
 const RATING_GUIDE = [
     { value: '1', label: 'Unsafe', hint: 'Instructor intervention required immediately.' },
@@ -179,6 +180,7 @@ function NewDebriefContent() {
     const { toast } = useToast();
     const { tenant } = useTenantConfig();
     const { hasPermission } = usePermissions();
+    const { userProfile } = useUserProfile();
     const canEditDebrief = hasPermission('training-debriefs-edit') || hasPermission('admin-view');
 
     const [booking, setBooking] = useState<Booking | null>(null);
@@ -334,11 +336,13 @@ function NewDebriefContent() {
 
     const onSubmit = async (values: FormValues) => {
         if (!booking) return;
-        if (!canEditDebrief) {
+        const isAssignedInstructor = !!userProfile?.id && userProfile.id === booking.instructorId;
+        const isAssignedStudent = !!userProfile?.id && userProfile.id === booking.studentId;
+        if (!canEditDebrief && !isAssignedInstructor && !isAssignedStudent) {
             toast({
                 variant: 'destructive',
                 title: 'Permission Denied',
-                description: 'You do not have permission to save training debriefs.',
+                description: 'You do not have permission to save this debrief or sign its assigned sections.',
             });
             return;
         }
@@ -401,6 +405,9 @@ function NewDebriefContent() {
 
     const studentName = student ? `${student.firstName} ${student.lastName}` : 'Unknown Student';
     const instructorName = instructor ? `${instructor.firstName} ${instructor.lastName}` : 'Unknown Instructor';
+    const isAssignedInstructor = !!userProfile?.id && userProfile.id === booking.instructorId;
+    const isAssignedStudent = !!userProfile?.id && userProfile.id === booking.studentId;
+    const canSubmitDebrief = canEditDebrief || isAssignedInstructor || isAssignedStudent;
 
     return (
         <div className="mx-auto flex h-full min-h-0 w-full max-w-[1100px] flex-col gap-6 overflow-hidden px-1">
@@ -873,10 +880,15 @@ function NewDebriefContent() {
                                                     <FormControl>
                                                         <SignaturePad 
                                                             onSignatureEnd={field.onChange} 
+                                                            initialDataUrl={field.value || ''}
                                                             height={150} 
                                                             className="w-full"
+                                                            isReadOnly={!isAssignedInstructor}
                                                         />
                                                     </FormControl>
+                                                    {!isAssignedInstructor && (
+                                                        <p className="text-xs text-muted-foreground">Only the assigned instructor can sign this section.</p>
+                                                    )}
                                                     <FormMessage />
                                                 </FormItem>
                                             )} 
@@ -890,10 +902,15 @@ function NewDebriefContent() {
                                                     <FormControl>
                                                         <SignaturePad 
                                                             onSignatureEnd={field.onChange} 
+                                                            initialDataUrl={field.value || ''}
                                                             height={150} 
                                                             className="w-full"
+                                                            isReadOnly={!isAssignedStudent}
                                                         />
                                                     </FormControl>
+                                                    {!isAssignedStudent && (
+                                                        <p className="text-xs text-muted-foreground">Only the assigned student can sign this section.</p>
+                                                    )}
                                                     <FormMessage />
                                                 </FormItem>
                                             )} 
@@ -906,7 +923,7 @@ function NewDebriefContent() {
                                 <Button asChild variant="outline" type="button">
                                     <Link href="/bookings/history">Cancel</Link>
                                 </Button>
-                                <Button type="submit" disabled={!canEditDebrief}>
+                                <Button type="submit" disabled={!canSubmitDebrief}>
                                     <Save className="mr-2 h-4 w-4" /> Save Debrief
                                 </Button>
                             </div>

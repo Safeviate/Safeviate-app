@@ -5,6 +5,11 @@ import { ensureManagementOfChangeSchema } from '@/lib/server/bootstrap-db';
 import { getServerSession } from 'next-auth';
 import { NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
+import type { ManagementOfChange } from '@/types/moc';
+
+function toStableJson(value: unknown) {
+  return JSON.stringify(value ?? null);
+}
 
 async function getTenantId(request: Request) {
   return getTenantIdForRoute(request);
@@ -84,6 +89,8 @@ export async function PUT(request: Request) {
   try {
     const tenantId = await getTenantId(request);
     if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const session = await getServerSession(authOptions);
+    const actorId = session?.user?.id?.trim() || null;
     await ensureManagementOfChangeSchema();
 
     const url = new URL(request.url);
@@ -93,6 +100,34 @@ export async function PUT(request: Request) {
     const body = await request.json();
     const incoming = body?.moc;
     if (!incoming) return NextResponse.json({ error: 'Missing MOC payload.' }, { status: 400 });
+
+    const rows = await prisma.$queryRawUnsafe<{ data: unknown; tenant_id: string }[]>(
+      `SELECT data, tenant_id FROM management_of_change WHERE id = $1 LIMIT 1`,
+      mocId
+    );
+    const row = rows[0];
+    if (!row || row.tenant_id !== tenantId) {
+      return NextResponse.json({ error: 'Management of change record not found.' }, { status: 404 });
+    }
+
+    const existingMoc = row.data as ManagementOfChange;
+    const incomingMoc = incoming as ManagementOfChange;
+    const existingSignatures = Array.isArray(existingMoc?.signatures) ? existingMoc.signatures : [];
+    const incomingSignatures = Array.isArray(incomingMoc?.signatures) ? incomingMoc.signatures : [];
+    const signaturesChanged = toStableJson(existingSignatures) !== toStableJson(incomingSignatures);
+
+    if (signaturesChanged) {
+      if (!actorId) {
+        return NextResponse.json({ error: 'You must be signed in to sign this MOC.' }, { status: 401 });
+      }
+      if (incomingSignatures.length !== existingSignatures.length + 1) {
+        return NextResponse.json({ error: 'MOC signatures can only be added by the active signed-in user.' }, { status: 403 });
+      }
+      const appendedSignature = incomingSignatures[incomingSignatures.length - 1];
+      if (!appendedSignature || appendedSignature.userId !== actorId) {
+        return NextResponse.json({ error: 'MOC signatures must belong to the current signed-in user.' }, { status: 403 });
+      }
+    }
 
     await prisma.$executeRawUnsafe(
       `UPDATE management_of_change SET data = $2::jsonb, updated_at = NOW() WHERE id = $1 AND tenant_id = $3`,

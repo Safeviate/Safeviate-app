@@ -16,6 +16,38 @@ function isCompletedStatus(status: unknown) {
   return status === 'Completed';
 }
 
+function toStableJson(value: unknown) {
+  return JSON.stringify(value ?? null);
+}
+
+function hasBookingSignatureMutation(existingData: Record<string, any> | null, incoming: Record<string, any>) {
+  if ('checkApprovals' in incoming && toStableJson(incoming.checkApprovals) !== toStableJson(existingData?.checkApprovals)) {
+    return true;
+  }
+
+  if ('workflowApprovals' in incoming && toStableJson(incoming.workflowApprovals) !== toStableJson(existingData?.workflowApprovals)) {
+    return true;
+  }
+
+  if ('approvedById' in incoming && incoming.approvedById !== existingData?.approvedById) {
+    return true;
+  }
+
+  if ('approvedByName' in incoming && incoming.approvedByName !== existingData?.approvedByName) {
+    return true;
+  }
+
+  if ('approvedAt' in incoming && incoming.approvedAt !== existingData?.approvedAt) {
+    return true;
+  }
+
+  if (incoming.status === 'Approved' && existingData?.status !== 'Approved') {
+    return true;
+  }
+
+  return false;
+}
+
 async function getTenantId(request: Request) {
   return getTenantIdForRoute(request, { allowDevelopmentFallback: true });
 }
@@ -167,6 +199,8 @@ export async function PUT(request: Request) {
   try {
     const tenantId = await getTenantId(request);
     if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const session = await getServerSession(authOptions);
+    const actorId = session?.user?.id?.trim() || '';
 
     const body = await request.json().catch(() => null);
     const incoming = body?.booking ?? {};
@@ -184,6 +218,19 @@ export async function PUT(request: Request) {
     });
 
     const existingData = (existing?.data as Record<string, any> | null) || null;
+    const assignedInstructorId = typeof existingData?.instructorId === 'string' ? existingData.instructorId.trim() : '';
+    if (hasBookingSignatureMutation(existingData, incoming)) {
+      if (!actorId) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+      if (!assignedInstructorId || actorId !== assignedInstructorId) {
+        return NextResponse.json(
+          { error: 'Only the assigned instructor can record booking approvals or instructor sign-off.' },
+          { status: 403 }
+        );
+      }
+    }
+
     const incomingStatus = incoming.status ?? existingData?.status;
     const incomingAircraftId = incoming.aircraftId ?? existingData?.aircraftId;
     const incomingStart = incoming.start ?? existingData?.start;

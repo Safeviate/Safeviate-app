@@ -17,6 +17,7 @@ import Image from 'next/image';
 import { Label } from '@/components/ui/label';
 import { useSession } from 'next-auth/react';
 import { parseJsonResponse } from '@/lib/safe-json';
+import { useUserProfile } from '@/hooks/use-user-profile';
 
 const signatureSchema = z.object({
   userId: z.string(),
@@ -39,6 +40,7 @@ interface ApprovalFormProps {
 
 export function ApprovalForm({ moc, personnel }: ApprovalFormProps) {
   const { data: session } = useSession();
+  const { userProfile } = useUserProfile();
   const { toast } = useToast();
   const [signingRole, setSigningRole] = useState('');
   const [signatureDataUrl, setSignatureDataUrl] = useState<string | null>(null);
@@ -105,7 +107,7 @@ export function ApprovalForm({ moc, personnel }: ApprovalFormProps) {
       });
   };
   
-  const currentUserHasSigned = moc.signatures?.some(sig => sig.userId === session?.user?.email?.trim().toLowerCase() || sig.userId === session?.user?.name);
+  const currentUserHasSigned = moc.signatures?.some(sig => sig.userId === userProfile?.id);
 
   return (
     <Form {...form}>

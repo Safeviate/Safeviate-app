@@ -85,6 +85,13 @@ export interface QualityFinding {
     }[];
 }
 
+export interface QualityAuditSignoff {
+    signedById: string;
+    signedByName: string;
+    signatureUrl: string;
+    signedAt: string;
+}
+
 export interface QualityAudit {
     id: string;
     templateId: string;
@@ -98,6 +105,8 @@ export interface QualityAudit {
     status: AuditStatus;
     findings: QualityFinding[];
     complianceScore?: number;
+    auditorSignoff?: QualityAuditSignoff;
+    auditeeSignoff?: QualityAuditSignoff;
 }
 
 export interface CorrectiveActionPlan {
