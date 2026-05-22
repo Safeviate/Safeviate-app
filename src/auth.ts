@@ -4,6 +4,7 @@ import { compare, hash } from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
 import { assertRequiredEnv } from '@/lib/server/env';
 import { BETA_NDA_VERSION } from '@/lib/server/beta-nda';
+import { enforceRateLimit } from '@/lib/server/request-security';
 
 assertRequiredEnv(['NEXTAUTH_SECRET'], 'authentication');
 
@@ -51,7 +52,7 @@ export const authOptions: NextAuthOptions = {
         email: { label: 'Email', type: 'email' },
         password: { label: 'Password', type: 'password' },
       },
-      async authorize(credentials) {
+      async authorize(credentials, request) {
         const email = credentials?.email?.toString().toLowerCase().trim();
         const password = credentials?.password?.toString();
         const seedEmail = cleanEnvValue(process.env.AUTH_SEED_EMAIL).toLowerCase();
@@ -59,6 +60,17 @@ export const authOptions: NextAuthOptions = {
         const seedPassword = cleanEnvValue(process.env.AUTH_SEED_PASSWORD);
 
         if (!email || !password) return null;
+
+        const rateLimit = enforceRateLimit({
+          request,
+          key: 'auth-login',
+          limit: 8,
+          identity: email,
+        });
+        if (rateLimit) {
+          console.warn('[AUTH] Login throttled due to rate limit.', { email });
+          throw new Error('Too many login attempts. Please wait a moment and try again.');
+        }
 
         console.info('[AUTH] Credentials login attempt received.', {
           email,

@@ -1,5 +1,6 @@
 import { authOptions } from '@/auth';
 import { getAzureBlobContainerClient } from '@/lib/server/azure-blob';
+import { enforceRateLimit } from '@/lib/server/request-security';
 import { readFile } from 'node:fs/promises';
 import { getServerSession } from 'next-auth';
 import { NextResponse } from 'next/server';
@@ -27,6 +28,21 @@ function getContentType(filePath: string) {
 }
 
 export async function GET(request: Request) {
+  const rateLimit = enforceRateLimit({
+    request,
+    key: 'uploads-view',
+    limit: 120,
+  });
+  if (rateLimit) {
+    return NextResponse.json(
+      { error: rateLimit.message },
+      {
+        status: 429,
+        headers: { 'Retry-After': String(rateLimit.retryAfterSeconds) },
+      }
+    );
+  }
+
   const session = await getServerSession(authOptions);
   const userEmail = session?.user?.email?.trim().toLowerCase();
 

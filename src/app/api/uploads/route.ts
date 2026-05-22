@@ -1,5 +1,6 @@
 import { authOptions } from '@/auth';
 import { buildUploadViewUrl, getAzureBlobContainerClient } from '@/lib/server/azure-blob';
+import { enforceRateLimit, validateUploadFile } from '@/lib/server/request-security';
 import { getServerSession } from 'next-auth';
 import { NextResponse } from 'next/server';
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -10,6 +11,21 @@ function sanitizeFileName(fileName: string) {
 }
 
 export async function POST(request: Request) {
+  const rateLimit = enforceRateLimit({
+    request,
+    key: 'uploads-create',
+    limit: 20,
+  });
+  if (rateLimit) {
+    return NextResponse.json(
+      { error: rateLimit.message },
+      {
+        status: 429,
+        headers: { 'Retry-After': String(rateLimit.retryAfterSeconds) },
+      }
+    );
+  }
+
   const session = await getServerSession(authOptions);
   const userEmail = session?.user?.email?.trim().toLowerCase();
 
@@ -23,6 +39,11 @@ export async function POST(request: Request) {
 
   if (!(file instanceof File)) {
     return NextResponse.json({ error: 'Missing file' }, { status: 400 });
+  }
+
+  const fileValidationError = await validateUploadFile(file);
+  if (fileValidationError) {
+    return NextResponse.json({ error: fileValidationError }, { status: 400 });
   }
 
   const displayName = typeof displayNameRaw === 'string' && displayNameRaw.trim() ? displayNameRaw.trim() : file.name;

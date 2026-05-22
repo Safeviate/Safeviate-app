@@ -3,9 +3,25 @@ import { authenticateAiRequest } from '@/lib/server/ai-auth';
 import { sendWelcomeEmail } from '@/lib/server/mail';
 import { createPasswordSetupInvite } from '@/lib/server/password-setup';
 import { prisma } from '@/lib/prisma';
+import { enforceRateLimit } from '@/lib/server/request-security';
 
 export async function POST(request: Request) {
   try {
+    const rateLimit = enforceRateLimit({
+      request,
+      key: 'admin-send-password-reset',
+      limit: 12,
+    });
+    if (rateLimit) {
+      return NextResponse.json(
+        { error: rateLimit.message },
+        {
+          status: 429,
+          headers: { 'Retry-After': String(rateLimit.retryAfterSeconds) },
+        }
+      );
+    }
+
     const authResult = await authenticateAiRequest();
     if (!authResult.ok) {
       return NextResponse.json({ error: authResult.error }, { status: authResult.status });

@@ -2,9 +2,25 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { createPasswordSetupInvite } from '@/lib/server/password-setup';
 import { sendWelcomeEmail } from '@/lib/server/mail';
+import { enforceRateLimit } from '@/lib/server/request-security';
 
 export async function POST(request: Request) {
   try {
+    const rateLimit = enforceRateLimit({
+      request,
+      key: 'auth-forgot-password',
+      limit: 5,
+    });
+    if (rateLimit) {
+      return NextResponse.json(
+        { error: rateLimit.message },
+        {
+          status: 429,
+          headers: { 'Retry-After': String(rateLimit.retryAfterSeconds) },
+        }
+      );
+    }
+
     const body = await request.json().catch(() => null);
     const email = String(body?.email || '').trim().toLowerCase();
 

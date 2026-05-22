@@ -1,8 +1,24 @@
 import { NextResponse } from 'next/server';
 import { completePasswordSetup } from '@/lib/server/password-setup';
+import { enforceRateLimit } from '@/lib/server/request-security';
 
 export async function POST(request: Request) {
   try {
+    const rateLimit = enforceRateLimit({
+      request,
+      key: 'auth-setup-password',
+      limit: 10,
+    });
+    if (rateLimit) {
+      return NextResponse.json(
+        { error: rateLimit.message },
+        {
+          status: 429,
+          headers: { 'Retry-After': String(rateLimit.retryAfterSeconds) },
+        }
+      );
+    }
+
     const body = await request.json().catch(() => null);
     const token = String(body?.token || '').trim();
     const password = String(body?.password || '');
