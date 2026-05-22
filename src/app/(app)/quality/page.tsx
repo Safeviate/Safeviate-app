@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { menuConfig } from '@/lib/menu-config';
+import { menuConfig, type SubMenuItem } from '@/lib/menu-config';
 import { usePermissions } from '@/hooks/use-permissions';
 import { useTenantConfig } from '@/hooks/use-tenant-config';
 import { isTenantHrefEnabledByLayout } from '@/lib/tenant-layout-access';
@@ -10,14 +10,26 @@ import { TenantLayoutDisabledState } from '@/components/tenant-layout-disabled-s
 import { useTenantRouteAccess } from '@/hooks/use-tenant-route-access';
 
 const QUALITY_FALLBACKS = [
+  '/quality/audits',
   '/quality/audit-checklists',
+  '/quality/gap-analyses/analyses',
   '/quality/gap-analyses',
   '/quality/audit-schedule',
   '/quality/coherence-matrix',
   '/quality/risk-plan',
   '/quality/task-tracker',
-  '/quality/audits',
 ] as const;
+
+const findNestedSubItem = (items: NonNullable<(typeof menuConfig)[number]['subItems']>, href: string): SubMenuItem | null => {
+  for (const item of items) {
+    if (item.href === href) return item;
+    if (item.subItems?.length) {
+      const nested = findNestedSubItem(item.subItems, href);
+      if (nested) return nested;
+    }
+  }
+  return null;
+};
 
 export default function QualityPage() {
   const router = useRouter();
@@ -30,7 +42,7 @@ export default function QualityPage() {
     if (!qualityMenu) return null;
     return (
       QUALITY_FALLBACKS.find((href) => {
-        const subItem = qualityMenu.subItems?.find((item) => item.href === href);
+        const subItem = qualityMenu.subItems ? findNestedSubItem(qualityMenu.subItems, href) : null;
         return subItem && canAccessMenuItem(subItem, qualityMenu) && isTenantHrefEnabledByLayout(tenant, href);
       }) ?? null
     );

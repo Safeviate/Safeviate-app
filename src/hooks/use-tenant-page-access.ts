@@ -17,7 +17,17 @@ function findMenuItem(href: string): { item: MenuItem | SubMenuItem | null; pare
       return { item: menuItem };
     }
 
-    const subItem = menuItem.subItems?.find((entry) => entry.href === href) || null;
+    const findNested = (entries?: SubMenuItem[]): SubMenuItem | null => {
+      if (!entries?.length) return null;
+      for (const entry of entries) {
+        if (entry.href === href) return entry;
+        const nested = findNested(entry.subItems);
+        if (nested) return nested;
+      }
+      return null;
+    };
+
+    const subItem = findNested(menuItem.subItems);
     if (subItem) {
       return { item: subItem, parentItem: menuItem };
     }

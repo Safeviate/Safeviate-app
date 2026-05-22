@@ -28,6 +28,7 @@ export type SubMenuItem = {
   label: string;
   description?: string;
   permissionId?: string;
+  subItems?: SubMenuItem[];
 };
 
 export type MenuItem = {
@@ -212,15 +213,15 @@ export const menuConfig: MenuItem[] = [
     permissionId: 'quality-view',
     subItems: [
       {
-        href: '/quality/audit-checklists',
-        label: 'Audit Checklists',
-        description: 'Manage audit templates.',
-        permissionId: 'quality-templates-manage',
+        href: '/quality/audits',
+        label: 'Audits',
+        description: 'Review audit records and templates.',
+        permissionId: 'quality-audits-view',
       },
       {
         href: '/quality/gap-analyses',
-        label: 'Gap Analyses',
-        description: 'Create gap analysis templates and sessions from the coherence matrix.',
+        label: 'Gap',
+        description: 'Manage gap checklist templates and live gap analyses.',
         permissionId: 'quality-audits-view',
       },
       {
@@ -228,12 +229,6 @@ export const menuConfig: MenuItem[] = [
         label: 'Audit Schedule',
         description: 'Plan and view the annual audit schedule.',
         permissionId: 'quality-audits-manage',
-      },
-      {
-        href: '/quality/audits',
-        label: 'Audits',
-        description: 'View the quality assurance dashboard.',
-        permissionId: 'quality-audits-view',
       },
       {
         href: '/quality/coherence-matrix',

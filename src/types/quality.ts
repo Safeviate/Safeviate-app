@@ -75,7 +75,15 @@ export type { CorrectiveAction } from './safety-report';
 
 export interface QualityFinding {
     checklistItemId: string;
-    finding: AuditFinding;
+    finding?: AuditFinding;
+    gapStatus?: GapStatus;
+    currentState?: string;
+    desiredState?: string;
+    gapDescription?: string;
+    actionPlan?: string;
+    ownerId?: string;
+    targetDate?: string;
+    notes?: string;
     level?: string; // e.g., 'Level 1', 'Level 2'
     comment?: string;
     suggestedImprovements?: string;

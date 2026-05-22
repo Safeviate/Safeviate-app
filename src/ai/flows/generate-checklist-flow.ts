@@ -43,9 +43,11 @@ const prompt = ai.definePrompt({
     output: { schema: GenerateChecklistOutputSchema },
     prompt: `You are an expert in aviation compliance and operations. Your task is to analyze the provided document content (which could be text or an image) and extract a structured audit checklist.
 
-Identify the main sections and then list all the individual checkable items within each section. For each item, determine the most appropriate type: 'Checkbox' (for yes/no or confirmation tasks), 'Textbox' (for free-text notes), 'Number' (for numerical input), or 'Date'. If a regulation is referenced, extract it.
+Identify the main sections and then list all the individual clause lines or checkable items within each section. For each item, determine the most appropriate type: 'Checkbox' (for yes/no or confirmation tasks), 'Textbox' (for free-text notes), 'Number' (for numerical input), or 'Date'. If a regulation is referenced, extract it.
 
-Structure the output into an array of sections, where each section has a title and an array of items. Each item must have an id (generate a new UUID for it), text, type, and an optional regulationReference.
+Preserve the source wording exactly. Do not rewrite statements into questions, do not paraphrase, and do not combine multiple numbered or bulleted clauses into a single item. Each clause, bullet, or line should become its own item if it appears as a distinct entry in the source.
+
+Structure the output into an array of sections, where each section has a title and an array of items. Each item must have an id (generate a new UUID for it), text, type, and an optional regulationReference. The item text should match the source line as closely as possible, with only surrounding whitespace trimmed.
 
 Analyze the following document and extract the checklist:
 

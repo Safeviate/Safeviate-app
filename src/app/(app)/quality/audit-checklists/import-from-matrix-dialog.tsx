@@ -101,79 +101,26 @@ export function ImportFromMatrixDialog({ complianceItems, onImport }: ImportFrom
         setSelectedItems(nextSelected);
     };
 
-    const getQuestionText = (item: ComplianceRequirement) => {
-        const statement = item.regulationStatement?.trim() || item.regulationCode.trim();
-        const standard = item.technicalStandard?.trim() || '';
-        return standard ? `${statement}\n${standard}` : statement;
-    };
-
     const getSectionTitle = (item: ComplianceRequirement) =>
         item.regulationStatement?.trim() || item.regulationCode.trim();
 
-    const splitQuestionRows = (item: ComplianceRequirement) => {
+    const splitClauseRows = (item: ComplianceRequirement) => {
         const standard = item.technicalStandard?.trim() || '';
+
         if (!standard) {
-            return [getQuestionText(item)];
+            return [item.regulationStatement?.trim() || item.regulationCode.trim()];
         }
 
         const clauses = standard
-            .split(/\n(?=\s*(?:\(\d+\)|\d+[.)])\s*)/g)
-            .map((part) => part.trim())
-            .filter(Boolean);
+            .split(/\n(?=\s*(?:\([a-z0-9]+\)|\d+[.)])\s*)/gi)
+            .map((part) => part.trimEnd())
+            .filter((part) => part.trim().length > 0);
 
         if (clauses.length <= 1) {
-            return [getQuestionText(item)];
+            return [standard];
         }
 
         return clauses;
-    };
-
-    const cleanQuestionText = (text: string) =>
-        text
-            .replace(/^\s*\(\d+\)\s*/, '')
-            .replace(/^\s*\d+[.)]\s*/, '')
-            .trim();
-
-    const normalizeSubject = (subject: string) => subject.trim().replace(/\s+/g, ' ');
-
-    const lowerCaseLeadingArticle = (subject: string) =>
-        normalizeSubject(subject).replace(/^(a|an|the)\b/i, (match) => match.toLowerCase());
-
-    const stripLeadingArticle = (subject: string) =>
-        normalizeSubject(subject).replace(/^(?:a|an|the)\s+/i, '');
-
-    const makeAuditQuestionText = (text: string) => {
-        const normalized = cleanQuestionText(text);
-        const clauseMatch = normalized.match(/^(.+?)\s+shall\s+(.+)$/i);
-
-        if (clauseMatch) {
-            const subject = normalizeSubject(clauseMatch[1]);
-            const predicate = normalizeSubject(clauseMatch[2]);
-
-            if (/^(?:an?\s+)?ato$/i.test(subject)) {
-                return `Does the ATO ${predicate}`.replace(/\s+/g, ' ').replace(/\?$/, '') + '?';
-            }
-
-            if (/^be\s+prepared/i.test(predicate)) {
-                return `Has ${stripLeadingArticle(subject)} been prepared${predicate.replace(/^be\s+prepared/i, '')}`.replace(/\s+/g, ' ').replace(/\?$/, '') + '?';
-            }
-
-            if (/^be\s+/i.test(predicate)) {
-                return `Is ${lowerCaseLeadingArticle(subject)} ${predicate.replace(/^be\s+/i, '')}`.replace(/\s+/g, ' ').replace(/\?$/, '') + '?';
-            }
-
-            if (/^have\s+/i.test(predicate)) {
-                return `Does ${lowerCaseLeadingArticle(subject)} ${predicate}`.replace(/\s+/g, ' ').replace(/\?$/, '') + '?';
-            }
-
-            return `Does ${lowerCaseLeadingArticle(subject)} ${predicate}`.replace(/\s+/g, ' ').replace(/\?$/, '') + '?';
-        }
-
-        if (/^\s*(?:an?\s+)?ato\b/i.test(normalized)) {
-            return `Does the ATO ${normalized.replace(/^\s*(?:an?\s+)?ato\b/i, '').replace(/^\s+/, '')}`.replace(/\s+/g, ' ').replace(/\?$/, '') + '?';
-        }
-
-        return `Does the organisation ${normalized.replace(/\?$/, '')}`.replace(/\s+/g, ' ').replace(/\?$/, '') + '?';
     };
 
     const handleImport = () => {
@@ -195,10 +142,10 @@ export function ImportFromMatrixDialog({ complianceItems, onImport }: ImportFrom
                 id: uuidv4(),
                 title: getSectionTitle(root.item),
                 items: selectedRows.flatMap((row) => {
-                    const questionRows = splitQuestionRows(row);
-                    return questionRows.map((questionText, index) => ({
+                    const clauseRows = splitClauseRows(row);
+                    return clauseRows.map((clauseText, index) => ({
                         id: `${row.id}-${index}-${uuidv4()}`,
-                        text: makeAuditQuestionText(questionText),
+                        text: clauseText,
                         regulationReference: row.regulationCode,
                         companyReference: row.companyReference?.trim() || undefined,
                         responsibleManagerId: row.responsibleManagerId?.trim() || undefined,

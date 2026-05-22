@@ -621,6 +621,65 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
                                 ))}
                             </Accordion>
                         </div>
+
+                        <div className="border-t bg-background p-4 no-print">
+                            <Card className="border shadow-none">
+                                <CardHeader className="border-b bg-muted/10">
+                                    <CardTitle className="text-sm font-black uppercase tracking-tight">Assigned Sign-off</CardTitle>
+                                </CardHeader>
+                                <CardContent className="grid gap-6 pt-6 md:grid-cols-2">
+                                    <div className="space-y-3 rounded-xl border bg-muted/5 p-4">
+                                        <div className="space-y-1">
+                                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Assigned Auditor</p>
+                                            <p className="text-sm font-semibold">{getPersonnelDisplayName(personnel, audit.auditorId) || audit.auditorId}</p>
+                                        </div>
+                                        {audit.auditorSignoff ? (
+                                            <div className="rounded-lg border bg-background p-3 space-y-2">
+                                                <p className="text-sm font-semibold">{audit.auditorSignoff.signedByName}</p>
+                                                <img src={audit.auditorSignoff.signatureUrl} alt="Auditor signature" className="max-h-16 rounded border bg-white p-1" />
+                                                <p className="text-xs text-muted-foreground">Signed on {format(new Date(audit.auditorSignoff.signedAt), 'PPP p')}</p>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <SignaturePad onSignatureEnd={setAuditorSignatureDataUrl} initialDataUrl={auditorSignatureDataUrl} height={140} isReadOnly={!canAuditorSign} />
+                                                {!canAuditorSign && <p className="text-xs text-muted-foreground">Only the assigned auditor can sign here.</p>}
+                                                <div className="flex justify-end">
+                                                    <Button type="button" onClick={handleAuditorSignoff} disabled={!canAuditorSign || !auditorSignatureDataUrl}>
+                                                        Sign as Auditor
+                                                    </Button>
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+
+                                    <div className="space-y-3 rounded-xl border bg-muted/5 p-4">
+                                        <div className="space-y-1">
+                                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Assigned Auditee</p>
+                                            <p className="text-sm font-semibold">{auditeePerson ? `${auditeePerson.firstName} ${auditeePerson.lastName}` : 'Department or external organization'}</p>
+                                        </div>
+                                        {audit.auditeeSignoff ? (
+                                            <div className="rounded-lg border bg-background p-3 space-y-2">
+                                                <p className="text-sm font-semibold">{audit.auditeeSignoff.signedByName}</p>
+                                                <img src={audit.auditeeSignoff.signatureUrl} alt="Auditee signature" className="max-h-16 rounded border bg-white p-1" />
+                                                <p className="text-xs text-muted-foreground">Signed on {format(new Date(audit.auditeeSignoff.signedAt), 'PPP p')}</p>
+                                            </div>
+                                        ) : auditeePerson ? (
+                                            <>
+                                                <SignaturePad onSignatureEnd={setAuditeeSignatureDataUrl} initialDataUrl={auditeeSignatureDataUrl} height={140} isReadOnly={!canAuditeeSign} />
+                                                {!canAuditeeSign && <p className="text-xs text-muted-foreground">Only the assigned auditee can sign here.</p>}
+                                                <div className="flex justify-end">
+                                                    <Button type="button" onClick={handleAuditeeSignoff} disabled={!canAuditeeSign || !auditeeSignatureDataUrl}>
+                                                        Sign as Auditee
+                                                    </Button>
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <p className="text-xs text-muted-foreground">This audit target is a department or external organization, so a person-specific auditee signature is not required on this screen.</p>
+                                        )}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </div>
                     </ScrollArea>
                     
                     {!isReadOnly && (
@@ -653,65 +712,6 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
                             </div>
                         </div>
                     )}
-
-                    <div className="border-t bg-background p-4">
-                        <Card className="border shadow-none">
-                            <CardHeader className="border-b bg-muted/10">
-                                <CardTitle className="text-sm font-black uppercase tracking-tight">Assigned Sign-off</CardTitle>
-                            </CardHeader>
-                            <CardContent className="grid gap-6 pt-6 md:grid-cols-2">
-                                <div className="space-y-3 rounded-xl border bg-muted/5 p-4">
-                                    <div className="space-y-1">
-                                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Assigned Auditor</p>
-                                        <p className="text-sm font-semibold">{getPersonnelDisplayName(personnel, audit.auditorId) || audit.auditorId}</p>
-                                    </div>
-                                    {audit.auditorSignoff ? (
-                                        <div className="rounded-lg border bg-background p-3 space-y-2">
-                                            <p className="text-sm font-semibold">{audit.auditorSignoff.signedByName}</p>
-                                            <img src={audit.auditorSignoff.signatureUrl} alt="Auditor signature" className="max-h-16 rounded border bg-white p-1" />
-                                            <p className="text-xs text-muted-foreground">Signed on {format(new Date(audit.auditorSignoff.signedAt), 'PPP p')}</p>
-                                        </div>
-                                    ) : (
-                                        <>
-                                            <SignaturePad onSignatureEnd={setAuditorSignatureDataUrl} initialDataUrl={auditorSignatureDataUrl} height={140} isReadOnly={!canAuditorSign} />
-                                            {!canAuditorSign && <p className="text-xs text-muted-foreground">Only the assigned auditor can sign here.</p>}
-                                            <div className="flex justify-end">
-                                                <Button type="button" onClick={handleAuditorSignoff} disabled={!canAuditorSign || !auditorSignatureDataUrl}>
-                                                    Sign as Auditor
-                                                </Button>
-                                            </div>
-                                        </>
-                                    )}
-                                </div>
-
-                                <div className="space-y-3 rounded-xl border bg-muted/5 p-4">
-                                    <div className="space-y-1">
-                                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Assigned Auditee</p>
-                                        <p className="text-sm font-semibold">{auditeePerson ? `${auditeePerson.firstName} ${auditeePerson.lastName}` : 'Department or external organization'}</p>
-                                    </div>
-                                    {audit.auditeeSignoff ? (
-                                        <div className="rounded-lg border bg-background p-3 space-y-2">
-                                            <p className="text-sm font-semibold">{audit.auditeeSignoff.signedByName}</p>
-                                            <img src={audit.auditeeSignoff.signatureUrl} alt="Auditee signature" className="max-h-16 rounded border bg-white p-1" />
-                                            <p className="text-xs text-muted-foreground">Signed on {format(new Date(audit.auditeeSignoff.signedAt), 'PPP p')}</p>
-                                        </div>
-                                    ) : auditeePerson ? (
-                                        <>
-                                            <SignaturePad onSignatureEnd={setAuditeeSignatureDataUrl} initialDataUrl={auditeeSignatureDataUrl} height={140} isReadOnly={!canAuditeeSign} />
-                                            {!canAuditeeSign && <p className="text-xs text-muted-foreground">Only the assigned auditee can sign here.</p>}
-                                            <div className="flex justify-end">
-                                                <Button type="button" onClick={handleAuditeeSignoff} disabled={!canAuditeeSign || !auditeeSignatureDataUrl}>
-                                                    Sign as Auditee
-                                                </Button>
-                                            </div>
-                                        </>
-                                    ) : (
-                                        <p className="text-xs text-muted-foreground">This audit target is a department or external organization, so a person-specific auditee signature is not required on this screen.</p>
-                                    )}
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </div>
                 </form>
             </Form>
 

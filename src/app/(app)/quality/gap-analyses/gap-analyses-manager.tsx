@@ -1,7 +1,6 @@
 'use client';
 
 import { useMemo, useState, useEffect } from 'react';
-import { NewGapAnalysisDialog } from './new-gap-analysis-dialog';
 import { GapAnalysisTemplateCard } from './gap-analysis-template-card';
 import { Accordion } from '@/components/ui/accordion';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -11,6 +10,9 @@ import { MainPageHeader } from "@/components/page-header";
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useUserProfile } from '@/hooks/use-user-profile';
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
+import { HEADER_ACTION_BUTTON_CLASS, HEADER_MOBILE_ACTION_BUTTON_CLASS } from '@/components/page-header';
 import type { QualityAuditChecklistTemplate } from '@/types/quality';
 import type { Department } from '../../admin/department/page';
 import type { Personnel } from '../../users/personnel/page';
@@ -83,12 +85,17 @@ export default function GapAnalysesManager() {
     <div className={cn("max-w-[1100px] mx-auto w-full flex flex-col gap-4 px-1 pt-4", isMobile ? "min-h-0 overflow-y-auto" : "h-full overflow-hidden")}>
       <Card className={cn("flex flex-col shadow-none border", isMobile ? "min-h-0 overflow-visible" : "h-full overflow-hidden")}>
         <MainPageHeader 
-          title="Gap Analyses"
+          title="Gap Checklists"
+          description="Manage the checklist templates that feed the live gap analysis records."
           actions={
-            <NewGapAnalysisDialog
-                tenantId={tenantId || ''}
-                departments={departments || []}
-            />
+            <Button asChild variant={isMobile ? 'outline' : 'default'} className={isMobile ? HEADER_MOBILE_ACTION_BUTTON_CLASS : HEADER_ACTION_BUTTON_CLASS}>
+              <Link href="/quality/gap-analyses/template/new">
+                <span className="flex items-center gap-2">
+                  <span className="h-4 w-4">+</span>
+                  New Gap Analysis Template
+                </span>
+              </Link>
+            </Button>
           }
         />
         

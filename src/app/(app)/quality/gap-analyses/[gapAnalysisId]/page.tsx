@@ -7,8 +7,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { CheckCircle2 } from 'lucide-react';
 import { format } from 'date-fns';
 import type { QualityAudit, QualityAuditChecklistTemplate, CorrectiveActionPlan } from '@/types/quality';
-import { AuditChecklist } from './gap-analysis';
-import type { FindingLevelsSettings } from '@/app/(app)/admin/features/page';
+import { GapAnalysisChecklist } from './gap-analysis';
 import { Progress } from '@/components/ui/progress';
 import type { Personnel } from '@/app/(app)/users/personnel/page';
 import { useUserProfile } from '@/hooks/use-user-profile';
@@ -39,7 +38,6 @@ export default function GapAnalysisDetailPage({ params }: GapAnalysisDetailPageP
 
   const [audit, setAudit] = useState<QualityAudit | null>(null);
   const [template, setTemplate] = useState<QualityAuditChecklistTemplate | null>(null);
-  const [findingLevelsSettings, setFindingLevelsSettings] = useState<FindingLevelsSettings | null>(null);
   const [caps, setCaps] = useState<CorrectiveActionPlan[]>([]);
   const [personnel, setPersonnel] = useState<Personnel[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -49,7 +47,7 @@ export default function GapAnalysisDetailPage({ params }: GapAnalysisDetailPageP
     const load = async () => {
       try {
         const response = await fetch('/api/quality-gap-analyses', { cache: 'no-store' });
-        const payload = await response.json().catch(() => ({ audits: [], templates: [], caps: [], personnel: [], findingLevels: [] }));
+        const payload = await response.json().catch(() => ({ audits: [], templates: [], caps: [], personnel: [] }));
         const foundAudit = (payload.audits as QualityAudit[] | undefined)?.find(a => a.id === gapAnalysisId);
         if (!cancelled && foundAudit) {
             setAudit(foundAudit);
@@ -58,7 +56,6 @@ export default function GapAnalysisDetailPage({ params }: GapAnalysisDetailPageP
         }
         if (!cancelled) {
           setPersonnel(Array.isArray(payload.personnel) ? payload.personnel : []);
-          setFindingLevelsSettings(Array.isArray(payload.findingLevels) ? payload.findingLevels : null);
         }
       } catch (e) {
         console.error('Failed to load gap analysis details', e);
@@ -141,7 +138,7 @@ export default function GapAnalysisDetailPage({ params }: GapAnalysisDetailPageP
 
           {typeof audit.complianceScore === 'number' && (
             <div className="text-left md:text-right min-w-[200px]">
-              <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-1">Compliance Score</p>
+              <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest mb-1">Gap Resolution</p>
               <div className="flex items-center gap-3 justify-start md:justify-end">
                 <span className="text-3xl font-black text-primary">{audit.complianceScore}%</span>
                 <Progress value={audit.complianceScore} className="w-24 h-2" indicatorClassName={scoreColor} />
@@ -151,10 +148,9 @@ export default function GapAnalysisDetailPage({ params }: GapAnalysisDetailPageP
         </CardHeader>
 
         <CardContent className="flex-1 p-0 overflow-hidden bg-background">
-          <AuditChecklist 
+          <GapAnalysisChecklist 
               audit={enrichedAudit} 
               tenantId={tenantId!}
-              findingLevels={findingLevelsSettings?.levels || []}
               caps={caps || []}
               personnel={personnel || []}
           />

@@ -6,17 +6,16 @@ import { z } from 'zod';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import type { QualityAudit, QualityAuditChecklistTemplate, AuditChecklistItem, CorrectiveActionPlan } from '@/types/quality';
+import type { QualityAudit, QualityAuditChecklistTemplate, AuditChecklistItem, CorrectiveActionPlan, GapStatus } from '@/types/quality';
 import { DocumentUploader } from '../../../users/personnel/[id]/document-uploader';
 import { FileUp, Camera, Trash2, ZoomIn, Edit, Save, ShieldCheck } from 'lucide-react';
 import Image from 'next/image';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useMemo, useState } from 'react';
 import { format } from 'date-fns';
-import type { FindingLevel } from '@/app/(app)/admin/features/page';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { getPersonnelDisplayName } from '@/lib/personnel-label';
@@ -57,17 +56,9 @@ const formatAuditDate = (value?: string | null) => {
     }).format(date);
 };
 
-const defaultFindingLevels: FindingLevel[] = [
-    { id: 'obs', name: 'Observation', color: '#3b82f6', foregroundColor: '#ffffff' },
-    { id: 'lvl1', name: 'Level 1', color: '#ef4444', foregroundColor: '#ffffff' },
-    { id: 'lvl2', name: 'Level 2', color: '#f97316', foregroundColor: '#ffffff' },
-    { id: 'lvl3', name: 'Level 3', color: '#facc15', foregroundColor: '#000000' },
-];
-
-interface AuditChecklistProps {
+interface GapAnalysisChecklistProps {
   audit: EnrichedAudit;
   tenantId: string;
-  findingLevels: FindingLevel[];
   caps: CorrectiveActionPlan[];
   personnel: Personnel[];
 }
@@ -77,22 +68,26 @@ const evidenceSchema = z.object({
   description: z.string().min(1, 'Description is required.'),
 });
 
-const findingSchema = z.object({
+const gapFindingSchema = z.object({
   checklistItemId: z.string(),
-  finding: z.enum(['Compliant', 'Non Compliant', 'Not Applicable']),
-  comment: z.string().optional(),
-  suggestedImprovements: z.string().optional(),
-  level: z.string().optional(),
+  gapStatus: z.enum(['Open gap', 'Partial coverage', 'Covered', 'Unassessed', 'Not applicable']),
+  currentState: z.string().optional(),
+  desiredState: z.string().optional(),
+  gapDescription: z.string().optional(),
+  actionPlan: z.string().optional(),
+  ownerId: z.string().optional(),
+  targetDate: z.string().optional(),
+  notes: z.string().optional(),
   evidence: z.array(evidenceSchema).optional(),
 });
 
 const formSchema = z.object({
-  findings: z.array(findingSchema),
+  findings: z.array(gapFindingSchema),
 });
 
 type FormValues = z.infer<typeof formSchema>;
 
-export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel }: AuditChecklistProps) {
+export function GapAnalysisChecklist({ audit, tenantId, caps, personnel }: GapAnalysisChecklistProps) {
     const { toast } = useToast();
     const { hasPermission } = usePermissions();
     const { userProfile } = useUserProfile();
@@ -129,10 +124,21 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
         () => normalizedSections.length > 0 ? [normalizedSections[0].id] : [],
         [normalizedSections]
     );
-    const effectiveFindingLevels = findingLevels.length > 0 ? findingLevels : defaultFindingLevels;
     const canAuditorSign = !!userProfile?.id && userProfile.id === audit.auditorId;
     const auditeePerson = personnel.find((person) => person.id === audit.auditeeId) || null;
     const canAuditeeSign = !!userProfile?.id && !!auditeePerson && userProfile.id === audit.auditeeId;
+    const mapLegacyFindingToGapStatus = (finding?: string | null): GapStatus => {
+        switch (finding) {
+            case 'Compliant':
+                return 'Covered';
+            case 'Non Compliant':
+                return 'Open gap';
+            case 'Not Applicable':
+                return 'Not applicable';
+            default:
+                return 'Unassessed';
+        }
+    };
 
     const persistAudit = async (nextAudit: Partial<QualityAudit>, toastMessage?: { title: string; description: string }) => {
         const response = await fetch('/api/quality-gap-analyses', {
@@ -240,20 +246,32 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
         }
     };
 
+    const normalizedFindings: FormValues['findings'] = allChecklistItems.map((item) => {
+        const existingFinding = audit.findings.find((f) => f.checklistItemId === item.id);
+        const legacyFinding = existingFinding as {
+            finding?: string;
+            comment?: string;
+            suggestedImprovements?: string;
+        } | undefined;
+
+        return {
+            checklistItemId: item.id,
+            gapStatus: (existingFinding?.gapStatus as GapStatus | undefined) || mapLegacyFindingToGapStatus(legacyFinding?.finding),
+            currentState: existingFinding?.currentState ?? legacyFinding?.comment ?? '',
+            desiredState: existingFinding?.desiredState ?? legacyFinding?.suggestedImprovements ?? '',
+            gapDescription: existingFinding?.gapDescription ?? '',
+            actionPlan: existingFinding?.actionPlan ?? '',
+            ownerId: existingFinding?.ownerId ?? '',
+            targetDate: existingFinding?.targetDate ?? '',
+            notes: existingFinding?.notes ?? '',
+            evidence: existingFinding?.evidence ?? [],
+        };
+    });
+
     const form = useForm<FormValues>({
         resolver: zodResolver(formSchema),
         defaultValues: {
-            findings: allChecklistItems.map(item => {
-                const existingFinding = audit.findings.find(f => f.checklistItemId === item.id);
-                return existingFinding || { 
-                    checklistItemId: item.id, 
-                    finding: 'Compliant', 
-                    comment: '',
-                    suggestedImprovements: '',
-                    level: '',
-                    evidence: [] 
-                };
-            })
+            findings: normalizedFindings,
         },
     });
 
@@ -286,15 +304,8 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
 
     const onSubmit = async (values: FormValues) => {
         try {
-            const filledFindings = values.findings.map(f => {
-                if (f.finding === 'Not Applicable') {
-                     return { ...f, level: undefined };
-                }
-                return f;
-            });
-
             await persistAudit(
-                { findings: filledFindings },
+                { findings: values.findings },
                 { title: 'Findings Saved', description: 'Your gap analysis progress has been recorded.' }
             );
         } catch (error) {
@@ -308,22 +319,21 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
 
     const handleFinalizeAudit = async () => {
         const values = form.getValues();
-        const applicableItems = values.findings.filter(f => f.finding !== 'Not Applicable');
-        const compliantItems = applicableItems.filter(f => f.finding === 'Compliant');
-        const nonCompliantFindings = values.findings.filter(f => f.finding === 'Non Compliant');
+        const resolvedItems = values.findings.filter(f => f.gapStatus === 'Covered' || f.gapStatus === 'Not applicable');
+        const actionableItems = values.findings.filter(f => f.gapStatus === 'Open gap' || f.gapStatus === 'Partial coverage');
         
-        const complianceScore = applicableItems.length > 0
-            ? Math.round((compliantItems.length / applicableItems.length) * 100)
+        const coverageScore = values.findings.length > 0
+            ? Math.round((resolvedItems.length / values.findings.length) * 100)
             : 100;
 
         try {
             await persistAudit({
                 findings: values.findings,
                 status: 'Finalized' as const,
-                complianceScore,
+                complianceScore: coverageScore,
             });
 
-            const newCaps = nonCompliantFindings.map(finding => ({
+            const newCaps = actionableItems.map(finding => ({
                 id: crypto.randomUUID(),
                 auditId: audit.id,
                 findingId: finding.checklistItemId,
@@ -340,7 +350,7 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
             window.dispatchEvent(new Event('safeviate-quality-updated'));
             toast({
                 title: "Gap Analysis Finalized",
-                description: `Score: ${complianceScore}%. ${nonCompliantFindings.length} CAPs created.`
+                description: `Resolution: ${coverageScore}%. ${actionableItems.length} CAPs created.`
             });
 
         } catch (error) {
@@ -385,14 +395,8 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
         const hideTitle = options?.hideTitle ?? false;
         const showHeader = !hideTitle || !!item.regulationReference;
 
-        const findingType = form.watch(`findings.${itemIndex}.finding`);
+        const gapStatus = form.watch(`findings.${itemIndex}.gapStatus`);
         const evidence = form.watch(`findings.${itemIndex}.evidence`) || [];
-        
-        const selectedLevelName = form.watch(`findings.${itemIndex}.level`);
-        const selectedLevel = effectiveFindingLevels.find(l => l.name === selectedLevelName);
-        const observationLevel = effectiveFindingLevels.find(l => l.name === 'Observation');
-        const otherLevels = effectiveFindingLevels.filter(l => l.name !== 'Observation');
-        
         const cap = caps.find(c => c.findingId === item.id);
         const openActionsCount = cap?.actions?.filter(a => a.status === 'Open' || a.status === 'In Progress').length || 0;
         const responsibleLabel = item.responsibleManagerId
@@ -427,167 +431,202 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
                             ))}
                         </div>
                     )}
-                     <div className='flex flex-col md:flex-row md:items-center justify-between gap-4'>
-                        <div className="flex flex-wrap items-center gap-6">
-                            <FormField
-                                control={form.control}
-                                name={`findings.${itemIndex}.finding`}
-                                render={({ field }) => (
-                                    <FormItem className="space-y-0">
+                    <div className="grid grid-cols-1 gap-4 pt-4 border-t md:grid-cols-2">
+                        <FormField
+                            control={form.control}
+                            name={`findings.${itemIndex}.gapStatus`}
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Gap Status</FormLabel>
+                                    <Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}>
                                         <FormControl>
-                                            <RadioGroup
-                                            onValueChange={(value) => {
-                                                field.onChange(value);
-                                                form.setValue(`findings.${itemIndex}.level`, '');
-                                            }}
-                                            value={field.value}
-                                            className="flex flex-wrap gap-4"
-                                            disabled={isReadOnly}
-                                            >
-                                                {(['Compliant', 'Non Compliant', 'Not Applicable'] as const).map(value => (
-                                                    <FormItem key={value} className="flex items-center space-x-2 space-y-0">
-                                                        <FormControl><RadioGroupItem value={value} /></FormControl>
-                                                        <FormLabel className="font-bold text-[10px] uppercase tracking-wider cursor-pointer">{value}</FormLabel>
-                                                    </FormItem>
-                                                ))}
-                                            </RadioGroup>
+                                            <SelectTrigger className="h-9 text-[10px] font-black uppercase border-slate-300">
+                                                <SelectValue placeholder="Select status..." />
+                                            </SelectTrigger>
                                         </FormControl>
-                                    </FormItem>
-                                )}
-                            />
-
-                            {(findingType === 'Compliant' || findingType === 'Non Compliant') && (
-                                <FormField
-                                    control={form.control}
-                                    name={`findings.${itemIndex}.level`}
-                                    render={({ field }) => (
-                                        <FormItem className="space-y-0 flex items-center gap-3">
-                                            <FormLabel className="text-[10px] font-black uppercase text-muted-foreground tracking-widest whitespace-nowrap">Classification:</FormLabel>
-                                            <Select onValueChange={field.onChange} value={field.value || ''} disabled={isReadOnly}>
-                                                <FormControl>
-                                                    <SelectTrigger
-                                                        style={{
-                                                            backgroundColor: field.value ? selectedLevel?.color : undefined,
-                                                            color: field.value ? selectedLevel?.foregroundColor : undefined,
-                                                        }}
-                                                        className={cn("h-8 w-[160px] text-[10px] font-black uppercase border-slate-300", !field.value && 'text-muted-foreground')}
-                                                    >
-                                                        <SelectValue placeholder="Select level..." />
-                                                    </SelectTrigger>
-                                                </FormControl>
-                                                <SelectContent>
-                                                    {findingType === 'Compliant' && observationLevel && (
-                                                        <SelectItem value={observationLevel.name} className="text-[10px] font-black uppercase">{observationLevel.name}</SelectItem>
-                                                    )}
-                                                    {findingType === 'Non Compliant' && otherLevels.map(level => (
-                                                        <SelectItem key={level.id} value={level.name} className="text-[10px] font-black uppercase">
-                                                            {level.name}
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                        </FormItem>
-                                    )}
-                                />
+                                        <SelectContent>
+                                            {(['Open gap', 'Partial coverage', 'Covered', 'Unassessed', 'Not applicable'] as GapStatus[]).map((value) => (
+                                                <SelectItem key={value} value={value} className="text-[10px] font-black uppercase">
+                                                    {value}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </FormItem>
                             )}
-                        </div>
+                        />
 
-                        {findingType === 'Non Compliant' && audit.status !== 'Scheduled' && audit.status !== 'In Progress' && (
-                            <div className='flex items-center gap-2'>
-                                {cap ? (
-                                    <Badge variant={openActionsCount > 0 ? 'destructive' : 'default'} className="text-[9px] h-5 font-black uppercase">
-                                        {openActionsCount} Open Actions
-                                    </Badge>
-                                ) : (
-                                    <Badge variant="outline" className="text-[9px] h-5 font-black uppercase border-amber-300 bg-amber-50 text-amber-700">CAP Pending</Badge>
-                                )}
-                                  {canViewCaps ? (
-                                    <Button variant="outline" size="sm" onClick={() => handleOpenCapDialog(item.id, item.text)} className="h-7 text-[10px] font-black uppercase px-3 gap-1.5 border-slate-300">
-                                       <Edit className="h-3 w-3" />
-                                       Manage CAP
-                                    </Button>
-                                  ) : (
-                                    <Badge variant="outline" className="text-[9px] h-5 font-black uppercase border-slate-300 bg-slate-50 text-slate-600">CAP Access Required</Badge>
-                                  )}
-                            </div>
-                        )}
-                     </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
-                         <FormField control={form.control} name={`findings.${itemIndex}.comment`} render={({ field }) => (
-                             <FormItem>
-                                 <FormLabel className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Notes / Observations</FormLabel>
-                                 <FormControl><Textarea placeholder="Details about compliance status..." {...field} disabled={isReadOnly} className="min-h-[80px] text-sm font-medium bg-muted/5 border-slate-200" /></FormControl>
-                             </FormItem>
-                         )} />
-                         <FormField control={form.control} name={`findings.${itemIndex}.suggestedImprovements`} render={({ field }) => (
-                             <FormItem>
-                                 <FormLabel className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Suggested Improvements</FormLabel>
-                                 <FormControl><Textarea placeholder="Recommendations for performance..." {...field} disabled={isReadOnly} className="min-h-[80px] text-sm font-medium bg-muted/5 border-slate-200" /></FormControl>
-                             </FormItem>
-                         )} />
+                        <FormField
+                            control={form.control}
+                            name={`findings.${itemIndex}.ownerId`}
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Owner</FormLabel>
+                                    <Select onValueChange={field.onChange} value={field.value || ''} disabled={isReadOnly}>
+                                        <FormControl>
+                                            <SelectTrigger className="h-9 text-[10px] font-black uppercase border-slate-300">
+                                                <SelectValue placeholder="Assign owner..." />
+                                            </SelectTrigger>
+                                        </FormControl>
+                                        <SelectContent>
+                                            {personnel.map((person) => (
+                                                <SelectItem key={person.id} value={person.id} className="text-[10px] font-black uppercase">
+                                                    {getPersonnelDisplayName(personnel, person.id)}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </FormItem>
+                            )}
+                        />
                     </div>
 
-                    {(findingType === 'Compliant' || findingType === 'Non Compliant') && (
-                        <div className="pt-2 border-t">
-                            <div className="space-y-2">
-                                <div className="flex justify-between items-center">
-                                    <FormLabel className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Supporting Evidence</FormLabel>
-                                    {!isReadOnly && (
-                                        <div className="flex gap-2">
-                                            <DocumentUploader
-                                                restrictedMode="file"
-                                                onDocumentUploaded={(docDetails) => handleEvidenceUploaded(item.id, docDetails)}
-                                                trigger={(openDialog) => (
-                                                    <Button type="button" variant="outline" size="sm" className="h-7 px-3 text-[10px] font-black uppercase border-slate-300" onClick={() => openDialog('file')}>
-                                                        <FileUp className="mr-1.5 h-3.5 w-3.5" /> File
-                                                    </Button>
-                                                )}
-                                            />
-                                            <DocumentUploader
-                                                restrictedMode="camera"
-                                                onDocumentUploaded={(docDetails) => handleEvidenceUploaded(item.id, docDetails)}
-                                                trigger={(openDialog) => (
-                                                    <Button type="button" variant="outline" size="sm" className="h-7 px-3 text-[10px] font-black uppercase border-slate-300" onClick={() => openDialog('camera')}>
-                                                        <Camera className="mr-1.5 h-3.5 w-3.5" /> Photo
-                                                    </Button>
-                                                )}
-                                            />
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="flex flex-wrap gap-2 pt-1">
-                                    {evidence.map((ev, evidenceIndex) => (
-                                        <div key={evidenceIndex} className="flex items-center gap-3 p-2 border rounded-lg bg-muted/20 group">
-                                            <div className="relative h-10 w-10 flex-shrink-0">
-                                                <Image src={ev.url} alt="Evidence" fill className="rounded object-cover" />
-                                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer rounded" onClick={() => handleViewImage(ev.url)}>
-                                                    <ZoomIn className="h-4 w-4 text-white" />
-                                                </div>
-                                            </div>
-                                            <div className="flex-1 min-w-[100px] text-[10px] font-bold uppercase tracking-tight truncate">
-                                                {ev.description}
-                                            </div>
-                                            {!isReadOnly && (
-                                                <Button 
-                                                    type="button" 
-                                                    variant="ghost" 
-                                                    size="icon" 
-                                                    className="h-7 w-7 text-destructive opacity-0 group-hover:opacity-100" 
-                                                    onClick={() => {
-                                                        const newEvidence = [...evidence];
-                                                        newEvidence.splice(evidenceIndex, 1);
-                                                        form.setValue(`findings.${itemIndex}.evidence`, newEvidence);
-                                                    }}
-                                                >
-                                                    <Trash2 className="h-3.5 w-3.5" />
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <FormField
+                            control={form.control}
+                            name={`findings.${itemIndex}.currentState`}
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Current State</FormLabel>
+                                    <FormControl><Textarea placeholder="What exists now?" {...field} disabled={isReadOnly} className="min-h-[88px] text-sm font-medium bg-muted/5 border-slate-200" /></FormControl>
+                                </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name={`findings.${itemIndex}.desiredState`}
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Desired State</FormLabel>
+                                    <FormControl><Textarea placeholder="What should exist?" {...field} disabled={isReadOnly} className="min-h-[88px] text-sm font-medium bg-muted/5 border-slate-200" /></FormControl>
+                                </FormItem>
+                            )}
+                        />
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <FormField
+                            control={form.control}
+                            name={`findings.${itemIndex}.gapDescription`}
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Gap Description</FormLabel>
+                                    <FormControl><Textarea placeholder="Describe the gap or shortfall..." {...field} disabled={isReadOnly} className="min-h-[88px] text-sm font-medium bg-muted/5 border-slate-200" /></FormControl>
+                                </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name={`findings.${itemIndex}.actionPlan`}
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Action Plan</FormLabel>
+                                    <FormControl><Textarea placeholder="What will close the gap?" {...field} disabled={isReadOnly} className="min-h-[88px] text-sm font-medium bg-muted/5 border-slate-200" /></FormControl>
+                                </FormItem>
+                            )}
+                        />
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <FormField
+                            control={form.control}
+                            name={`findings.${itemIndex}.targetDate`}
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Target Date</FormLabel>
+                                    <FormControl><Input type="date" {...field} disabled={isReadOnly} className="h-9 text-sm font-medium bg-muted/5 border-slate-200" /></FormControl>
+                                </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name={`findings.${itemIndex}.notes`}
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Notes / References</FormLabel>
+                                    <FormControl><Textarea placeholder="Add context, references, or rationale..." {...field} disabled={isReadOnly} className="min-h-[88px] text-sm font-medium bg-muted/5 border-slate-200" /></FormControl>
+                                </FormItem>
+                            )}
+                        />
+                    </div>
+
+                    <div className="pt-2 border-t">
+                        <div className="space-y-2">
+                            <div className="flex justify-between items-center">
+                                <FormLabel className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Supporting Evidence / References</FormLabel>
+                                {!isReadOnly && (
+                                    <div className="flex gap-2">
+                                        <DocumentUploader
+                                            restrictedMode="file"
+                                            onDocumentUploaded={(docDetails) => handleEvidenceUploaded(item.id, docDetails)}
+                                            trigger={(openDialog) => (
+                                                <Button type="button" variant="outline" size="sm" className="h-7 px-3 text-[10px] font-black uppercase border-slate-300" onClick={() => openDialog('file')}>
+                                                    <FileUp className="mr-1.5 h-3.5 w-3.5" /> File
                                                 </Button>
                                             )}
-                                        </div>
-                                    ))}
-                                    {evidence.length === 0 && <p className="text-[10px] font-medium text-muted-foreground italic py-2">No evidence attached.</p>}
-                                </div>
+                                        />
+                                        <DocumentUploader
+                                            restrictedMode="camera"
+                                            onDocumentUploaded={(docDetails) => handleEvidenceUploaded(item.id, docDetails)}
+                                            trigger={(openDialog) => (
+                                                <Button type="button" variant="outline" size="sm" className="h-7 px-3 text-[10px] font-black uppercase border-slate-300" onClick={() => openDialog('camera')}>
+                                                    <Camera className="mr-1.5 h-3.5 w-3.5" /> Photo
+                                                </Button>
+                                            )}
+                                        />
+                                    </div>
+                                )}
                             </div>
+                            <div className="flex flex-wrap gap-2 pt-1">
+                                {evidence.map((ev, evidenceIndex) => (
+                                    <div key={evidenceIndex} className="flex items-center gap-3 p-2 border rounded-lg bg-muted/20 group">
+                                        <div className="relative h-10 w-10 flex-shrink-0">
+                                            <Image src={ev.url} alt="Evidence" fill className="rounded object-cover" />
+                                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer rounded" onClick={() => handleViewImage(ev.url)}>
+                                                <ZoomIn className="h-4 w-4 text-white" />
+                                            </div>
+                                        </div>
+                                        <div className="flex-1 min-w-[100px] text-[10px] font-bold uppercase tracking-tight truncate">
+                                            {ev.description}
+                                        </div>
+                                        {!isReadOnly && (
+                                            <Button 
+                                                type="button" 
+                                                variant="ghost" 
+                                                size="icon" 
+                                                className="h-7 w-7 text-destructive opacity-0 group-hover:opacity-100" 
+                                                onClick={() => {
+                                                    const newEvidence = [...evidence];
+                                                    newEvidence.splice(evidenceIndex, 1);
+                                                    form.setValue(`findings.${itemIndex}.evidence`, newEvidence);
+                                                }}
+                                            >
+                                                <Trash2 className="h-3.5 w-3.5" />
+                                            </Button>
+                                        )}
+                                    </div>
+                                ))}
+                                {evidence.length === 0 && <p className="text-[10px] font-medium text-muted-foreground italic py-2">No evidence attached.</p>}
+                            </div>
+                        </div>
+                    </div>
+                    {gapStatus !== 'Covered' && gapStatus !== 'Not applicable' && audit.status !== 'Scheduled' && audit.status !== 'In Progress' && (
+                        <div className='flex items-center justify-end gap-2 pt-2 border-t'>
+                            {cap ? (
+                                <Badge variant={openActionsCount > 0 ? 'destructive' : 'default'} className="text-[9px] h-5 font-black uppercase">
+                                    {openActionsCount} Open Actions
+                                </Badge>
+                            ) : (
+                                <Badge variant="outline" className="text-[9px] h-5 font-black uppercase border-amber-300 bg-amber-50 text-amber-700">CAP Pending</Badge>
+                            )}
+                            {canViewCaps ? (
+                                <Button variant="outline" size="sm" onClick={() => handleOpenCapDialog(item.id, item.text)} className="h-7 text-[10px] font-black uppercase px-3 gap-1.5 border-slate-300">
+                                    <Edit className="h-3 w-3" />
+                                    Manage CAP
+                                </Button>
+                            ) : (
+                                <Badge variant="outline" className="text-[9px] h-5 font-black uppercase border-slate-300 bg-slate-50 text-slate-600">CAP Access Required</Badge>
+                            )}
                         </div>
                     )}
                 </CardContent>
@@ -600,7 +639,7 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
             <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="h-full flex flex-col">
                     <ScrollArea className="flex-1 no-scrollbar">
-                        <div className="p-0">
+                        <div className="p-0 pb-6">
                             <Accordion type="multiple" defaultValue={defaultOpenSections} className="w-full">
                                 {normalizedSections.map((section) => (
                                     <AccordionItem key={section.id} value={section.id} className="border-b border-slate-200 last:border-b-0">
@@ -620,6 +659,65 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
                                     </AccordionItem>
                                 ))}
                             </Accordion>
+
+                            <div className="mt-4 border-t bg-background p-4">
+                                <Card className="border shadow-none">
+                                    <CardHeader className="border-b bg-muted/10">
+                                        <CardTitle className="text-sm font-black uppercase tracking-tight">Assigned Sign-off</CardTitle>
+                                    </CardHeader>
+                                    <CardContent className="grid gap-6 pt-6 md:grid-cols-2">
+                                        <div className="space-y-3 rounded-xl border bg-muted/5 p-4">
+                                            <div className="space-y-1">
+                                                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Assigned Analyst</p>
+                                                    <p className="text-sm font-semibold">{getPersonnelDisplayName(personnel, audit.auditorId) || audit.auditorId}</p>
+                                            </div>
+                                            {audit.auditorSignoff ? (
+                                                <div className="rounded-lg border bg-background p-3 space-y-2">
+                                                    <p className="text-sm font-semibold">{audit.auditorSignoff.signedByName}</p>
+                                                    <img src={audit.auditorSignoff.signatureUrl} alt="Analyst signature" className="max-h-16 rounded border bg-white p-1" />
+                                                    <p className="text-xs text-muted-foreground">Signed on {format(new Date(audit.auditorSignoff.signedAt), 'PPP p')}</p>
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    <SignaturePad onSignatureEnd={setAuditorSignatureDataUrl} initialDataUrl={auditorSignatureDataUrl} height={140} isReadOnly={!canAuditorSign} />
+                                                    {!canAuditorSign && <p className="text-xs text-muted-foreground">Only the assigned analyst can sign here.</p>}
+                                                    <div className="flex justify-end">
+                                                        <Button type="button" onClick={handleAuditorSignoff} disabled={!canAuditorSign || !auditorSignatureDataUrl}>
+                                                            Sign as Analyst
+                                                        </Button>
+                                                    </div>
+                                                </>
+                                            )}
+                                        </div>
+
+                                        <div className="space-y-3 rounded-xl border bg-muted/5 p-4">
+                                            <div className="space-y-1">
+                                                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Assigned Review Owner</p>
+                                                <p className="text-sm font-semibold">{auditeePerson ? `${auditeePerson.firstName} ${auditeePerson.lastName}` : 'Department or external organization'}</p>
+                                            </div>
+                                            {audit.auditeeSignoff ? (
+                                                <div className="rounded-lg border bg-background p-3 space-y-2">
+                                                    <p className="text-sm font-semibold">{audit.auditeeSignoff.signedByName}</p>
+                                                    <img src={audit.auditeeSignoff.signatureUrl} alt="Review owner signature" className="max-h-16 rounded border bg-white p-1" />
+                                                    <p className="text-xs text-muted-foreground">Signed on {format(new Date(audit.auditeeSignoff.signedAt), 'PPP p')}</p>
+                                                </div>
+                                            ) : auditeePerson ? (
+                                                <>
+                                                    <SignaturePad onSignatureEnd={setAuditeeSignatureDataUrl} initialDataUrl={auditeeSignatureDataUrl} height={140} isReadOnly={!canAuditeeSign} />
+                                                    {!canAuditeeSign && <p className="text-xs text-muted-foreground">Only the assigned review owner can sign here.</p>}
+                                                    <div className="flex justify-end">
+                                                        <Button type="button" onClick={handleAuditeeSignoff} disabled={!canAuditeeSign || !auditeeSignatureDataUrl}>
+                                                            Sign as Review Owner
+                                                        </Button>
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <p className="text-xs text-muted-foreground">This gap analysis target is a department or external organization, so a person-specific review owner signature is not required on this screen.</p>
+                                            )}
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            </div>
                         </div>
                     </ScrollArea>
                     
@@ -654,64 +752,7 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
                         </div>
                     )}
 
-                    <div className="border-t bg-background p-4">
-                        <Card className="border shadow-none">
-                            <CardHeader className="border-b bg-muted/10">
-                                <CardTitle className="text-sm font-black uppercase tracking-tight">Assigned Sign-off</CardTitle>
-                            </CardHeader>
-                            <CardContent className="grid gap-6 pt-6 md:grid-cols-2">
-                                <div className="space-y-3 rounded-xl border bg-muted/5 p-4">
-                                    <div className="space-y-1">
-                                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Assigned Analyst</p>
-                                            <p className="text-sm font-semibold">{getPersonnelDisplayName(personnel, audit.auditorId) || audit.auditorId}</p>
-                                    </div>
-                                    {audit.auditorSignoff ? (
-                                        <div className="rounded-lg border bg-background p-3 space-y-2">
-                                            <p className="text-sm font-semibold">{audit.auditorSignoff.signedByName}</p>
-                                            <img src={audit.auditorSignoff.signatureUrl} alt="Analyst signature" className="max-h-16 rounded border bg-white p-1" />
-                                            <p className="text-xs text-muted-foreground">Signed on {format(new Date(audit.auditorSignoff.signedAt), 'PPP p')}</p>
-                                        </div>
-                                    ) : (
-                                        <>
-                                            <SignaturePad onSignatureEnd={setAuditorSignatureDataUrl} initialDataUrl={auditorSignatureDataUrl} height={140} isReadOnly={!canAuditorSign} />
-                                            {!canAuditorSign && <p className="text-xs text-muted-foreground">Only the assigned analyst can sign here.</p>}
-                                            <div className="flex justify-end">
-                                                <Button type="button" onClick={handleAuditorSignoff} disabled={!canAuditorSign || !auditorSignatureDataUrl}>
-                                                    Sign as Analyst
-                                                </Button>
-                                            </div>
-                                        </>
-                                    )}
-                                </div>
-
-                                <div className="space-y-3 rounded-xl border bg-muted/5 p-4">
-                                    <div className="space-y-1">
-                                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Assigned Review Owner</p>
-                                        <p className="text-sm font-semibold">{auditeePerson ? `${auditeePerson.firstName} ${auditeePerson.lastName}` : 'Department or external organization'}</p>
-                                    </div>
-                                    {audit.auditeeSignoff ? (
-                                        <div className="rounded-lg border bg-background p-3 space-y-2">
-                                            <p className="text-sm font-semibold">{audit.auditeeSignoff.signedByName}</p>
-                                            <img src={audit.auditeeSignoff.signatureUrl} alt="Review owner signature" className="max-h-16 rounded border bg-white p-1" />
-                                            <p className="text-xs text-muted-foreground">Signed on {format(new Date(audit.auditeeSignoff.signedAt), 'PPP p')}</p>
-                                        </div>
-                                    ) : auditeePerson ? (
-                                        <>
-                                            <SignaturePad onSignatureEnd={setAuditeeSignatureDataUrl} initialDataUrl={auditeeSignatureDataUrl} height={140} isReadOnly={!canAuditeeSign} />
-                                            {!canAuditeeSign && <p className="text-xs text-muted-foreground">Only the assigned review owner can sign here.</p>}
-                                            <div className="flex justify-end">
-                                                <Button type="button" onClick={handleAuditeeSignoff} disabled={!canAuditeeSign || !auditeeSignatureDataUrl}>
-                                                    Sign as Review Owner
-                                                </Button>
-                                            </div>
-                                        </>
-                                    ) : (
-                                        <p className="text-xs text-muted-foreground">This gap analysis target is a department or external organization, so a person-specific review owner signature is not required on this screen.</p>
-                                    )}
-                                </div>
-                            </CardContent>
-                        </Card>
-                    </div>
+                    
                 </form>
             </Form>
 

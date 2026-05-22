@@ -28,7 +28,7 @@ async function getConfig(tenantId: string) {
 
 async function loadAudits(tenantId: string) {
   const rows = await prisma.$queryRawUnsafe<{ id: string; data: unknown }[]>(
-    `SELECT id, data FROM quality_gap_analyses WHERE tenant_id = $1 ORDER BY created_at DESC`,
+    `SELECT id, data FROM quality_audits WHERE tenant_id = $1 ORDER BY created_at DESC`,
     tenantId
   );
   return rows.map((row) => row.data);
@@ -50,6 +50,7 @@ export async function GET(request: Request) {
     if (!tenantId) return NextResponse.json({ audits: [], templates: [], personnel: [], departments: [], organizations: [], caps: [], findingLevels: [] }, { status: 200 });
 
     const [audits, caps, config] = await Promise.all([loadAudits(tenantId), loadCaps(tenantId), getConfig(tenantId)]);
+    const gapAnalyses = audits.filter((audit) => (audit as { analysisType?: string } | null)?.analysisType === 'gap-analysis');
     await recordSimulationRouteMetric({
       tenantId,
       routeKey: 'quality-gap-analyses.GET',
@@ -58,7 +59,7 @@ export async function GET(request: Request) {
       durationMs: Date.now() - startedAt,
     });
     return NextResponse.json({
-      audits,
+      audits: gapAnalyses,
       caps,
       templates: Array.isArray(config['quality-gap-analysis-templates']) ? config['quality-gap-analysis-templates'] : [],
       personnel: Array.isArray(config['personnel']) ? config['personnel'] : [],
@@ -94,14 +95,14 @@ export async function POST(request: Request) {
   const audit = body?.audit;
   if (!audit || typeof audit !== 'object') return NextResponse.json({ error: 'Invalid audit payload' }, { status: 400 });
   const id = audit.id || randomUUID();
-  const data = { ...audit, id } as QualityAudit;
+  const data = { ...audit, id, analysisType: 'gap-analysis' } as QualityAudit & { analysisType: 'gap-analysis' };
 
   if (actorId && typeof data.auditorId === 'string' && data.auditorId.trim() !== actorId) {
     return NextResponse.json({ error: 'Gap analyses must be created under the active signed-in analyst.' }, { status: 403 });
   }
 
   const existingRows = await prisma.$queryRawUnsafe<{ data: unknown; tenant_id: string }[]>(
-    `SELECT data, tenant_id FROM quality_gap_analyses WHERE id = $1 LIMIT 1`,
+    `SELECT data, tenant_id FROM quality_audits WHERE id = $1 LIMIT 1`,
     id
   );
   const existingRow = existingRows[0];
@@ -114,7 +115,7 @@ export async function POST(request: Request) {
   }
 
   await prisma.$executeRawUnsafe(
-    `INSERT INTO quality_gap_analyses (id, tenant_id, data, created_at, updated_at) VALUES ($1, $2, $3::jsonb, NOW(), NOW()) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
+    `INSERT INTO quality_audits (id, tenant_id, data, created_at, updated_at) VALUES ($1, $2, $3::jsonb, NOW(), NOW()) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
     id,
     tenantId,
     JSON.stringify(data)
@@ -136,7 +137,7 @@ export async function DELETE(request: Request) {
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
   if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 });
-  await prisma.$executeRawUnsafe(`DELETE FROM quality_gap_analyses WHERE id = $1 AND tenant_id = $2`, id, tenantId);
+  await prisma.$executeRawUnsafe(`DELETE FROM quality_audits WHERE id = $1 AND tenant_id = $2`, id, tenantId);
   await recordSimulationRouteMetric({
     tenantId,
     routeKey: 'quality-gap-analyses.DELETE',

@@ -63,6 +63,86 @@ const clearLastSubmenuByParent = (parentHref: string) => {
     lastSubmenuByParentMemory = rest;
 };
 
+const findSubItemByHref = (items: SubMenuItem[] | undefined, href: string): SubMenuItem | null => {
+    if (!items?.length) return null;
+
+    for (const item of items) {
+      if (item.href === href) return item;
+      const nested = findSubItemByHref(item.subItems, href);
+      if (nested) return nested;
+    }
+
+    return null;
+};
+
+const hasActiveDescendant = (items: SubMenuItem[] | undefined, currentPathname: string, normalizePath: (path: string) => string): boolean => {
+    if (!items?.length) return false;
+
+    return items.some((item) =>
+      normalizePath(currentPathname) === normalizePath(item.href) ||
+      hasActiveDescendant(item.subItems, currentPathname, normalizePath)
+    );
+};
+
+const renderNestedSubItems = (
+    items: SubMenuItem[],
+    currentPathname: string,
+    normalizePath: (path: string) => string,
+    onSelect: (href: string) => void,
+    selectedSubHref?: string
+) => (
+  <SidebarMenuSub className="mx-3 mb-1 mt-1 w-auto translate-x-0 gap-0.5 border-t-0 border-sidebar-border/25 px-2 py-0.5">
+    {items.map((subItem) => {
+      const nestedChildren = subItem.subItems?.filter(Boolean) || [];
+      const isActive =
+        normalizePath(currentPathname) === normalizePath(subItem.href) ||
+        selectedSubHref === subItem.href ||
+        hasActiveDescendant(subItem.subItems, currentPathname, normalizePath);
+
+      return (
+        <SidebarMenuSubItem key={subItem.href} className="border-b-0">
+          <div className="space-y-0.5">
+            <SidebarMenuSubButton
+              asChild
+              isActive={isActive}
+              className="h-9 w-full translate-x-0 rounded-md bg-transparent px-3.5 py-0 text-sm leading-none font-medium tracking-[-0.01em] text-sidebar-foreground/76 transition-[background-color,color] hover:bg-sidebar-accent/20 hover:text-sidebar-foreground focus-visible:bg-sidebar-accent/20 focus-visible:text-sidebar-foreground data-[active=true]:bg-sidebar-accent/20 data-[active=true]:font-semibold data-[active=true]:text-sidebar-foreground data-[active=true]:shadow-none data-[active=true]:hover:bg-sidebar-accent/20"
+            >
+              <Link
+                href={subItem.href}
+                prefetch={false}
+                onClick={() => onSelect(subItem.href)}
+              >
+                <span>{subItem.label}</span>
+              </Link>
+            </SidebarMenuSubButton>
+            {nestedChildren.length > 0 ? (
+              <SidebarMenuSub className="ml-4 gap-0.5 border-l border-sidebar-border/20 pl-2">
+                {nestedChildren.map((child) => (
+                  <SidebarMenuSubItem key={child.href} className="border-b-0">
+                    <SidebarMenuSubButton
+                      asChild
+                      isActive={normalizePath(currentPathname) === normalizePath(child.href) || selectedSubHref === child.href}
+                      className="h-8 w-full translate-x-0 rounded-md bg-transparent px-3 text-[11px] leading-none font-medium tracking-[-0.01em] text-sidebar-foreground/68 transition-[background-color,color] hover:bg-sidebar-accent/15 hover:text-sidebar-foreground focus-visible:bg-sidebar-accent/15 focus-visible:text-sidebar-foreground data-[active=true]:bg-sidebar-accent/15 data-[active=true]:font-semibold data-[active=true]:text-sidebar-foreground data-[active=true]:shadow-none data-[active=true]:hover:bg-sidebar-accent/15"
+                    >
+                      <Link
+                        href={child.href}
+                        prefetch={false}
+                        onClick={() => onSelect(child.href)}
+                      >
+                        <span>{child.label}</span>
+                      </Link>
+                    </SidebarMenuSubButton>
+                  </SidebarMenuSubItem>
+                ))}
+              </SidebarMenuSub>
+            ) : null}
+          </div>
+        </SidebarMenuSubItem>
+      );
+    })}
+  </SidebarMenuSub>
+);
+
 const SidebarItems = () => {
     const pathname = usePathname();
     const { setOpenMobile } = useSidebar();
@@ -142,9 +222,9 @@ const SidebarItems = () => {
                     ? (roleBasedUserSubItems.length > 0 ? roleBasedUserSubItems : item.subItems || [])
                     : item.subItems || [];
                 const subItems = configuredSubItems.filter((sub) => canAccessMenuItem(sub, item));
-                const activeSubItem = subItems.find((sub) => normalizePath(currentPathname) === normalizePath(sub.href));
+                const activeSubItem = findSubItemByHref(subItems, currentPathname);
                 const rememberedSubHref = lastSubmenuByParent[item.href];
-                const rememberedSubItem = subItems.find((sub) => sub.href === rememberedSubHref);
+                const rememberedSubItem = findSubItemByHref(subItems, rememberedSubHref || '');
                 const isOpen = openParents[item.href] ?? false;
                 const isDismissed = dismissedParents[item.href] ?? false;
                 const selectedSubItem = isDismissed ? null : (activeSubItem || (isOpen ? rememberedSubItem : null) || null);
@@ -181,30 +261,18 @@ const SidebarItems = () => {
                                 </SidebarMenuButton>
                             </SidebarCollapsibleTrigger>
                             <SidebarCollapsibleContent>
-                                <SidebarMenuSub className="mx-3 mb-1 mt-1 w-auto translate-x-0 gap-0.5 border-t-0 border-sidebar-border/25 px-2 py-0.5">
-                                    {subItems.map((subItem) => (
-                                        <SidebarMenuSubItem key={subItem.href} className="border-b-0">
-                                            <SidebarMenuSubButton
-                                              asChild
-                                              isActive={normalizePath(currentPathname) === normalizePath(subItem.href) || selectedSubItem?.href === subItem.href}
-                                              className="h-9 w-full translate-x-0 rounded-md bg-transparent px-3.5 py-0 text-sm leading-none font-medium tracking-[-0.01em] text-sidebar-foreground/76 transition-[background-color,color] hover:bg-sidebar-accent/20 hover:text-sidebar-foreground focus-visible:bg-sidebar-accent/20 focus-visible:text-sidebar-foreground data-[active=true]:bg-sidebar-accent/20 data-[active=true]:font-semibold data-[active=true]:text-sidebar-foreground data-[active=true]:shadow-none data-[active=true]:hover:bg-sidebar-accent/20"
-                                            >
-                                                <Link
-                                                  href={subItem.href}
-                                                  prefetch={false}
-                                                  onClick={() => {
-                                                    setOpenMobile(false);
-                                                    setLastSubmenuByParent(item.href, subItem.href);
-                                                    setDismissedParents((dismissed) => ({ ...dismissed, [item.href]: false }));
-                                                    setOpenParents((current) => ({ ...current, [item.href]: true }));
-                                                  }}
-                                                >
-                                                    <span>{subItem.label}</span>
-                                                </Link>
-                                            </SidebarMenuSubButton>
-                                        </SidebarMenuSubItem>
-                                    ))}
-                                </SidebarMenuSub>
+                                {renderNestedSubItems(
+                                  subItems,
+                                  currentPathname,
+                                  normalizePath,
+                                  (href) => {
+                                    setOpenMobile(false);
+                                    setLastSubmenuByParent(item.href, href);
+                                    setDismissedParents((dismissed) => ({ ...dismissed, [item.href]: false }));
+                                    setOpenParents((current) => ({ ...current, [item.href]: true }));
+                                  },
+                                  selectedSubItem?.href
+                                )}
                             </SidebarCollapsibleContent>
                         </SidebarCollapsible>
                     );

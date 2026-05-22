@@ -20,7 +20,16 @@ const findMenuEntry = (href: string): { item: MenuItem | SubMenuItem; parent?: M
     if (menu.href === href) {
       return { item: menu };
     }
-    const subItem = menu.subItems?.find((entry) => entry.href === href);
+    const findNested = (entries?: SubMenuItem[]): SubMenuItem | null => {
+      if (!entries?.length) return null;
+      for (const entry of entries) {
+        if (entry.href === href) return entry;
+        const nested = findNested(entry.subItems);
+        if (nested) return nested;
+      }
+      return null;
+    };
+    const subItem = findNested(menu.subItems);
     if (subItem) {
       return { item: subItem, parent: menu };
     }

@@ -31,7 +31,9 @@ async function loadAudits(tenantId: string) {
     `SELECT id, data FROM quality_audits WHERE tenant_id = $1 ORDER BY created_at DESC`,
     tenantId
   );
-  return rows.map((row) => row.data);
+  return rows
+    .map((row) => row.data)
+    .filter((audit) => (audit as { analysisType?: string } | null)?.analysisType !== 'gap-analysis');
 }
 
 async function loadCaps(tenantId: string) {

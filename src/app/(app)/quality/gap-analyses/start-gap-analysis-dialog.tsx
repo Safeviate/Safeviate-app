@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { cloneElement, isValidElement, type ReactElement, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -55,6 +55,7 @@ interface StartGapAnalysisDialogProps {
   personnel: Personnel[];
   departments: Department[];
   trigger?: React.ReactNode;
+  quickStart?: boolean;
 }
 
 export function StartGapAnalysisDialog({
@@ -63,6 +64,7 @@ export function StartGapAnalysisDialog({
   personnel,
   departments,
   trigger,
+  quickStart = false,
 }: StartGapAnalysisDialogProps) {
   const [isOpen, setIsOpen] = useState(false);
   const { userProfile } = useUserProfile();
@@ -94,7 +96,56 @@ export function StartGapAnalysisDialog({
     : 'Current user';
   const totalSections = template.sections.length;
   const totalItems = template.sections.reduce((count, section) => count + section.items.length, 0);
-  
+
+  const createAndOpenGapAnalysis = async (values: FormValues) => {
+    if (!userProfile) {
+      toast({ variant: 'destructive', title: 'Error', description: 'User session not found.' });
+      return;
+    }
+    setIsSubmitting(true);
+
+    try {
+      const auditsResponse = await fetch('/api/quality-gap-analyses', { cache: 'no-store' });
+      const auditsPayload = await auditsResponse.json().catch(() => ({ audits: [] }));
+      const auditsList = Array.isArray(auditsPayload.audits) ? (auditsPayload.audits as QualityAudit[]) : [];
+      const nextCount = auditsList.length + 1;
+      const newAuditNumber = `GA-${String(nextCount).padStart(4, '0')}`;
+
+      const isExternalOrg = organizations?.some((org) => org.id === values.auditeeId);
+      const createdId = crypto.randomUUID();
+      const newAuditData: QualityAudit = {
+        id: createdId,
+        templateId: template.id,
+        title: template.title,
+        auditNumber: newAuditNumber,
+        auditorId: userProfile.id,
+        auditeeId: values.auditeeId,
+        organizationId: isExternalOrg ? values.auditeeId : null,
+        scope: values.scope,
+        auditDate: toNoonUtcIso(values.auditDate),
+        status: 'Scheduled',
+        findings: [],
+      };
+
+      const response = await fetch('/api/quality-gap-analyses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ audit: newAuditData }),
+      });
+      if (!response.ok) throw new Error('Failed to save gap analysis');
+
+      setNewAuditId(createdId);
+      toast({ title: 'Gap Analysis Created', description: `Gap analysis ${newAuditNumber} is ready to open.` });
+
+      window.dispatchEvent(new Event('safeviate-gap-analyses-updated'));
+      setIsOpen(false);
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: 'Failed to start gap analysis', description: error.message });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   useEffect(() => {
     if (!isOpen && newAuditId) {
       router.push(`/quality/gap-analyses/${newAuditId}`);
@@ -104,56 +155,40 @@ export function StartGapAnalysisDialog({
 
 
   const onSubmit = async (values: FormValues) => {
+    void createAndOpenGapAnalysis(values);
+  };
+
+  const handleQuickStart = () => {
     if (!userProfile) {
       toast({ variant: 'destructive', title: 'Error', description: 'User session not found.' });
-        return;
+      return;
     }
-    setIsSubmitting(true);
-    
-    try {
-        const auditsResponse = await fetch('/api/quality-gap-analyses', { cache: 'no-store' });
-        const auditsPayload = await auditsResponse.json().catch(() => ({ audits: [] }));
-        const auditsList = Array.isArray(auditsPayload.audits) ? (auditsPayload.audits as QualityAudit[]) : [];
-        const nextCount = auditsList.length + 1;
-        const newAuditNumber = `GA-${String(nextCount).padStart(4, '0')}`;
 
-        // Detect if auditee is an external organization
-        const isExternalOrg = organizations?.some(org => org.id === values.auditeeId);
-
-        const createdId = crypto.randomUUID();
-        const newAuditData: QualityAudit = {
-            id: createdId,
-            templateId: template.id,
-            title: template.title,
-            auditNumber: newAuditNumber,
-            auditorId: userProfile.id,
-            auditeeId: values.auditeeId,
-            organizationId: isExternalOrg ? values.auditeeId : null,
-            scope: values.scope,
-            auditDate: toNoonUtcIso(values.auditDate),
-            status: 'Scheduled',
-            findings: [],
-        };
-
-        const response = await fetch('/api/quality-gap-analyses', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ audit: newAuditData }),
-        });
-        if (!response.ok) throw new Error('Failed to save gap analysis');
-        
-        setNewAuditId(createdId);
-        toast({ title: 'Gap Analysis Created', description: `Gap analysis ${newAuditNumber} is ready to open.` });
-        
-        window.dispatchEvent(new Event('safeviate-gap-analyses-updated'));
-        setIsOpen(false);
-
-    } catch (error: any) {
-        toast({ variant: 'destructive', title: 'Failed to start gap analysis', description: error.message });
-    } finally {
-        setIsSubmitting(false);
-    }
+    const defaultAuditeeId =
+      personnel.find((person) => person.id === userProfile.id || person.email?.toLowerCase() === userProfile.email?.toLowerCase())?.id
+      || personnel[0]?.id
+      || departments[0]?.id
+      || userProfile.id;
+    void createAndOpenGapAnalysis({
+      auditeeId: defaultAuditeeId,
+      scope: template.title,
+      auditDate: new Date(),
+    });
   };
+
+  if (quickStart) {
+    if (trigger && isValidElement(trigger)) {
+      return cloneElement(trigger as ReactElement<{ onClick?: () => void }>, {
+        onClick: handleQuickStart,
+      });
+    }
+
+    return (
+      <Button onClick={handleQuickStart}>
+        <PlayCircle className="mr-2 h-4 w-4" /> Start Gap Analysis
+      </Button>
+    );
+  }
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>

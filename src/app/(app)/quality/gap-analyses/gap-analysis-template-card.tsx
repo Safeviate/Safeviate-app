@@ -8,7 +8,6 @@ import {
 import { Card, CardDescription, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { FileText, Pencil, PlayCircle, Trash2, MoreHorizontal, ChevronsUpDown } from 'lucide-react';
-import { NewGapAnalysisDialog } from './new-gap-analysis-dialog';
 import { StartGapAnalysisDialog } from './start-gap-analysis-dialog';
 import { useToast } from '@/hooks/use-toast';
 import type { QualityAuditChecklistTemplate } from '@/types/quality';
@@ -17,6 +16,7 @@ import type { Personnel } from '../../users/personnel/page';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import { CARD_HEADER_BAND_CLASS, CARD_HEADER_ACTION_ZONE_CLASS } from '@/components/page-header';
+import Link from 'next/link';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -88,27 +88,11 @@ export function GapAnalysisTemplateCard({
                       align="end"
                       className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-[var(--radix-dropdown-menu-trigger-width)]"
                     >
-                      <StartGapAnalysisDialog
-                        template={template}
-                        tenantId={tenantId}
-                        personnel={personnel}
-                        departments={departments}
-                        trigger={
-                          <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="cursor-pointer">
-                            <PlayCircle className="mr-2 h-3.5 w-3.5" /> Start Gap Analysis
-                          </DropdownMenuItem>
-                        }
-                      />
-                      <NewGapAnalysisDialog
-                        existingTemplate={template}
-                        tenantId={tenantId}
-                        departments={departments}
-                        trigger={
-                          <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="cursor-pointer">
-                            <Pencil className="mr-2 h-3.5 w-3.5" /> Edit Template
-                          </DropdownMenuItem>
-                        }
-                      />
+                      <DropdownMenuItem asChild className="cursor-pointer">
+                        <Link href={`/quality/gap-analyses/template/${template.id}`}>
+                          <Pencil className="mr-2 h-3.5 w-3.5" /> Edit Template
+                        </Link>
+                      </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
                         className="cursor-pointer text-red-600"
@@ -120,26 +104,27 @@ export function GapAnalysisTemplateCard({
                   </DropdownMenu>
                 </div>
               </div>
-                            <CardDescription className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                                          <CardDescription className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
                 {template.sections.reduce((acc, section) => acc + section.items.length, 0)} items ·{' '}
                 {template.sections.length} sections
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3 pt-4">
               <div className="flex items-center gap-2 flex-wrap">
+                <StartGapAnalysisDialog
+                  template={template}
+                  tenantId={tenantId}
+                  personnel={personnel}
+                  departments={departments}
+                  quickStart
+                  trigger={
+                    <Button size="sm" className="h-8 flex-1 gap-1.5 text-[9px] font-black uppercase tracking-[0.08em]">
+                      <PlayCircle className="h-3.5 w-3.5" /> Start Gap Analysis
+                    </Button>
+                  }
+                />
                 {!isMobile ? (
                   <>
-                    <StartGapAnalysisDialog
-                      template={template}
-                      tenantId={tenantId}
-                      personnel={personnel}
-                      departments={departments}
-                      trigger={
-                        <Button size="sm" className="h-8 flex-1 gap-1.5 text-[9px] font-black uppercase tracking-[0.08em]">
-                          <PlayCircle className="h-3.5 w-3.5" /> Start Gap Analysis
-                        </Button>
-                      }
-                    />
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button
@@ -151,16 +136,11 @@ export function GapAnalysisTemplateCard({
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <NewGapAnalysisDialog
-                          existingTemplate={template}
-                          tenantId={tenantId}
-                          departments={departments}
-                          trigger={
-                            <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="cursor-pointer">
-                              <Pencil className="mr-2 h-3.5 w-3.5" /> Edit Template
-                            </DropdownMenuItem>
-                          }
-                        />
+                        <DropdownMenuItem asChild className="cursor-pointer">
+                          <Link href={`/quality/gap-analyses/template/${template.id}`}>
+                            <Pencil className="mr-2 h-3.5 w-3.5" /> Edit Template
+                          </Link>
+                        </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                           className="cursor-pointer text-red-600"
@@ -191,27 +171,11 @@ export function GapAnalysisTemplateCard({
                       align="end"
                       className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-[var(--radix-dropdown-menu-trigger-width)]"
                     >
-                      <StartGapAnalysisDialog
-                        template={template}
-                        tenantId={tenantId}
-                        personnel={personnel}
-                        departments={departments}
-                        trigger={
-                          <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="cursor-pointer">
-                            <PlayCircle className="mr-2 h-3.5 w-3.5" /> Start Gap Analysis
-                          </DropdownMenuItem>
-                        }
-                      />
-                      <NewGapAnalysisDialog
-                        existingTemplate={template}
-                        tenantId={tenantId}
-                        departments={departments}
-                        trigger={
-                          <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="cursor-pointer">
-                            <Pencil className="mr-2 h-3.5 w-3.5" /> Edit Template
-                          </DropdownMenuItem>
-                        }
-                      />
+                      <DropdownMenuItem asChild className="cursor-pointer">
+                        <Link href={`/quality/gap-analyses/template/${template.id}`}>
+                          <Pencil className="mr-2 h-3.5 w-3.5" /> Edit Template
+                        </Link>
+                      </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
                         className="cursor-pointer text-red-600"
