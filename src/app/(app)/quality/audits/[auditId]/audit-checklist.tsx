@@ -46,6 +46,8 @@ type EnrichedCorrectiveActionPlan = CorrectiveActionPlan & {
   findingDescription: string;
 };
 
+type AuditFindingValue = FormValues['findings'][number]['finding'];
+
 const formatAuditDate = (value?: string | null) => {
     if (!value) return '';
     const date = new Date(value);
@@ -133,6 +135,44 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
     const canAuditorSign = !!userProfile?.id && userProfile.id === audit.auditorId;
     const auditeePerson = personnel.find((person) => person.id === audit.auditeeId) || null;
     const canAuditeeSign = !!userProfile?.id && !!auditeePerson && userProfile.id === audit.auditeeId;
+
+    const getSectionGate = (sectionItems: AuditChecklistItem[], findings: FormValues['findings']) => {
+        if (sectionItems.length < 2) return null;
+
+        const gateItem = sectionItems[0];
+        const gateFinding = findings.find((finding) => finding.checklistItemId === gateItem.id)?.finding;
+
+        if (gateFinding !== 'Non Compliant' && gateFinding !== 'Not Applicable') {
+            return null;
+        }
+
+        return {
+            gateItemId: gateItem.id,
+            inheritedFinding: gateFinding as Exclude<AuditFindingValue, 'Compliant'>,
+        };
+    };
+
+    const cascadeSectionDependencies = (findings: FormValues['findings']) => {
+        const cascadedFindings = findings.map((finding) => ({ ...finding }));
+
+        normalizedSections.forEach((section) => {
+            const gate = getSectionGate(section.items, cascadedFindings);
+            if (!gate) return;
+
+            section.items.slice(1).forEach((item) => {
+                const itemIndex = cascadedFindings.findIndex((finding) => finding.checklistItemId === item.id);
+                if (itemIndex === -1) return;
+
+                cascadedFindings[itemIndex] = {
+                    ...cascadedFindings[itemIndex],
+                    finding: gate.inheritedFinding,
+                    level: undefined,
+                };
+            });
+        });
+
+        return cascadedFindings;
+    };
 
     const persistAudit = async (nextAudit: Partial<QualityAudit>, toastMessage?: { title: string; description: string }) => {
         const response = await fetch('/api/quality-audits', {
@@ -286,7 +326,7 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
 
     const onSubmit = async (values: FormValues) => {
         try {
-            const filledFindings = values.findings.map(f => {
+            const filledFindings = cascadeSectionDependencies(values.findings).map(f => {
                 if (f.finding === 'Not Applicable') {
                      return { ...f, level: undefined };
                 }
@@ -308,9 +348,10 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
 
     const handleFinalizeAudit = async () => {
         const values = form.getValues();
-        const applicableItems = values.findings.filter(f => f.finding !== 'Not Applicable');
+        const cascadedFindings = cascadeSectionDependencies(values.findings);
+        const applicableItems = cascadedFindings.filter(f => f.finding !== 'Not Applicable');
         const compliantItems = applicableItems.filter(f => f.finding === 'Compliant');
-        const nonCompliantFindings = values.findings.filter(f => f.finding === 'Non Compliant');
+        const nonCompliantFindings = cascadedFindings.filter(f => f.finding === 'Non Compliant');
         
         const complianceScore = applicableItems.length > 0
             ? Math.round((compliantItems.length / applicableItems.length) * 100)
@@ -318,7 +359,7 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
 
         try {
             await persistAudit({
-                findings: values.findings,
+                findings: cascadedFindings,
                 status: 'Finalized' as const,
                 complianceScore,
             });
@@ -379,17 +420,22 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
         });
     };
 
-    const renderChecklistItem = (item: AuditChecklistItem, options?: { hideTitle?: boolean }) => {
+    const renderChecklistItem = (item: AuditChecklistItem, options?: { hideTitle?: boolean; sectionItems?: AuditChecklistItem[] }) => {
         const itemIndex = form.getValues('findings').findIndex(f => f.checklistItemId === item.id);
         if (itemIndex === -1) return null;
         const hideTitle = options?.hideTitle ?? false;
         const showHeader = !hideTitle || !!item.regulationReference;
+        const sectionGate = options?.sectionItems ? getSectionGate(options.sectionItems, form.getValues('findings')) : null;
+        const isInheritedFinding = !!sectionGate && item.id !== sectionGate.gateItemId;
+        const inheritedFinding = sectionGate?.inheritedFinding;
 
         const findingType = form.watch(`findings.${itemIndex}.finding`);
+        const effectiveFindingType = isInheritedFinding && inheritedFinding ? inheritedFinding : findingType;
         const evidence = form.watch(`findings.${itemIndex}.evidence`) || [];
         
         const selectedLevelName = form.watch(`findings.${itemIndex}.level`);
-        const selectedLevel = effectiveFindingLevels.find(l => l.name === selectedLevelName);
+        const effectiveLevelName = isInheritedFinding ? '' : selectedLevelName;
+        const selectedLevel = effectiveFindingLevels.find(l => l.name === effectiveLevelName);
         const observationLevel = effectiveFindingLevels.find(l => l.name === 'Observation');
         const otherLevels = effectiveFindingLevels.filter(l => l.name !== 'Observation');
         
@@ -405,10 +451,23 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
         ].filter((chip): chip is { label: string; value: string } => !!chip && !!chip.value);
 
         return (
-            <Card key={item.id} className="mb-4 shadow-sm border-muted transition-colors hover:border-primary/20">
+            <Card
+                key={item.id}
+                className={cn(
+                    "mb-4 shadow-sm border-muted transition-colors hover:border-primary/20",
+                    isInheritedFinding && "border-dashed bg-muted/20 opacity-80 hover:border-muted"
+                )}
+            >
                 {showHeader && (
                     <CardHeader className="py-3 px-4 flex flex-row items-start justify-between gap-4">
-                        {!hideTitle ? <CardTitle className="text-sm font-bold uppercase tracking-tight">{item.text}</CardTitle> : <div />}
+                        <div className="flex flex-col gap-1">
+                            {!hideTitle ? <CardTitle className="text-sm font-bold uppercase tracking-tight">{item.text}</CardTitle> : <div />}
+                            {isInheritedFinding && (
+                                <Badge variant="outline" className="w-fit border-amber-300 bg-amber-50 text-[9px] font-black uppercase text-amber-700">
+                                    Inherited from prerequisite
+                                </Badge>
+                            )}
+                        </div>
                         {item.regulationReference && <Badge variant="outline" className="text-[9px] h-5 py-0 shrink-0 font-mono border-primary/20 bg-primary/5 text-primary">{item.regulationReference}</Badge>}
                     </CardHeader>
                 )}
@@ -440,9 +499,9 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
                                                 field.onChange(value);
                                                 form.setValue(`findings.${itemIndex}.level`, '');
                                             }}
-                                            value={field.value}
+                                            value={effectiveFindingType}
                                             className="flex flex-wrap gap-4"
-                                            disabled={isReadOnly}
+                                            disabled={isReadOnly || isInheritedFinding}
                                             >
                                                 {(['Compliant', 'Non Compliant', 'Not Applicable'] as const).map(value => (
                                                     <FormItem key={value} className="flex items-center space-x-2 space-y-0">
@@ -456,14 +515,14 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
                                 )}
                             />
 
-                            {(findingType === 'Compliant' || findingType === 'Non Compliant') && (
+                            {(effectiveFindingType === 'Compliant' || effectiveFindingType === 'Non Compliant') && (
                                 <FormField
                                     control={form.control}
                                     name={`findings.${itemIndex}.level`}
                                     render={({ field }) => (
                                         <FormItem className="space-y-0 flex items-center gap-3">
                                             <FormLabel className="text-[10px] font-black uppercase text-muted-foreground tracking-widest whitespace-nowrap">Classification:</FormLabel>
-                                            <Select onValueChange={field.onChange} value={field.value || ''} disabled={isReadOnly}>
+                                            <Select onValueChange={field.onChange} value={isInheritedFinding ? '' : (field.value || '')} disabled={isReadOnly || isInheritedFinding}>
                                                 <FormControl>
                                                     <SelectTrigger
                                                         style={{
@@ -476,10 +535,10 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
                                                     </SelectTrigger>
                                                 </FormControl>
                                                 <SelectContent>
-                                                    {findingType === 'Compliant' && observationLevel && (
+                                                    {effectiveFindingType === 'Compliant' && observationLevel && (
                                                         <SelectItem value={observationLevel.name} className="text-[10px] font-black uppercase">{observationLevel.name}</SelectItem>
                                                     )}
-                                                    {findingType === 'Non Compliant' && otherLevels.map(level => (
+                                                    {effectiveFindingType === 'Non Compliant' && otherLevels.map(level => (
                                                         <SelectItem key={level.id} value={level.name} className="text-[10px] font-black uppercase">
                                                             {level.name}
                                                         </SelectItem>
@@ -492,7 +551,7 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
                             )}
                         </div>
 
-                        {findingType === 'Non Compliant' && audit.status !== 'Scheduled' && audit.status !== 'In Progress' && (
+                        {effectiveFindingType === 'Non Compliant' && !isInheritedFinding && audit.status !== 'Scheduled' && audit.status !== 'In Progress' && (
                             <div className='flex items-center gap-2'>
                                 {cap ? (
                                     <Badge variant={openActionsCount > 0 ? 'destructive' : 'default'} className="text-[9px] h-5 font-black uppercase">
@@ -517,23 +576,23 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
                          <FormField control={form.control} name={`findings.${itemIndex}.comment`} render={({ field }) => (
                              <FormItem>
                                  <FormLabel className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Notes / Observations</FormLabel>
-                                 <FormControl><Textarea placeholder="Details about compliance status..." {...field} disabled={isReadOnly} className="min-h-[80px] text-sm font-medium bg-muted/5 border-slate-200" /></FormControl>
+                                 <FormControl><Textarea placeholder="Details about compliance status..." {...field} disabled={isReadOnly || isInheritedFinding} className="min-h-[80px] text-sm font-medium bg-muted/5 border-slate-200" /></FormControl>
                              </FormItem>
                          )} />
                          <FormField control={form.control} name={`findings.${itemIndex}.suggestedImprovements`} render={({ field }) => (
                              <FormItem>
                                  <FormLabel className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Suggested Improvements</FormLabel>
-                                 <FormControl><Textarea placeholder="Recommendations for performance..." {...field} disabled={isReadOnly} className="min-h-[80px] text-sm font-medium bg-muted/5 border-slate-200" /></FormControl>
+                                 <FormControl><Textarea placeholder="Recommendations for performance..." {...field} disabled={isReadOnly || isInheritedFinding} className="min-h-[80px] text-sm font-medium bg-muted/5 border-slate-200" /></FormControl>
                              </FormItem>
                          )} />
                     </div>
 
-                    {(findingType === 'Compliant' || findingType === 'Non Compliant') && (
+                    {(effectiveFindingType === 'Compliant' || effectiveFindingType === 'Non Compliant') && (
                         <div className="pt-2 border-t">
                             <div className="space-y-2">
                                 <div className="flex justify-between items-center">
                                     <FormLabel className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Supporting Evidence</FormLabel>
-                                    {!isReadOnly && (
+                                    {!isReadOnly && !isInheritedFinding && (
                                         <div className="flex gap-2">
                                             <DocumentUploader
                                                 restrictedMode="file"
@@ -568,7 +627,7 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
                                             <div className="flex-1 min-w-[100px] text-[10px] font-bold uppercase tracking-tight truncate">
                                                 {ev.description}
                                             </div>
-                                            {!isReadOnly && (
+                                            {!isReadOnly && !isInheritedFinding && (
                                                 <Button 
                                                     type="button" 
                                                     variant="ghost" 
@@ -614,7 +673,7 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
                                         </AccordionTrigger>
                                         <AccordionContent className="px-6 pb-6">
                                             <div className="space-y-4 pt-2">
-                                                {section.items.map((item) => renderChecklistItem(item, { hideTitle: section.usesTitleAsItem && item.text === section.title }))}
+                                                {section.items.map((item) => renderChecklistItem(item, { hideTitle: section.usesTitleAsItem && item.text === section.title, sectionItems: section.items }))}
                                             </div>
                                         </AccordionContent>
                                     </AccordionItem>

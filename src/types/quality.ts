@@ -77,6 +77,8 @@ export interface QualityFinding {
     checklistItemId: string;
     finding?: AuditFinding;
     gapStatus?: GapStatus;
+    companyReference?: string;
+    regulationReference?: string;
     currentState?: string;
     desiredState?: string;
     gapDescription?: string;

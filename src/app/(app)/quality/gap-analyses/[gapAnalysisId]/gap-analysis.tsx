@@ -9,7 +9,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import type { QualityAudit, QualityAuditChecklistTemplate, AuditChecklistItem, CorrectiveActionPlan, GapStatus } from '@/types/quality';
+import type { QualityAudit, QualityAuditChecklistTemplate, AuditChecklistItem, CorrectiveActionPlan, GapStatus, ComplianceRequirement } from '@/types/quality';
 import { DocumentUploader } from '../../../users/personnel/[id]/document-uploader';
 import { FileUp, Camera, Trash2, ZoomIn, Edit, Save, ShieldCheck } from 'lucide-react';
 import Image from 'next/image';
@@ -45,6 +45,8 @@ type EnrichedCorrectiveActionPlan = CorrectiveActionPlan & {
   findingDescription: string;
 };
 
+type GapFindingValue = FormValues['findings'][number]['gapStatus'];
+
 const formatAuditDate = (value?: string | null) => {
     if (!value) return '';
     const date = new Date(value);
@@ -71,6 +73,8 @@ const evidenceSchema = z.object({
 const gapFindingSchema = z.object({
   checklistItemId: z.string(),
   gapStatus: z.enum(['Open gap', 'Partial coverage', 'Covered', 'Unassessed', 'Not applicable']),
+  companyReference: z.string().optional(),
+  regulationReference: z.string().optional(),
   currentState: z.string().optional(),
   desiredState: z.string().optional(),
   gapDescription: z.string().optional(),
@@ -138,6 +142,97 @@ export function GapAnalysisChecklist({ audit, tenantId, caps, personnel }: GapAn
             default:
                 return 'Unassessed';
         }
+    };
+
+    const getSectionGate = (sectionItems: AuditChecklistItem[], findings: FormValues['findings']) => {
+        if (sectionItems.length < 2) return null;
+
+        const gateItem = sectionItems[0];
+        const gateStatus = findings.find((finding) => finding.checklistItemId === gateItem.id)?.gapStatus;
+
+        if (gateStatus === 'Not applicable') {
+            return {
+                gateItemId: gateItem.id,
+                inheritedGapStatus: gateStatus,
+            };
+        }
+
+        if (gateStatus !== 'Open gap' && gateStatus !== 'Partial coverage') {
+            return null;
+        }
+
+        return {
+            gateItemId: gateItem.id,
+            inheritedGapStatus: 'Open gap' as Exclude<GapFindingValue, 'Covered' | 'Unassessed' | 'Not applicable'>,
+        };
+    };
+
+    const cascadeSectionDependencies = (findings: FormValues['findings']) => {
+        const cascadedFindings = findings.map((finding) => ({ ...finding }));
+
+        normalizedSections.forEach((section) => {
+            const gate = getSectionGate(section.items, cascadedFindings);
+            if (!gate) return;
+
+            section.items.slice(1).forEach((item) => {
+                const itemIndex = cascadedFindings.findIndex((finding) => finding.checklistItemId === item.id);
+                if (itemIndex === -1) return;
+
+                cascadedFindings[itemIndex] = {
+                    ...cascadedFindings[itemIndex],
+                    gapStatus: gate.inheritedGapStatus,
+                };
+            });
+        });
+
+        return cascadedFindings;
+    };
+
+    const syncCompanyReferencesToMatrix = async (findings: FormValues['findings']) => {
+        const response = await fetch('/api/compliance-matrix', { cache: 'no-store' });
+        if (!response.ok) {
+            throw new Error('Failed to load coherence matrix for reference sync.');
+        }
+
+        const payload = await response.json().catch(() => ({ items: [] }));
+        const matrixItems = Array.isArray(payload.items) ? (payload.items as ComplianceRequirement[]) : [];
+        const byRegulationCode = new Map<string, ComplianceRequirement>(
+            matrixItems
+                .map((item) => [String(item?.regulationCode || '').trim(), item] as const)
+                .filter(([code]) => !!code)
+        );
+
+        const updates = findings
+            .map((finding) => {
+                const regulationCode = finding.regulationReference?.trim() || '';
+                const companyReference = finding.companyReference?.trim() || '';
+                if (!regulationCode || !companyReference) return null;
+
+                const matrixItem = byRegulationCode.get(regulationCode);
+                if (!matrixItem) return null;
+
+                if ((matrixItem.companyReference || '').trim() === companyReference) {
+                    return null;
+                }
+
+                return {
+                    ...matrixItem,
+                    companyReference,
+                };
+            })
+            .filter((item): item is ComplianceRequirement => !!item);
+
+        if (updates.length === 0) return;
+
+        await Promise.all(
+            updates.map((item) =>
+                fetch('/api/compliance-matrix', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ item }),
+                })
+            )
+        );
     };
 
     const persistAudit = async (nextAudit: Partial<QualityAudit>, toastMessage?: { title: string; description: string }) => {
@@ -257,6 +352,8 @@ export function GapAnalysisChecklist({ audit, tenantId, caps, personnel }: GapAn
         return {
             checklistItemId: item.id,
             gapStatus: (existingFinding?.gapStatus as GapStatus | undefined) || mapLegacyFindingToGapStatus(legacyFinding?.finding),
+            companyReference: existingFinding?.companyReference ?? item.companyReference ?? '',
+            regulationReference: existingFinding?.regulationReference ?? item.regulationReference ?? '',
             currentState: existingFinding?.currentState ?? legacyFinding?.comment ?? '',
             desiredState: existingFinding?.desiredState ?? legacyFinding?.suggestedImprovements ?? '',
             gapDescription: existingFinding?.gapDescription ?? '',
@@ -304,10 +401,20 @@ export function GapAnalysisChecklist({ audit, tenantId, caps, personnel }: GapAn
 
     const onSubmit = async (values: FormValues) => {
         try {
+            const cascadedFindings = cascadeSectionDependencies(values.findings);
             await persistAudit(
-                { findings: values.findings },
+                { findings: cascadedFindings },
                 { title: 'Findings Saved', description: 'Your gap analysis progress has been recorded.' }
             );
+            try {
+                await syncCompanyReferencesToMatrix(cascadedFindings);
+            } catch (syncError) {
+                console.warn('Failed to sync gap company references to matrix', syncError);
+                toast({
+                    title: 'Saved with Matrix Sync Warning',
+                    description: 'The gap analysis was saved, but the coherence matrix references could not be updated.',
+                });
+            }
         } catch (error) {
             toast({
                 variant: 'destructive',
@@ -319,8 +426,9 @@ export function GapAnalysisChecklist({ audit, tenantId, caps, personnel }: GapAn
 
     const handleFinalizeAudit = async () => {
         const values = form.getValues();
-        const resolvedItems = values.findings.filter(f => f.gapStatus === 'Covered' || f.gapStatus === 'Not applicable');
-        const actionableItems = values.findings.filter(f => f.gapStatus === 'Open gap' || f.gapStatus === 'Partial coverage');
+        const cascadedFindings = cascadeSectionDependencies(values.findings);
+        const resolvedItems = cascadedFindings.filter(f => f.gapStatus === 'Covered' || f.gapStatus === 'Not applicable');
+        const actionableItems = cascadedFindings.filter(f => f.gapStatus === 'Open gap' || f.gapStatus === 'Partial coverage');
         
         const coverageScore = values.findings.length > 0
             ? Math.round((resolvedItems.length / values.findings.length) * 100)
@@ -328,10 +436,19 @@ export function GapAnalysisChecklist({ audit, tenantId, caps, personnel }: GapAn
 
         try {
             await persistAudit({
-                findings: values.findings,
+                findings: cascadedFindings,
                 status: 'Finalized' as const,
                 complianceScore: coverageScore,
             });
+            try {
+                await syncCompanyReferencesToMatrix(cascadedFindings);
+            } catch (syncError) {
+                console.warn('Failed to sync gap company references to matrix', syncError);
+                toast({
+                    title: 'Finalized with Matrix Sync Warning',
+                    description: 'The gap analysis was finalized, but some coherence matrix references could not be updated.',
+                });
+            }
 
             const newCaps = actionableItems.map(finding => ({
                 id: crypto.randomUUID(),
@@ -389,30 +506,42 @@ export function GapAnalysisChecklist({ audit, tenantId, caps, personnel }: GapAn
         });
     };
 
-    const renderChecklistItem = (item: AuditChecklistItem, options?: { hideTitle?: boolean }) => {
+    const renderChecklistItem = (item: AuditChecklistItem, options?: { hideTitle?: boolean; sectionItems?: AuditChecklistItem[] }) => {
         const itemIndex = form.getValues('findings').findIndex(f => f.checklistItemId === item.id);
         if (itemIndex === -1) return null;
         const hideTitle = options?.hideTitle ?? false;
         const showHeader = !hideTitle || !!item.regulationReference;
+        const sectionGate = options?.sectionItems ? getSectionGate(options.sectionItems, form.getValues('findings')) : null;
+        const isInheritedFinding = !!sectionGate && item.id !== sectionGate.gateItemId;
+        const inheritedGapStatus = sectionGate?.inheritedGapStatus;
 
         const gapStatus = form.watch(`findings.${itemIndex}.gapStatus`);
+        const effectiveGapStatus = isInheritedFinding && inheritedGapStatus ? inheritedGapStatus : gapStatus;
         const evidence = form.watch(`findings.${itemIndex}.evidence`) || [];
         const cap = caps.find(c => c.findingId === item.id);
         const openActionsCount = cap?.actions?.filter(a => a.status === 'Open' || a.status === 'In Progress').length || 0;
-        const responsibleLabel = item.responsibleManagerId
-            ? getPersonnelDisplayName(personnel, item.responsibleManagerId)
-            : '';
         const metadataChips = [
-            item.companyReference ? { label: 'Manual ref', value: item.companyReference } : null,
-            responsibleLabel ? { label: 'Responsible', value: responsibleLabel } : null,
             item.nextAuditDate ? { label: 'Next audit date', value: formatAuditDate(item.nextAuditDate) } : null,
         ].filter((chip): chip is { label: string; value: string } => !!chip && !!chip.value);
 
         return (
-            <Card key={item.id} className="mb-4 shadow-sm border-muted transition-colors hover:border-primary/20">
+            <Card
+                key={item.id}
+                className={cn(
+                    "mb-4 shadow-sm border-muted transition-colors hover:border-primary/20",
+                    isInheritedFinding && "border-dashed bg-muted/20 opacity-80 hover:border-muted"
+                )}
+            >
                 {showHeader && (
                     <CardHeader className="py-3 px-4 flex flex-row items-start justify-between gap-4">
-                        {!hideTitle ? <CardTitle className="text-sm font-bold uppercase tracking-tight">{item.text}</CardTitle> : <div />}
+                        <div className="flex flex-col gap-1">
+                            {!hideTitle ? <CardTitle className="text-sm font-bold uppercase tracking-tight">{item.text}</CardTitle> : <div />}
+                            {isInheritedFinding && (
+                                <Badge variant="outline" className="w-fit border-amber-300 bg-amber-50 text-[9px] font-black uppercase text-amber-700">
+                                    Inherited from prerequisite
+                                </Badge>
+                            )}
+                        </div>
                         {item.regulationReference && <Badge variant="outline" className="text-[9px] h-5 py-0 shrink-0 font-mono border-primary/20 bg-primary/5 text-primary">{item.regulationReference}</Badge>}
                     </CardHeader>
                 )}
@@ -431,6 +560,19 @@ export function GapAnalysisChecklist({ audit, tenantId, caps, personnel }: GapAn
                             ))}
                         </div>
                     )}
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <FormField
+                            control={form.control}
+                            name={`findings.${itemIndex}.companyReference`}
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Reference for Matrix</FormLabel>
+                                    <FormControl><Input placeholder="Reference or reason to sync back to the matrix..." {...field} disabled={isReadOnly} className="h-9 text-sm font-medium bg-muted/5 border-slate-200" /></FormControl>
+                                    <p className="text-[10px] text-muted-foreground">This value updates the coherence matrix reference for the matching regulation.</p>
+                                </FormItem>
+                            )}
+                        />
+                    </div>
                     <div className="grid grid-cols-1 gap-4 pt-4 border-t md:grid-cols-2">
                         <FormField
                             control={form.control}
@@ -438,7 +580,7 @@ export function GapAnalysisChecklist({ audit, tenantId, caps, personnel }: GapAn
                             render={({ field }) => (
                                 <FormItem>
                                     <FormLabel className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Gap Status</FormLabel>
-                                    <Select onValueChange={field.onChange} value={field.value} disabled={isReadOnly}>
+                                    <Select onValueChange={field.onChange} value={effectiveGapStatus} disabled={isReadOnly || isInheritedFinding}>
                                         <FormControl>
                                             <SelectTrigger className="h-9 text-[10px] font-black uppercase border-slate-300">
                                                 <SelectValue placeholder="Select status..." />
@@ -462,7 +604,7 @@ export function GapAnalysisChecklist({ audit, tenantId, caps, personnel }: GapAn
                             render={({ field }) => (
                                 <FormItem>
                                     <FormLabel className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Owner</FormLabel>
-                                    <Select onValueChange={field.onChange} value={field.value || ''} disabled={isReadOnly}>
+                                    <Select onValueChange={field.onChange} value={field.value || ''} disabled={isReadOnly || isInheritedFinding}>
                                         <FormControl>
                                             <SelectTrigger className="h-9 text-[10px] font-black uppercase border-slate-300">
                                                 <SelectValue placeholder="Assign owner..." />
@@ -488,7 +630,7 @@ export function GapAnalysisChecklist({ audit, tenantId, caps, personnel }: GapAn
                             render={({ field }) => (
                                 <FormItem>
                                     <FormLabel className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Current State</FormLabel>
-                                    <FormControl><Textarea placeholder="What exists now?" {...field} disabled={isReadOnly} className="min-h-[88px] text-sm font-medium bg-muted/5 border-slate-200" /></FormControl>
+                                    <FormControl><Textarea placeholder="What exists now?" {...field} disabled={isReadOnly || isInheritedFinding} className="min-h-[88px] text-sm font-medium bg-muted/5 border-slate-200" /></FormControl>
                                 </FormItem>
                             )}
                         />
@@ -498,7 +640,7 @@ export function GapAnalysisChecklist({ audit, tenantId, caps, personnel }: GapAn
                             render={({ field }) => (
                                 <FormItem>
                                     <FormLabel className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Desired State</FormLabel>
-                                    <FormControl><Textarea placeholder="What should exist?" {...field} disabled={isReadOnly} className="min-h-[88px] text-sm font-medium bg-muted/5 border-slate-200" /></FormControl>
+                                    <FormControl><Textarea placeholder="What should exist?" {...field} disabled={isReadOnly || isInheritedFinding} className="min-h-[88px] text-sm font-medium bg-muted/5 border-slate-200" /></FormControl>
                                 </FormItem>
                             )}
                         />
@@ -511,7 +653,7 @@ export function GapAnalysisChecklist({ audit, tenantId, caps, personnel }: GapAn
                             render={({ field }) => (
                                 <FormItem>
                                     <FormLabel className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Gap Description</FormLabel>
-                                    <FormControl><Textarea placeholder="Describe the gap or shortfall..." {...field} disabled={isReadOnly} className="min-h-[88px] text-sm font-medium bg-muted/5 border-slate-200" /></FormControl>
+                                    <FormControl><Textarea placeholder="Describe the gap or shortfall..." {...field} disabled={isReadOnly || isInheritedFinding} className="min-h-[88px] text-sm font-medium bg-muted/5 border-slate-200" /></FormControl>
                                 </FormItem>
                             )}
                         />
@@ -521,7 +663,7 @@ export function GapAnalysisChecklist({ audit, tenantId, caps, personnel }: GapAn
                             render={({ field }) => (
                                 <FormItem>
                                     <FormLabel className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Action Plan</FormLabel>
-                                    <FormControl><Textarea placeholder="What will close the gap?" {...field} disabled={isReadOnly} className="min-h-[88px] text-sm font-medium bg-muted/5 border-slate-200" /></FormControl>
+                                    <FormControl><Textarea placeholder="What will close the gap?" {...field} disabled={isReadOnly || isInheritedFinding} className="min-h-[88px] text-sm font-medium bg-muted/5 border-slate-200" /></FormControl>
                                 </FormItem>
                             )}
                         />
@@ -534,7 +676,7 @@ export function GapAnalysisChecklist({ audit, tenantId, caps, personnel }: GapAn
                             render={({ field }) => (
                                 <FormItem>
                                     <FormLabel className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Target Date</FormLabel>
-                                    <FormControl><Input type="date" {...field} disabled={isReadOnly} className="h-9 text-sm font-medium bg-muted/5 border-slate-200" /></FormControl>
+                                    <FormControl><Input type="date" {...field} disabled={isReadOnly || isInheritedFinding} className="h-9 text-sm font-medium bg-muted/5 border-slate-200" /></FormControl>
                                 </FormItem>
                             )}
                         />
@@ -544,7 +686,7 @@ export function GapAnalysisChecklist({ audit, tenantId, caps, personnel }: GapAn
                             render={({ field }) => (
                                 <FormItem>
                                     <FormLabel className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Notes / References</FormLabel>
-                                    <FormControl><Textarea placeholder="Add context, references, or rationale..." {...field} disabled={isReadOnly} className="min-h-[88px] text-sm font-medium bg-muted/5 border-slate-200" /></FormControl>
+                                    <FormControl><Textarea placeholder="Add context, references, or rationale..." {...field} disabled={isReadOnly || isInheritedFinding} className="min-h-[88px] text-sm font-medium bg-muted/5 border-slate-200" /></FormControl>
                                 </FormItem>
                             )}
                         />
@@ -554,7 +696,7 @@ export function GapAnalysisChecklist({ audit, tenantId, caps, personnel }: GapAn
                         <div className="space-y-2">
                             <div className="flex justify-between items-center">
                                 <FormLabel className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Supporting Evidence / References</FormLabel>
-                                {!isReadOnly && (
+                                {!isReadOnly && !isInheritedFinding && (
                                     <div className="flex gap-2">
                                         <DocumentUploader
                                             restrictedMode="file"
@@ -610,7 +752,7 @@ export function GapAnalysisChecklist({ audit, tenantId, caps, personnel }: GapAn
                             </div>
                         </div>
                     </div>
-                    {gapStatus !== 'Covered' && gapStatus !== 'Not applicable' && audit.status !== 'Scheduled' && audit.status !== 'In Progress' && (
+                    {effectiveGapStatus !== 'Covered' && effectiveGapStatus !== 'Not applicable' && !isInheritedFinding && audit.status !== 'Scheduled' && audit.status !== 'In Progress' && (
                         <div className='flex items-center justify-end gap-2 pt-2 border-t'>
                             {cap ? (
                                 <Badge variant={openActionsCount > 0 ? 'destructive' : 'default'} className="text-[9px] h-5 font-black uppercase">
@@ -653,7 +795,7 @@ export function GapAnalysisChecklist({ audit, tenantId, caps, personnel }: GapAn
                                         </AccordionTrigger>
                                         <AccordionContent className="px-6 pb-6">
                                             <div className="space-y-4 pt-2">
-                                                {section.items.map((item) => renderChecklistItem(item, { hideTitle: section.usesTitleAsItem && item.text === section.title }))}
+                                                {section.items.map((item) => renderChecklistItem(item, { hideTitle: section.usesTitleAsItem && item.text === section.title, sectionItems: section.items }))}
                                             </div>
                                         </AccordionContent>
                                     </AccordionItem>
