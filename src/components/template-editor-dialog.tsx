@@ -435,22 +435,35 @@ export function TemplateEditorDialog({
             <Separator />
 
             <div>
-              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4">
-                <h3 className="text-lg font-medium mb-2 sm:mb-0">Sections</h3>
-                <div className="flex flex-wrap gap-2 justify-end sm:justify-start">
-                  {renderSectionActions({
-                    complianceItems,
-                    onAiGeneratedSections: handleAiGeneratedSections,
-                    onImportFromMatrix: handleImportFromMatrix,
-                  })}
+              <div className="mb-4 rounded-xl border bg-muted/20 p-4">
+                <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold">Creation methods</h3>
+                    <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                      Start from scratch, import from the matrix, import from gap analyses, or generate with AI.
+                    </p>
+                  </div>
+                  <span className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
+                    4 ways to build
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 gap-2 lg:grid-cols-4">
                   <Button
                     type="button"
                     variant="outline"
                     onClick={() => appendSection({ id: crypto.randomUUID(), title: '', items: [] })}
-                    className="w-full sm:w-auto"
+                    className="h-10 justify-start gap-2 border-[hsl(var(--header-button-border))] bg-[hsl(var(--header-button-background))] px-3 text-[10px] font-black uppercase shadow-none hover:bg-[hsl(var(--header-button-hover))]"
                   >
-                    <PlusCircle className="mr-2 h-4 w-4" /> Add Section
+                    <PlusCircle className="h-4 w-4" />
+                    Manual Creation
                   </Button>
+                  <div className="contents">
+                    {renderSectionActions({
+                      complianceItems,
+                      onAiGeneratedSections: handleAiGeneratedSections,
+                      onImportFromMatrix: handleImportFromMatrix,
+                    })}
+                  </div>
                 </div>
               </div>
               {sectionFields.map((section, index) => (

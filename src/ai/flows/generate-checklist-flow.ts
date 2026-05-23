@@ -5,6 +5,7 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { v4 as uuidv4 } from 'uuid';
+import { extractChecklistSource } from '@/ai/flows/extract-checklist-source-flow';
 
 const checklistItemSchema = z.object({
   id: z.string(),
@@ -37,17 +38,56 @@ export async function generateChecklist(input: GenerateChecklistInput): Promise<
     return generateChecklistFlow(input);
 }
 
+const normalizeDocumentText = (text: string) => {
+    const lines = text.split(/\r?\n/);
+    const normalizedLines = lines.map((line) => {
+        const trimmed = line.trimEnd();
+        if (!trimmed.trim()) return '';
+
+        const looksLikeTableRow = /[\t|]/.test(trimmed) || /\S(?:\s{2,}\S)+/.test(trimmed);
+        if (!looksLikeTableRow) {
+            return trimmed;
+        }
+
+        const cells = trimmed
+            .replace(/\s*\|\s*/g, '\t')
+            .split(/\t|\s{2,}/)
+            .map((cell) => cell.trim())
+            .filter(Boolean);
+
+        return cells.length >= 2 ? cells.join(' | ') : trimmed;
+    });
+
+    return normalizedLines.join('\n');
+};
+
 const prompt = ai.definePrompt({
     name: 'generateChecklistPrompt',
     input: { schema: GenerateChecklistInputSchema },
     output: { schema: GenerateChecklistOutputSchema },
-    prompt: `You are an expert in aviation compliance and operations. Your task is to analyze the provided document content (which could be text or an image) and extract a structured audit checklist.
+    prompt: `You are an expert checklist extraction assistant. Your task is to analyze the provided document content (which could be text or an image) and extract a structured checklist from it.
 
-Identify the main sections and then list all the individual clause lines or checkable items within each section. For each item, determine the most appropriate type: 'Checkbox' (for yes/no or confirmation tasks), 'Textbox' (for free-text notes), 'Number' (for numerical input), or 'Date'. If a regulation is referenced, extract it.
+The source may be a traditional regulation clause list, a table, a bulleted checklist, or normal narrative paragraphs. Identify the main sections first, then list all individual checklist items within each section.
 
-Preserve the source wording exactly. Do not rewrite statements into questions, do not paraphrase, and do not combine multiple numbered or bulleted clauses into a single item. Each clause, bullet, or line should become its own item if it appears as a distinct entry in the source.
+For tables:
+- Treat each meaningful row as a potential item.
+- If a row has a left-hand label or requirement code and a right-hand description, preserve the wording and combine them into one item only if that is how the source presents the requirement.
+- If a table row contains multiple distinct obligations, split them into separate items.
 
-Structure the output into an array of sections, where each section has a title and an array of items. Each item must have an id (generate a new UUID for it), text, type, and an optional regulationReference. The item text should match the source line as closely as possible, with only surrounding whitespace trimmed.
+For paragraphs:
+- Split a paragraph into separate items when the source clearly contains multiple obligations, bullets, numbered clauses, or semi-colon separated requirements.
+- Preserve the original wording and order as closely as possible.
+
+For all source types:
+- Do not rewrite statements into questions.
+- Do not paraphrase.
+- Do not merge multiple numbered, bulleted, or clearly separate requirements into one item.
+- Preserve the source wording exactly, with only surrounding whitespace trimmed.
+- If a reference or code is present, extract it into regulationReference.
+
+For each item, determine the most appropriate type: 'Checkbox' (for yes/no or confirmation tasks), 'Textbox' (for free-text notes), 'Number' (for numerical input), or 'Date'. Default to 'Checkbox' if unsure.
+
+Structure the output into an array of sections, where each section has a title and an array of items. Each item must have an id (generate a new UUID for it), text, type, and an optional regulationReference.
 
 Analyze the following document and extract the checklist:
 
@@ -70,7 +110,36 @@ const generateChecklistFlow = ai.defineFlow(
     outputSchema: GenerateChecklistOutputSchema,
   },
   async (input) => {
-    const { output } = await prompt(input);
+    let sourceText = input.document.text?.trim() || '';
+    let sourceImage = input.document.image;
+
+    if (input.document.image) {
+      try {
+        const extracted = await extractChecklistSource({
+          document: {
+            text: input.document.text,
+            image: input.document.image,
+          },
+        });
+
+        if (extracted.transcript.trim()) {
+          sourceText = extracted.transcript;
+          sourceImage = undefined;
+        }
+      } catch (error) {
+        console.error('Checklist source transcription failed, falling back to direct extraction.', error);
+      }
+    }
+
+    const normalizedInput: GenerateChecklistInput = {
+      document: {
+        ...input.document,
+        text: sourceText ? normalizeDocumentText(sourceText) : input.document.text,
+        image: sourceImage,
+      },
+    };
+
+    const { output } = await prompt(normalizedInput);
     
     if (!output) {
       return { sections: [] };

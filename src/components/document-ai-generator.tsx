@@ -110,12 +110,31 @@ export function DocumentAiGenerator({ onGenerated, labels }: DocumentAiGenerator
 
   const handleProcess = async () => {
     if (file) {
+      const isImageFile = file.type.startsWith('image/');
       const reader = new FileReader();
       reader.onload = async (e) => {
-        const text = e.target?.result as string;
-        await processAndSave({ text });
+        const result = e.target?.result;
+        if (isImageFile && typeof result === 'string') {
+          await processAndSave({ image: result });
+          return;
+        }
+
+        if (typeof result === 'string') {
+          await processAndSave({ text: result });
+          return;
+        }
+
+        toast({
+          variant: 'destructive',
+          title: 'Unsupported File',
+          description: 'Please upload an image or plain text file.',
+        });
       };
-      reader.readAsText(file);
+      if (isImageFile) {
+        reader.readAsDataURL(file);
+      } else {
+        reader.readAsText(file);
+      }
     } else if (pastedText) {
       await processAndSave({ text: pastedText });
     } else if (pastedImage) {
@@ -155,8 +174,11 @@ export function DocumentAiGenerator({ onGenerated, labels }: DocumentAiGenerator
           <TabsContent value="file" className="pt-4">
             <div className="space-y-2">
               <Label htmlFor="reg-file">{labels.fileLabel}</Label>
-              <Input id="reg-file" type="file" onChange={handleFileChange} />
+              <Input id="reg-file" type="file" accept="image/*,.txt,.md,.csv,.rtf" onChange={handleFileChange} />
               {file && <p className="text-sm text-muted-foreground">Selected: {file.name}</p>}
+              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">
+                Image files are OCR-transcribed first. Text files are read directly.
+              </p>
             </div>
           </TabsContent>
           <TabsContent value="image" className="pt-4">
@@ -173,6 +195,9 @@ export function DocumentAiGenerator({ onGenerated, labels }: DocumentAiGenerator
                 </div>
               )}
             </div>
+            <p className="mt-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">
+              Pasted images are OCR-transcribed before checklist extraction.
+            </p>
           </TabsContent>
         </Tabs>
         <DialogFooter>

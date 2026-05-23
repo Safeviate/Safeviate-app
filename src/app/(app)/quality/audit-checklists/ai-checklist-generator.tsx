@@ -14,8 +14,8 @@ export function AiChecklistGenerator({ onGenerated }: AiChecklistGeneratorProps)
       labels={{
         triggerLabel: 'Generate with AI',
         dialogTitle: 'Generate Checklist with AI',
-        dialogDescription: 'Upload a file, paste text, or paste an image of a checklist. The AI will parse it into sections and items.',
-        textPlaceholder: 'Paste the raw text of the checklist here...',
+        dialogDescription: 'Upload a file, paste text, or paste an image of a checklist, table, or paragraph-based document. The AI will parse it into sections and items.',
+        textPlaceholder: 'Paste the raw text, table content, or checklist paragraphs here...',
         fileLabel: 'Checklist File (.txt, etc.)',
         imageAlt: 'Pasted checklist',
         noImageLabel: 'Click here and paste an image (Ctrl+V)',

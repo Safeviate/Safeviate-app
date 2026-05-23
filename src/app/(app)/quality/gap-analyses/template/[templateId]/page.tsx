@@ -12,6 +12,7 @@ import type { Department } from '../../../../admin/department/page';
 import { useUserProfile } from '@/hooks/use-user-profile';
 import { AiGapAnalysisGenerator } from '../../ai-gap-analysis-generator';
 import { ImportFromMatrixDialog } from '../../import-from-matrix-dialog';
+import { ImportFromGapAnalysesDialog } from '../../import-from-gap-analyses-dialog';
 
 export default function GapAnalysisTemplateEditorPage() {
   const { isLoading, isAllowed } = useTenantRouteAccess({ href: '/quality/gap-analyses' });
@@ -94,6 +95,7 @@ export default function GapAnalysisTemplateEditorPage() {
       renderSectionActions={({ complianceItems, onAiGeneratedSections, onImportFromMatrix }) => (
         <>
           <ImportFromMatrixDialog complianceItems={complianceItems} onImport={onImportFromMatrix} />
+          <ImportFromGapAnalysesDialog onImport={onImportFromMatrix} />
           <AiGapAnalysisGenerator onGenerated={onAiGeneratedSections} />
         </>
       )}

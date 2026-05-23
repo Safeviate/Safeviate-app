@@ -13,15 +13,15 @@ export function AiGapAnalysisGenerator({ onGenerated }: AiGapAnalysisGeneratorPr
       onGenerated={onGenerated}
       labels={{
         triggerLabel: 'Generate with AI',
-        dialogTitle: 'Generate Gap Analysis with AI',
-        dialogDescription: 'Upload a file, paste text, or paste an image of a gap analysis source. The AI will parse it into sections and items.',
-        textPlaceholder: 'Paste the raw text of the gap analysis source here...',
-        fileLabel: 'Gap Analysis File (.txt, etc.)',
-        imageAlt: 'Pasted gap analysis source',
+        dialogTitle: 'Generate Checklist with AI',
+        dialogDescription: 'Upload a file, paste text, or paste an image of a checklist, table, or paragraph-based document. The AI will parse it into sections and items.',
+        textPlaceholder: 'Paste the raw text, table content, or checklist paragraphs here...',
+        fileLabel: 'Checklist File (.txt, etc.)',
+        imageAlt: 'Pasted checklist',
         noImageLabel: 'Click here and paste an image (Ctrl+V)',
-        emptyTitle: 'No Gap Analysis Found',
-        emptyDescription: 'The AI could not identify a gap analysis in the document.',
-        generateButtonLabel: 'Generate Gap Analysis',
+        emptyTitle: 'No Checklist Found',
+        emptyDescription: 'The AI could not identify a checklist in the document.',
+        generateButtonLabel: 'Generate Checklist',
         processingLabel: 'Processing...',
       }}
     />

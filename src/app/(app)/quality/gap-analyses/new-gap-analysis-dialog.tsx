@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { TemplateEditorDialog } from '@/components/template-editor-dialog';
 import { AiGapAnalysisGenerator } from './ai-gap-analysis-generator';
 import { ImportFromMatrixDialog } from './import-from-matrix-dialog';
+import { ImportFromGapAnalysesDialog } from './import-from-gap-analyses-dialog';
 import type { QualityAuditChecklistTemplate } from '@/types/quality';
 import type { Department } from '../../admin/department/page';
 
@@ -39,6 +40,7 @@ export function NewGapAnalysisDialog({
       renderSectionActions={({ complianceItems, onAiGeneratedSections, onImportFromMatrix }) => (
         <>
           <ImportFromMatrixDialog complianceItems={complianceItems} onImport={onImportFromMatrix} />
+          <ImportFromGapAnalysesDialog onImport={onImportFromMatrix} />
           <AiGapAnalysisGenerator onGenerated={onAiGeneratedSections} />
         </>
       )}
