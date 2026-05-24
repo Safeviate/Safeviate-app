@@ -58,12 +58,12 @@ export function GapAnalysisTemplateCard({
   };
 
   return (
-    <AccordionItem value={category}>
+    <AccordionItem value={category} className="border-b-0">
       <AccordionTrigger className="text-xl font-semibold">{category}</AccordionTrigger>
       <AccordionContent className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
         {templates.map((template) => (
           <Card key={template.id} className="flex flex-col overflow-hidden border border-card-border shadow-none">
-            <CardHeader className={cn(CARD_HEADER_BAND_CLASS, 'space-y-2')}>
+            <CardHeader className={cn(CARD_HEADER_BAND_CLASS, 'border-b-0 space-y-2')}>
               <div className="flex items-start justify-between gap-3">
                 <CardTitle className="flex items-center gap-2 text-sm font-black tracking-tight">
                   <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />

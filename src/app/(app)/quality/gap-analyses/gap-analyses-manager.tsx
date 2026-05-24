@@ -6,13 +6,12 @@ import { Accordion } from '@/components/ui/accordion';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { MainPageHeader, CARD_HEADER_BAND_CLASS, HEADER_ACTION_BUTTON_CLASS } from "@/components/page-header";
+import { MainPageHeader, CARD_HEADER_BAND_CLASS, HEADER_ACTION_BUTTON_CLASS, HEADER_COMPACT_CONTROL_CLASS } from "@/components/page-header";
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useUserProfile } from '@/hooks/use-user-profile';
-import { ResponsiveTabRow } from '@/components/responsive-tab-row';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { HEADER_MOBILE_ACTION_BUTTON_CLASS } from '@/components/page-header';
 import type { QualityAuditChecklistTemplate } from '@/types/quality';
@@ -22,7 +21,6 @@ import type { Personnel } from '../../users/personnel/page';
 export default function GapAnalysesManager() {
   const { tenantId } = useUserProfile();
   const isMobile = useIsMobile();
-  const router = useRouter();
   const pathname = usePathname();
   const activeTab = pathname?.startsWith('/quality/gap-analyses/analyses') ? 'analyses' : 'checklists';
 
@@ -103,17 +101,22 @@ export default function GapAnalysesManager() {
           }
         />
         <div className={CARD_HEADER_BAND_CLASS}>
-          <ResponsiveTabRow
-            value={activeTab}
-            onValueChange={(value) => router.push(value === 'analyses' ? '/quality/gap-analyses/analyses' : '/quality/gap-analyses')}
-            options={[
-              { value: 'checklists', label: 'Gap Checklists' },
-              { value: 'analyses', label: 'Gap Analyses' },
-            ]}
-            placeholder="Gap section"
-            centerTabs
-            className="px-3 py-2 border-b border-card-border/70 bg-muted/5 shrink-0 md:px-4"
-          />
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <Button
+              asChild
+              variant={activeTab === 'checklists' ? 'default' : 'outline'}
+              className={HEADER_COMPACT_CONTROL_CLASS}
+            >
+              <Link href="/quality/gap-analyses">Gap Checklists</Link>
+            </Button>
+            <Button
+              asChild
+              variant={activeTab === 'analyses' ? 'default' : 'outline'}
+              className={HEADER_COMPACT_CONTROL_CLASS}
+            >
+              <Link href="/quality/gap-analyses/analyses">Gap Analyses</Link>
+            </Button>
+          </div>
         </div>
         <CardContent className={cn("flex-1 p-0 bg-muted/5", isMobile ? "overflow-y-auto" : "overflow-hidden")}>
           <ScrollArea className={cn(isMobile ? "h-auto" : "h-full")}>

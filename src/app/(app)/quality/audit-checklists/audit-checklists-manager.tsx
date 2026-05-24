@@ -7,7 +7,7 @@ import { Accordion } from '@/components/ui/accordion';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { MainPageHeader, CARD_HEADER_BAND_CLASS, HEADER_ACTION_BUTTON_CLASS, HEADER_SECONDARY_BUTTON_CLASS } from "@/components/page-header";
+import { MainPageHeader, CARD_HEADER_BAND_CLASS, HEADER_COMPACT_CONTROL_CLASS } from "@/components/page-header";
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useUserProfile } from '@/hooks/use-user-profile';
@@ -100,14 +100,14 @@ export default function AuditChecklistsManager() {
             <Button
               asChild
               variant={activeTab === 'checklists' ? 'default' : 'outline'}
-              className={activeTab === 'checklists' ? HEADER_ACTION_BUTTON_CLASS : HEADER_SECONDARY_BUTTON_CLASS}
+              className={HEADER_COMPACT_CONTROL_CLASS}
             >
               <Link href="/quality/audit-checklists">Audit Checklists</Link>
             </Button>
             <Button
               asChild
               variant={activeTab === 'audits' ? 'default' : 'outline'}
-              className={activeTab === 'audits' ? HEADER_ACTION_BUTTON_CLASS : HEADER_SECONDARY_BUTTON_CLASS}
+              className={HEADER_COMPACT_CONTROL_CLASS}
             >
               <Link href="/quality/audits">Audits</Link>
             </Button>
