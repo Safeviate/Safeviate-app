@@ -21,7 +21,6 @@ import { OrganizationTabsRow, ResponsiveTabRow } from '@/components/responsive-t
 import { DeleteActionButton, ViewActionButton } from '@/components/record-action-buttons';
 import { HEADER_ACTION_BUTTON_CLASS, HEADER_MOBILE_ACTION_BUTTON_CLASS } from '@/components/page-header';
 import { ResponsiveCardGrid } from '@/components/responsive-card-grid';
-import { usePathname, useRouter } from 'next/navigation';
 
 import type { QualityAudit, ExternalOrganization } from '@/types/quality';
 import type { Department } from '../../admin/department/page';
@@ -149,8 +148,6 @@ function AuditsTable({ audits, tenantId }: AuditsTableProps) {
 
 export default function AuditsPage() {
     const { tenantId } = useUserProfile();
-    const router = useRouter();
-    const pathname = usePathname();
     const { scopedOrganizationId, shouldShowOrganizationTabs } = useOrganizationScope({ viewAllPermissionId: 'quality-audits-view-all' });
     const { isPageEnabled, isSectionEnabled, isTabEnabled } = usePageLayout('audits');
     const isMobile = useIsMobile();
@@ -162,7 +159,6 @@ export default function AuditsPage() {
     const [departments, setDepartments] = useState<Department[]>([]);
   const [organizations, setOrganizations] = useState<ExternalOrganization[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-    const activeSectionTab = pathname?.startsWith('/quality/audit-checklists') ? 'checklists' : 'audits';
 
     const loadData = async () => {
         try {
@@ -367,17 +363,6 @@ export default function AuditsPage() {
 
     return (
         <div className="max-w-[1100px] mx-auto w-full flex flex-col gap-6 h-full overflow-hidden px-1 pt-4">
-            <ResponsiveTabRow
-                value={activeSectionTab}
-                onValueChange={(value) => router.push(value === 'checklists' ? '/quality/audit-checklists' : '/quality/audits')}
-                options={[
-                    { value: 'checklists', label: 'Audit Checklists' },
-                    { value: 'audits', label: 'Audits' },
-                ]}
-                placeholder="Audit section"
-                centerTabs
-                className="rounded-xl border border-card-border bg-background px-3 py-2 shadow-none"
-            />
             {!showTabs || !showOrgTabs ? (
                 renderOrgCard(scopedOrganizationId)
             ) : (

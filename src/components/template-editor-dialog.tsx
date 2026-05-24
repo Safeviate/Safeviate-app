@@ -438,16 +438,16 @@ export function TemplateEditorDialog({
               <div className="mb-4 rounded-xl border bg-muted/20 p-4">
                 <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                   <div>
-                    <h3 className="text-lg font-semibold">Creation methods</h3>
+                    <h3 className="text-sm font-black uppercase tracking-[0.16em] text-foreground">Create / Import</h3>
                     <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                      Start from scratch, import from the matrix, import from gap analyses, or generate with AI.
+                      Add sections manually or import from the matrix, gap analyses, or AI.
                     </p>
                   </div>
                   <span className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
-                    4 ways to build
+                    4 actions
                   </span>
                 </div>
-                <div className="grid grid-cols-1 gap-2 lg:grid-cols-4">
+                <div className="flex flex-wrap gap-2">
                   <Button
                     type="button"
                     variant="outline"
@@ -457,7 +457,7 @@ export function TemplateEditorDialog({
                     <PlusCircle className="h-4 w-4" />
                     Manual Creation
                   </Button>
-                  <div className="contents">
+                  <div className="flex flex-wrap gap-2">
                     {renderSectionActions({
                       complianceItems,
                       onAiGeneratedSections: handleAiGeneratedSections,
