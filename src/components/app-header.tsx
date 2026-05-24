@@ -5,10 +5,10 @@ import { menuConfig } from '@/lib/menu-config';
 import type { MenuItem, SubMenuItem } from '@/lib/menu-config';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
-import { Bell, Search, ChevronDown, LogOut, ArrowRightLeft, Check } from 'lucide-react';
+import { Bell, Search, ChevronDown, LogOut, ArrowRightLeft, Check, AlertTriangle } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useUserProfile } from '@/hooks/use-user-profile';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { signOut, useSession } from 'next-auth/react';
 import { MASTER_TENANT_EMAILS, MASTER_TENANT_ID, TENANT_OVERRIDE_COOKIE } from '@/lib/tenant-constants';
 import {
@@ -19,7 +19,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Badge } from '@/components/ui/badge';
 import type { Tenant } from '@/types/quality';
+import Link from 'next/link';
 
 const findCurrentItem = (
   items: (MenuItem | SubMenuItem)[],
@@ -71,6 +73,20 @@ export function AppHeader() {
   const title = getTitle(currentPathname);
   const [headerOpacity, setHeaderOpacity] = useState(0.8);
   const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [capNotifications, setCapNotifications] = useState<Array<{
+    id: string;
+    title: string;
+    detail: string;
+    dueDate: string;
+    severity: 'overdue' | 'due-soon';
+  }>>([]);
+  type CapNotification = {
+    id: string;
+    title: string;
+    detail: string;
+    dueDate: string;
+    severity: 'overdue' | 'due-soon';
+  };
   const userDisplayName = userProfile ? `${userProfile.firstName} ${userProfile.lastName}` : 'User';
   const userFallback = userDisplayName.charAt(0).toUpperCase();
   const tenantLabel = tenant?.name?.trim() || tenantId || 'Safeviate';
@@ -105,7 +121,7 @@ export function AppHeader() {
         const payload = await response.json().catch(() => ({ tenants: [] }));
         if (!cancelled) {
           const rows = Array.isArray(payload?.tenants) ? (payload.tenants as Tenant[]) : [];
-          const sorted = [...rows].sort((a, b) => {
+          const sorted = [...rows].sort((a: Tenant, b: Tenant) => {
             if (a.id === MASTER_TENANT_ID) return -1;
             if (b.id === MASTER_TENANT_ID) return 1;
             return a.name.localeCompare(b.name);
@@ -126,6 +142,61 @@ export function AppHeader() {
       window.removeEventListener('safeviate-tenants-updated', loadTenants);
     };
   }, [canSwitchTenants]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadCapNotifications = async () => {
+      try {
+        const response = await fetch('/api/dashboard-summary', { cache: 'no-store' });
+        const payload = response.ok ? await response.json().catch(() => ({})) : {};
+        const now = new Date();
+        const dueSoonCutoff = new Date(now);
+        dueSoonCutoff.setDate(now.getDate() + 30);
+        const caps = Array.isArray(payload?.caps) ? payload.caps : [];
+
+        const notifications = caps.flatMap((cap: any) => {
+          const activeActions = Array.isArray(cap?.actions)
+            ? cap.actions.filter((action: any) => action?.status !== 'Closed' && action?.status !== 'Cancelled')
+            : [];
+
+          return activeActions.flatMap((action: any) => {
+            const dueDate = new Date(action?.deadline || cap?.updatedAt || cap?.createdAt || now.toISOString());
+            if (Number.isNaN(dueDate.getTime())) return [];
+            const severity = dueDate < now ? 'overdue' : dueDate <= dueSoonCutoff ? 'due-soon' : null;
+            if (!severity) return [];
+
+            return [{
+              id: `${cap?.id || 'cap'}:${action?.id || 'action'}`,
+              title: action?.description || cap?.rootCauseAnalysis || 'Corrective action',
+              detail: dueDate < now ? 'Overdue CAP action' : 'Due soon CAP action',
+              dueDate: dueDate.toISOString(),
+              severity,
+            }];
+          });
+        });
+
+        if (!cancelled) {
+          setCapNotifications(
+            notifications
+              .sort((a: CapNotification, b: CapNotification) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
+              .slice(0, 5)
+          );
+        }
+      } catch {
+        if (!cancelled) setCapNotifications([]);
+      }
+    };
+
+    void loadCapNotifications();
+    window.addEventListener('safeviate-quality-updated', loadCapNotifications);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('safeviate-quality-updated', loadCapNotifications);
+    };
+  }, []);
+
+  const capAlertCount = useMemo(() => capNotifications.length, [capNotifications]);
 
   const handleSignOut = () => {
     void signOut({ callbackUrl: '/login' });
@@ -184,9 +255,52 @@ export function AppHeader() {
         <Button variant="ghost" size="icon" className="app-topbar-icon hidden h-8 w-8 md:inline-flex">
           <Search className="h-4 w-4" />
         </Button>
-        <Button variant="ghost" size="icon" className="app-topbar-icon h-8 w-8">
-          <Bell className="h-4 w-4" />
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="app-topbar-icon relative h-8 w-8">
+              <Bell className="h-4 w-4" />
+              {capAlertCount > 0 ? (
+                <Badge className="absolute -right-1 -top-1 h-4 min-w-4 rounded-full border-0 bg-amber-500 px-1 text-[8px] font-black text-white">
+                  {capAlertCount}
+                </Badge>
+              ) : null}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            side="bottom"
+            align="end"
+            className="w-80 rounded-2xl border border-sidebar-border/70 bg-sidebar shadow-[0_18px_50px_rgba(0,0,0,0.35)] backdrop-blur-md"
+          >
+            <DropdownMenuLabel className="text-xs font-semibold uppercase tracking-[0.08em] text-sidebar-foreground/70">
+              Corrective Actions
+            </DropdownMenuLabel>
+            <DropdownMenuLabel className="text-[10px] font-semibold text-sidebar-foreground/80">
+              {capAlertCount > 0 ? `${capAlertCount} action${capAlertCount === 1 ? '' : 's'} need attention` : 'No overdue or due-soon actions'}
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {capNotifications.length > 0 ? (
+              capNotifications.map((item) => (
+                <DropdownMenuItem key={item.id} asChild>
+                  <Link href="/quality/task-tracker" className="flex items-start gap-3">
+                    <AlertTriangle className={item.severity === 'overdue' ? 'mt-0.5 h-4 w-4 text-red-500' : 'mt-0.5 h-4 w-4 text-amber-500'} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-xs font-semibold text-sidebar-foreground">{item.title}</span>
+                      <span className="block text-[10px] uppercase tracking-widest text-sidebar-foreground/55">
+                        {item.detail} · {new Date(item.dueDate).toLocaleDateString()}
+                      </span>
+                    </span>
+                  </Link>
+                </DropdownMenuItem>
+              ))
+            ) : (
+              <div className="px-3 py-4 text-sm text-sidebar-foreground/60">Nothing urgent right now.</div>
+            )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
+              <Link href="/quality/task-tracker">Open Task Tracker</Link>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button

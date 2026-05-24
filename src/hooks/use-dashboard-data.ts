@@ -12,7 +12,7 @@ import type { MeetingRecordData } from '@/types/meeting';
 export type UnifiedTask = {
     id: string;
     description: string;
-    sourceType: 'MOC' | 'Audit' | 'Safety Report' | 'Meeting';
+    sourceType: 'MOC' | 'Audit' | 'Gap Analysis' | 'Safety Report' | 'Meeting';
     sourceIdentifier: string;
     link: string;
     assigneeId: string;
@@ -28,6 +28,12 @@ export type UnifiedMessage = {
     timestamp: string;
     link: string;
     source: string;
+};
+
+export type CapTaskSummary = {
+    total: number;
+    dueSoon: number;
+    overdue: number;
 };
 
 type SummaryPerson = Pick<Personnel, 'id' | 'firstName' | 'lastName'>;
@@ -161,17 +167,40 @@ export function useDashboardData() {
     
         const auditsMap = new Map((audits || []).map(a => [a.id, a]));
         (caps || []).forEach(cap => {
-          if (cap.status !== 'Closed' && cap.status !== 'Cancelled') {
-            const audit = auditsMap.get(cap.auditId);
+          const audit = auditsMap.get(cap.auditId);
+          const isGapAnalysis = (audit as { analysisType?: string } | undefined)?.analysisType === 'gap-analysis';
+          const sourceType: UnifiedTask['sourceType'] = isGapAnalysis ? 'Gap Analysis' : 'Audit';
+          const sourceIdentifier = audit?.auditNumber || (isGapAnalysis ? 'Unknown Gap Analysis' : 'Unknown Audit');
+          const link = isGapAnalysis ? `/quality/gap-analyses/${cap.auditId}` : `/quality/audits/${cap.auditId}`;
+          const activeActions = (cap.actions || []).filter((action) => action.status !== 'Closed' && action.status !== 'Cancelled');
+
+          if (activeActions.length > 0) {
+            activeActions.forEach((action) => {
+              tasks.push({
+                id: action.id,
+                description: action.description,
+                sourceType,
+                sourceIdentifier,
+                link,
+                assigneeId: action.responsiblePersonId,
+                assigneeName: userMap.get(action.responsiblePersonId) || 'Unassigned',
+                dueDate: action.deadline,
+                status: action.status,
+              });
+            });
+            return;
+          }
+
+          if (cap.status !== 'Closed' && cap.status !== 'Cancelled' && cap.responsiblePersonId) {
             tasks.push({
               id: cap.id,
-              description: `Corrective action for finding on audit ${audit?.auditNumber || cap.auditId}`,
-              sourceType: 'Audit',
-              sourceIdentifier: audit?.auditNumber || 'Unknown Audit',
-              link: `/quality/audits/${cap.auditId}`,
-              assigneeId: cap.responsiblePersonId || '',
-              assigneeName: userMap.get(cap.responsiblePersonId || '') || 'Unassigned',
-              dueDate: new Date().toISOString(),
+              description: cap.rootCauseAnalysis?.trim() || `Corrective action for ${sourceIdentifier}`,
+              sourceType,
+              sourceIdentifier,
+              link,
+              assigneeId: cap.responsiblePersonId,
+              assigneeName: userMap.get(cap.responsiblePersonId) || 'Unassigned',
+              dueDate: cap.updatedAt || cap.createdAt || audit?.auditDate || new Date().toISOString(),
               status: cap.status,
             });
           }
@@ -203,6 +232,29 @@ export function useDashboardData() {
         return allTasks.filter(task => task.assigneeId === userProfile.id);
     }, [allTasks, userProfile]);
 
+    const myCapTaskSummary = useMemo<CapTaskSummary>(() => {
+        if (!userProfile || myTasks.length === 0) {
+            return { total: 0, dueSoon: 0, overdue: 0 };
+        }
+
+        const now = new Date();
+        const dueSoonCutoff = new Date(now);
+        dueSoonCutoff.setDate(now.getDate() + 30);
+
+        const capTasks = myTasks.filter((task) => task.sourceType === 'Audit' || task.sourceType === 'Gap Analysis');
+        return {
+            total: capTasks.length,
+            dueSoon: capTasks.filter((task) => {
+                const due = new Date(task.dueDate);
+                return !Number.isNaN(due.getTime()) && due > now && due <= dueSoonCutoff;
+            }).length,
+            overdue: capTasks.filter((task) => {
+                const due = new Date(task.dueDate);
+                return !Number.isNaN(due.getTime()) && due < now && task.status !== 'Closed' && task.status !== 'Cancelled';
+            }).length,
+        };
+    }, [myTasks, userProfile]);
+
     const myMessages = useMemo((): UnifiedMessage[] => {
         if (!reports || !userProfile) return [];
 
@@ -230,6 +282,7 @@ export function useDashboardData() {
 
     return {
         myTasks,
+        myCapTaskSummary,
         myMessages,
         isLoading,
         userProfile,

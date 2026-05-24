@@ -261,7 +261,7 @@ export async function GET() {
       safeFindMany('management_of_change', prisma.managementOfChange.findMany({ where: { tenantId: resolvedTenantId }, select: { data: true } })),
       safeFindMany('quality_audits', prisma.qualityAudit.findMany({ where: { tenantId: resolvedTenantId }, select: { data: true } })),
       safeFindMany('safety_reports', prisma.safetyReport.findMany({ where: { tenantId: resolvedTenantId }, select: { data: true } })),
-      safeFindMany('corrective_action_plans', prisma.correctiveActionPlan.findMany({ where: { tenantId: resolvedTenantId }, select: { data: true } })),
+      safeFindMany('corrective_action_plans', prisma.correctiveActionPlan.findMany({ where: { tenantId: resolvedTenantId }, orderBy: { createdAt: 'desc' } })),
       safeFindMany('risks', prisma.risk.findMany({ where: { tenantId: resolvedTenantId }, select: { data: true } })),
       safeFindMany(
         'attendance_records',
@@ -364,7 +364,12 @@ export async function GET() {
         mocs: mocRows.map((row) => row.data),
         audits: auditRows.map((row) => row.data),
         reports: reportRows.map((row) => row.data),
-        caps: capRows.map((row) => row.data),
+        caps: capRows.map((row) => ({
+          ...(row.data as Record<string, unknown>),
+          id: row.id,
+          createdAt: row.createdAt.toISOString(),
+          updatedAt: row.updatedAt.toISOString(),
+        })),
         risks: riskRows.map((row) => row.data),
         attendanceRecords,
         meetings: meetingRows.map((row) => row.data),

@@ -28,7 +28,7 @@ const parseLocalDate = (value: string) => {
 };
 
 export default function MyDashboardPage() {
-    const { myTasks, myMessages, isLoading, userProfile, tenant } = useDashboardData();
+    const { myTasks, myCapTaskSummary, myMessages, isLoading, userProfile, tenant } = useDashboardData();
     const { isLoading: isAccessLoading, isAllowed } = useTenantRouteAccess({ href: '/my-dashboard' });
     const { isSectionEnabled } = usePageLayout('my-dashboard');
     const isMobile = useIsMobile();
@@ -93,6 +93,37 @@ export default function MyDashboardPage() {
                             description="A list of all tasks assigned to you across all modules."
                         />
                         <CardContent className="p-0 overflow-hidden">
+                            {(myCapTaskSummary.overdue > 0 || myCapTaskSummary.dueSoon > 0) && (
+                                <div className="border-b bg-amber-50/80 px-4 py-3">
+                                    <div className="flex flex-col gap-3 rounded-xl border border-amber-200 bg-background px-4 py-3 md:flex-row md:items-center md:justify-between">
+                                        <div className="min-w-0">
+                                            <p className="text-xs font-black uppercase tracking-tight text-amber-900">Corrective action attention required</p>
+                                            <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-amber-800">
+                                                {myCapTaskSummary.overdue > 0
+                                                    ? `${myCapTaskSummary.overdue} overdue corrective action${myCapTaskSummary.overdue === 1 ? '' : 's'} need your attention.`
+                                                    : `${myCapTaskSummary.dueSoon} corrective action${myCapTaskSummary.dueSoon === 1 ? '' : 's'} are due soon.`}
+                                            </p>
+                                        </div>
+                                        <Button asChild variant="outline" size="sm" className="h-8 w-fit border-amber-300 text-[10px] font-black uppercase">
+                                            <Link href="/my-dashboard/tasks">Review tasks</Link>
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
+                            <div className="grid gap-3 border-b bg-muted/5 p-4 md:grid-cols-3">
+                                <div className="rounded-xl border bg-background px-3 py-3">
+                                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">CAP Tasks</p>
+                                    <p className="mt-1 text-lg font-black">{myCapTaskSummary.total}</p>
+                                </div>
+                                <div className="rounded-xl border bg-background px-3 py-3">
+                                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Due Soon</p>
+                                    <p className="mt-1 text-lg font-black">{myCapTaskSummary.dueSoon}</p>
+                                </div>
+                                <div className="rounded-xl border bg-background px-3 py-3">
+                                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Overdue</p>
+                                    <p className="mt-1 text-lg font-black">{myCapTaskSummary.overdue}</p>
+                                </div>
+                            </div>
                             <Table>
                                 <TableHeader className="[&_tr]:h-11">
                                     <TableRow>

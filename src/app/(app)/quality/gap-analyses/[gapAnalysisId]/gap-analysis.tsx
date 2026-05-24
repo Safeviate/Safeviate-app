@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import type { QualityAudit, QualityAuditChecklistTemplate, AuditChecklistItem, CorrectiveActionPlan, GapStatus, ComplianceRequirement } from '@/types/quality';
+import type { CorrectiveAction } from '@/types/safety-report';
 import { DocumentUploader } from '../../../users/personnel/[id]/document-uploader';
 import { FileUp, Camera, Trash2, ZoomIn, Edit, Save, ShieldCheck } from 'lucide-react';
 import Image from 'next/image';
@@ -450,14 +451,34 @@ export function GapAnalysisChecklist({ audit, tenantId, caps, personnel }: GapAn
                 });
             }
 
-            const newCaps = actionableItems.map(finding => ({
-                id: crypto.randomUUID(),
-                auditId: audit.id,
-                findingId: finding.checklistItemId,
-                rootCauseAnalysis: '',
-                status: 'Open',
-                actions: [],
-            }));
+            const newCaps = actionableItems.map((finding) => {
+                const actionDescription = finding.actionPlan?.trim()
+                  || finding.gapDescription?.trim()
+                  || finding.currentState?.trim()
+                  || finding.desiredState?.trim()
+                  || 'Gap analysis action';
+                const dueDate = finding.targetDate?.trim() || audit.auditDate;
+                const responsiblePersonId = finding.ownerId?.trim() || audit.auditorId;
+                const actions: CorrectiveAction[] = [
+                  {
+                    id: crypto.randomUUID(),
+                    description: actionDescription,
+                    responsiblePersonId,
+                    deadline: dueDate,
+                    status: 'Open',
+                  },
+                ];
+
+                return {
+                  id: crypto.randomUUID(),
+                  auditId: audit.id,
+                  findingId: finding.checklistItemId,
+                  rootCauseAnalysis: finding.gapDescription?.trim() || finding.currentState?.trim() || '',
+                  status: 'Open',
+                  actions,
+                  responsiblePersonId,
+                };
+            });
             await Promise.all(newCaps.map((cap) => fetch('/api/corrective-action-plans', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },

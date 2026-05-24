@@ -127,6 +127,8 @@ export interface CorrectiveActionPlan {
     status: CorrectiveActionStatus;
     actions?: CorrectiveAction[];
     responsiblePersonId?: string;
+    createdAt?: string;
+    updatedAt?: string;
 }
 
 export interface QualityRiskPlanSignoff {

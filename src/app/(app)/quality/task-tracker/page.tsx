@@ -32,7 +32,7 @@ const parseLocalDate = (value: string) => {
 type UnifiedTask = {
   id: string;
   description: string;
-  sourceType: 'MOC' | 'Audit' | 'Safety Report';
+  sourceType: 'MOC' | 'Audit' | 'Gap Analysis' | 'Safety Report';
   sourceIdentifier: string;
   link: string;
   assigneeId: string;
@@ -148,23 +148,61 @@ export default function TaskTrackerPage() {
     });
 
     const auditsMap = new Map((audits || []).map((a) => [a.id, a]));
+    const capsByAuditId = new Map((caps || []).map((cap) => [cap.auditId, cap]));
+
     (caps || []).forEach((cap) => {
       const audit = auditsMap.get(cap.auditId);
-      (cap.actions || []).forEach((action) => {
-        if (action.status !== 'Closed' && action.status !== 'Cancelled') {
-          tasks.push({
-            id: action.id,
-            description: action.description,
-            sourceType: 'Audit',
-            sourceIdentifier: audit?.auditNumber || 'Unknown Audit',
-            link: `/quality/audits/${cap.auditId}`,
-            assigneeId: action.responsiblePersonId,
-            assigneeName: personnelMap.get(action.responsiblePersonId) || 'Unassigned',
-            dueDate: action.deadline,
-            status: action.status,
-            organizationId: audit?.organizationId,
-          });
-        }
+      const isGapAnalysis = (audit as { analysisType?: string } | undefined)?.analysisType === 'gap-analysis';
+      const sourceType: UnifiedTask['sourceType'] = isGapAnalysis ? 'Gap Analysis' : 'Audit';
+      const sourceIdentifier = audit?.auditNumber || (isGapAnalysis ? 'Unknown Gap Analysis' : 'Unknown Audit');
+      const link = isGapAnalysis ? `/quality/gap-analyses/${cap.auditId}` : `/quality/audits/${cap.auditId}`;
+      const actionableItems = (cap.actions || []).filter((action) => action.status !== 'Closed' && action.status !== 'Cancelled');
+      actionableItems.forEach((action) => {
+        tasks.push({
+          id: action.id,
+          description: action.description,
+          sourceType,
+          sourceIdentifier,
+          link,
+          assigneeId: action.responsiblePersonId,
+          assigneeName: personnelMap.get(action.responsiblePersonId) || 'Unassigned',
+          dueDate: action.deadline,
+          status: action.status,
+          organizationId: audit?.organizationId,
+        });
+      });
+    });
+
+    (audits || []).forEach((audit) => {
+      if ((audit as { analysisType?: string } | undefined)?.analysisType !== 'gap-analysis') return;
+
+      const existingCap = capsByAuditId.get(audit.id);
+      const hasOpenCapActions = (existingCap?.actions || []).some((action) => action.status !== 'Closed' && action.status !== 'Cancelled');
+      if (hasOpenCapActions) return;
+
+      (audit.findings || []).forEach((finding) => {
+        if (finding.gapStatus !== 'Open gap' && finding.gapStatus !== 'Partial coverage') return;
+
+        const assigneeId = finding.ownerId?.trim() || audit.auditorId;
+        const dueDate = finding.targetDate?.trim() || audit.auditDate;
+
+        tasks.push({
+          id: `${audit.id}:${finding.checklistItemId}`,
+          description:
+            finding.actionPlan?.trim()
+            || finding.gapDescription?.trim()
+            || finding.currentState?.trim()
+            || finding.desiredState?.trim()
+            || finding.checklistItemId,
+          sourceType: 'Gap Analysis',
+          sourceIdentifier: audit.auditNumber || 'Unknown Gap Analysis',
+          link: `/quality/gap-analyses/${audit.id}`,
+          assigneeId,
+          assigneeName: personnelMap.get(assigneeId) || 'Unassigned',
+          dueDate,
+          status: finding.gapStatus === 'Partial coverage' ? 'In Progress' : 'Open',
+          organizationId: audit.organizationId,
+        });
       });
     });
 
@@ -189,6 +227,20 @@ export default function TaskTrackerPage() {
     }
   };
 
+  const getSourceBadgeClassName = (sourceType: UnifiedTask['sourceType']) => {
+    switch (sourceType) {
+      case 'Gap Analysis':
+        return 'border-primary/30 bg-primary/10 text-primary';
+      case 'Audit':
+        return 'border-slate-300 bg-slate-50 text-slate-700';
+      case 'Safety Report':
+        return 'border-amber-300 bg-amber-50 text-amber-700';
+      case 'MOC':
+      default:
+        return 'border-input bg-background text-foreground';
+    }
+  };
+
   const renderTasksTable = (tasks: UnifiedTask[]) => (
     <ResponsiveCardGrid
       items={tasks}
@@ -202,9 +254,14 @@ export default function TaskTrackerPage() {
               <p className="truncate text-sm font-black uppercase tracking-[-0.01em] text-foreground">{task.description}</p>
               <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">{task.sourceType} - {task.sourceIdentifier}</p>
             </div>
-            <Badge variant={getStatusBadgeVariant(task.status)} className="text-[10px] font-black uppercase py-0.5 px-3">
-              {task.status}
-            </Badge>
+            <div className="flex shrink-0 flex-col items-end gap-2">
+              <Badge variant="outline" className={cn('text-[9px] font-black uppercase py-0.5 px-3', getSourceBadgeClassName(task.sourceType))}>
+                {task.sourceType}
+              </Badge>
+              <Badge variant={getStatusBadgeVariant(task.status)} className="text-[10px] font-black uppercase py-0.5 px-3">
+                {task.status}
+              </Badge>
+            </div>
           </CardHeader>
           <CardContent className="space-y-4 px-4 py-4">
             <div className="grid gap-3 sm:grid-cols-2">
@@ -213,7 +270,7 @@ export default function TaskTrackerPage() {
                 <p className="mt-1 text-sm font-semibold text-foreground">{task.assigneeName}</p>
               </div>
               <div className="rounded-lg border bg-background px-3 py-3">
-                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Due Date</p>
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Do by</p>
                 <p className="mt-1 text-sm font-semibold text-foreground">{format(parseLocalDate(task.dueDate), 'dd MMM yy')}</p>
               </div>
             </div>

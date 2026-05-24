@@ -69,6 +69,11 @@ type SummaryPayload = {
   caps?: CorrectiveActionPlan[];
   risks?: SafetyRisk[];
   attendanceRecords?: AttendanceRecordData[];
+  personnel?: Array<{
+    id: string;
+    firstName?: string;
+    lastName?: string;
+  }>;
   totalDutyHours?: number;
   instructorDuty?: Array<{
     id: string;
@@ -215,6 +220,8 @@ type QualityMetrics = {
   openFindings: number;
   averageCompliance: number;
   openCaps: number;
+  dueSoonCaps: number;
+  overdueCaps: number;
   recentAudits: number;
   auditRows: Array<{
     id: string;
@@ -225,10 +232,23 @@ type QualityMetrics = {
     complianceScore: number | null;
     findingCount: number;
   }>;
-  capRows: Array<{
+  upcomingCapRows: Array<{
     id: string;
-    status: string;
+    sourceType: 'Audit' | 'Gap Analysis';
+    sourceIdentifier: string;
     description: string;
+    assignee: string;
+    dueDate: string;
+    status: string;
+  }>;
+  recentCapRows: Array<{
+    id: string;
+    sourceType: 'Audit' | 'Gap Analysis';
+    sourceIdentifier: string;
+    description: string;
+    assignee: string;
+    openedDate: string;
+    status: string;
   }>;
 };
 
@@ -309,6 +329,14 @@ const resolveIndustryKey = (industry?: IndustryType | string | null): DashboardI
   if (industry === 'Aviation: Maintenance (AMO)') return 'AMO';
   if (industry === 'General: Occupational Health & Safety (OHS)') return 'OHS';
   return 'ATO';
+};
+
+const parseLocalDate = (value: string) => {
+  const [year, month, day] = value.split('-').map(Number);
+  if (!year || !month || !day) {
+    return new Date(value);
+  }
+  return new Date(year, month - 1, day, 12);
 };
 
 const getServiceState = (aircraft: Aircraft) => {
@@ -566,12 +594,34 @@ const getSafetyMetrics = (summary: SummaryPayload): SafetyMetrics => {
   };
 };
 
+const getCapSourceDetails = (cap: CorrectiveActionPlan, audits: QualityAudit[]) => {
+  const audit = audits.find((item) => item.id === cap.auditId);
+  const isGapAnalysis = (audit as { analysisType?: string } | undefined)?.analysisType === 'gap-analysis';
+  return {
+    sourceType: isGapAnalysis ? ('Gap Analysis' as const) : ('Audit' as const),
+    sourceIdentifier: audit?.auditNumber || (isGapAnalysis ? 'Unknown Gap Analysis' : 'Unknown Audit'),
+    link: isGapAnalysis ? `/quality/gap-analyses/${cap.auditId}` : `/quality/audits/${cap.auditId}`,
+  };
+};
+
 const getQualityMetrics = (summary: SummaryPayload): QualityMetrics => {
   const audits = (Array.isArray(summary.audits) ? summary.audits : []) as QualityAudit[];
   const caps = (Array.isArray(summary.caps) ? summary.caps : []) as CorrectiveActionPlan[];
+  const personnel = (Array.isArray(summary.personnel) ? summary.personnel : []) as Array<{
+    id: string;
+    firstName?: string;
+    lastName?: string;
+  }>;
+  const personnelMap = new Map(
+    personnel
+      .filter((person) => person && typeof person.id === 'string')
+      .map((person) => [person.id, `${person.firstName || ''} ${person.lastName || ''}`.trim() || person.id])
+  );
   const now = new Date();
   const recentCutoff = new Date(now);
   recentCutoff.setDate(now.getDate() - 30);
+  const upcomingCutoff = new Date(now);
+  upcomingCutoff.setDate(now.getDate() + 30);
 
   const auditRows = [...audits]
     .sort((a, b) => new Date(b.auditDate).getTime() - new Date(a.auditDate).getTime())
@@ -596,15 +646,64 @@ const getQualityMetrics = (summary: SummaryPayload): QualityMetrics => {
   }, 0);
 
   const openCaps = caps.filter((cap) => cap.status !== 'Closed' && cap.status !== 'Cancelled').length;
+  const capActionRows = caps.flatMap((cap) => {
+    const source = getCapSourceDetails(cap, audits);
+    const activeActions = (cap.actions || []).filter((action) => action.status !== 'Closed' && action.status !== 'Cancelled');
 
-  const capRows = [...caps]
-    .sort((a, b) => a.status.localeCompare(b.status))
-    .slice(0, 3)
-    .map((cap) => ({
-      id: cap.id,
-      status: cap.status,
-      description: `CAP ${cap.id}`,
-    }));
+    if (activeActions.length > 0) {
+      return activeActions.map((action) => ({
+        id: `${cap.id}:${action.id}`,
+        sourceType: source.sourceType,
+        sourceIdentifier: source.sourceIdentifier,
+        link: source.link,
+        description: action.description || cap.rootCauseAnalysis || `Corrective action ${cap.id}`,
+        assignee: personnelMap.get(action.responsiblePersonId) || action.responsiblePersonId || 'Unassigned',
+        dueDate: action.deadline || cap.updatedAt || cap.createdAt || now.toISOString(),
+        openedDate: cap.createdAt || cap.updatedAt || now.toISOString(),
+        status: action.status,
+      }));
+    }
+
+    if (cap.status !== 'Closed' && cap.status !== 'Cancelled' && cap.responsiblePersonId) {
+      return [{
+        id: cap.id,
+        sourceType: source.sourceType,
+        sourceIdentifier: source.sourceIdentifier,
+        link: source.link,
+        description: cap.rootCauseAnalysis || `Corrective action ${cap.id}`,
+        assignee: personnelMap.get(cap.responsiblePersonId) || cap.responsiblePersonId,
+        dueDate: cap.updatedAt || cap.createdAt || now.toISOString(),
+        openedDate: cap.createdAt || cap.updatedAt || now.toISOString(),
+        status: cap.status,
+      }];
+    }
+
+    return [];
+  });
+
+  const upcomingCapRows = [...capActionRows]
+    .filter((row) => {
+      const dueDate = parseLocalDate(row.dueDate);
+      return !Number.isNaN(dueDate.getTime()) && dueDate <= upcomingCutoff;
+    })
+    .sort((a, b) => parseLocalDate(a.dueDate).getTime() - parseLocalDate(b.dueDate).getTime())
+    .slice(0, 4);
+
+  const recentCapRows = [...capActionRows]
+    .filter((row) => {
+      const openedDate = parseLocalDate(row.openedDate);
+      return !Number.isNaN(openedDate.getTime()) && openedDate >= recentCutoff;
+    })
+    .sort((a, b) => parseLocalDate(b.openedDate).getTime() - parseLocalDate(a.openedDate).getTime())
+    .slice(0, 4);
+  const dueSoonCaps = capActionRows.filter((row) => {
+    const dueDate = parseLocalDate(row.dueDate);
+    return !Number.isNaN(dueDate.getTime()) && dueDate > now && dueDate <= upcomingCutoff;
+  }).length;
+  const overdueCaps = capActionRows.filter((row) => {
+    const dueDate = parseLocalDate(row.dueDate);
+    return !Number.isNaN(dueDate.getTime()) && dueDate < now;
+  }).length;
 
   return {
     openAudits: audits.filter((audit) => audit.status !== 'Closed' && audit.status !== 'Archived').length,
@@ -613,12 +712,15 @@ const getQualityMetrics = (summary: SummaryPayload): QualityMetrics => {
     averageCompliance:
       compliantScores.length > 0 ? parseFloat((compliantScores.reduce((sum, score) => sum + score, 0) / compliantScores.length).toFixed(1)) : 0,
     openCaps,
+    dueSoonCaps,
+    overdueCaps,
     recentAudits: audits.filter((audit) => {
       const auditDate = new Date(audit.auditDate);
       return !Number.isNaN(auditDate.getTime()) && auditDate >= recentCutoff;
     }).length,
     auditRows,
-    capRows,
+    upcomingCapRows,
+    recentCapRows,
   };
 };
 
@@ -2112,6 +2214,8 @@ function QualityOverviewCard({ modern, summary }: { modern: boolean; summary: Su
           <StatTile label="Closed Audits" value={String(metrics.closedAudits)} hint="Finalised or archived" />
           <StatTile label="Open Findings" value={String(metrics.openFindings)} hint="Non-compliant items raised" />
           <StatTile label="Avg Score" value={`${metrics.averageCompliance.toFixed(1)}%`} hint="Average compliance score" />
+          <StatTile label="CAP Due Soon" value={String(metrics.dueSoonCaps)} hint="Actions due in the next 30 days" />
+          <StatTile label="CAP Overdue" value={String(metrics.overdueCaps)} hint="Action deadlines already passed" />
         </div>
 
         <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
@@ -2164,6 +2268,24 @@ function QualityOverviewCard({ modern, summary }: { modern: boolean; summary: Su
           </div>
 
           <div className="space-y-4">
+            {(metrics.overdueCaps > 0 || metrics.dueSoonCaps > 0) && (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4">
+                <div className="flex flex-col gap-3 rounded-xl border border-amber-200 bg-background px-4 py-3 md:flex-row md:items-center md:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-sm font-black uppercase tracking-tight text-amber-900">Corrective action attention required</p>
+                    <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-amber-800">
+                      {metrics.overdueCaps > 0
+                        ? `${metrics.overdueCaps} overdue corrective action${metrics.overdueCaps === 1 ? '' : 's'} need follow-up.`
+                        : `${metrics.dueSoonCaps} corrective action${metrics.dueSoonCaps === 1 ? '' : 's'} are due soon.`}
+                    </p>
+                  </div>
+                  <Button asChild variant="outline" size="sm" className="h-8 w-fit border-amber-300 text-[10px] font-black uppercase">
+                    <Link href="/quality/task-tracker">Open Task Tracker</Link>
+                  </Button>
+                </div>
+              </div>
+            )}
+
             <div className="rounded-2xl border bg-background p-4">
               <p className="text-sm font-black uppercase tracking-tight">Quality Quick Read</p>
               <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
@@ -2173,6 +2295,8 @@ function QualityOverviewCard({ modern, summary }: { modern: boolean; summary: Su
                 <SummaryLine label="Open audits" value={String(metrics.openAudits)} />
                 <SummaryLine label="Open findings" value={String(metrics.openFindings)} />
                 <SummaryLine label="Open CAPs" value={String(metrics.openCaps)} />
+                <SummaryLine label="CAP due soon" value={String(metrics.dueSoonCaps)} />
+                <SummaryLine label="CAP overdue" value={String(metrics.overdueCaps)} />
                 <SummaryLine label="Avg compliance" value={`${metrics.averageCompliance.toFixed(1)}%`} />
               </div>
             </div>
@@ -2180,34 +2304,78 @@ function QualityOverviewCard({ modern, summary }: { modern: boolean; summary: Su
             <div className="rounded-2xl border bg-background">
               <div className="flex items-center justify-between gap-3 border-b bg-muted/5 px-4 py-3">
                 <div className="min-w-0">
-                  <p className="text-sm font-black uppercase tracking-tight">Corrective Action Plans</p>
+                  <p className="text-sm font-black uppercase tracking-tight">Upcoming CAP Deadlines</p>
                   <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                    Open actions linked to quality issues.
+                    Actions due in the next 30 days.
                   </p>
                 </div>
                 <Badge variant="outline" className="text-[10px] font-black uppercase">
-                  {metrics.capRows.length} shown
+                  {metrics.upcomingCapRows.length} shown
                 </Badge>
               </div>
               <div className="divide-y">
-                {metrics.capRows.length > 0 ? (
-                  metrics.capRows.map((cap) => (
-                    <div key={cap.id} className="grid gap-3 px-4 py-4 md:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)] md:items-center">
+                {metrics.upcomingCapRows.length > 0 ? (
+                  metrics.upcomingCapRows.map((action) => (
+                    <div key={action.id} className="grid gap-3 px-4 py-4 md:grid-cols-[minmax(0,1.2fr)_repeat(2,minmax(0,0.8fr))] md:items-center">
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-black uppercase tracking-tight">{cap.description}</p>
+                        <p className="truncate text-sm font-black uppercase tracking-tight">{action.description}</p>
                         <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                          Corrective action flow
+                          {action.sourceType} · {action.sourceIdentifier}
                         </p>
                       </div>
                       <div className="rounded-lg border bg-background px-3 py-3">
-                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Status</p>
-                        <p className="mt-1 text-sm font-black">{cap.status}</p>
+                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Assignee</p>
+                        <p className="mt-1 text-sm font-black">{action.assignee}</p>
+                      </div>
+                      <div className="rounded-lg border bg-background px-3 py-3">
+                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Do by</p>
+                        <p className="mt-1 text-sm font-black">{format(parseLocalDate(action.dueDate), 'dd MMM yyyy')}</p>
                       </div>
                     </div>
                   ))
                 ) : (
                   <div className="px-4 py-10 text-center text-sm text-muted-foreground">
-                    No corrective action plans are open yet.
+                    No corrective action deadlines are due soon.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border bg-background">
+              <div className="flex items-center justify-between gap-3 border-b bg-muted/5 px-4 py-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-black uppercase tracking-tight">New Corrective Actions</p>
+                  <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                    Recently opened CAP actions and plans.
+                  </p>
+                </div>
+                <Badge variant="outline" className="text-[10px] font-black uppercase">
+                  {metrics.recentCapRows.length} shown
+                </Badge>
+              </div>
+              <div className="divide-y">
+                {metrics.recentCapRows.length > 0 ? (
+                  metrics.recentCapRows.map((action) => (
+                    <div key={action.id} className="grid gap-3 px-4 py-4 md:grid-cols-[minmax(0,1.2fr)_repeat(2,minmax(0,0.8fr))] md:items-center">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-black uppercase tracking-tight">{action.description}</p>
+                        <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                          {action.sourceType} · {action.sourceIdentifier} · Opened {format(parseLocalDate(action.openedDate), 'dd MMM yyyy')}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border bg-background px-3 py-3">
+                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Assignee</p>
+                        <p className="mt-1 text-sm font-black">{action.assignee}</p>
+                      </div>
+                      <div className="rounded-lg border bg-background px-3 py-3">
+                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Status</p>
+                        <p className="mt-1 text-sm font-black">{action.status}</p>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="px-4 py-10 text-center text-sm text-muted-foreground">
+                    No new corrective actions have been opened yet.
                   </div>
                 )}
               </div>
