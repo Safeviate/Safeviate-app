@@ -106,10 +106,10 @@ export function PersonnelActions({ tenantId, user }: PersonnelActionsProps) {
       }
 
       toast({
-        title: 'Initial Password Sent',
+        title: 'Welcome Email Sent',
         description: inviteLink
-          ? `An initial password link was generated for ${user.email}.`
-          : `An initial password link has been dispatched to ${user.email}.`
+          ? `A welcome email setup link was generated for ${user.email}.`
+          : `A welcome email with a setup link has been sent to ${user.email}.`
       });
     } catch (error: unknown) {
       toast({
@@ -221,7 +221,7 @@ export function PersonnelActions({ tenantId, user }: PersonnelActionsProps) {
                 className="h-8 w-8 border-slate-300"
                 onClick={handleSendWelcomeEmail}
                 disabled={isSendingEmail || isResettingPassword || isUpdatingSuspension}
-                title="Set Initial Password"
+                title="Send Welcome Email"
               >
                 {isSendingEmail ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4 text-primary" />}
               </Button>

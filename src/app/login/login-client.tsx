@@ -179,7 +179,7 @@ export default function LoginClient() {
                 <CardTitle className="text-2xl font-black tracking-tight text-white">Welcome back</CardTitle>
                 <CardDescription className="text-sm text-slate-300">
                   {searchParams?.get('setup')
-                    ? 'Your password has been saved. Sign in to continue.'
+                    ? 'Your password has been saved. Sign in to continue. If your tenant requires the beta NDA, you will see it after this sign-in attempt.'
                     : searchParams?.get('nda')
                       ? 'Your NDA has been recorded. Sign in to continue.'
                       : 'Sign in to continue to the Safeviate operations portal.'}

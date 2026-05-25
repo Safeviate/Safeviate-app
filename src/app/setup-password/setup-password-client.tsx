@@ -78,10 +78,10 @@ export default function SetupPasswordClient() {
 
       setIsComplete(true);
       setCompletedEmail(String(payload?.email || ''));
-      setMessage('Your password has been saved. You can now sign in.');
+      setMessage('Your password has been saved. Sign in next to continue.');
       toast({
         title: 'Password Saved',
-        description: 'Your account is ready to use.',
+        description: 'Your account is ready. Sign in next to continue.',
       });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Could not complete password setup.';
@@ -130,7 +130,7 @@ export default function SetupPasswordClient() {
                 </CardTitle>
                 <CardDescription className="text-sm text-slate-300">
                   {isComplete
-                    ? 'Your account is ready.'
+                    ? 'Your account is ready. You will return to sign in next.'
                     : 'Use the secure invite link from your welcome email to activate your account.'}
                 </CardDescription>
               </div>
@@ -198,7 +198,7 @@ export default function SetupPasswordClient() {
                   </Button>
                 )}
                 <p className="text-center text-[11px] font-medium leading-5 text-slate-400">
-                  {token ? 'This link can only be used once and expires automatically.' : 'Request a new invite if this link has expired.'}
+                  {token ? 'This link can only be used once. After saving your password, sign in to continue.' : 'Request a new invite if this link has expired.'}
                 </p>
               </CardFooter>
             </form>

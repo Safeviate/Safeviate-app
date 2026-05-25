@@ -1,7 +1,5 @@
 'use client';
 
-'use client';
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -52,8 +50,6 @@ export function PersonnelForm({
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
   const [selectedRole, setSelectedRole] = useState<string>('');
   const [organizationId, setOrganizationId] = useState<string | null>(null);
@@ -115,35 +111,6 @@ export function PersonnelForm({
       return;
     }
 
-    if (!existingPersonnel) {
-      if (!password.trim() || !confirmPassword.trim()) {
-        toast({
-          variant: 'destructive',
-          title: 'Missing Password',
-          description: 'Enter a password for the new tenant user.',
-        });
-        return;
-      }
-
-      if (password.length < 8) {
-        toast({
-          variant: 'destructive',
-          title: 'Password Too Short',
-          description: 'Use at least 8 characters for the initial password.',
-        });
-        return;
-      }
-
-      if (password !== confirmPassword) {
-        toast({
-          variant: 'destructive',
-          title: 'Passwords Do Not Match',
-          description: 'The password and confirmation do not match.',
-        });
-        return;
-      }
-    }
-
     setIsSubmitting(true);
 
     try {
@@ -187,7 +154,6 @@ export function PersonnelForm({
             department: selectedDepartment || null,
             role: selectedRole,
             userType,
-            password,
             canBeInstructor,
             canBeStudent,
             canBePIC,
@@ -207,7 +173,7 @@ export function PersonnelForm({
 
         toast({
           title: 'User Created',
-          description: 'The new account and password have been established.',
+          description: 'The account has been created and the welcome email was sent.',
         });
       }
       
@@ -241,32 +207,6 @@ export function PersonnelForm({
         <Label htmlFor="email" className="text-right">Email</Label>
         <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="col-span-3" />
       </div>
-      {!existingPersonnel && (
-        <>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="password" className="text-right">Password</Label>
-            <Input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="col-span-3"
-              placeholder="Set the user's password"
-            />
-          </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="confirmPassword" className="text-right">Confirm</Label>
-            <Input
-              id="confirmPassword"
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              className="col-span-3"
-              placeholder="Confirm the password"
-            />
-          </div>
-        </>
-      )}
       <div className="grid grid-cols-4 items-center gap-4">
         <Label htmlFor="userNumber" className="text-right">User #</Label>
         <Input id="userNumber" value={userNumber} onChange={(e) => setUserNumber(e.target.value)} className="col-span-3" placeholder="e.g. BARRY-01" />
@@ -358,7 +298,7 @@ export function PersonnelForm({
           <DialogHeader>
             <DialogTitle>{existingPersonnel ? 'Edit User Profile' : 'Create User'}</DialogTitle>
             <DialogDescription>
-              {existingPersonnel ? 'Update system permissions and metadata.' : 'Create a secure tenant account with an operational profile and password.'}
+              {existingPersonnel ? 'Update system permissions and metadata.' : 'Create the tenant account and send the welcome email so the user can set their own password.'}
             </DialogDescription>
           </DialogHeader>
           {formFields}
