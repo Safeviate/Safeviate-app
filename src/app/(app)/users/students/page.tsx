@@ -14,6 +14,10 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { Button } from '@/components/ui/button';
 import { ChevronDown, PlusCircle } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  PAGE_FORMAT_MOBILE_INPUT_BUTTON_CLASS,
+  PAGE_FORMAT_USER_ACTION_BUTTON_CLASS,
+} from '@/lib/page-format-buttons';
 
 export default function StudentsPage() {
   const isMobile = useIsMobile();
@@ -88,7 +92,7 @@ export default function StudentsPage() {
                     disabled={!canCreateUsers || isProfileLoading}
                     variant={isMobile ? 'outline' : 'default'}
                     size={isMobile ? 'sm' : 'default'}
-                    className={isMobile ? 'h-9 w-full justify-between border-input bg-background px-3 text-[10px] font-bold uppercase text-foreground shadow-sm hover:bg-accent/40' : 'w-full gap-2 px-6 text-xs font-black uppercase shadow-md sm:w-auto'}
+                    className={isMobile ? PAGE_FORMAT_MOBILE_INPUT_BUTTON_CLASS : PAGE_FORMAT_USER_ACTION_BUTTON_CLASS}
                   >
                     <span className="flex items-center gap-2">
                       <PlusCircle className={isMobile ? 'h-3.5 w-3.5' : 'h-4 w-4'} />

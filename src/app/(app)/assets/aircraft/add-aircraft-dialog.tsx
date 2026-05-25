@@ -13,6 +13,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ChevronsUpDown, PlusCircle, Plane, Box, Timer, Gauge, ShieldCheck } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
+import {
+  PAGE_FORMAT_PRIMARY_BUTTON_CLASS,
+  PAGE_FORMAT_SECONDARY_BUTTON_CLASS,
+} from '@/lib/page-format-buttons';
 
 const formSchema = z.object({
   tailNumber: z.string().min(1, 'Tail number is required.'),
@@ -78,10 +82,7 @@ export function AddAircraftDialog({ tenantId }: { tenantId: string }) {
         <Button
           variant="default"
           size="default"
-          className={cn(
-            'h-10 rounded-xl px-6 text-[10px] font-black uppercase tracking-widest shadow-sm gap-2 transition-transform hover:scale-[1.02] active:scale-[0.98]',
-            isMobile && 'w-full justify-between'
-          )}
+          className={cn(PAGE_FORMAT_PRIMARY_BUTTON_CLASS, isMobile && 'w-full justify-between')}
         >
           <PlusCircle className="h-4 w-4" />
           <span>Register Asset</span>
@@ -122,8 +123,8 @@ export function AddAircraftDialog({ tenantId }: { tenantId: string }) {
             </div>
             <DialogFooter className="shrink-0 border-t px-6 py-4 sm:px-8">
               <div className="flex w-full flex-col gap-3 sm:flex-row">
-                <DialogClose asChild><Button variant="outline" className="h-11 flex-1 rounded-2xl border-2 text-[10px] font-black uppercase tracking-widest hover:bg-muted/50 sm:h-12">Cancel</Button></DialogClose>
-                <Button type="submit" className="h-11 flex-1 rounded-2xl px-4 text-[10px] font-black uppercase tracking-widest shadow-xl sm:h-12">Confirm Registration</Button>
+                <DialogClose asChild><Button variant="outline" className={cn(PAGE_FORMAT_SECONDARY_BUTTON_CLASS, 'h-11 flex-1 border-2 px-4 sm:h-12')}>Cancel</Button></DialogClose>
+                <Button type="submit" className={cn(PAGE_FORMAT_PRIMARY_BUTTON_CLASS, 'h-11 flex-1 px-4 shadow-xl sm:h-12')}>Confirm Registration</Button>
               </div>
             </DialogFooter>
           </form>

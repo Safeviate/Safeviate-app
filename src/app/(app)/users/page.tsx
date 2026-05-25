@@ -14,6 +14,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import type { Role } from '../admin/roles/page';
 import { TenantLayoutDisabledState } from '@/components/tenant-layout-disabled-state';
 import { useTenantRouteAccess } from '@/hooks/use-tenant-route-access';
+import { PAGE_FORMAT_MOBILE_FULL_WIDTH_BUTTON_CLASS } from '@/lib/page-format-buttons';
 
 export default function UsersPage() {
   const { isLoading: isAccessLoading, isAllowed } = useTenantRouteAccess({ href: '/users' });
@@ -61,7 +62,7 @@ export default function UsersPage() {
             <RoleForm
               tenantId={tenantId || 'safeviate'}
               trigger={
-                <Button className={isMobile ? 'h-9 w-full justify-between' : 'gap-2'}>
+                <Button className={isMobile ? PAGE_FORMAT_MOBILE_FULL_WIDTH_BUTTON_CLASS : 'gap-2'}>
                   <span className="flex items-center gap-2">
                     <PlusCircle className={isMobile ? 'h-3.5 w-3.5' : 'h-4 w-4'} />
                     Add Role

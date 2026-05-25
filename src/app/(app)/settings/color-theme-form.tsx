@@ -18,6 +18,12 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import type { Tenant } from '@/types/quality';
 import { useUserProfile } from '@/hooks/use-user-profile';
 import { usePermissions } from '@/hooks/use-permissions';
+import { getTenantThemeLocalOverrideKey } from '@/lib/tenant-theme-storage';
+import {
+  PAGE_FORMAT_PRIMARY_BUTTON_CLASS,
+  PAGE_FORMAT_SECONDARY_BUTTON_CLASS,
+  PAGE_FORMAT_ICON_BUTTON_CLASS,
+} from '@/lib/page-format-buttons';
 
 interface ColorThemeFormProps {
   showHeader?: boolean;
@@ -37,9 +43,6 @@ type PalettePreset = {
 const HEADER_BANNER_RECOMMENDED_SIZE = '1600 x 240 px';
 const SIDEBAR_BANNER_RECOMMENDED_SIZE = '900 x 1600 px';
 const SIDEBAR_LOGO_RECOMMENDED_SIZE = '204.1 x 112.8 px';
-const PAGE_FORMAT_PRIMARY_BUTTON_CLASS = 'h-10 rounded-xl px-6 text-[10px] font-black uppercase tracking-widest shadow-sm';
-const PAGE_FORMAT_SECONDARY_BUTTON_CLASS = 'h-10 rounded-xl border-slate-200 bg-white px-6 text-[10px] font-black uppercase tracking-widest text-slate-800 shadow-sm hover:bg-slate-50';
-const PAGE_FORMAT_ICON_BUTTON_CLASS = 'h-8 w-8 rounded-lg border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50';
 const PAGE_FORMAT_TIGHT_PANEL_CLASS = 'rounded-xl border bg-background/80 p-3 shadow-sm';
 
 const PALETTE_PRESETS: PalettePreset[] = [
@@ -95,8 +98,6 @@ const PALETTE_PRESETS: PalettePreset[] = [
   },
 ];
 
-const LOCAL_TENANT_CONFIG_KEY = 'safeviate:tenant-config-local-override';
-
 function mergeTenantConfig(
   serverConfig: Record<string, unknown> | null,
   localConfig: Record<string, unknown> | null
@@ -126,11 +127,12 @@ function mergeTenantConfig(
   };
 }
 
-function readLocalTenantOverride() {
+function readLocalTenantOverride(storageKey: string) {
   if (typeof window === 'undefined') return null;
 
   try {
-    const stored = window.localStorage.getItem(LOCAL_TENANT_CONFIG_KEY);
+    const stored = window.localStorage.getItem(storageKey)
+      || window.localStorage.getItem('safeviate:tenant-config-local-override');
     return stored ? (JSON.parse(stored) as Record<string, unknown>) : null;
   } catch {
     return null;
@@ -190,6 +192,7 @@ export function ColorThemeForm({ showHeader = true }: ColorThemeFormProps) {
   const [isSidebarLogoSaved, setIsSidebarLogoSaved] = useState(false);
   const [openAdvancedSections, setOpenAdvancedSections] = useState<string[]>([]);
   const sidebarLogoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const localTenantConfigKey = getTenantThemeLocalOverrideKey(tenantId);
 
   const canManageOrganization = hasPermission('admin-settings-manage') || hasPermission('settings-manage');
 
@@ -249,7 +252,7 @@ export function ColorThemeForm({ showHeader = true }: ColorThemeFormProps) {
         const configPayload = await configResponse.json().catch(() => ({}));
         const tenant = mePayload?.tenant;
         const tenantConfig = configPayload?.config ?? null;
-        const localOverride = readLocalTenantOverride();
+        const localOverride = readLocalTenantOverride(localTenantConfigKey);
 
         if (tenant) {
           const mergedConfig = mergeTenantConfig(
@@ -271,7 +274,7 @@ export function ColorThemeForm({ showHeader = true }: ColorThemeFormProps) {
       }
     };
     void load();
-  }, []);
+  }, [localTenantConfigKey]);
 
   const persistOrganizationTheme = useCallback(async (updatedTheme: Record<string, unknown>) => {
     setIsSavingOrganization(true);
@@ -293,7 +296,7 @@ export function ColorThemeForm({ showHeader = true }: ColorThemeFormProps) {
       }
 
       try {
-        window.localStorage.setItem(LOCAL_TENANT_CONFIG_KEY, JSON.stringify(configUpdate));
+        window.localStorage.setItem(localTenantConfigKey, JSON.stringify(configUpdate));
         window.dispatchEvent(new Event('storage'));
       } catch {
         // Ignore browser storage failures and rely on the server copy.
@@ -308,7 +311,7 @@ export function ColorThemeForm({ showHeader = true }: ColorThemeFormProps) {
       });
     } catch (e) {
       try {
-        window.localStorage.setItem(LOCAL_TENANT_CONFIG_KEY, JSON.stringify(configUpdate));
+        window.localStorage.setItem(localTenantConfigKey, JSON.stringify(configUpdate));
         window.dispatchEvent(new Event('storage'));
         window.dispatchEvent(new Event('safeviate-tenant-config-updated'));
         loadTenants();
@@ -323,7 +326,7 @@ export function ColorThemeForm({ showHeader = true }: ColorThemeFormProps) {
     } finally {
       setIsSavingOrganization(false);
     }
-  }, [loadTenants, tenantId, toast]);
+  }, [loadTenants, tenantId, toast, localTenantConfigKey]);
 
   const handleSaveToOrganization = async () => {
     await persistOrganizationTheme(buildOrganizationTheme());
@@ -391,7 +394,8 @@ export function ColorThemeForm({ showHeader = true }: ColorThemeFormProps) {
         cardColors: (effectiveTheme.card as SavedTheme['cardColors']) || { 
             card: effectiveTheme.backgroundColour || cardTheme.card, 
             'card-foreground': cardTheme['card-foreground'],
-            'card-border': cardTheme['card-border']
+            'card-border': cardTheme['card-border'],
+            'card-header-band-background': cardTheme['card-header-band-background'],
         },
         popoverColors: (effectiveTheme.popover as SavedTheme['popoverColors']) || { 
             popover: effectiveTheme.backgroundColour || popoverTheme.popover, 
@@ -1289,7 +1293,7 @@ export function ColorThemeForm({ showHeader = true }: ColorThemeFormProps) {
                     <ChevronDown className={`h-4 w-4 transition-transform ${isSectionOpen('cards') ? 'rotate-180' : ''}`} />
                   </CollapsibleTrigger>
                   <CollapsibleContent className="space-y-4 pt-2">
-                    <p className="text-[9px] font-black uppercase italic text-foreground/60">Controls panels, cards, and their border treatment.</p>
+                    <p className="text-[9px] font-black uppercase italic text-foreground/60">Controls panels, cards, header bands, and their border treatment.</p>
                     <p className="text-[9px] font-medium text-muted-foreground">
                       Card shells and header bands follow the coherence matrix specimen and the
                       {' '}

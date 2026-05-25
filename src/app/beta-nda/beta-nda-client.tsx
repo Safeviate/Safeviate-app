@@ -30,6 +30,7 @@ export default function BetaNdaClient() {
   const [agreeToTerms, setAgreeToTerms] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [alreadyAccepted, setAlreadyAccepted] = useState(false);
+  const [isEnabled, setIsEnabled] = useState(true);
 
   useEffect(() => {
     const nextEmail = searchParams?.get('email')?.trim();
@@ -60,6 +61,7 @@ export default function BetaNdaClient() {
         });
         const payload = await response.json().catch(() => null);
         if (!cancelled) {
+          setIsEnabled(payload?.enabled !== false);
           setAlreadyAccepted(Boolean(payload?.accepted));
           if (!tenantId && payload?.tenantId) {
             setTenantId(String(payload.tenantId));
@@ -67,6 +69,7 @@ export default function BetaNdaClient() {
         }
       } catch {
         if (!cancelled) {
+          setIsEnabled(true);
           setAlreadyAccepted(false);
         }
       }
@@ -89,6 +92,10 @@ export default function BetaNdaClient() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!isEnabled) {
+      router.push('/login');
+      return;
+    }
     if (!email.trim() || !name.trim() || !signatureDataUrl || !agreeToTerms) {
       toast({
         variant: 'destructive',
@@ -187,89 +194,97 @@ export default function BetaNdaClient() {
             </CardHeader>
 
             <CardContent className="space-y-5">
-              {alreadyAccepted ? (
+              {!isEnabled ? (
+                <div className="rounded-2xl border border-emerald-400/25 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-100">
+                  The beta NDA is currently turned off for this tenant. You can go straight back to sign in.
+                </div>
+              ) : alreadyAccepted ? (
                 <div className="rounded-2xl border border-emerald-400/25 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-100">
                   This email has already accepted the current beta NDA.
                 </div>
               ) : null}
 
               <form className="space-y-5" onSubmit={handleSubmit}>
-                <div className="space-y-2">
-                  <Label htmlFor="nda-email" className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-300">
-                    Email Address
-                  </Label>
-                  <Input
-                    id="nda-email"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    autoComplete="email"
-                    className="h-12 border-white/10 bg-white/95 font-medium text-slate-950 placeholder:text-slate-400"
-                    placeholder="name@company.com"
-                  />
-                </div>
+                {!isEnabled ? null : (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="nda-email" className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-300">
+                        Email Address
+                      </Label>
+                      <Input
+                        id="nda-email"
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        autoComplete="email"
+                        className="h-12 border-white/10 bg-white/95 font-medium text-slate-950 placeholder:text-slate-400"
+                        placeholder="name@company.com"
+                      />
+                    </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="nda-name" className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-300">
-                    Full Name
-                  </Label>
-                  <Input
-                    id="nda-name"
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="h-12 border-white/10 bg-white/95 font-medium text-slate-950 placeholder:text-slate-400"
-                    placeholder="Your full name"
-                  />
-                </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="nda-name" className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-300">
+                        Full Name
+                      </Label>
+                      <Input
+                        id="nda-name"
+                        type="text"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        className="h-12 border-white/10 bg-white/95 font-medium text-slate-950 placeholder:text-slate-400"
+                        placeholder="Your full name"
+                      />
+                    </div>
 
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between gap-3">
-                    <Label className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-300">
-                      Signature
-                    </Label>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <Label className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-300">
+                          Signature
+                        </Label>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          className="h-8 px-3 text-[10px] font-black uppercase tracking-[0.18em] text-slate-300 hover:bg-white/5 hover:text-white"
+                          onClick={handleResetSignature}
+                          disabled={!signatureDataUrl}
+                        >
+                          Reset Signature
+                        </Button>
+                      </div>
+                      <SignaturePad
+                        height={180}
+                        onSignatureEnd={setSignatureDataUrl}
+                        resetSignal={signatureResetSignal}
+                        className="rounded-2xl border border-white/10 bg-white/95 p-2"
+                      />
+                    </div>
+
+                    <div className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/5 p-4">
+                      <Checkbox
+                        id="nda-agree"
+                        checked={agreeToTerms}
+                        onCheckedChange={(checked) => setAgreeToTerms(Boolean(checked))}
+                        className="mt-1 border-white/20 data-[state=checked]:bg-cyan-400 data-[state=checked]:text-slate-950"
+                      />
+                      <Label htmlFor="nda-agree" className="cursor-pointer text-sm leading-6 text-slate-200">
+                        I have read the beta NDA, I agree to keep the information confidential, and I understand that my electronic signature is binding for this beta access request.
+                      </Label>
+                    </div>
+
                     <Button
-                      type="button"
-                      variant="ghost"
-                      className="h-8 px-3 text-[10px] font-black uppercase tracking-[0.18em] text-slate-300 hover:bg-white/5 hover:text-white"
-                      onClick={handleResetSignature}
-                      disabled={!signatureDataUrl}
+                      type="submit"
+                      className="h-12 w-full bg-cyan-500 font-black uppercase tracking-[0.18em] text-slate-950 hover:bg-cyan-400"
+                      disabled={!canSubmit}
                     >
-                      Reset Signature
+                      {isSubmitting ? 'Recording...' : (
+                        <span className="inline-flex items-center gap-2">
+                          Accept NDA
+                          <ArrowRight className="h-4 w-4" />
+                        </span>
+                      )}
                     </Button>
-                  </div>
-                  <SignaturePad
-                    height={180}
-                    onSignatureEnd={setSignatureDataUrl}
-                    resetSignal={signatureResetSignal}
-                    className="rounded-2xl border border-white/10 bg-white/95 p-2"
-                  />
-                </div>
-
-                <div className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/5 p-4">
-                  <Checkbox
-                    id="nda-agree"
-                    checked={agreeToTerms}
-                    onCheckedChange={(checked) => setAgreeToTerms(Boolean(checked))}
-                    className="mt-1 border-white/20 data-[state=checked]:bg-cyan-400 data-[state=checked]:text-slate-950"
-                  />
-                  <Label htmlFor="nda-agree" className="cursor-pointer text-sm leading-6 text-slate-200">
-                    I have read the beta NDA, I agree to keep the information confidential, and I understand that my electronic signature is binding for this beta access request.
-                  </Label>
-                </div>
-
-                <Button
-                  type="submit"
-                  className="h-12 w-full bg-cyan-500 font-black uppercase tracking-[0.18em] text-slate-950 hover:bg-cyan-400"
-                  disabled={!canSubmit}
-                >
-                  {isSubmitting ? 'Recording...' : (
-                    <span className="inline-flex items-center gap-2">
-                      Accept NDA
-                      <ArrowRight className="h-4 w-4" />
-                    </span>
-                  )}
-                </Button>
+                  </>
+                )}
 
                 <Button asChild variant="ghost" className="h-10 w-full text-slate-300 hover:bg-white/5 hover:text-white">
                   <Link href="/login" className="inline-flex items-center justify-center gap-2">

@@ -153,6 +153,7 @@ function buildThemeBootstrapScript(bootstrap: TenantBootstrapConfig) {
       card: '#ebf5fb',
       'card-foreground': '#1e293b',
       'card-border': '#d1d5db',
+      'card-header-band-background': '#f8fafc',
     },
     popover: {
       popover: '#ebf5fb',
@@ -240,9 +241,10 @@ function buildThemeBootstrapScript(bootstrap: TenantBootstrapConfig) {
   try {
     const pathname = window.location.pathname || '';
     const isAuthRoute = authRoutes.some((route) => pathname === route || pathname.startsWith(route + '/'));
-    const raw = window.localStorage.getItem(LOCAL_TENANT_CONFIG_KEY);
-    const parsed = raw ? JSON.parse(raw) : null;
     const serverTenantId = serverTenant && typeof serverTenant.id === 'string' ? serverTenant.id.trim() : '';
+    const scopedLocalTenantConfigKey = serverTenantId ? LOCAL_TENANT_CONFIG_KEY + ':' + serverTenantId : LOCAL_TENANT_CONFIG_KEY;
+    const raw = window.localStorage.getItem(scopedLocalTenantConfigKey) || window.localStorage.getItem(LOCAL_TENANT_CONFIG_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
     const parsedTenantId = parsed && typeof parsed.id === 'string' ? parsed.id.trim() : '';
     const scopedLocalOverride = !isAuthRoute && serverTenantId && parsedTenantId === serverTenantId ? parsed : null;
     const localTheme = scopedLocalOverride && scopedLocalOverride.theme && typeof scopedLocalOverride.theme === 'object' ? scopedLocalOverride.theme : null;

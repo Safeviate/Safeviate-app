@@ -22,8 +22,9 @@ import { TenantLayoutDisabledState } from '@/components/tenant-layout-disabled-s
 import { useTenantRouteAccess } from '@/hooks/use-tenant-route-access';
 import type { IndustryType, Tenant, PageLayoutSettings } from '@/types/quality';
 import { buildDefaultPageLayoutSettings } from '@/lib/tenant-setup-presets';
+import { PAGE_FORMAT_PRIMARY_BUTTON_CLASS } from '@/lib/page-format-buttons';
 
-const TENANT_PAGE_BUTTON_CLASS = 'h-10 rounded-xl px-6 text-[10px] font-black uppercase tracking-widest shadow-sm';
+const TENANT_PAGE_BUTTON_CLASS = PAGE_FORMAT_PRIMARY_BUTTON_CLASS;
 const TENANT_OVERRIDE_STORAGE_KEY = 'safeviate:selected-tenant';
 const TENANT_OVERRIDE_COOKIE = 'safeviate-tenant-override';
 const LOCAL_TENANT_CONFIG_KEY = 'safeviate:tenant-config-local-override';

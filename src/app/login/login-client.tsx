@@ -19,6 +19,7 @@ export default function LoginClient() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const router = useRouter();
   const { toast } = useToast();
+  const tenantId = searchParams?.get('tenantId')?.trim() || '';
 
   useEffect(() => {
     const nextEmail = searchParams?.get('email')?.trim();
@@ -36,10 +37,31 @@ export default function LoginClient() {
   };
 
   const redirectToNdaIfNeeded = async () => {
-    const response = await fetch(`/api/auth/nda-status?email=${encodeURIComponent(email)}`, {
+    const query = new URLSearchParams({ email });
+    if (tenantId) {
+      query.set('tenantId', tenantId);
+    }
+
+    const response = await fetch(`/api/auth/nda-status?${query.toString()}`, {
       cache: 'no-store',
     });
     const payload = await response.json().catch(() => null);
+    if (payload?.passwordSetupPending) {
+      const message = String(
+        payload?.passwordSetupMessage ||
+          'Password setup is still pending. Please open the reset link you received and save a new password.',
+      );
+      setErrorMessage(message);
+      toast({
+        variant: 'destructive',
+        title: 'Password Setup Pending',
+        description: message,
+      });
+      return true;
+    }
+    if (payload?.enabled === false) {
+      return false;
+    }
     if (payload?.accepted === false) {
       const tenantQuery = payload?.tenantId ? `&tenantId=${encodeURIComponent(String(payload.tenantId))}` : '';
       router.push(`/beta-nda?email=${encodeURIComponent(email)}${tenantQuery}`);
@@ -72,9 +94,12 @@ export default function LoginClient() {
       });
 
       if (!result || result.error) {
-        const ndaRedirected = await redirectToNdaIfNeeded();
-        if (ndaRedirected) {
-          return;
+        const isGenericCredentialsFailure = !result?.error || result.error === 'CredentialsSignin';
+        if (isGenericCredentialsFailure) {
+          const followUpHandled = await redirectToNdaIfNeeded();
+          if (followUpHandled) {
+            return;
+          }
         }
 
         const message = getLoginErrorMessage(result?.error);
@@ -87,11 +112,12 @@ export default function LoginClient() {
         return;
       }
 
+      setErrorMessage(null);
       toast({
         title: 'Login Successful',
         description: `Welcome back to Safeviate.`,
       });
-      router.push('/dashboard');
+      window.location.assign(result.url || '/dashboard');
     } catch (error) {
       console.error('Login failed:', error);
       const message = getLoginErrorMessage(error instanceof Error ? error.message : undefined);

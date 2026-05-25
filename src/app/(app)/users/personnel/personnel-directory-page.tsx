@@ -48,6 +48,7 @@ export type StudentProgressionReviewRecord = StudentProgressionRecommendation & 
 export type PilotProfile = {
   id: string;
   userType: 'Student' | 'Private Pilot' | 'Instructor';
+  hasPassword?: boolean;
   canBeInstructor?: boolean;
   canBeStudent?: boolean;
   canBePIC?: boolean;
@@ -100,6 +101,7 @@ export type PilotProfile = {
 export type Personnel = {
   id: string;
   userType: 'Personnel' | 'External';
+  hasPassword?: boolean;
   canBeInstructor?: boolean;
   canBeStudent?: boolean;
   canBePIC?: boolean;

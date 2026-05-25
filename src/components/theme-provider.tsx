@@ -30,6 +30,7 @@ type CardThemeColors = {
   card: string;
   'card-foreground': string;
   'card-border': string;
+  'card-header-band-background': string;
 };
 
 type PopoverThemeColors = {
@@ -172,6 +173,7 @@ const defaultCardColors: CardThemeColors = {
   card: '#ebf5fb',
   'card-foreground': '#1e293b',
   'card-border': '#d1d5db',
+  'card-header-band-background': '#f8fafc',
 };
 const defaultPopoverColors: PopoverThemeColors = {
     popover: '#ebf5fb',

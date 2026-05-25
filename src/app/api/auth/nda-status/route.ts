@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/auth';
-import { hasAcceptedBetaNda, BETA_NDA_VERSION } from '@/lib/server/beta-nda';
+import { hasAcceptedBetaNda, BETA_NDA_VERSION, isBetaNdaRequiredForTenant, resolveBetaNdaTenantId } from '@/lib/server/beta-nda';
+import { getPasswordSetupStatusByEmail } from '@/lib/server/password-setup';
 import { getTenantIdFromSession } from '@/lib/server/session-tenant';
 import { isMasterTenantEmail } from '@/lib/server/tenant-access';
 
@@ -23,14 +24,37 @@ export async function GET(request: Request) {
     }
 
     const requestedTenantId = tenantId;
-    const sessionTenantId = (await getTenantIdFromSession(request)) || 'safeviate';
+    const sessionTenantId = (await getTenantIdFromSession(request)) || '';
+    const inferredTenantId = requestEmail ? await resolveBetaNdaTenantId(requestEmail, sessionTenantId || 'safeviate') : sessionTenantId || 'safeviate';
     const resolvedTenantId = sessionEmail && isMasterTenantEmail(sessionEmail)
-      ? requestedTenantId || sessionTenantId
-      : sessionTenantId;
+      ? requestedTenantId || sessionTenantId || inferredTenantId
+      : sessionTenantId || inferredTenantId;
+    const passwordSetupStatus = await getPasswordSetupStatusByEmail(requestEmail, resolvedTenantId);
+    const passwordSetupPending = !passwordSetupStatus.hasActivePassword;
+    const passwordSetupMessage = passwordSetupStatus.hasActivePassword
+      ? ''
+      : passwordSetupStatus.hasPendingInvite
+        ? 'Password setup is still pending. Please open the reset link you received and save a new password.'
+        : 'This account does not have an active password yet. Please request a new password reset link.';
+    const enabled = await isBetaNdaRequiredForTenant(resolvedTenantId);
+    if (!enabled) {
+      return NextResponse.json({
+        ok: true,
+        accepted: true,
+        enabled,
+        passwordSetupPending,
+        passwordSetupMessage,
+        version: BETA_NDA_VERSION,
+        tenantId: resolvedTenantId,
+      });
+    }
     const accepted = await hasAcceptedBetaNda(resolvedTenantId, requestEmail);
     return NextResponse.json({
       ok: true,
       accepted,
+      enabled,
+      passwordSetupPending,
+      passwordSetupMessage,
       version: BETA_NDA_VERSION,
       tenantId: resolvedTenantId,
     });

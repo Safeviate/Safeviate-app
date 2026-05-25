@@ -23,6 +23,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { CARD_HEADER_BAND_CLASS } from '@/components/page-header';
 import { TenantLayoutDisabledState } from '@/components/tenant-layout-disabled-state';
 import { useTenantRouteAccess } from '@/hooks/use-tenant-route-access';
+import { PAGE_FORMAT_MOBILE_DARK_BUTTON_CLASS } from '@/lib/page-format-buttons';
 
 export default function EmergencyResponsePage() {
   const { tenantId } = useUserProfile();
@@ -72,7 +73,7 @@ export default function EmergencyResponsePage() {
           variant="outline"
           className={
             isMobile
-              ? 'h-8 w-full justify-between border-slate-200 bg-white px-3 text-[10px] font-bold uppercase text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100'
+              ? PAGE_FORMAT_MOBILE_DARK_BUTTON_CLASS
               : `${HEADER_SECONDARY_BUTTON_CLASS} h-8 px-3 ${erpDesktopButtonWidth} justify-between`
           }
         >

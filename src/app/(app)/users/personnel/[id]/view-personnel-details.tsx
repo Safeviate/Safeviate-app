@@ -93,9 +93,13 @@ export function ViewPersonnelDetails({ user, role, department, actions }: ViewPe
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [isUpdatingSuspension, setIsUpdatingSuspension] = useState(false);
+  const [resetLink, setResetLink] = useState('');
   
   const { toast } = useToast();
   const isMobile = useIsMobile();
+  const showResetLinkFallback = process.env.NODE_ENV === 'development';
+  const showSetupLinkAction = user.hasPassword !== true;
+  const showResetPasswordAction = user.hasPassword !== false;
   const firestore = null; // Mock
   const { hasPermission } = usePermissions();
   const { tenantId } = useUserProfile();
@@ -241,18 +245,27 @@ export function ViewPersonnelDetails({ user, role, department, actions }: ViewPe
         body: JSON.stringify({
           userId: user.id,
           email: user.email,
-          name: `${user.firstName} ${user.lastName}`
+          name: `${user.firstName} ${user.lastName}`,
+          tenantId,
         })
       });
 
+      const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        const error = await parseJsonResponse<{ error?: string }>(response);
+        const error = payload as { error?: string };
         throw new Error(error?.error || 'Failed to send email');
+      }
+
+      const inviteLink = String((payload as { diagnostics?: { inviteLink?: string } })?.diagnostics?.inviteLink || '');
+      if (inviteLink) {
+        setResetLink(inviteLink);
       }
 
       toast({
         title: 'Setup Link Sent',
-        description: `A setup link has been dispatched to ${user.email}.`
+        description: inviteLink
+          ? `A setup link was generated for ${user.email}.`
+          : `A setup link has been dispatched to ${user.email}.`
       });
     } catch (error: unknown) {
       toast({
@@ -267,6 +280,7 @@ export function ViewPersonnelDetails({ user, role, department, actions }: ViewPe
 
   const handleResetPassword = async () => {
     setIsResettingPassword(true);
+    setResetLink('');
     try {
       const response = await fetch('/api/admin/send-password-reset', {
         method: 'POST',
@@ -280,17 +294,23 @@ export function ViewPersonnelDetails({ user, role, department, actions }: ViewPe
         })
       });
 
+      const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        const error = await parseJsonResponse<{ error?: string }>(response);
+        const error = payload as { error?: string };
         const fallbackMessage = response.status === 409
           ? 'This email already belongs to a different tenant. Password reset can only be sent within the user tenant.'
           : 'Failed to send password reset email';
         throw new Error(error?.error || fallbackMessage);
       }
 
+      const inviteLink = String((payload as { diagnostics?: { inviteLink?: string } })?.diagnostics?.inviteLink || '');
+      setResetLink(inviteLink);
+
       toast({
         title: 'Password Reset Sent',
-        description: `A reset link has been dispatched to ${user.email}.`
+        description: inviteLink
+          ? `A reset link was generated for ${user.email}.`
+          : `A reset link has been dispatched to ${user.email}.`
       });
     } catch (error: unknown) {
       toast({
@@ -454,43 +474,57 @@ export function ViewPersonnelDetails({ user, role, department, actions }: ViewPe
             <MainPageHeader 
                 title={`${user.firstName} ${user.lastName}`}
                 actions={
-                <div className="flex items-center gap-2">
-                    {canEdit && (
-                      <>
-                        <Button 
-                          variant="outline" 
-                          size={isMobile ? "sm" : "default"}
-                          onClick={handleSendWelcomeEmail}
-                          disabled={isSendingEmail || isResettingPassword}
-                          className="gap-2 border-slate-300 text-[10px] font-black uppercase"
-                        >
-                          {isSendingEmail ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4 text-primary" />}
-                          {isMobile ? "Invite" : "Send Setup Link"}
-                        </Button>
-                        <Button 
-                          variant="outline" 
-                          size={isMobile ? "sm" : "default"}
-                          onClick={handleResetPassword}
-                          disabled={isSendingEmail || isResettingPassword}
-                          className="gap-2 border-slate-300 text-[10px] font-black uppercase"
-                        >
-                          {isResettingPassword ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4 text-primary" />}
-                          {isMobile ? "Reset" : "Reset Password"}
-                        </Button>
-                        <Button 
-                          variant={user.suspendedAt ? "outline" : "destructive"} 
-                          size={isMobile ? "sm" : "default"}
-                          onClick={handleToggleSuspension}
-                          disabled={isSendingEmail || isResettingPassword || isUpdatingSuspension}
-                          className="gap-2 text-[10px] font-black uppercase"
-                        >
-                          {isUpdatingSuspension ? <Loader2 className="h-4 w-4 animate-spin" /> : (user.suspendedAt ? <UserCheck className="h-4 w-4" /> : <UserX className="h-4 w-4" />)}
-                          {user.suspendedAt ? (isMobile ? "Unsuspend" : "Unsuspend Account") : (isMobile ? "Suspend" : "Suspend Account")}
-                        </Button>
-                      </>
-                    )}
-                    {actions}
-                  </div>
+                  <>
+                    <div className="flex items-center gap-2">
+                      {canEdit && (
+                        <>
+                          {showSetupLinkAction ? (
+                            <Button 
+                              variant="outline" 
+                              size={isMobile ? "sm" : "default"}
+                              onClick={handleSendWelcomeEmail}
+                              disabled={isSendingEmail || isResettingPassword}
+                              className="gap-2 border-slate-300 text-[10px] font-black uppercase"
+                            >
+                              {isSendingEmail ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4 text-primary" />}
+                              {isMobile ? "Invite" : "Send Setup Link"}
+                            </Button>
+                          ) : null}
+                          {showResetPasswordAction ? (
+                            <Button 
+                              variant="outline" 
+                              size={isMobile ? "sm" : "default"}
+                              onClick={handleResetPassword}
+                              disabled={isSendingEmail || isResettingPassword}
+                              className="gap-2 border-slate-300 text-[10px] font-black uppercase"
+                            >
+                              {isResettingPassword ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4 text-primary" />}
+                              {isMobile ? "Reset" : "Reset Password"}
+                            </Button>
+                          ) : null}
+                          <Button 
+                            variant={user.suspendedAt ? "outline" : "destructive"} 
+                            size={isMobile ? "sm" : "default"}
+                            onClick={handleToggleSuspension}
+                            disabled={isSendingEmail || isResettingPassword || isUpdatingSuspension}
+                            className="gap-2 text-[10px] font-black uppercase"
+                          >
+                            {isUpdatingSuspension ? <Loader2 className="h-4 w-4 animate-spin" /> : (user.suspendedAt ? <UserCheck className="h-4 w-4" /> : <UserX className="h-4 w-4" />)}
+                            {user.suspendedAt ? (isMobile ? "Unsuspend" : "Unsuspend Account") : (isMobile ? "Suspend" : "Suspend Account")}
+                          </Button>
+                        </>
+                      )}
+                      {actions}
+                    </div>
+                    {resetLink && showResetLinkFallback ? (
+                      <div className="mt-2 rounded-lg border border-cyan-400/30 bg-cyan-500/10 px-3 py-2 text-[11px] text-cyan-50">
+                        <span className="font-semibold">Reset link generated locally:</span>{' '}
+                        <a href={resetLink} className="break-all underline decoration-cyan-300/60 underline-offset-4">
+                          {resetLink}
+                        </a>
+                      </div>
+                    ) : null}
+                  </>
                 }
             />
 

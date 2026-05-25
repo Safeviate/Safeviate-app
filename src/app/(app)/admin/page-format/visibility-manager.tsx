@@ -11,8 +11,7 @@ import { menuConfig } from '@/lib/menu-config';
 import { useTenantConfig } from '@/hooks/use-tenant-config';
 import { Skeleton } from '@/components/ui/skeleton';
 import { LayoutGrid } from 'lucide-react';
-
-const PAGE_FORMAT_PRIMARY_BUTTON_CLASS = 'h-10 rounded-xl px-6 text-[10px] font-black uppercase tracking-widest shadow-sm';
+import { PAGE_FORMAT_PRIMARY_BUTTON_CLASS } from '@/lib/page-format-buttons';
 
 export function VisibilityManager() {
   const { toast } = useToast();

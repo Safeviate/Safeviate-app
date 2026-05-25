@@ -22,6 +22,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useUserProfile } from '@/hooks/use-user-profile';
 import { usePermissions } from '@/hooks/use-permissions';
+import { PAGE_FORMAT_MOBILE_MUTED_BUTTON_CLASS } from '@/lib/page-format-buttons';
 
 export default function AccountingPage() {
   const { toast } = useToast();
@@ -263,7 +264,7 @@ export default function AccountingPage() {
                       variant="outline"
                       size="sm"
                       disabled={selectedIds.size === 0 || activeTab !== 'unbilled' || !canExportAccounting}
-                      className="h-9 w-full justify-between border-border bg-background px-3 text-[10px] font-bold uppercase text-foreground shadow-sm hover:bg-muted/40"
+                      className={PAGE_FORMAT_MOBILE_MUTED_BUTTON_CLASS}
                     >
                       <span className="flex items-center gap-2">
                         <MoreHorizontal className="h-3.5 w-3.5" />

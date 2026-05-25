@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { HEADER_ACTION_BUTTON_CLASS } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
+import { PAGE_FORMAT_MOBILE_FULL_WIDTH_BUTTON_CLASS } from '@/lib/page-format-buttons';
 import {
   Dialog,
   DialogClose,
@@ -87,7 +88,7 @@ export function AddWorkpackDialog({ tenantId }: { tenantId: string }) {
         <Button
           variant={isMobile ? 'outline' : 'default'}
           size="default"
-          className={isMobile ? 'w-full justify-between' : HEADER_ACTION_BUTTON_CLASS}
+          className={isMobile ? PAGE_FORMAT_MOBILE_FULL_WIDTH_BUTTON_CLASS : HEADER_ACTION_BUTTON_CLASS}
         >
           <span className="flex items-center gap-2">
             <PlusCircle className={isMobile ? 'h-3.5 w-3.5' : 'h-4 w-4'} /> Open Workpack

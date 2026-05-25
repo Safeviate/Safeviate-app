@@ -11,6 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import { usePermissions } from '@/hooks/use-permissions';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { ChevronsUpDown } from 'lucide-react';
+import { PAGE_FORMAT_MOBILE_DARK_BUTTON_CLASS } from '@/lib/page-format-buttons';
 import type { ExternalOrganization } from '@/types/quality';
 import { DeleteActionButton, EditActionButton } from '@/components/record-action-buttons';
 import { useUserProfile } from '@/hooks/use-user-profile';
@@ -152,7 +153,7 @@ export default function ExternalOrganizationsPage() {
               onClick={() => handleOpenForm()}
               variant={isMobile ? 'outline' : 'default'}
               size={isMobile ? 'sm' : 'default'}
-              className={isMobile ? 'h-9 w-full justify-between border-slate-200 bg-white px-3 text-[10px] font-bold uppercase text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100' : 'font-black uppercase text-[10px] h-9 tracking-tight'}
+              className={isMobile ? PAGE_FORMAT_MOBILE_DARK_BUTTON_CLASS : 'font-black uppercase text-[10px] h-9 tracking-tight'}
             >
               <span className="flex items-center gap-2">
                 <PlusCircle className={isMobile ? 'h-3.5 w-3.5' : 'mr-2 h-4 w-4'} /> Add Organization

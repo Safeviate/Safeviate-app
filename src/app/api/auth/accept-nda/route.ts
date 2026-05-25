@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { recordBetaNdaAcceptance } from '@/lib/server/beta-nda';
+import { recordBetaNdaAcceptance, resolveBetaNdaTenantId } from '@/lib/server/beta-nda';
 import { prisma } from '@/lib/prisma';
 
 const readHeader = (headers: Headers, name: string) => headers.get(name)?.trim() || null;
@@ -33,7 +33,7 @@ export async function POST(request: Request) {
       where: { email },
       select: { tenantId: true },
     }).catch(() => null);
-    const tenantId = bodyTenantId || user?.tenantId || 'safeviate';
+    const tenantId = bodyTenantId || user?.tenantId?.trim() || await resolveBetaNdaTenantId(email, 'safeviate');
 
     const acceptance = await recordBetaNdaAcceptance({
       tenantId,

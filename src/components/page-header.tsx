@@ -1,14 +1,17 @@
 import type { FC, ReactNode } from 'react';
 import { cn } from '@/lib/utils';
+import {
+  PAGE_FORMAT_PRIMARY_BUTTON_CLASS,
+  PAGE_FORMAT_SECONDARY_BUTTON_CLASS,
+  PAGE_FORMAT_MOBILE_BUTTON_CLASS,
+} from '@/lib/page-format-buttons';
 
-export const HEADER_ACTION_BUTTON_CLASS =
-  "h-10 px-4 py-2 text-sm font-medium shadow-md gap-2 shrink-0 rounded-md transition-transform hover:scale-[1.02] active:scale-[0.98]";
+export const HEADER_ACTION_BUTTON_CLASS = PAGE_FORMAT_PRIMARY_BUTTON_CLASS;
 
-export const HEADER_SECONDARY_BUTTON_CLASS =
-  "h-10 px-4 py-2 text-sm font-medium shadow-sm gap-2 shrink-0 rounded-md border border-[hsl(var(--header-button-border))] bg-[hsl(var(--header-button-background))] text-[hsl(var(--header-button-foreground))] transition-transform hover:bg-[hsl(var(--header-button-hover))] hover:text-[hsl(var(--header-button-foreground))] hover:scale-[1.02] active:scale-[0.98]";
+export const HEADER_SECONDARY_BUTTON_CLASS = PAGE_FORMAT_SECONDARY_BUTTON_CLASS;
 
 export const HEADER_MOBILE_ACTION_BUTTON_CLASS =
-  "h-10 w-full justify-between border-[hsl(var(--header-button-border))] bg-[hsl(var(--header-button-background))] px-4 py-2 text-sm font-medium text-[hsl(var(--header-button-foreground))] shadow-sm hover:bg-[hsl(var(--header-button-hover))]";
+  `${PAGE_FORMAT_PRIMARY_BUTTON_CLASS} ${PAGE_FORMAT_MOBILE_BUTTON_CLASS}`;
 
 export const HEADER_TAB_LIST_CLASS =
   "bg-transparent h-auto p-0 gap-1.5 border-0 rounded-md justify-start flex min-w-max flex-nowrap shadow-none";
@@ -20,7 +23,7 @@ export const HEADER_COMPACT_CONTROL_CLASS =
   "h-8 rounded-md border border-input bg-background px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.08em] shadow-none gap-1.5 shrink-0";
 
 export const CARD_HEADER_BAND_CLASS =
-  "border-b bg-muted/5 px-2 py-1.5 min-h-11 shrink-0 md:px-4";
+  "border-b border-card-border bg-[hsl(var(--card-header-band-background))] px-2 py-1.5 min-h-11 shrink-0 md:px-4";
 
 export const CARD_HEADER_TOP_ROW_CLASS =
   "flex min-h-[52px] items-start justify-between gap-4";
@@ -97,7 +100,7 @@ export const MainPageHeader: FC<MainPageHeaderProps> = ({
 
   return (
     <CardControlHeader
-      className={cn("main-page-header flex w-full shrink-0 flex-col bg-muted/5", className)}
+      className={cn("main-page-header flex w-full shrink-0 flex-col bg-[hsl(var(--card-header-band-background))]", className)}
       isMobile={false}
       centerActions={centerActions}
       context={resolvedDescription ? (

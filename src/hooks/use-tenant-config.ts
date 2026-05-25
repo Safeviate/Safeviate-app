@@ -4,9 +4,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { useUserProfile } from './use-user-profile';
 import type { Tenant, IndustryType } from '@/types/quality';
 import { getOrSetClientApiCache, invalidateClientApiCache } from '@/lib/client/api-cache';
+import { getTenantThemeLocalOverrideKey } from '@/lib/tenant-theme-storage';
 
 const INDUSTRY_OVERRIDE_KEY = 'safeviate:industry-override';
-const LOCAL_TENANT_CONFIG_KEY = 'safeviate:tenant-config-local-override';
 const FALLBACK_TENANT_ID = 'safeviate';
 const FALLBACK_TENANT_NAME = 'Safeviate';
 const TENANT_CONFIG_CACHE_TTL_MS = 5 * 60_000;
@@ -123,21 +123,25 @@ export const useTenantConfig = () => {
       return DEFAULT_SAFEVIATE_INDUSTRY;
     }
   };
-  const readInitialLocalOverride = () => {
-    if (typeof window === 'undefined') return null;
-    try {
-      const stored = window.localStorage.getItem(LOCAL_TENANT_CONFIG_KEY);
-      return stored ? safeJsonParse<Record<string, unknown>>(stored) : null;
-    } catch {
-      return null;
-    }
-  };
   const { tenantId, tenant: profileTenant, userProfile, isLoading: isProfileLoading } = useUserProfile();
+  const localTenantConfigKey = getTenantThemeLocalOverrideKey(tenantId || FALLBACK_TENANT_ID);
   const [tenantData, setTenantData] = useState<Tenant | null>(bootstrapTenant);
   const [isLoading, setIsLoading] = useState(!bootstrapTenant);
   const [error, setError] = useState<Error | null>(null);
   const [industryOverride, setIndustryOverride] = useState<IndustryType | null>(readInitialIndustryOverride);
-  const [localOverride, setLocalOverride] = useState<Record<string, unknown> | null>(readInitialLocalOverride);
+  const [localOverride, setLocalOverride] = useState<Record<string, unknown> | null>(() => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const scopedStored = window.localStorage.getItem(localTenantConfigKey);
+      if (scopedStored) {
+        return safeJsonParse<Record<string, unknown>>(scopedStored);
+      }
+      const legacyStored = window.localStorage.getItem('safeviate:tenant-config-local-override');
+      return legacyStored ? safeJsonParse<Record<string, unknown>>(legacyStored) : null;
+    } catch {
+      return null;
+    }
+  });
   const [configRefreshToken, setConfigRefreshToken] = useState(0);
   const resolvedTenantId = tenantId || FALLBACK_TENANT_ID;
   const scopedLocalOverride = useMemo(
@@ -158,7 +162,8 @@ export const useTenantConfig = () => {
       try {
         const stored = window.localStorage.getItem(INDUSTRY_OVERRIDE_KEY);
         setIndustryOverride(normalizeIndustry(stored));
-        const tenantConfigStored = window.localStorage.getItem(LOCAL_TENANT_CONFIG_KEY);
+        const tenantConfigStored = window.localStorage.getItem(localTenantConfigKey)
+          || window.localStorage.getItem('safeviate:tenant-config-local-override');
         setLocalOverride(tenantConfigStored ? safeJsonParse<Record<string, unknown>>(tenantConfigStored) : null);
       } catch {
         setIndustryOverride(DEFAULT_SAFEVIATE_INDUSTRY);
@@ -174,7 +179,7 @@ export const useTenantConfig = () => {
       window.removeEventListener('safeviate-industry-switch', syncOverride);
       window.removeEventListener('storage', syncOverride);
     };
-  }, []);
+  }, [localTenantConfigKey]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;

@@ -19,6 +19,7 @@ export type FeatureSettings = {
   id: string;
   preFlightChecklistRequired: boolean;
   enableExternalCompanyTabs: boolean;
+  betaNdaRequired: boolean;
 };
 
 export type FindingLevel = {
@@ -61,7 +62,7 @@ export default function FeaturesPage() {
         const payload = await response.json().catch(() => ({}));
         const config = payload?.config && typeof payload.config === 'object' ? payload.config : {};
 
-        const defFeatures = { id: 'features', preFlightChecklistRequired: true, enableExternalCompanyTabs: true };
+        const defFeatures = { id: 'features', preFlightChecklistRequired: true, enableExternalCompanyTabs: true, betaNdaRequired: true };
         const defLevels = { id: 'finding-levels', levels: defaultFindingLevels };
         const featureConfig = (config['feature-settings'] && typeof config['feature-settings'] === 'object' ? config['feature-settings'] : defFeatures) as typeof defFeatures;
         const levelsConfig = (config['finding-levels-settings'] && typeof config['finding-levels-settings'] === 'object' ? config['finding-levels-settings'] : defLevels) as typeof defLevels;
@@ -118,7 +119,7 @@ export default function FeaturesPage() {
   }, [debouncedLevelColors, findingLevelsSettings, isLoading]);
 
   const handleToggleChange = (feature: keyof Omit<FeatureSettings, 'id'>, value: boolean) => {
-    const nextSettings = { ...(featureSettings || { id: 'features', preFlightChecklistRequired: true, enableExternalCompanyTabs: true }), [feature]: value };
+    const nextSettings = { ...(featureSettings || { id: 'features', preFlightChecklistRequired: true, enableExternalCompanyTabs: true, betaNdaRequired: true }), [feature]: value };
     setFeatureSettings(nextSettings);
     fetch('/api/tenant-config', {
       method: 'PUT',
@@ -256,6 +257,25 @@ export default function FeaturesPage() {
                             id="org-tabs"
                             checked={featureSettings?.enableExternalCompanyTabs ?? true}
                             onCheckedChange={(value) => handleToggleChange('enableExternalCompanyTabs', value)}
+                        />
+                    </div>
+                </div>
+
+                <div className="flex flex-col justify-between space-y-4 rounded-xl border p-5 bg-background shadow-sm">
+                    <div className='space-y-1.5'>
+                        <Label htmlFor="beta-nda-required" className="text-sm font-black uppercase tracking-tight">
+                            Require Beta NDA
+                        </Label>
+                        <p className='text-xs text-muted-foreground leading-relaxed font-medium'>
+                            If enabled, testers must accept the beta NDA before they can sign in. Disable this when the beta gate should be open.
+                        </p>
+                    </div>
+                    <div className="flex items-center justify-between mt-auto pt-4 border-t">
+                        <span className="text-[10px] font-black uppercase text-muted-foreground">Status</span>
+                        <Switch
+                            id="beta-nda-required"
+                            checked={featureSettings?.betaNdaRequired ?? true}
+                            onCheckedChange={(value) => handleToggleChange('betaNdaRequired', value)}
                         />
                     </div>
                 </div>

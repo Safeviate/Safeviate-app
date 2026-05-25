@@ -1,10 +1,9 @@
 import { NextResponse } from 'next/server';
+import { hash } from 'bcryptjs';
 import { authenticateAiRequest } from '@/lib/server/ai-auth';
-import { sendWelcomeEmail } from '@/lib/server/mail';
 import { ensurePersonnelSchema } from '@/lib/server/bootstrap-db';
 import { prisma } from '@/lib/prisma';
 import { Prisma } from '@/generated/prisma/client';
-import { createPasswordSetupInvite } from '@/lib/server/password-setup';
 import { invalidatePersonnelDirectoryCaches } from '@/lib/server/route-cache';
 
 export async function POST(request: Request) {
@@ -20,7 +19,7 @@ export async function POST(request: Request) {
 
       const body = await request.json();
       const {
-        tenantId, email, firstName, lastName,
+        tenantId, email, firstName, lastName, password,
         userType, role, department, userNumber,
         organizationId, isErpIncerfaContact, isErpAlerfaContact,
         canBeInstructor, canBeStudent, canBePIC,
@@ -40,6 +39,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing required user information.' }, { status: 400 });
     }
 
+    if (!String(password || '').trim()) {
+      return NextResponse.json({ error: 'A password is required when creating a tenant user.' }, { status: 400 });
+    }
+
+    if (String(password).length < 8) {
+      return NextResponse.json({ error: 'Use at least 8 characters for the initial password.' }, { status: 400 });
+    }
+
     await prisma.tenant.upsert({
       where: { id: tenantId },
       update: { updatedAt: new Date() },
@@ -49,6 +56,7 @@ export async function POST(request: Request) {
     await ensurePersonnelSchema();
 
     const normalizedEmail = String(email).trim().toLowerCase();
+    const passwordHash = await hash(String(password), 12);
     const generatedUserId = `user_${normalizedEmail.replace(/[^a-z0-9]+/g, '_')}`;
     const existingUser = await prisma.user.findUnique({
       where: { email: normalizedEmail },
@@ -70,7 +78,7 @@ export async function POST(request: Request) {
       await prisma.user.update({
         where: { id: existingUser.id },
         data: {
-          passwordHash: null,
+          passwordHash,
           firstName,
           lastName,
           role,
@@ -84,7 +92,7 @@ export async function POST(request: Request) {
           id: resolvedUserId,
           tenantId,
           email: normalizedEmail,
-          passwordHash: null,
+          passwordHash,
           firstName,
           lastName,
           role,
@@ -139,34 +147,21 @@ export async function POST(request: Request) {
       },
     });
 
-    invalidatePersonnelDirectoryCaches(tenantId);
-
-    const invite = await createPasswordSetupInvite(request, {
-      tenantId,
-      email: normalizedEmail,
-      name: `${firstName} ${lastName}`,
-      userId: resolvedUserId,
+    await prisma.passwordSetupInvite.updateMany({
+      where: {
+        tenantId,
+        email: normalizedEmail,
+        usedAt: null,
+      },
+      data: { usedAt: new Date() },
     });
 
-    const emailResult = await sendWelcomeEmail({ email, name: `${firstName} ${lastName}`, setupLink: invite.setupLink });
-
-    if (!emailResult.success) {
-      return NextResponse.json(
-        {
-          error: `Failed to send email. Resend Error: ${emailResult.error}`,
-          diagnostics: emailResult.diagnostics || null,
-        },
-        { status: 500 }
-      );
-    }
+    invalidatePersonnelDirectoryCaches(tenantId);
 
     return NextResponse.json({
       ok: true,
       uid: resolvedUserId,
-      message: emailResult.diagnostics?.hasApiKey === false
-        ? 'User created. Invite email was skipped because mail is not configured.'
-        : 'User created and setup link sent.',
-      diagnostics: { ...(emailResult.diagnostics || {}), inviteLink: invite.setupLink },
+      message: 'User created with password saved for tenant login.',
     });
   } catch (error: any) {
     if (error?.message === 'This email address is already assigned to a different tenant.') {

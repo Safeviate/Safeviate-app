@@ -15,6 +15,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
 import { MainPageHeader } from '@/components/page-header';
+import { PAGE_FORMAT_MOBILE_DARK_BUTTON_CLASS } from '@/lib/page-format-buttons';
 
 const defaultLikelihoods = [
   { name: 'Frequent', description: 'Likely to occur many times.', value: 5 },
@@ -148,7 +149,7 @@ export default function RiskMatrixPage() {
               className={cn(
                 'no-print gap-2 border-slate-300 text-[10px] font-black uppercase',
                 isMobile
-                  ? 'h-9 w-full justify-between border-slate-200 bg-white px-3 text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100'
+                  ? PAGE_FORMAT_MOBILE_DARK_BUTTON_CLASS
                   : 'h-9 px-6'
               )}
             >

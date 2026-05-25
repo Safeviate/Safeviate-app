@@ -17,6 +17,7 @@ import { Label } from '@/components/ui/label';
 import { ChevronsUpDown, PlusCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { PAGE_FORMAT_MOBILE_DARK_BUTTON_CLASS } from '@/lib/page-format-buttons';
 import type { Department } from './page';
 
 interface DepartmentFormProps {
@@ -78,7 +79,7 @@ export function DepartmentForm({ tenantId }: DepartmentFormProps) {
         <Button
           variant={isMobile ? 'outline' : 'default'}
           size={isMobile ? 'sm' : 'default'}
-          className={isMobile ? 'h-9 w-full justify-between border-slate-200 bg-white px-3 text-[10px] font-bold uppercase text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100' : 'text-[10px] uppercase font-black px-6 h-10'}
+          className={isMobile ? PAGE_FORMAT_MOBILE_DARK_BUTTON_CLASS : 'text-[10px] uppercase font-black px-6 h-10'}
         >
           <span className="flex items-center gap-2">
             <PlusCircle className={isMobile ? 'h-3.5 w-3.5' : 'mr-2 h-4 w-4'} />

@@ -17,6 +17,7 @@ import type { Personnel, PilotProfile } from '../users/personnel/page';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { ResponsiveTabRow } from '@/components/responsive-tab-row';
 import { useUserProfile } from '@/hooks/use-user-profile';
+import { PAGE_FORMAT_MOBILE_MUTED_BUTTON_CLASS } from '@/lib/page-format-buttons';
 
 export default function AccountingPage() {
   const { toast } = useToast();
@@ -158,7 +159,7 @@ export default function AccountingPage() {
               <Button 
                 size="sm"
                 variant={isMobile ? "outline" : "default"}
-                className={isMobile ? "h-9 w-full justify-between border-border bg-background px-3 text-[10px] font-bold uppercase text-foreground shadow-sm hover:bg-muted/40" : "h-9 px-6 text-[10px] font-black uppercase tracking-tight shadow-md gap-2 shrink-0"} 
+                className={isMobile ? PAGE_FORMAT_MOBILE_MUTED_BUTTON_CLASS : "h-9 px-6 text-[10px] font-black uppercase tracking-tight shadow-md gap-2 shrink-0"} 
                 onClick={handleSageExport} 
                 disabled={selectedIds.size === 0 || activeTab !== 'unbilled'}
               >

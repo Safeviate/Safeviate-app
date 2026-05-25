@@ -13,10 +13,12 @@ import { ArrowLeft, MailCheck, ShieldCheck } from 'lucide-react';
 export default function ForgotPasswordPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const showResetLinkFallback = process.env.NODE_ENV === 'development';
   const [email, setEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [resetLink, setResetLink] = useState('');
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -40,6 +42,7 @@ export default function ForgotPasswordPage() {
       if (!response.ok) {
         const errorMessage = payload?.error || 'Could not request a password reset link.';
         setMessage(errorMessage);
+        setResetLink('');
         toast({
           variant: 'destructive',
           title: 'Reset Failed',
@@ -50,6 +53,7 @@ export default function ForgotPasswordPage() {
 
       setIsComplete(true);
       setMessage(String(payload?.message || 'If an account exists for that email, a password reset link has been sent.'));
+      setResetLink(String(payload?.diagnostics?.inviteLink || ''));
       toast({
         title: 'Reset Link Sent',
         description: 'Check your inbox for a secure password reset link.',
@@ -57,6 +61,7 @@ export default function ForgotPasswordPage() {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Could not request a password reset link.';
       setMessage(errorMessage);
+      setResetLink('');
       toast({
         variant: 'destructive',
         title: 'Reset Failed',
@@ -112,6 +117,18 @@ export default function ForgotPasswordPage() {
                 {message ? (
                   <div className={`rounded-xl border px-4 py-3 text-sm ${isComplete ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-100' : 'border-rose-500/30 bg-rose-500/10 text-rose-100'}`}>
                     {message}
+                  </div>
+                ) : null}
+
+                {isComplete && resetLink && showResetLinkFallback ? (
+                  <div className="rounded-xl border border-cyan-400/30 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-50">
+                    <p className="font-semibold">Email delivery is not configured in this environment.</p>
+                    <a
+                      href={resetLink}
+                      className="mt-2 inline-flex break-all text-cyan-200 underline decoration-cyan-300/50 underline-offset-4"
+                    >
+                      Open the generated reset link
+                    </a>
                   </div>
                 ) : null}
 

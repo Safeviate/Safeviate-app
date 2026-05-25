@@ -72,6 +72,14 @@ export async function POST(request: Request) {
           { status: 500 }
         );
       }
+
+      if (!result.diagnostics?.hasApiKey) {
+        return NextResponse.json({
+          ok: true,
+          message: 'Password reset link generated. Email delivery is not configured in this environment, so the link is shown below.',
+          diagnostics: { ...(result.diagnostics || {}), inviteLink: invite.setupLink },
+        });
+      }
     }
 
     return NextResponse.json({

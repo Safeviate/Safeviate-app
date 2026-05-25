@@ -50,16 +50,17 @@ export async function GET(request: Request) {
       prisma.role.findMany({ where: { tenantId } }),
       prisma.department.findMany({ where: { tenantId } }),
       prisma.personnel.findMany({ where: { tenantId } }),
-      prisma.user.findMany({ where: { tenantId }, select: { email: true, suspendedAt: true } }),
+      prisma.user.findMany({ where: { tenantId }, select: { email: true, suspendedAt: true, passwordHash: true } }),
     ]);
 
     const instructors = userRows.filter((row) => row.canBeInstructor || INSTRUCTOR_TYPES.has(row.userType || ''));
     const students = userRows.filter((row) => row.canBeStudent || row.canBePIC || STUDENT_TYPES.has(row.userType || ''));
     const privatePilots = userRows.filter((row) => PRIVATE_PILOT_TYPES.has(row.userType || ''));
-    const authMap = new Map(authRows.map((row) => [row.email.trim().toLowerCase(), row.suspendedAt]));
+    const authMap = new Map(authRows.map((row) => [row.email.trim().toLowerCase(), { suspendedAt: row.suspendedAt, hasPassword: Boolean(row.passwordHash) }]));
     const mergedUsers = userRows.map((row) => ({
       ...row,
-      suspendedAt: authMap.get(row.email.trim().toLowerCase()) || null,
+      suspendedAt: authMap.get(row.email.trim().toLowerCase())?.suspendedAt || null,
+      hasPassword: authMap.get(row.email.trim().toLowerCase())?.hasPassword || false,
     }));
 
     return NextResponse.json({

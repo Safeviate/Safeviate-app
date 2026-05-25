@@ -20,6 +20,12 @@ export type PasswordSetupCompletionResult = {
   diagnostics?: Record<string, unknown>;
 };
 
+export type PasswordSetupStatus = {
+  tenantId: string;
+  hasActivePassword: boolean;
+  hasPendingInvite: boolean;
+};
+
 const normalizeEmail = (value: string) => value.trim().toLowerCase();
 
 const hashToken = (token: string) => crypto.createHash('sha256').update(token).digest('hex');
@@ -30,6 +36,40 @@ const splitName = (name: string) => {
   const [firstName, ...rest] = compact.split(' ');
   return { firstName, lastName: rest.join(' ') };
 };
+
+export async function getPasswordSetupStatusByEmail(
+  email: string,
+  fallbackTenantId = 'safeviate',
+): Promise<PasswordSetupStatus> {
+  const normalizedEmail = normalizeEmail(email);
+  if (!normalizedEmail) {
+    return {
+      tenantId: fallbackTenantId,
+      hasActivePassword: false,
+      hasPendingInvite: false,
+    };
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { email: normalizedEmail },
+    select: { tenantId: true, passwordHash: true },
+  }).catch(() => null);
+
+  const invite = await prisma.passwordSetupInvite.findFirst({
+    where: {
+      email: normalizedEmail,
+      usedAt: null,
+    },
+    orderBy: { createdAt: 'desc' },
+    select: { tenantId: true },
+  }).catch(() => null);
+
+  return {
+    tenantId: user?.tenantId?.trim() || invite?.tenantId?.trim() || fallbackTenantId,
+    hasActivePassword: Boolean(user?.passwordHash),
+    hasPendingInvite: Boolean(invite),
+  };
+}
 
 export async function createPasswordSetupInvite(
   request: Request,
@@ -91,7 +131,23 @@ export async function completePasswordSetup(token: string, password: string): Pr
   }
 
   if (invite.usedAt) {
-    return { success: false, error: 'This setup link has already been used.' };
+    if (invite.user?.passwordHash) {
+      return {
+        success: true,
+        email: normalizeEmail(invite.email),
+        userId: invite.user.id,
+        diagnostics: {
+          tenantId: invite.tenantId,
+          inviteId: invite.id,
+          reused: true,
+        },
+      };
+    }
+
+    return {
+      success: false,
+      error: 'This setup link has already been used. Please request a new password reset link.',
+    };
   }
 
   if (invite.expiresAt.getTime() < Date.now()) {

@@ -45,7 +45,13 @@ export async function POST(request: Request) {
       : await prisma.user.findFirst({ where: { email: normalizedEmail, tenantId: inviteTenantId } });
 
     const finalTenantId = String(existingUser?.tenantId || inviteTenantId);
-    const variant = existingUser?.suspendedAt || existingUser?.passwordHash ? 'reset' : 'welcome';
+    if (existingUser?.passwordHash) {
+      return NextResponse.json(
+        { error: 'This account already has a password. Use Reset Password instead.' },
+        { status: 400 }
+      );
+    }
+
     const invite = await createPasswordSetupInvite(request, {
       tenantId: finalTenantId,
       email: normalizedEmail,
@@ -54,7 +60,12 @@ export async function POST(request: Request) {
     });
 
     // Dispatch the actual email
-    const result = await sendWelcomeEmail({ email: normalizedEmail, name: String(name || existingUser?.firstName || 'User'), setupLink: invite.setupLink, variant });
+    const result = await sendWelcomeEmail({
+      email: normalizedEmail,
+      name: String(name || existingUser?.firstName || 'User'),
+      setupLink: invite.setupLink,
+      variant: 'welcome',
+    });
 
     if (!result.success) {
       return NextResponse.json(

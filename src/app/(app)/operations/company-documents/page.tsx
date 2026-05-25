@@ -24,6 +24,7 @@ import { getContrastingTextColor, getDocumentExpiryBadgeStyle } from '@/lib/docu
 import { ResponsiveCardGrid } from '@/components/responsive-card-grid';
 import { TenantLayoutDisabledState } from '@/components/tenant-layout-disabled-state';
 import { useTenantRouteAccess } from '@/hooks/use-tenant-route-access';
+import { PAGE_FORMAT_MOBILE_DARK_BUTTON_CLASS } from '@/lib/page-format-buttons';
 
 const parseLocalDate = (value?: string | null) => {
   if (!value) return null;
@@ -313,7 +314,7 @@ export default function CompanyDocumentsPage() {
                       onClick={() => open()}
                       variant={isMobile ? "outline" : "default"}
                       size={isMobile ? "sm" : "default"}
-                      className={isMobile ? "h-8 w-full justify-between border-slate-200 bg-white px-3 text-[10px] font-bold uppercase text-slate-900 shadow-sm hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 sm:w-auto" : "h-8 px-3 text-[9px] font-black uppercase tracking-[0.08em] shadow-sm"}
+                      className={isMobile ? PAGE_FORMAT_MOBILE_DARK_BUTTON_CLASS : "h-8 px-3 text-[9px] font-black uppercase tracking-[0.08em] shadow-sm"}
                     >
                       <span className="flex items-center gap-2">
                         <PlusCircle className={isMobile ? "h-3.5 w-3.5" : "h-4 w-4"} />

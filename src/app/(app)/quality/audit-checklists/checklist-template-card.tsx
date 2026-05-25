@@ -17,6 +17,7 @@ import type { Personnel } from '../../users/personnel/page';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import { CARD_HEADER_BAND_CLASS, CARD_HEADER_ACTION_ZONE_CLASS } from '@/components/page-header';
+import { PAGE_FORMAT_HEADER_COMPACT_DROPDOWN_BUTTON_CLASS } from '@/lib/page-format-buttons';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -75,7 +76,7 @@ export function ChecklistTemplateCard({
                       <Button
                         variant="outline"
                         size="sm"
-                        className="h-8 w-full justify-between border-[hsl(var(--header-button-border))] bg-[hsl(var(--header-button-background))] px-3 text-[9px] font-black uppercase text-[hsl(var(--header-button-foreground))] shadow-none hover:bg-[hsl(var(--header-button-hover))]"
+                        className={PAGE_FORMAT_HEADER_COMPACT_DROPDOWN_BUTTON_CLASS}
                       >
                         <span className="flex items-center gap-2">
                           <MoreHorizontal className="h-3.5 w-3.5" />
@@ -178,7 +179,7 @@ export function ChecklistTemplateCard({
                       <Button
                         variant="outline"
                         size="sm"
-                        className="h-8 w-full justify-between border-[hsl(var(--header-button-border))] bg-[hsl(var(--header-button-background))] px-3 text-[9px] font-black uppercase text-[hsl(var(--header-button-foreground))] shadow-none hover:bg-[hsl(var(--header-button-hover))]"
+                        className={PAGE_FORMAT_HEADER_COMPACT_DROPDOWN_BUTTON_CLASS}
                       >
                         <span className="flex items-center gap-2">
                           <MoreHorizontal className="h-3.5 w-3.5" />

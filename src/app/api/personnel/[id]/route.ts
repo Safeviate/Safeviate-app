@@ -13,6 +13,7 @@ export async function DELETE(
   await ensurePersonnelSchema();
   const session = await getServerSession(authOptions);
   const email = session?.user?.email?.trim().toLowerCase();
+  const role = session?.user?.role?.trim().toLowerCase() || '';
   const { id } = await params;
 
   if (!email) {
@@ -24,19 +25,58 @@ export async function DELETE(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const deletedPersonnel = await prisma.personnel.deleteMany({
-    where: { id, tenantId },
-  });
+  const [existingPersonnel, existingUser] = await Promise.all([
+    prisma.personnel.findFirst({ where: { id }, select: { email: true, tenantId: true } }),
+    prisma.user.findFirst({ where: { id }, select: { email: true, tenantId: true } }),
+  ]);
+  const normalizedEmail = String(existingUser?.email || existingPersonnel?.email || '').trim().toLowerCase();
+  const recordTenantId = String(existingUser?.tenantId || existingPersonnel?.tenantId || tenantId).trim();
 
-  await prisma.user.deleteMany({
-    where: { id, tenantId },
+  const isPrivilegedActor = role === 'dev' || role === 'developer' || email === 'barry@safeviate.com';
+  if (!isPrivilegedActor && recordTenantId !== tenantId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+  }
+
+  const deletedPersonnel = await prisma.$transaction(async (tx) => {
+    if (normalizedEmail) {
+      await tx.passwordSetupInvite.deleteMany({
+        where: {
+          OR: [
+            { userId: id },
+            { email: normalizedEmail },
+          ],
+        },
+      });
+
+      await tx.betaNdaAcceptance.deleteMany({
+        where: {
+          email: normalizedEmail,
+        },
+      });
+    } else {
+      await tx.passwordSetupInvite.deleteMany({
+        where: {
+          userId: id,
+        },
+      });
+    }
+
+    const deleted = await tx.personnel.deleteMany({
+      where: { id },
+    });
+
+    await tx.user.deleteMany({
+      where: { id },
+    });
+
+    return deleted;
   });
 
   if (deletedPersonnel.count === 0) {
     return NextResponse.json({ error: 'User not found.' }, { status: 404 });
   }
 
-  invalidatePersonnelDirectoryCaches(tenantId);
+  invalidatePersonnelDirectoryCaches(recordTenantId || tenantId);
 
   return NextResponse.json({ ok: true });
 }

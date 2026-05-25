@@ -16,8 +16,12 @@ export async function GET() {
   return NextResponse.json({
     environment: process.env.NODE_ENV,
     nextAuthUrl: safeValue(process.env.NEXTAUTH_URL),
+    seedEmail: safeValue(process.env.AUTH_SEED_EMAIL),
     hasSeedEmail: Boolean(process.env.AUTH_SEED_EMAIL),
+    hasSeedPassword: Boolean(process.env.AUTH_SEED_PASSWORD),
     hasSeedPasswordHash: Boolean(process.env.AUTH_SEED_PASSWORD_HASH),
+    hasResendApiKey: Boolean(process.env.RESEND_API_KEY),
+    mailFrom: safeValue(process.env.MAIL_FROM || process.env.RESEND_FROM || process.env.EMAIL_FROM),
     session: session
       ? {
           user: {
