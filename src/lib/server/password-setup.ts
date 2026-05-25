@@ -24,6 +24,8 @@ export type PasswordSetupStatus = {
   tenantId: string;
   hasActivePassword: boolean;
   hasPendingInvite: boolean;
+  passwordSetupPending: boolean;
+  passwordSetupMessage: string;
 };
 
 const normalizeEmail = (value: string) => value.trim().toLowerCase();
@@ -47,27 +49,68 @@ export async function getPasswordSetupStatusByEmail(
       tenantId: fallbackTenantId,
       hasActivePassword: false,
       hasPendingInvite: false,
+      passwordSetupPending: false,
+      passwordSetupMessage: '',
     };
   }
 
-  const user = await prisma.user.findUnique({
-    where: { email: normalizedEmail },
-    select: { tenantId: true, passwordHash: true },
-  }).catch(() => null);
+  const now = new Date();
+  const [user, invite] = await Promise.all([
+    prisma.user.findUnique({
+      where: { email: normalizedEmail },
+      select: { tenantId: true, passwordHash: true },
+    }).catch(() => null),
+    prisma.passwordSetupInvite.findFirst({
+      where: {
+        email: normalizedEmail,
+        usedAt: null,
+        expiresAt: { gt: now },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { tenantId: true },
+    }).catch(() => null),
+  ]);
 
-  const invite = await prisma.passwordSetupInvite.findFirst({
-    where: {
-      email: normalizedEmail,
-      usedAt: null,
-    },
-    orderBy: { createdAt: 'desc' },
-    select: { tenantId: true },
-  }).catch(() => null);
+  const tenantId = user?.tenantId?.trim() || invite?.tenantId?.trim() || fallbackTenantId;
+  const hasActivePassword = Boolean(user?.passwordHash);
+  const hasPendingInvite = Boolean(invite);
+
+  if (hasActivePassword) {
+    return {
+      tenantId,
+      hasActivePassword,
+      hasPendingInvite,
+      passwordSetupPending: false,
+      passwordSetupMessage: '',
+    };
+  }
+
+  if (hasPendingInvite) {
+    return {
+      tenantId,
+      hasActivePassword,
+      hasPendingInvite,
+      passwordSetupPending: true,
+      passwordSetupMessage: 'Password setup is still pending. Please open the reset link you received and save a new password.',
+    };
+  }
+
+  if (user) {
+    return {
+      tenantId,
+      hasActivePassword,
+      hasPendingInvite,
+      passwordSetupPending: true,
+      passwordSetupMessage: 'This account does not have an active password yet. Please request a new password reset link.',
+    };
+  }
 
   return {
-    tenantId: user?.tenantId?.trim() || invite?.tenantId?.trim() || fallbackTenantId,
-    hasActivePassword: Boolean(user?.passwordHash),
-    hasPendingInvite: Boolean(invite),
+    tenantId,
+    hasActivePassword,
+    hasPendingInvite,
+    passwordSetupPending: false,
+    passwordSetupMessage: '',
   };
 }
 

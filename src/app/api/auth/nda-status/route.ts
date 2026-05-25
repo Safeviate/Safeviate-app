@@ -20,6 +20,8 @@ export async function GET(request: Request) {
         accepted: false,
         version: BETA_NDA_VERSION,
         tenantId: tenantId || 'safeviate',
+        passwordSetupPending: false,
+        passwordSetupMessage: '',
       });
     }
 

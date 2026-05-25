@@ -43,27 +43,24 @@ export async function POST(request: Request) {
       ? await prisma.user.findFirst({ where: { id: String(userId), tenantId: inviteTenantId } })
       : await prisma.user.findFirst({ where: { email: normalizedEmail, tenantId: inviteTenantId } });
 
-    if (existingUser) {
-      await prisma.user.update({
-        where: { id: existingUser.id },
-        data: {
-          passwordHash: null,
-          updatedAt: new Date(),
-        },
-      });
+    if (!existingUser) {
+      return NextResponse.json(
+        { error: 'No matching tenant user was found for this password reset.' },
+        { status: 404 }
+      );
     }
 
-    const finalTenantId = String(existingUser?.tenantId || inviteTenantId);
+    const finalTenantId = String(existingUser.tenantId || inviteTenantId);
     const invite = await createPasswordSetupInvite(request, {
       tenantId: finalTenantId,
       email: normalizedEmail,
-      name: String(name || existingUser?.firstName || normalizedEmail.split('@')[0] || 'User'),
-      userId: existingUser?.id || (typeof userId === 'string' ? userId : null),
+      name: String(name || existingUser.firstName || normalizedEmail.split('@')[0] || 'User'),
+      userId: existingUser.id,
     });
 
     const result = await sendWelcomeEmail({
       email: normalizedEmail,
-      name: String(name || existingUser?.firstName || 'User'),
+      name: String(name || existingUser.firstName || 'User'),
       setupLink: invite.setupLink,
       variant: 'reset',
     });

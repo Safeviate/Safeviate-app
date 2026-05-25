@@ -155,7 +155,7 @@ export function PersonnelActions({ tenantId, user }: PersonnelActionsProps) {
         title: 'Password Reset Sent',
         description: inviteLink
           ? `A reset link was generated for ${user.email}.`
-          : `A reset link has been dispatched to ${user.email}.`
+          : `A reset link has been dispatched to ${user.email}. Their current password remains active until they save a new one.`
       });
     } catch (error: unknown) {
       toast({

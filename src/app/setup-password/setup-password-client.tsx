@@ -1,7 +1,7 @@
 'use client';
 
-import { useMemo, useState, type FormEvent } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -11,7 +11,6 @@ import { CheckCircle2, KeyRound, ShieldCheck } from 'lucide-react';
 
 export default function SetupPasswordClient() {
   const searchParams = useSearchParams();
-  const router = useRouter();
   const { toast } = useToast();
   const token = useMemo(() => searchParams?.get('token') || '', [searchParams]);
   const [password, setPassword] = useState('');
@@ -20,6 +19,17 @@ export default function SetupPasswordClient() {
   const [isComplete, setIsComplete] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [completedEmail, setCompletedEmail] = useState('');
+  const loginHref = `/login?setup=1${completedEmail ? `&email=${encodeURIComponent(completedEmail)}` : ''}`;
+
+  useEffect(() => {
+    if (!isComplete) return;
+
+    const timeout = window.setTimeout(() => {
+      window.location.assign(loginHref);
+    }, 1800);
+
+    return () => window.clearTimeout(timeout);
+  }, [isComplete, loginHref]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -182,7 +192,7 @@ export default function SetupPasswordClient() {
                   <Button
                     type="button"
                     className="h-12 w-full bg-cyan-500 font-black uppercase tracking-[0.18em] text-slate-950 hover:bg-cyan-400"
-                    onClick={() => router.push(`/login?setup=1${completedEmail ? `&email=${encodeURIComponent(completedEmail)}` : ''}`)}
+                    onClick={() => window.location.assign(loginHref)}
                   >
                     Go to Sign In
                   </Button>

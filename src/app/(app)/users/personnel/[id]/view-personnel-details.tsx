@@ -290,7 +290,8 @@ export function ViewPersonnelDetails({ user, role, department, actions }: ViewPe
         body: JSON.stringify({
           userId: user.id,
           email: user.email,
-          name: `${user.firstName} ${user.lastName}`
+          name: `${user.firstName} ${user.lastName}`,
+          tenantId,
         })
       });
 
@@ -310,7 +311,7 @@ export function ViewPersonnelDetails({ user, role, department, actions }: ViewPe
         title: 'Password Reset Sent',
         description: inviteLink
           ? `A reset link was generated for ${user.email}.`
-          : `A reset link has been dispatched to ${user.email}.`
+          : `A reset link has been dispatched to ${user.email}. Their current password remains active until they save a new one.`
       });
     } catch (error: unknown) {
       toast({

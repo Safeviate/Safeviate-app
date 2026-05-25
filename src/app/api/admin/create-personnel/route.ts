@@ -35,7 +35,7 @@ export async function POST(request: Request) {
       ? canBePIC
       : normalizedUserType === 'PIC';
 
-    if (!tenantId || !email || !firstName || !lastName || !role) {
+    if (!tenantId || !email || !firstName || !lastName || !role || !String(password || '').trim()) {
       return NextResponse.json({ error: 'Missing required user information.' }, { status: 400 });
     }
 
@@ -155,7 +155,6 @@ export async function POST(request: Request) {
       },
       data: { usedAt: new Date() },
     });
-
     invalidatePersonnelDirectoryCaches(tenantId);
 
     return NextResponse.json({
