@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ChevronsUpDown, PlusCircle, Plane, Box, Timer, Gauge, ShieldCheck } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { HEADER_ACTION_BUTTON_CLASS, HEADER_MOBILE_ACTION_BUTTON_CLASS } from '@/components/page-header';
+import { cn } from '@/lib/utils';
 
 const formSchema = z.object({
   tailNumber: z.string().min(1, 'Tail number is required.'),
@@ -76,44 +76,55 @@ export function AddAircraftDialog({ tenantId }: { tenantId: string }) {
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
         <Button
-          variant={isMobile ? 'outline' : 'default'}
-          size={isMobile ? 'sm' : 'default'}
-          className={isMobile ? HEADER_MOBILE_ACTION_BUTTON_CLASS : HEADER_ACTION_BUTTON_CLASS}
+          variant="default"
+          size="default"
+          className={cn(
+            'h-10 rounded-xl px-6 text-[10px] font-black uppercase tracking-widest shadow-sm gap-2 transition-transform hover:scale-[1.02] active:scale-[0.98]',
+            isMobile && 'w-full justify-between'
+          )}
         >
           <PlusCircle className="h-4 w-4" />
           <span>Register Asset</span>
           {isMobile ? <ChevronsUpDown className="h-4 w-4 opacity-30" /> : null}
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl p-0 overflow-hidden rounded-[2.5rem] border-2 shadow-2xl">
-        <DialogHeader className="p-10 border-b bg-muted/5">
-          <div className="flex items-center gap-6">
-            <div className="h-14 w-14 rounded-[1.5rem] bg-primary flex items-center justify-center text-white shadow-xl shadow-primary/20 rotate-3">
-              <Plane className="h-7 w-7" />
+      <DialogContent className="flex max-h-[90vh] w-[calc(100vw-1rem)] max-w-2xl flex-col overflow-hidden rounded-xl border-2 p-0 shadow-2xl sm:w-full">
+        <DialogHeader className="shrink-0 border-b bg-muted/5 px-6 py-6 sm:px-8 sm:py-7">
+          <div className="flex items-center gap-4 sm:gap-5">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[1.2rem] bg-primary text-white shadow-lg shadow-primary/20 rotate-3 sm:h-14 sm:w-14">
+              <Plane className="h-6 w-6 sm:h-7 sm:w-7" />
             </div>
             <div>
-              <DialogTitle className="text-2xl font-black uppercase tracking-tight">Fleet Initialization</DialogTitle>
-              <DialogDescription className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mt-1">Register a new organization asset for airworthiness tracking.</DialogDescription>
+              <DialogTitle className="text-xl font-black uppercase tracking-tight sm:text-2xl">Fleet Initialization</DialogTitle>
+              <DialogDescription className="mt-1 text-[9px] font-bold uppercase tracking-widest text-muted-foreground sm:text-[10px]">
+                Register a new organization asset for airworthiness tracking.
+              </DialogDescription>
             </div>
           </div>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="p-10 space-y-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <FormField control={form.control} name="tailNumber" render={({ field }) => ( <FormItem><FormLabel className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2 opacity-60"><ShieldCheck className="h-3.5 w-3.5 text-primary" /> Registration Identification</FormLabel><FormControl><Input placeholder="e.g. ZS-XYZ" className="h-12 font-black text-lg uppercase tracking-tight shadow-inner" {...field} /></FormControl><FormMessage /></FormItem> )} />
-              <FormField control={form.control} name="type" render={({ field }) => ( <FormItem><FormLabel className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2 opacity-60"><Box className="h-3.5 w-3.5 text-primary" /> Engine Configuration</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger className="h-12 font-black uppercase border-2 shadow-sm"><SelectValue /></SelectTrigger></FormControl><SelectContent className="rounded-2xl border-2"><SelectItem value="Single-Engine">Single-Engine</SelectItem><SelectItem value="Multi-Engine">Multi-Engine</SelectItem></SelectContent></Select></FormItem> )} />
+          <form onSubmit={form.handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col">
+            <div className="flex-1 min-h-0 overflow-y-auto px-6 py-6 sm:px-8 sm:py-7">
+              <div className="space-y-6 sm:space-y-8">
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-2 md:gap-8">
+                  <FormField control={form.control} name="tailNumber" render={({ field }) => ( <FormItem><FormLabel className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest opacity-60"><ShieldCheck className="h-3.5 w-3.5 text-primary" /> Registration Identification</FormLabel><FormControl><Input placeholder="e.g. ZS-XYZ" className="h-11 font-black uppercase tracking-tight shadow-inner sm:h-12 sm:text-lg" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                  <FormField control={form.control} name="type" render={({ field }) => ( <FormItem><FormLabel className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest opacity-60"><Box className="h-3.5 w-3.5 text-primary" /> Engine Configuration</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger className="h-11 font-black uppercase border-2 shadow-sm sm:h-12"><SelectValue /></SelectTrigger></FormControl><SelectContent className="rounded-2xl border-2"><SelectItem value="Single-Engine">Single-Engine</SelectItem><SelectItem value="Multi-Engine">Multi-Engine</SelectItem></SelectContent></Select></FormItem> )} />
+                </div>
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-2 md:gap-8">
+                  <FormField control={form.control} name="make" render={({ field }) => ( <FormItem><FormLabel className="text-[10px] font-black uppercase tracking-widest opacity-60">Manufacturer</FormLabel><FormControl><Input className="h-11 font-bold" placeholder="e.g. Cessna" {...field} /></FormControl></FormItem> )} />
+                  <FormField control={form.control} name="model" render={({ field }) => ( <FormItem><FormLabel className="text-[10px] font-black uppercase tracking-widest opacity-60">Designation / Model</FormLabel><FormControl><Input className="h-11 font-bold" placeholder="e.g. 172S Skyhawk" {...field} /></FormControl></FormItem> )} />
+                </div>
+                <div className="grid grid-cols-1 gap-6 rounded-[1.5rem] border-2 bg-muted/5 px-5 py-5 shadow-inner md:grid-cols-2 md:gap-8 sm:px-6 sm:py-6">
+                  <FormField control={form.control} name="currentHobbs" render={({ field }) => ( <FormItem><FormLabel className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-primary opacity-60"><Timer className="h-3 w-3" /> Initial Hobbs</FormLabel><FormControl><Input type="number" step="0.1" className="h-11 font-mono font-black" {...field} /></FormControl></FormItem> )} />
+                  <FormField control={form.control} name="currentTacho" render={({ field }) => ( <FormItem><FormLabel className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-primary opacity-60"><Gauge className="h-3 w-3" /> Initial Tacho</FormLabel><FormControl><Input type="number" step="0.1" className="h-11 font-mono font-black" {...field} /></FormControl></FormItem> )} />
+                </div>
+              </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-2">
-              <FormField control={form.control} name="make" render={({ field }) => ( <FormItem><FormLabel className="text-[10px] font-black uppercase tracking-widest opacity-60">Manufacturer</FormLabel><FormControl><Input className="h-11 font-bold" placeholder="e.g. Cessna" {...field} /></FormControl></FormItem> )} />
-              <FormField control={form.control} name="model" render={({ field }) => ( <FormItem><FormLabel className="text-[10px] font-black uppercase tracking-widest opacity-60">Designation / Model</FormLabel><FormControl><Input className="h-11 font-bold" placeholder="e.g. 172S Skyhawk" {...field} /></FormControl></FormItem> )} />
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4 pb-4 px-8 py-8 rounded-[2rem] bg-muted/5 border-2 shadow-inner">
-              <FormField control={form.control} name="currentHobbs" render={({ field }) => ( <FormItem><FormLabel className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2 text-primary opacity-60"><Timer className="h-3 w-3" /> Initial Hobbs</FormLabel><FormControl><Input type="number" step="0.1" className="h-11 font-mono font-black" {...field} /></FormControl></FormItem> )} />
-              <FormField control={form.control} name="currentTacho" render={({ field }) => ( <FormItem><FormLabel className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2 text-primary opacity-60"><Gauge className="h-3 w-3" /> Initial Tacho</FormLabel><FormControl><Input type="number" step="0.1" className="h-11 font-mono font-black" {...field} /></FormControl></FormItem> )} />
-            </div>
-            <DialogFooter className="pt-8 border-t flex flex-row gap-4">
-              <DialogClose asChild><Button variant="outline" className="flex-1 h-12 text-[10px] font-black uppercase tracking-widest border-2 rounded-2xl hover:bg-muted/50">Cancel</Button></DialogClose>
-              <Button type="submit" className="flex-1 h-12 text-[10px] font-black uppercase tracking-widest shadow-xl rounded-2xl">Confirm Registration</Button>
+            <DialogFooter className="shrink-0 border-t px-6 py-4 sm:px-8">
+              <div className="flex w-full flex-col gap-3 sm:flex-row">
+                <DialogClose asChild><Button variant="outline" className="h-11 flex-1 rounded-2xl border-2 text-[10px] font-black uppercase tracking-widest hover:bg-muted/50 sm:h-12">Cancel</Button></DialogClose>
+                <Button type="submit" className="h-11 flex-1 rounded-2xl px-4 text-[10px] font-black uppercase tracking-widest shadow-xl sm:h-12">Confirm Registration</Button>
+              </div>
             </DialogFooter>
           </form>
         </Form>
