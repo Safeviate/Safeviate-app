@@ -1471,28 +1471,33 @@ export function ActiveFlightLiveMap({
 
     if (!activeFlightMapStateKey) {
       setTrackHistory([]);
+      setPersistedLastPosition(null);
       hydratedMapStateKeyRef.current = null;
       return;
     }
 
+    if (hydratedMapStateKeyRef.current === activeFlightMapStateKey) {
+      return;
+    }
+
     const persistedState = readPersistedActiveFlightMapState(activeFlightMapStateKey);
-    const serverTrackHistory = initialTrackHistory.length > 0 ? initialTrackHistory : normalizePositionPoint(initialLastPosition) ? [normalizePositionPoint(initialLastPosition)!] : [];
+    const normalizedInitialLastPosition = normalizePositionPoint(initialLastPosition);
+    const serverTrackHistory =
+      initialTrackHistory.length > 0
+        ? initialTrackHistory
+        : normalizedInitialLastPosition
+          ? [normalizedInitialLastPosition]
+          : [];
 
     if (persistedState?.trackHistory?.length) {
       setTrackHistory(mergeTrackHistory(serverTrackHistory, persistedState.trackHistory));
     } else {
-      setTrackHistory(
-        serverTrackHistory.length > 0
-          ? serverTrackHistory
-          : displayPosition
-            ? [[displayPosition.latitude, displayPosition.longitude]]
-            : []
-      );
+      setTrackHistory(serverTrackHistory);
     }
     setPersistedLastPosition(persistedState?.lastPosition ?? initialLastPosition ?? null);
 
     hydratedMapStateKeyRef.current = activeFlightMapStateKey;
-  }, [activeFlightMapStateKey, displayPosition, initialLastPosition, initialTrackHistory]);
+  }, [activeFlightMapStateKey, initialLastPosition, initialTrackHistory]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;

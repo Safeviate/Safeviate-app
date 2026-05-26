@@ -90,6 +90,7 @@ export function AppHeader() {
   const userDisplayName = userProfile ? `${userProfile.firstName} ${userProfile.lastName}` : 'User';
   const userFallback = userDisplayName.charAt(0).toUpperCase();
   const tenantLabel = tenant?.name?.trim() || tenantId || 'Safeviate';
+  const betaNotice = 'Beta: features and workflows may change.';
   const canSwitchTenants = MASTER_TENANT_EMAILS.includes((userProfile?.email || '').trim().toLowerCase());
   const isViewingOverrideTenant = canSwitchTenants && tenantId !== MASTER_TENANT_ID;
 
@@ -248,6 +249,14 @@ export function AppHeader() {
         {title && (
           <h1 className="truncate text-[15px] font-semibold tracking-[-0.01em] uppercase opacity-90 sm:text-[16px]">{title}</h1>
         )}
+        <Badge
+          variant="secondary"
+          className="inline-flex max-w-[18rem] shrink-0 border border-amber-500/20 bg-amber-500/15 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em] text-amber-100 shadow-none"
+          title={betaNotice}
+        >
+          <span className="lg:hidden">Beta</span>
+          <span className="hidden lg:inline">{betaNotice}</span>
+        </Badge>
       </div>
     </div>
 
