@@ -22,6 +22,8 @@ import {
   resolveTrainingExerciseTemplates,
 } from '@/lib/training-exercise-templates';
 import { TRAINING_COMPETENCY_OPTIONS } from '@/lib/training-competencies';
+import { TenantLayoutDisabledState } from '@/components/tenant-layout-disabled-state';
+import { useTenantRouteAccess } from '@/hooks/use-tenant-route-access';
 
 const cloneTemplates = (templates: TrainingExerciseTemplate[]) =>
   templates.map((template) => ({
@@ -31,6 +33,7 @@ const cloneTemplates = (templates: TrainingExerciseTemplate[]) =>
   }));
 
 export default function AdminTrainingExercisesPage() {
+  const { isLoading: isAccessLoading, isAllowed } = useTenantRouteAccess({ href: '/admin/training-exercises' });
   const { toast } = useToast();
   const isMobile = useIsMobile();
   const [templates, setTemplates] = useState<TrainingExerciseTemplate[]>(() => cloneTemplates(TRAINING_EXERCISE_TEMPLATES));
@@ -223,6 +226,10 @@ export default function AdminTrainingExercisesPage() {
         <Skeleton className="h-96 w-full" />
       </div>
     );
+  }
+
+  if (!isAccessLoading && !isAllowed) {
+    return <TenantLayoutDisabledState />;
   }
 
   return (

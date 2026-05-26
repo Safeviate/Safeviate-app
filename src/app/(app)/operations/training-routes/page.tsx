@@ -16,6 +16,8 @@ import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, Di
 import { Textarea } from '@/components/ui/textarea';
 import { useTenantConfig } from '@/hooks/use-tenant-config';
 import { useUserProfile } from '@/hooks/use-user-profile';
+import { TenantLayoutDisabledState } from '@/components/tenant-layout-disabled-state';
+import { useTenantRouteAccess } from '@/hooks/use-tenant-route-access';
 import { useTheme } from '@/components/theme-provider';
 import { cn } from '@/lib/utils';
 import { createNavlogLegFromCoordinates } from '@/lib/flight-planner';
@@ -46,6 +48,7 @@ const createEmptyRoute = (tenantId?: string | null): TrainingRoute => ({
 });
 
 export default function TrainingRoutesPage() {
+  const { isLoading: isAccessLoading, isAllowed } = useTenantRouteAccess({ href: '/operations/training-routes' });
   const { tenant, isLoading: isTenantLoading } = useTenantConfig();
   const { tenantId } = useUserProfile();
   const { uiMode } = useTheme();
@@ -216,6 +219,10 @@ export default function TrainingRoutesPage() {
         </div>
       </div>
     );
+  }
+
+  if (!isAccessLoading && !isAllowed) {
+    return <TenantLayoutDisabledState />;
   }
 
   if (

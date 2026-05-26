@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ChevronsUpDown } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useUserProfile } from '@/hooks/use-user-profile';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
@@ -21,6 +22,9 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import type { LogbookTemplate } from '@/app/(app)/development/logbook-parser/page';
 import { Switch } from '@/components/ui/switch';
 import { parseJsonResponse } from '@/lib/safe-json';
+import { getPermissionDisplayLabel } from '@/lib/permission-display';
+import { hasHierarchicalPermission, normalizePermissionIds } from '@/lib/permission-model';
+import { getPermissionSections } from '@/lib/permission-sections';
 import type { InstructorAssignmentRecord } from '../personnel-directory-page';
 
 type UserProfile = Personnel | PilotProfile;
@@ -96,6 +100,7 @@ const determineCollection = (userType: UserProfile['userType']): string => {
 
 export function EditPersonnelForm({ tenantId, user, roles, departments, logbookTemplates, onCancel }: EditPersonnelFormProps) {
   const { toast } = useToast();
+  const { rolePermissions } = useUserProfile();
   
   const [organizations, setOrganizations] = useState<ExternalOrganization[]>([]);
   const [instructors, setInstructors] = useState<PilotProfile[]>([]);
@@ -126,9 +131,22 @@ export function EditPersonnelForm({ tenantId, user, roles, departments, logbookT
   const [isPermissionsOpen, setIsPermissionsOpen] = useState(false);
 
   const [formData, setFormData] = useState<PersonnelFormState | null>(null);
+  const permissionSections = useMemo(() => getPermissionSections(permissionsConfig), []);
+  const canBypassPermissionRoleGate = useMemo(() => rolePermissions.includes('*'), [rolePermissions]);
+  const visiblePermissionIds = useMemo(() => {
+    return permissionSections.flatMap((section) =>
+      section.resources.flatMap((resource) =>
+        resource.actions.map((action) => `${resource.id}-${action}`)
+      )
+    );
+  }, [permissionSections]);
   
   useEffect(() => {
-    setFormData(JSON.parse(JSON.stringify(user)) as PersonnelFormState);
+    const cloned = JSON.parse(JSON.stringify(user)) as PersonnelFormState;
+    setFormData({
+      ...cloned,
+      permissions: normalizePermissionIds(cloned.permissions || []),
+    });
   }, [user]);
   
   const handleInputChange = <K extends keyof PersonnelFormState>(field: K, value: PersonnelFormState[K]) => {
@@ -189,24 +207,20 @@ export function EditPersonnelForm({ tenantId, user, roles, departments, logbookT
     }
   };
   
-  const allPermissionIds = useMemo(() => 
-    permissionsConfig.flatMap(resource => 
-      resource.actions.map(action => `${resource.id}-${action}`)
-    ),
-  []);
+  const allPermissionIds = useMemo(() => visiblePermissionIds, [visiblePermissionIds]);
 
   const areAllSelected = useMemo(() => {
-    return allPermissionIds.length > 0 && (formData?.permissions || []).length === allPermissionIds.length
+    return allPermissionIds.length > 0 && allPermissionIds.every((permissionId) => (formData?.permissions || []).includes(permissionId))
   }, [formData?.permissions, allPermissionIds]);
 
   const handlePermissionToggle = (permissionId: string, checked: boolean) => {
     if (!formData) return;
       const currentPermissions = formData.permissions || [];
       const role = roles.find((r) => r.id === formData.role);
-    const rolePermissions = role?.permissions || [];
-    const isRoleGranted = rolePermissions.includes(permissionId);
+    const rolePermissions = normalizePermissionIds(role?.permissions || []);
+    const isRoleGranted = rolePermissions.includes('*') || hasHierarchicalPermission(rolePermissions, permissionId);
 
-    if (!isRoleGranted) {
+    if (!isRoleGranted && !canBypassPermissionRoleGate) {
       toast({
         variant: 'destructive',
         title: 'Role Required',
@@ -223,20 +237,27 @@ export function EditPersonnelForm({ tenantId, user, roles, departments, logbookT
 
   const handleSelectAllToggle = () => {
     const role = formData ? roles.find((r) => r.id === formData.role) : null;
-    const rolePermissions = role?.permissions || [];
-    handleInputChange('permissions', areAllSelected ? [] : rolePermissions);
+    const rolePermissions = normalizePermissionIds(role?.permissions || []);
+    const currentPermissions = formData?.permissions || [];
+    handleInputChange(
+      'permissions',
+      areAllSelected
+        ? currentPermissions.filter((permissionId) => !visiblePermissionIds.includes(permissionId))
+        : Array.from(new Set([...currentPermissions, ...(canBypassPermissionRoleGate ? visiblePermissionIds : rolePermissions)]))
+    );
   };
   
   const handleRoleChange = (roleId: string) => {
     const role = roles.find(r => r.id === roleId);
     if (role) {
+      const normalizedRolePermissions = normalizePermissionIds(role.permissions || []);
       const currentOverrides = (formData?.permissions || []).filter((permissionId) =>
-        permissionId.startsWith('!') || (role.permissions || []).includes(permissionId)
+        permissionId.startsWith('!') || normalizedRolePermissions.includes(permissionId)
       );
       setFormData(prev => prev ? ({
         ...prev,
         role: role.id,
-        permissions: Array.from(new Set([...(role.permissions || []), ...currentOverrides]))
+        permissions: Array.from(new Set([...normalizedRolePermissions, ...currentOverrides]))
       }) : prev);
     }
   }
@@ -376,31 +397,39 @@ export function EditPersonnelForm({ tenantId, user, roles, departments, logbookT
                   <CollapsibleContent>
                       <ScrollArea className="h-72 w-full rounded-md border mt-2">
                           <div className="p-4">
-                              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-4">
-                                  {permissionsConfig.map((resource) => (
-                                      <div key={resource.id} className='space-y-2 break-inside-avoid'>
-                                          <h4 className='font-medium border-b pb-1'>{resource.name}</h4>
-                                          <div className="flex flex-col gap-2 pt-1">
-                                          {resource.actions.map((action) => {
-                                                  const permissionId = `${resource.id}-${action}`;
-                                                  const role = formData ? roles.find((r) => r.id === formData.role) : null;
-                                                  const isRoleGranted = !!role?.permissions?.includes(permissionId);
-                                                  const isUserGranted = !!(formData?.permissions || []).includes(permissionId);
-                                                  const isDenied = !!(formData?.permissions || []).includes(`!${permissionId}`);
-                                                  return (
-                                                      <div key={permissionId} className="flex items-center space-x-2">
-                                                          <Checkbox
-                                                            id={`edit-${permissionId}`}
-                                                            checked={(isRoleGranted && !isDenied) || isUserGranted}
-                                                            disabled={!isRoleGranted}
-                                                            onCheckedChange={(checked) => handlePermissionToggle(permissionId, !!checked)}
-                                                          />
-                                                          <label htmlFor={`edit-${permissionId}`} className="text-sm font-medium leading-none cursor-pointer capitalize">{action}</label>
-                                                      </div>
-                                                  );
-                                              })}
-                                          </div>
+                              <div className="space-y-6">
+                                  {permissionSections.map((section) => (
+                                    <section key={section.title} className="space-y-3">
+                                      <h4 className="text-[10px] font-black uppercase tracking-[0.25em] text-muted-foreground">{section.title}</h4>
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-4">
+                                          {section.resources.map((resource) => (
+                                              <div key={resource.id} className='space-y-2 break-inside-avoid rounded-xl border bg-muted/10 p-3'>
+                                                  <h5 className='font-medium border-b pb-1'>{resource.name}</h5>
+                                                  <div className="flex flex-col gap-2 pt-1">
+                                                  {resource.actions.map((action) => {
+                                                          const permissionId = `${resource.id}-${action}`;
+                                                          const role = formData ? roles.find((r) => r.id === formData.role) : null;
+                                                          const normalizedRolePermissions = normalizePermissionIds(role?.permissions || []);
+                                                          const isRoleGranted = normalizedRolePermissions.includes('*') || hasHierarchicalPermission(normalizedRolePermissions, permissionId);
+                                                          const isUserGranted = !!(formData?.permissions || []).includes(permissionId);
+                                                          const isDenied = !!(formData?.permissions || []).includes(`!${permissionId}`);
+                                                          return (
+                                                              <div key={permissionId} className="flex items-center space-x-2">
+                                                                  <Checkbox
+                                                                    id={`edit-${permissionId}`}
+                                                                    checked={(isRoleGranted && !isDenied) || isUserGranted}
+                                                                    disabled={!isRoleGranted}
+                                                                    onCheckedChange={(checked) => handlePermissionToggle(permissionId, !!checked)}
+                                                                  />
+                                                                  <label htmlFor={`edit-${permissionId}`} className="text-sm font-medium leading-none cursor-pointer">{getPermissionDisplayLabel(action)}</label>
+                                                              </div>
+                                                          );
+                                                      })}
+                                                  </div>
+                                              </div>
+                                          ))}
                                       </div>
+                                    </section>
                                   ))}
                               </div>
                           </div>

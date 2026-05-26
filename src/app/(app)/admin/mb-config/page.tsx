@@ -13,6 +13,8 @@ import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import { TenantLayoutDisabledState } from '@/components/tenant-layout-disabled-state';
+import { useTenantRouteAccess } from '@/hooks/use-tenant-route-access';
 import { calculateFuelGallonsFromWeight, calculateFuelWeight, gallonsToLitres, getFuelPreset, type FuelType } from '@/lib/fuel';
 import type { Aircraft, AircraftModelProfile } from '@/types/aircraft';
 import { MainPageHeader, HEADER_ACTION_BUTTON_CLASS } from '@/components/page-header';
@@ -484,6 +486,10 @@ const WBCalculator = () => {
 };
 
 export default function MassBalanceConfigPage() {
+  const { isLoading: isAccessLoading, isAllowed } = useTenantRouteAccess({ href: '/admin/mb-config' });
+  if (!isAccessLoading && !isAllowed) {
+    return <TenantLayoutDisabledState />;
+  }
   return (
     <IndustryRouteGuard
       sectionLabel="M&B Configuration"

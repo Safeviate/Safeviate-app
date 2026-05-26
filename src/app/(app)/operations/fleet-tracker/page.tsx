@@ -13,6 +13,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { DropdownMenuCheckboxItem, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
 import { useTenantConfig } from '@/hooks/use-tenant-config';
+import { TenantLayoutDisabledState } from '@/components/tenant-layout-disabled-state';
+import { useTenantRouteAccess } from '@/hooks/use-tenant-route-access';
 import type { Booking, NavlogLeg } from '@/types/booking';
 import type { FlightSession, FlightTrackHistorySummary, FlightTrackPoint } from '@/types/flight-session';
 import { getFlightSessionFreshnessLabel, isFlightSessionStale } from '@/lib/flight-session-status';
@@ -60,6 +62,7 @@ const formatReplayDuration = (firstRecordedAt?: string | null, lastRecordedAt?: 
 
 export default function FleetTrackerPage() {
   const { toast } = useToast();
+  const { isLoading: isAccessLoading, isAllowed } = useTenantRouteAccess({ href: '/operations/fleet-tracker' });
   const { tenant, isLoading: isTenantLoading } = useTenantConfig();
   const [sessions, setSessions] = useState<FlightSession[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -289,6 +292,10 @@ export default function FleetTrackerPage() {
         </div>
       </div>
     );
+  }
+
+  if (!isAccessLoading && !isAllowed) {
+    return <TenantLayoutDisabledState />;
   }
 
   if (

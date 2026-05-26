@@ -16,6 +16,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Map as MapIcon, Lock } from 'lucide-react';
 import { isHrefEnabledForIndustry, shouldBypassIndustryRestrictions } from '@/lib/industry-access';
 import { parseJsonResponse } from '@/lib/safe-json';
+import { TenantLayoutDisabledState } from '@/components/tenant-layout-disabled-state';
+import { useTenantRouteAccess } from '@/hooks/use-tenant-route-access';
 
 type WeatherCloudLayer = {
   cover?: string;
@@ -143,6 +145,7 @@ const formatTimestamp = (value?: number | string | null) => {
 };
 
 export default function WeatherPage() {
+  const { isLoading: isAccessLoading, isAllowed } = useTenantRouteAccess({ href: '/operations/weather' });
   const { tenant, isLoading: isTenantLoading } = useTenantConfig();
   const [icao, setIcao] = useState('');
   const [loading, setLoading] = useState(false);
@@ -343,6 +346,10 @@ export default function WeatherPage() {
 
   if (isTenantLoading) {
     return <Skeleton className="h-[420px] w-full" />;
+  }
+
+  if (!isAccessLoading && !isAllowed) {
+    return <TenantLayoutDisabledState />;
   }
 
   if (

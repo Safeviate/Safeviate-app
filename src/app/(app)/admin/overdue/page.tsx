@@ -10,6 +10,8 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { Clock, Phone } from 'lucide-react';
+import { TenantLayoutDisabledState } from '@/components/tenant-layout-disabled-state';
+import { useTenantRouteAccess } from '@/hooks/use-tenant-route-access';
 
 export type OverdueMonitorSettings = {
   id: string;
@@ -26,6 +28,7 @@ const defaultSettings: OverdueMonitorSettings = {
 };
 
 export default function OverdueSettingsPage() {
+  const { isLoading: isAccessLoading, isAllowed } = useTenantRouteAccess({ href: '/admin/overdue' });
   const { toast } = useToast();
 
   const [isEnabled, setIsEnabled] = useState(defaultSettings.isEnabled);
@@ -83,6 +86,10 @@ export default function OverdueSettingsPage() {
 
   if (isLoading) {
     return <div className="max-w-2xl mx-auto space-y-6 px-1 py-12"><Skeleton className="h-[400px] w-full" /></div>;
+  }
+
+  if (!isAccessLoading && !isAllowed) {
+    return <TenantLayoutDisabledState />;
   }
 
   return (

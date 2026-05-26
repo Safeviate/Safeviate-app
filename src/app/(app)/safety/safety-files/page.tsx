@@ -9,6 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { MainPageHeader } from '@/components/page-header';
 import { AddProjectDialog } from './add-project-dialog';
+import { TenantLayoutDisabledState } from '@/components/tenant-layout-disabled-state';
+import { useTenantRouteAccess } from '@/hooks/use-tenant-route-access';
 import type { SafetyFileProject } from '@/types/safety-file';
 
 type SafetyFileProjectListItem = SafetyFileProject & {
@@ -27,6 +29,7 @@ function getStatusBadge(status: SafetyFileProject['status']) {
 }
 
 export default function SafetyFilesPage() {
+  const { isLoading: isAccessLoading, isAllowed } = useTenantRouteAccess({ href: '/safety/safety-files' });
   const [projects, setProjects] = useState<SafetyFileProjectListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -82,6 +85,10 @@ export default function SafetyFilesPage() {
         <Skeleton className="h-[520px] w-full" />
       </div>
     );
+  }
+
+  if (!isAccessLoading && !isAllowed) {
+    return <TenantLayoutDisabledState />;
   }
 
   return (

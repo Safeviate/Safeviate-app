@@ -8,6 +8,7 @@ import type { MenuItem, SubMenuItem } from '@/lib/menu-config';
 import type { Personnel } from '@/app/(app)/users/personnel/page';
 import { isHrefEnabledForIndustry, shouldBypassIndustryRestrictions } from '@/lib/industry-access';
 import { isTenantHrefEnabledByLayout } from '@/lib/tenant-layout-access';
+import { hasHierarchicalPermission, normalizePermissionIds } from '@/lib/permission-model';
 
 export const usePermissions = () => {
   const {
@@ -18,29 +19,33 @@ export const usePermissions = () => {
   } = useUserProfile();
   const { tenant, isLoading: isTenantLoading } = useTenantConfig();
 
-  const effectivePermissions = useMemo(() => {
+  const permissionState = useMemo(() => {
     const inheritedPermissions = rolePermissions || [];
     const overridePermissions = (userProfile as Personnel | null)?.permissions || [];
     const deniedPermissions = new Set(
-      overridePermissions.filter((permission) => permission.startsWith('!')).map((permission) => permission.slice(1))
+      normalizePermissionIds(overridePermissions.filter((permission) => permission.startsWith('!')).map((permission) => permission.slice(1)))
     );
 
     const grantedPermissions = new Set<string>();
 
-    inheritedPermissions.forEach((permission) => {
+    normalizePermissionIds(inheritedPermissions).forEach((permission) => {
       if (!deniedPermissions.has(permission)) {
         grantedPermissions.add(permission);
       }
     });
 
-    overridePermissions.forEach((permission) => {
-      if (!permission.startsWith('!')) {
-        grantedPermissions.add(permission);
-      }
+    normalizePermissionIds(overridePermissions.filter((permission) => !permission.startsWith('!'))).forEach((permission) => {
+      grantedPermissions.add(permission);
     });
 
-    return grantedPermissions;
+    return {
+      grantedPermissions,
+      deniedPermissions,
+    };
   }, [rolePermissions, userProfile]);
+
+  const effectivePermissions = permissionState.grantedPermissions;
+  const deniedPermissions = permissionState.deniedPermissions;
 
   const hiddenMenus = useMemo(() => {
     const userHiddenMenus = (userProfile as Personnel | null)?.accessOverrides?.hiddenMenus || [];
@@ -57,9 +62,9 @@ export const usePermissions = () => {
         return true;
       }
 
-      return effectivePermissions.has(permissionId);
+      return hasHierarchicalPermission(effectivePermissions, permissionId, deniedPermissions);
     },
-    [effectivePermissions, isLoading, userProfile]
+    [deniedPermissions, effectivePermissions, isLoading, userProfile]
   );
 
   const canAccessMenuItem = useCallback(

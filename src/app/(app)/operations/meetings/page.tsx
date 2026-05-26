@@ -20,6 +20,8 @@ import { ResponsiveCardGrid } from '@/components/responsive-card-grid';
 import { CustomCalendar } from '@/components/ui/custom-calendar';
 import { useToast } from '@/hooks/use-toast';
 import { useUserProfile } from '@/hooks/use-user-profile';
+import { TenantLayoutDisabledState } from '@/components/tenant-layout-disabled-state';
+import { useTenantRouteAccess } from '@/hooks/use-tenant-route-access';
 import Link from 'next/link';
 import type { MeetingActionItem, MeetingAgendaItem, MeetingRecordData, MeetingStatus, MeetingType } from '@/types/meeting';
 
@@ -456,6 +458,7 @@ function MeetingFormDialog({
 }
 
 export default function MeetingsPage() {
+  const { isLoading: isAccessLoading, isAllowed } = useTenantRouteAccess({ href: '/operations/meetings' });
   const { toast } = useToast();
   const { userProfile } = useUserProfile();
   const [meetings, setMeetings] = useState<MeetingRecordData[]>([]);
@@ -787,6 +790,10 @@ export default function MeetingsPage() {
         <Skeleton className="h-[400px] w-full" />
       </div>
     );
+  }
+
+  if (!isAccessLoading && !isAllowed) {
+    return <TenantLayoutDisabledState />;
   }
 
   return (

@@ -30,7 +30,7 @@ export default function AccountingPage() {
   const { tenantId } = useUserProfile();
   const { hasPermission } = usePermissions();
   const canViewAccounting = hasPermission('accounting-view') || hasPermission('accounting-manage') || hasPermission('admin-view');
-  const canExportAccounting = hasPermission('accounting-export') || hasPermission('accounting-manage') || hasPermission('admin-view');
+  const canExportAccounting = hasPermission('accounting-edit') || hasPermission('accounting-manage') || hasPermission('admin-view');
 
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [aircrafts, setAircrafts] = useState<Aircraft[]>([]);

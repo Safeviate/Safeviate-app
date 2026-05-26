@@ -18,13 +18,16 @@ import { useUserProfile } from '@/hooks/use-user-profile';
 import { usePermissions } from '@/hooks/use-permissions';
 import { useOrganizationScope } from '@/hooks/use-organization-scope';
 import { useTenantConfig } from '@/hooks/use-tenant-config';
+import { TenantLayoutDisabledState } from '@/components/tenant-layout-disabled-state';
 import { HEADER_ACTION_BUTTON_CLASS, HEADER_COMPACT_CONTROL_CLASS, HEADER_SECONDARY_BUTTON_CLASS } from '@/components/page-header';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { OrganizationTabsRow } from '@/components/responsive-tab-row';
+import { useTenantRouteAccess } from '@/hooks/use-tenant-route-access';
 
 const settingsDocId = 'spi-configurations';
 
 export default function SafetyIndicatorsPage() {
+  const { isLoading: isAccessLoading, isAllowed } = useTenantRouteAccess({ href: '/safety/safety-indicators' });
   const [spiConfig, setSpiConfig] = useState<SpiConfig[]>([]);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [selectedSpi, setSelectedSpi] = useState<SpiConfig | null>(null);
@@ -240,6 +243,9 @@ export default function SafetyIndicatorsPage() {
   };
 
   if (isLoading) return <div className="max-w-[1100px] mx-auto w-full space-y-6 pt-4 px-1 h-full overflow-hidden"><Skeleton className="h-20 w-full" /><Skeleton className="flex-1 w-full" /></div>;
+  if (!isAccessLoading && !isAllowed) {
+    return <TenantLayoutDisabledState />;
+  }
   const showTabs = shouldShowOrganizationTabs;
 
   return (

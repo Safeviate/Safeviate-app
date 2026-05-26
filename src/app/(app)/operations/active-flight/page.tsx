@@ -34,6 +34,8 @@ import { FlightTelemetryTable } from '@/components/active-flight/flight-telemetr
 import { useIsMobile } from '@/hooks/use-mobile';
 import { OPERATIONS_MAP_SURFACE_HEIGHT_CLASS } from '@/components/operations/operations-map-layout';
 import { Skeleton } from '@/components/ui/skeleton';
+import { TenantLayoutDisabledState } from '@/components/tenant-layout-disabled-state';
+import { useTenantRouteAccess } from '@/hooks/use-tenant-route-access';
 
 const BREADCRUMB_SAMPLE_MS = 15000;
 const MAX_BREADCRUMB_POINTS = 60;
@@ -223,6 +225,7 @@ const getResumeTimestamp = (session: ActiveTrackingState | FlightSession) =>
   'resume';
 
 export default function ActiveFlightPage() {
+  const { isLoading: isAccessLoading, isAllowed } = useTenantRouteAccess({ href: '/operations/active-flight' });
   const { toast } = useToast();
   const { tenantId, userProfile, isLoading: isUserLoading } = useUserProfile();
   const { tenant, isLoading: isTenantLoading } = useTenantConfig();
@@ -1128,6 +1131,10 @@ export default function ActiveFlightPage() {
   }
 
   const canAccessActiveFlight = shouldBypassIndustryRestrictions(tenant?.id) || isHrefEnabledForIndustry('/operations/active-flight', tenant?.industry) || (tenant?.enabledMenus?.includes('/operations/active-flight') ?? false);
+
+  if (!isAccessLoading && !isAllowed) {
+    return <TenantLayoutDisabledState />;
+  }
 
   if (isTenantLoading) {
     return (

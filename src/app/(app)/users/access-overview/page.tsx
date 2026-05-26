@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Check, X, Shield, LayoutGrid } from 'lucide-react';
 import { isHrefEnabledForIndustry } from '@/lib/industry-access';
-import { menuConfig } from '@/lib/menu-config';
+import { menuConfig, type MenuItem, type SubMenuItem } from '@/lib/menu-config';
 import { useTenantConfig } from '@/hooks/use-tenant-config';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { Role } from '../../admin/roles/page';
@@ -14,6 +14,57 @@ import Link from 'next/link';
 import { MainPageHeader } from '@/components/page-header';
 import { TenantLayoutDisabledState } from '@/components/tenant-layout-disabled-state';
 import { useTenantRouteAccess } from '@/hooks/use-tenant-route-access';
+import { hasHierarchicalPermission } from '@/lib/permission-model';
+
+type AccessRow = {
+  href: string;
+  label: string;
+  description?: string;
+  permissionId?: string;
+  depth: number;
+};
+
+type AccessGroup = {
+  href: string;
+  label: string;
+  icon: MenuItem['icon'];
+  description?: string;
+  permissionId?: string;
+  rows: AccessRow[];
+};
+
+const flattenAccessRows = (item: MenuItem | SubMenuItem, depth = 0): AccessRow[] => {
+  const rows: AccessRow[] = [
+    {
+      href: item.href,
+      label: item.label,
+      description: 'description' in item ? item.description : undefined,
+      permissionId: item.permissionId,
+      depth,
+    },
+  ];
+
+  if (item.subItems?.length) {
+    item.subItems.forEach((subItem) => {
+      rows.push(...flattenAccessRows(subItem, depth + 1));
+    });
+  }
+
+  return rows;
+};
+
+const buildAccessGroups = (items: MenuItem[], industry?: string): AccessGroup[] => {
+  return items
+    .filter((item) => isHrefEnabledForIndustry(item.href, industry))
+    .map((item) => ({
+      href: item.href,
+      label: item.label,
+      icon: item.icon,
+      description: item.subItems?.length ? undefined : item.permissionId ? undefined : 'Menu-only item',
+      permissionId: item.permissionId,
+      rows: flattenAccessRows(item),
+    }));
+};
 
 export default function AccessOverviewPage() {
   const { tenant, isLoading: isLoadingTenant } = useTenantConfig();
@@ -47,14 +98,10 @@ export default function AccessOverviewPage() {
 
   const isLoading = isLoadingTenant || isLoadingRoles;
 
-  const coreModules = useMemo(() => {
-    return menuConfig.filter(
-      (m) =>
-        m.label !== 'Admin' &&
-        m.label !== 'Development' &&
-        isHrefEnabledForIndustry(m.href, tenant?.industry)
-    );
-  }, [tenant?.industry]);
+  const menuGroups = useMemo(() => buildAccessGroups(menuConfig, tenant?.industry), [tenant?.industry]);
+
+  const isModuleEnabled = (href: string) =>
+    isHrefEnabledForIndustry(href, tenant?.industry) && (!tenant?.enabledMenus || tenant.enabledMenus.includes(href));
 
   if (!isLoading && !isAllowed) {
     return <TenantLayoutDisabledState />;
@@ -84,51 +131,134 @@ export default function AccessOverviewPage() {
                 <Shield className="h-4 w-4 text-primary" />
                 Role Access Matrix
               </CardTitle>
-              <CardDescription className="text-[10px] font-bold uppercase text-muted-foreground italic">Permissions required to see core modules.</CardDescription>
+              <CardDescription className="text-[10px] font-bold uppercase text-muted-foreground italic">
+                Grouped by menu and submenu so access lines up with the sidebar.
+              </CardDescription>
             </CardHeader>
-            <CardContent className="flex-1 p-0 overflow-hidden">
-              <div className="overflow-x-auto w-full h-full custom-scrollbar" style={{ scrollbarWidth: 'thin' }}>
-                <Table className="min-w-[800px]">
-                  <TableHeader className="bg-muted/30">
-                    <TableRow>
-                      <TableHead className="w-48 text-[10px] uppercase font-black bg-muted/30 tracking-wider">Module</TableHead>
-                      {(roles || []).map(role => (
-                        <TableHead key={role.id} className="text-center text-[10px] uppercase font-black bg-muted/30 tracking-wider">
-                          {role.name}
-                        </TableHead>
-                      ))}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {coreModules.map(module => {
-                      const isEnabled = !tenant?.enabledMenus || tenant.enabledMenus.includes(module.href);
+            <CardContent className="flex-1 p-4 lg:p-6 overflow-hidden">
+              <div className="h-full overflow-y-auto overflow-x-hidden custom-scrollbar space-y-4 pr-1" style={{ scrollbarWidth: 'thin' }}>
+                {menuGroups.map((group) => {
+                  const groupIsEnabled = isModuleEnabled(group.href);
 
-                      return (
-                        <TableRow key={module.href} className={!isEnabled ? 'opacity-40 grayscale' : ''}>
-                          <TableCell className="font-bold text-sm text-foreground flex items-center gap-2 py-4 px-6">
-                            <module.icon className="h-4 w-4 text-primary" />
-                            {module.label}
-                            {!isEnabled && <Badge variant="outline" className="text-[8px] h-4 py-0 ml-1 font-black uppercase">Disabled</Badge>}
-                          </TableCell>
-                          {(roles || []).map(role => {
-                            const permissionId = module.permissionId;
-                            const hasAccess = role.permissions?.includes(permissionId || '');
+                  return (
+                    <Card
+                      key={group.href}
+                      className={`overflow-hidden border shadow-none ${groupIsEnabled ? '' : 'opacity-50 grayscale'}`}
+                    >
+                      <CardHeader className="border-b bg-muted/5 px-4 py-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0 space-y-1">
+                            <CardTitle className="flex items-center gap-2 text-sm font-black uppercase tracking-[-0.01em]">
+                              <group.icon className="h-4 w-4 text-primary" />
+                              <span className="truncate">{group.label}</span>
+                            </CardTitle>
+                            <CardDescription className="text-[10px] font-bold uppercase text-muted-foreground italic">
+                              {group.description || 'Menu group with nested access rows.'}
+                            </CardDescription>
+                          </div>
+                          <Badge
+                            variant={groupIsEnabled ? 'default' : 'outline'}
+                            className="h-5 rounded-full px-2 text-[8px] font-black uppercase"
+                          >
+                            {groupIsEnabled ? 'ENABLED' : 'HIDDEN'}
+                          </Badge>
+                        </div>
+                      </CardHeader>
 
-                            return (
-                              <TableCell key={role.id} className="text-center">
-                                {isEnabled && hasAccess ? (
-                                  <Check className="h-4 w-4 text-primary mx-auto" />
-                                ) : (
-                                  <X className="h-4 w-4 text-muted-foreground/30 mx-auto" />
-                                )}
-                              </TableCell>
-                            );
-                          })}
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
+                      <CardContent className="p-0">
+                        <div className="overflow-x-auto w-full custom-scrollbar" style={{ scrollbarWidth: 'thin' }}>
+                          <Table className="min-w-[860px]">
+                            <TableHeader className="bg-muted/30">
+                              <TableRow>
+                                <TableHead className="w-64 text-[10px] uppercase font-black bg-muted/30 tracking-wider">
+                                  Menu Item
+                                </TableHead>
+                                {(roles || []).map((role) => (
+                                  <TableHead
+                                    key={role.id}
+                                    className="text-center text-[10px] uppercase font-black bg-muted/30 tracking-wider"
+                                  >
+                                    {role.name}
+                                  </TableHead>
+                                ))}
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {group.rows.map((row) => {
+                                const rowEnabled = isModuleEnabled(row.href);
+                                const hasPermission = Boolean(row.permissionId);
+
+                                return (
+                                  <TableRow key={row.href} className={!rowEnabled ? 'opacity-40' : ''}>
+                                    <TableCell className="py-4 px-4 align-top">
+                                      <div className={`flex items-start gap-3 ${row.depth > 0 ? 'pl-6' : ''}`}>
+                                        <div className="mt-0.5 shrink-0 rounded-md bg-primary/10 p-1.5 text-primary">
+                                          {row.depth === 0 ? (
+                                            <group.icon className="h-3.5 w-3.5" />
+                                          ) : (
+                                            <div className="h-2 w-2 rounded-full bg-primary/70" />
+                                          )}
+                                        </div>
+                                        <div className="min-w-0 space-y-1">
+                                          <div className="flex flex-wrap items-center gap-2">
+                                            <span
+                                              className={`font-bold text-foreground ${row.depth > 0 ? 'text-[13px]' : 'text-sm'}`}
+                                            >
+                                              {row.label}
+                                            </span>
+                                            {hasPermission ? (
+                                              <Badge variant="outline" className="h-5 px-1.5 text-[8px] font-black uppercase">
+                                                Permission
+                                              </Badge>
+                                            ) : (
+                                              <Badge variant="secondary" className="h-5 px-1.5 text-[8px] font-black uppercase">
+                                                Public
+                                              </Badge>
+                                            )}
+                                            {!rowEnabled && (
+                                              <Badge variant="outline" className="h-5 px-1.5 text-[8px] font-black uppercase">
+                                                Hidden
+                                              </Badge>
+                                            )}
+                                          </div>
+                                          {row.description ? (
+                                            <p className="text-[10px] font-medium text-muted-foreground">{row.description}</p>
+                                          ) : null}
+                                        </div>
+                                      </div>
+                                    </TableCell>
+
+                                    {(roles || []).map((role) => {
+                                      const hasAccess = hasPermission
+                                        ? hasHierarchicalPermission(role.permissions || [], row.permissionId || '')
+                                        : false;
+
+                                      return (
+                                        <TableCell key={role.id} className="text-center align-middle">
+                                          {hasPermission ? (
+                                            rowEnabled && hasAccess ? (
+                                              <Check className="mx-auto h-4 w-4 text-primary" />
+                                            ) : (
+                                              <X className="mx-auto h-4 w-4 text-muted-foreground/30" />
+                                            )
+                                          ) : (
+                                            <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
+                                              —
+                                            </span>
+                                          )}
+                                        </TableCell>
+                                      );
+                                    })}
+                                  </TableRow>
+                                );
+                              })}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
             </CardContent>
           </Card>
@@ -138,15 +268,15 @@ export default function AccessOverviewPage() {
               <CardHeader className="bg-muted/5 border-b p-4">
                 <CardTitle className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2 text-muted-foreground">
                   <LayoutGrid className="h-3.5 w-3.5 text-primary" />
-                  Active Modules
+                  Menu Visibility
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-4 pt-4 space-y-2 bg-background">
-                {coreModules.map(m => {
-                  const isEnabled = !tenant?.enabledMenus || tenant.enabledMenus.includes(m.href);
+                {menuGroups.map((group) => {
+                  const isEnabled = isModuleEnabled(group.href);
                   return (
-                    <div key={m.href} className="flex items-center justify-between text-[11px] font-bold">
-                      <span className="text-foreground">{m.label}</span>
+                    <div key={group.href} className="flex items-center justify-between text-[11px] font-bold">
+                      <span className="text-foreground">{group.label}</span>
                       <Badge variant={isEnabled ? 'default' : 'outline'} className="h-4 text-[8px] font-black uppercase">
                         {isEnabled ? 'ENABLED' : 'HIDDEN'}
                       </Badge>
@@ -161,10 +291,10 @@ export default function AccessOverviewPage() {
                 <CardTitle className="text-[10px] font-black uppercase tracking-widest text-primary">Visibility Logic</CardTitle>
               </CardHeader>
               <CardContent className="p-4 pt-0 text-[10px] text-muted-foreground font-medium leading-relaxed">
-                For a user to see a module, two conditions must be met:
+                For a user to see a menu item or submenu, two conditions must be met:
                 <ol className="list-decimal pl-4 mt-2 space-y-1">
                   <li>The module must be enabled globally in <Link href="/admin/page-format" className="text-primary hover:underline">Page Format</Link>.</li>
-                  <li>The user&apos;s Role must have the corresponding &quot;view&quot; permission.</li>
+                  <li>The user&apos;s Role must have the corresponding permission tier for that menu row.</li>
                 </ol>
               </CardContent>
             </Card>

@@ -36,6 +36,9 @@ import { DeleteActionButton, ViewActionButton } from '@/components/record-action
 import { MainPageHeader } from '@/components/page-header';
 import { ResponsiveTabRow } from '@/components/responsive-tab-row';
 import { parseJsonResponse } from '@/lib/safe-json';
+import { getPermissionDisplayLabel } from '@/lib/permission-display';
+import { hasHierarchicalPermission, normalizePermissionIds } from '@/lib/permission-model';
+import { getPermissionSections } from '@/lib/permission-sections';
 
 const parseLocalDate = (value?: string | null) => {
   if (!value) return null;
@@ -79,8 +82,8 @@ const isPilotProfile = (user: UserProfile): user is PilotProfile => {
 }
 
 const roleGrantsPermission = (role: Role | null | undefined, permissionId: string) => {
-  const permissions = Array.isArray(role?.permissions) ? role?.permissions : [];
-  return permissions.includes('*') || permissions.includes(permissionId);
+  const permissions = normalizePermissionIds(Array.isArray(role?.permissions) ? role?.permissions : []);
+  return permissions.includes('*') || hasHierarchicalPermission(permissions, permissionId);
 };
 
 export function ViewPersonnelDetails({ user, role, department, actions }: ViewPersonnelDetailsProps) {
@@ -102,8 +105,10 @@ export function ViewPersonnelDetails({ user, role, department, actions }: ViewPe
   const showResetPasswordAction = user.hasPassword !== false;
   const firestore = null; // Mock
   const { hasPermission } = usePermissions();
-  const { tenantId } = useUserProfile();
+  const { tenantId, rolePermissions } = useUserProfile();
   const [instructorDirectory, setInstructorDirectory] = useState<PilotProfile[]>([]);
+  const permissionSections = useMemo(() => getPermissionSections(permissionsConfig), []);
+  const canBypassPermissionRoleGate = useMemo(() => rolePermissions.includes('*'), [rolePermissions]);
 
   const canEdit = hasPermission('users-edit');
 
@@ -112,7 +117,7 @@ export function ViewPersonnelDetails({ user, role, department, actions }: ViewPe
   }, [user]);
 
   useEffect(() => {
-    setLocalPermissions(user.permissions || []);
+    setLocalPermissions(normalizePermissionIds(user.permissions || []));
   }, [user]);
 
   useEffect(() => {
@@ -418,7 +423,7 @@ export function ViewPersonnelDetails({ user, role, department, actions }: ViewPe
       const currentPermissions = localPermissions || [];
     const isInherited = roleGrantsPermission(role, permissionId);
 
-    if (!isInherited) {
+    if (!isInherited && !canBypassPermissionRoleGate) {
         toast({
             variant: 'destructive',
             title: 'Role Required',
@@ -735,37 +740,46 @@ export function ViewPersonnelDetails({ user, role, department, actions }: ViewPe
 
                             <TabsContent value="permissions" className="m-0">
                                 <div className="p-6">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                        {permissionsConfig.map((resource) => (
-                                            <div key={resource.id} className='space-y-3 bg-background p-4 rounded-xl border border-slate-200 shadow-sm'>
-                                                <h4 className='text-[10px] font-black uppercase text-primary border-b border-primary/20 pb-2 mb-3 tracking-widest'>{resource.name}</h4>
-                                                <div className="flex flex-col gap-2.5">
-                                                    {resource.actions.map(action => {
-                                                        const permissionId = `${resource.id}-${action}`;
-                                                        const isInherited = roleGrantsPermission(role, permissionId);
-                                                        const isOverridden = localPermissions?.includes(permissionId);
-                                                        const isDenied = localPermissions?.includes(`!${permissionId}`);
-                                                        const isEffective = (isInherited && !isDenied) || isOverridden;
-                                                        return (
-                                                            <div key={action} className="flex items-center space-x-3">
-                                                                  <Checkbox
-                                                                    id={`perm-${permissionId}`}
-                                                                    checked={!!isEffective}
-                                                                  disabled={!canEdit || !isInherited}
-                                                                  onCheckedChange={(checked) => handlePermissionToggle(permissionId, !!checked)}
-                                                                  />
-                                                                <label htmlFor={`perm-${permissionId}`} className={cn("text-[11px] font-bold uppercase cursor-pointer", isInherited && !isDenied && !isOverridden && "text-muted-foreground italic")}>
-                                                                    {action}
-                                                                    {isInherited && !isDenied && !isOverridden && <span className="ml-2 text-[9px] opacity-70">(Role)</span>}
-                                                                    {isOverridden && <span className="ml-2 text-[9px] text-primary opacity-70">(Override)</span>}
-                                                                    {isDenied && <span className="ml-2 text-[9px] text-destructive opacity-70">(Denied)</span>}
-                                                                </label>
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            </div>
-                                        ))}
+                                    <div className="space-y-6">
+                                      {permissionSections.map((section) => (
+                                        <section key={section.title} className="space-y-3">
+                                          <div className="flex items-center justify-between">
+                                            <h4 className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.25em]">{section.title}</h4>
+                                          </div>
+                                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                            {section.resources.map((resource) => (
+                                              <div key={resource.id} className='space-y-3 bg-background p-4 rounded-xl border border-slate-200 shadow-sm'>
+                                                  <h5 className='text-[10px] font-black uppercase text-primary border-b border-primary/20 pb-2 mb-3 tracking-widest'>{resource.name}</h5>
+                                                  <div className="flex flex-col gap-2.5">
+                                                      {resource.actions.map(action => {
+                                                          const permissionId = `${resource.id}-${action}`;
+                                                          const isInherited = roleGrantsPermission(role, permissionId);
+                                                          const isOverridden = localPermissions?.includes(permissionId);
+                                                          const isDenied = localPermissions?.includes(`!${permissionId}`);
+                                                          const isEffective = (isInherited && !isDenied) || isOverridden;
+                                                          return (
+                                                              <div key={action} className="flex items-center space-x-3">
+                                                                    <Checkbox
+                                                                      id={`perm-${permissionId}`}
+                                                                      checked={!!isEffective}
+                                                                    disabled={!canEdit || (!isInherited && !canBypassPermissionRoleGate)}
+                                                                    onCheckedChange={(checked) => handlePermissionToggle(permissionId, !!checked)}
+                                                                    />
+                                                                  <label htmlFor={`perm-${permissionId}`} className={cn("text-[11px] font-bold uppercase cursor-pointer", isInherited && !isDenied && !isOverridden && "text-muted-foreground italic")}>
+                                                                      {getPermissionDisplayLabel(action)}
+                                                                      {isInherited && !isDenied && !isOverridden && <span className="ml-2 text-[9px] opacity-70">(Role)</span>}
+                                                                      {isOverridden && <span className="ml-2 text-[9px] text-primary opacity-70">(Override)</span>}
+                                                                      {isDenied && <span className="ml-2 text-[9px] text-destructive opacity-70">(Denied)</span>}
+                                                                  </label>
+                                                              </div>
+                                                          );
+                                                      })}
+                                                  </div>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        </section>
+                                      ))}
                                     </div>
                                 </div>
                             </TabsContent>

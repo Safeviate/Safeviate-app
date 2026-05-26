@@ -21,6 +21,8 @@ import { OrganizationTabsRow, ResponsiveTabRow } from '@/components/responsive-t
 import { DeleteActionButton, ViewActionButton } from '@/components/record-action-buttons';
 import { HEADER_ACTION_BUTTON_CLASS, HEADER_MOBILE_ACTION_BUTTON_CLASS } from '@/components/page-header';
 import { ResponsiveCardGrid } from '@/components/responsive-card-grid';
+import { TenantLayoutDisabledState } from '@/components/tenant-layout-disabled-state';
+import { useTenantRouteAccess } from '@/hooks/use-tenant-route-access';
 
 import type { QualityAudit, ExternalOrganization } from '@/types/quality';
 import type { Department } from '../../admin/department/page';
@@ -147,6 +149,7 @@ function AuditsTable({ audits, tenantId }: AuditsTableProps) {
 }
 
 export default function AuditsPage() {
+    const { isLoading: isAccessLoading, isAllowed } = useTenantRouteAccess({ href: '/quality/audits' });
     const { tenantId } = useUserProfile();
     const { scopedOrganizationId, shouldShowOrganizationTabs } = useOrganizationScope({ viewAllPermissionId: 'quality-audits-view-all' });
     const { isPageEnabled, isSectionEnabled, isTabEnabled } = usePageLayout('audits');
@@ -195,6 +198,10 @@ export default function AuditsPage() {
             setActiveStatusTab(statusTabs[0].value);
         }
     }, [activeStatusTab, statusTabs]);
+
+    if (!isAccessLoading && !isAllowed) {
+        return <TenantLayoutDisabledState />;
+    }
 
     if (!isPageEnabled) {
       return (
