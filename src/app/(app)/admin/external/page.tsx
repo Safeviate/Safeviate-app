@@ -21,6 +21,8 @@ import { CARD_HEADER_BAND_CLASS, HEADER_COMPACT_CONTROL_CLASS, HEADER_SECONDARY_
 import { TenantLayoutDisabledState } from '@/components/tenant-layout-disabled-state';
 import { useTenantRouteAccess } from '@/hooks/use-tenant-route-access';
 
+const EXTERNAL_ORGANIZATIONS_UPDATED_EVENT = 'safeviate-external-organizations-updated';
+
 export default function ExternalCompaniesPage() {
   const { toast } = useToast();
   const { hasPermission } = usePermissions();
@@ -48,7 +50,7 @@ export default function ExternalCompaniesPage() {
       const payload = await response.json().catch(() => ({ organizations: [] }));
       setOrganizations(Array.isArray(payload.organizations) ? payload.organizations : []);
     } catch (e) {
-        console.error("Failed to load external orgs", e);
+        console.error("Failed to load external companies", e);
     } finally {
         setIsLoadingOrgs(false);
     }
@@ -56,8 +58,8 @@ export default function ExternalCompaniesPage() {
 
   useEffect(() => {
     void loadOrgs();
-    window.addEventListener('safeviate-external-orgs-updated', loadOrgs);
-    return () => window.removeEventListener('safeviate-external-orgs-updated', loadOrgs);
+    window.addEventListener(EXTERNAL_ORGANIZATIONS_UPDATED_EVENT, loadOrgs);
+    return () => window.removeEventListener(EXTERNAL_ORGANIZATIONS_UPDATED_EVENT, loadOrgs);
   }, [loadOrgs]);
 
   const handleOpenForm = (org: ExternalOrganization | null = null) => {
@@ -89,8 +91,8 @@ export default function ExternalCompaniesPage() {
           body: JSON.stringify({ organization }),
         });
         if (!response.ok) throw new Error('Failed to save organization');
-        window.dispatchEvent(new Event('safeviate-external-orgs-updated'));
-        toast({ title: editingOrg ? 'Organization Updated' : 'Organization Created' });
+        window.dispatchEvent(new Event(EXTERNAL_ORGANIZATIONS_UPDATED_EVENT));
+        toast({ title: editingOrg ? 'Company Updated' : 'Company Created' });
         setIsFormOpen(false);
     } catch (e) {
         toast({ variant: 'destructive', title: 'Error', description: 'Failed to save organization.' });
@@ -102,8 +104,8 @@ export default function ExternalCompaniesPage() {
     try {
         const response = await fetch(`/api/external-organizations/${id}`, { method: 'DELETE' });
         if (!response.ok) throw new Error('Failed to delete organization');
-        window.dispatchEvent(new Event('safeviate-external-orgs-updated'));
-        toast({ title: 'Organization Deleted' });
+        window.dispatchEvent(new Event(EXTERNAL_ORGANIZATIONS_UPDATED_EVENT));
+        toast({ title: 'Company Deleted' });
     } catch (e) {
         toast({ variant: 'destructive', title: 'Error', description: 'Failed to delete organization.' });
     }

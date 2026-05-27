@@ -42,7 +42,7 @@ export default function ExternalOrganizationsPage() {
         const payload = await response.json().catch(() => ({ organizations: [] }));
         setOrganizations(Array.isArray(payload.organizations) ? payload.organizations : []);
     } catch (e) {
-        console.error('Failed to load external orgs', e);
+        console.error('Failed to load external companies', e);
         setOrganizations([]);
     } finally {
         setIsLoading(false);
@@ -81,10 +81,10 @@ export default function ExternalOrganizationsPage() {
         const result = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(result.error || 'Failed to save organization.');
         window.dispatchEvent(new Event('safeviate-external-organizations-updated'));
-        toast({ title: editingOrg ? 'Organization Updated' : 'Organization Created' });
+        toast({ title: editingOrg ? 'Company Updated' : 'Company Created' });
         setIsFormOpen(false);
     } catch (e) {
-        toast({ variant: 'destructive', title: 'Error', description: 'Failed to save organization.' });
+        toast({ variant: 'destructive', title: 'Error', description: 'Failed to save company.' });
     }
   };
 
@@ -95,7 +95,7 @@ export default function ExternalOrganizationsPage() {
         const result = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(result.error || 'Failed to delete organization.');
         window.dispatchEvent(new Event('safeviate-external-organizations-updated'));
-        toast({ title: 'Organization Deleted' });
+        toast({ title: 'Company Deleted' });
     } catch (e) {
         toast({ variant: 'destructive', title: 'Error', description: 'Failed to delete organization.' });
     }
@@ -107,7 +107,7 @@ export default function ExternalOrganizationsPage() {
         <div className="min-w-0 space-y-1">
           <p className="truncate text-sm font-black uppercase tracking-[-0.01em] text-foreground">{org.name}</p>
           <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-            External Organization
+            External Company
           </p>
         </div>
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border bg-background text-[10px] font-black uppercase text-muted-foreground">
@@ -128,11 +128,11 @@ export default function ExternalOrganizationsPage() {
 
         {canManage ? (
           <div className="flex flex-wrap items-center justify-end gap-2">
-            <EditActionButton onClick={() => handleOpenForm(org)} label="Edit organization" />
+            <EditActionButton onClick={() => handleOpenForm(org)} label="Edit company" />
             <DeleteActionButton
-              description={`This will permanently delete external organization "${org.name}".`}
+              description={`This will permanently delete external company "${org.name}".`}
               onDelete={() => handleDelete(org.id)}
-              srLabel="Delete organization"
+              srLabel="Delete company"
             />
           </div>
         ) : (
@@ -175,7 +175,7 @@ export default function ExternalOrganizationsPage() {
               <div className="p-4">
                 <Card className="border-dashed shadow-none">
                   <CardContent className="flex flex-col items-center justify-center gap-3 py-16 text-center">
-                    <p className="text-lg font-semibold text-foreground">No external organizations found.</p>
+                    <p className="text-lg font-semibold text-foreground">No external companies found.</p>
                     <p className="text-sm text-foreground/80">Add a company record to begin tracking partners and contacts.</p>
                   </CardContent>
                 </Card>
@@ -188,12 +188,12 @@ export default function ExternalOrganizationsPage() {
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editingOrg ? 'Edit' : 'Add'} Organization</DialogTitle>
+            <DialogTitle>{editingOrg ? 'Edit' : 'Add'} Company</DialogTitle>
             <DialogDescription>Define the details for the external company.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="name">Organization Name</Label>
+              <Label htmlFor="name">Company Name</Label>
               <Input id="name" value={name} onChange={(e) => setName(e.target.value)} />
             </div>
             <div className="space-y-2">
@@ -207,7 +207,7 @@ export default function ExternalOrganizationsPage() {
           </div>
           <DialogFooter>
             <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
-            <Button onClick={handleSave}>Save Organization</Button>
+            <Button onClick={handleSave}>Save Company</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

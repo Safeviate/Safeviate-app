@@ -248,7 +248,7 @@ export default function FeaturesPage() {
                             Enable Multi-Company Scoping
                         </Label>
                         <p className='text-xs text-muted-foreground leading-relaxed font-medium'>
-                            If enabled, administrators will see tabs to toggle views between internal and external organizations in key modules.
+                            If enabled, administrators will see tabs to toggle views between the internal company and external companies in key modules.
                         </p>
                     </div>
                     <div className="flex items-center justify-between mt-auto pt-4 border-t">

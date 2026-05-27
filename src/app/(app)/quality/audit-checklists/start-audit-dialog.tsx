@@ -117,7 +117,7 @@ export function StartAuditDialog({
         const nextCount = auditsList.length + 1;
         const newAuditNumber = `AUD-${String(nextCount).padStart(4, '0')}`;
 
-        // Detect if auditee is an external organization
+        // Detect if auditee is an external company
         const isExternalOrg = organizations?.some(org => org.id === values.auditeeId);
 
         const createdId = crypto.randomUUID();
@@ -187,7 +187,7 @@ export function StartAuditDialog({
                 <div className="grid gap-2 sm:grid-cols-3">
                   <div className="rounded-lg border bg-background px-3 py-2">
                     <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Audit target</p>
-                    <p className="mt-1 text-sm font-semibold text-foreground">Department, person, or external organization</p>
+                    <p className="mt-1 text-sm font-semibold text-foreground">Department, person, or external company</p>
                   </div>
                   <div className="rounded-lg border bg-background px-3 py-2">
                     <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Scope</p>
@@ -228,7 +228,7 @@ export function StartAuditDialog({
                                ))}
                            </SelectGroup>
                            <SelectGroup>
-                               <SelectLabel>External organizations</SelectLabel>
+                               <SelectLabel>External companies</SelectLabel>
                                {(organizations || []).map(org => (
                                     <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
                                ))}
@@ -242,7 +242,7 @@ export function StartAuditDialog({
                         </SelectContent>
                    </Select>
                   <p className="text-xs text-muted-foreground">
-                    Choose the department, person, or external organization this audit will be attached to.
+                    Choose the department, person, or external company this audit will be attached to.
                   </p>
                   <FormMessage />
                 </FormItem>

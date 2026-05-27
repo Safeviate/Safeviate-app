@@ -52,7 +52,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ ok: true }, { status: 200 });
   } catch (error) {
     console.error('[external-organizations/[id]] update failed:', error);
-    return NextResponse.json({ error: 'Failed to update external organization.' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to update external company.' }, { status: 500 });
   }
 }
 
@@ -67,6 +67,6 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     return NextResponse.json({ ok: true }, { status: 200 });
   } catch (error) {
     console.error('[external-organizations/[id]] delete failed:', error);
-    return NextResponse.json({ error: 'Failed to delete external organization.' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to delete external company.' }, { status: 500 });
   }
 }

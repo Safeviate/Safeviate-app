@@ -222,7 +222,7 @@ export function StartGapAnalysisDialog({
                 <div className="grid gap-2 sm:grid-cols-3">
                   <div className="rounded-lg border bg-background px-3 py-2">
                     <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Gap analysis target</p>
-                    <p className="mt-1 text-sm font-semibold text-foreground">Department, person, or external organization</p>
+                    <p className="mt-1 text-sm font-semibold text-foreground">Department, person, or external company</p>
                   </div>
                   <div className="rounded-lg border bg-background px-3 py-2">
                     <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Scope</p>
@@ -263,7 +263,7 @@ export function StartGapAnalysisDialog({
                                ))}
                            </SelectGroup>
                            <SelectGroup>
-                               <SelectLabel>External organizations</SelectLabel>
+                               <SelectLabel>External companies</SelectLabel>
                                {(organizations || []).map(org => (
                                     <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
                                ))}
@@ -277,7 +277,7 @@ export function StartGapAnalysisDialog({
                         </SelectContent>
                    </Select>
                   <p className="text-xs text-muted-foreground">
-                    Choose the department, person, or external organization this gap analysis will be attached to.
+                    Choose the department, person, or external company this gap analysis will be attached to.
                   </p>
                   <FormMessage />
                 </FormItem>

@@ -1,5 +1,6 @@
 import { authOptions } from '@/auth';
 import { prisma } from '@/lib/prisma';
+import { ensureExternalOrganizationsSchema } from '@/lib/server/bootstrap-db';
 import { getTenantIdFromSession } from '@/lib/server/session-tenant';
 import { recordSimulationRouteMetric } from '@/lib/server/simulation-telemetry';
 import { getServerSession } from 'next-auth';
@@ -42,6 +43,15 @@ async function loadCaps(tenantId: string) {
   return rows.map((row) => row.data);
 }
 
+async function loadExternalOrganizations(tenantId: string) {
+  await ensureExternalOrganizationsSchema();
+  const rows = await prisma.$queryRawUnsafe<{ data: unknown }[]>(
+    `SELECT data FROM external_organizations WHERE tenant_id = $1 ORDER BY created_at ASC`,
+    tenantId
+  );
+  return rows.map((row) => row.data);
+}
+
 export async function GET(request: Request) {
   const startedAt = Date.now();
   let tenantId: string | null = null;
@@ -49,7 +59,12 @@ export async function GET(request: Request) {
     tenantId = await getTenantId(request);
     if (!tenantId) return NextResponse.json({ audits: [], templates: [], personnel: [], departments: [], organizations: [], caps: [], findingLevels: [] }, { status: 200 });
 
-    const [audits, caps, config] = await Promise.all([loadAudits(tenantId), loadCaps(tenantId), getConfig(tenantId)]);
+    const [audits, caps, config, organizations] = await Promise.all([
+      loadAudits(tenantId),
+      loadCaps(tenantId),
+      getConfig(tenantId),
+      loadExternalOrganizations(tenantId),
+    ]);
     const gapAnalyses = audits.filter((audit) => (audit as { analysisType?: string } | null)?.analysisType === 'gap-analysis');
     await recordSimulationRouteMetric({
       tenantId,
@@ -64,7 +79,7 @@ export async function GET(request: Request) {
       templates: Array.isArray(config['quality-gap-analysis-templates']) ? config['quality-gap-analysis-templates'] : [],
       personnel: Array.isArray(config['personnel']) ? config['personnel'] : [],
       departments: Array.isArray(config['departments']) ? config['departments'] : [],
-      organizations: Array.isArray(config['external-organizations']) ? config['external-organizations'] : [],
+      organizations,
       findingLevels: Array.isArray(config['finding-levels'])
         ? config['finding-levels']
         : Array.isArray(config['finding-levels-settings']?.levels)

@@ -61,7 +61,7 @@ export default function EmergencyResponsePage() {
 
   const activeCompanyLabel =
     activeCompanyTab === 'internal'
-      ? 'Internal'
+      ? 'Internal Company'
       : organizations.find((organization) => organization.id === activeCompanyTab)?.name || 'Select Company';
   const canManageErp = hasPermission('operations-erp-manage');
   const erpDesktopButtonWidth = 'w-[240px]';
@@ -84,7 +84,7 @@ export default function EmergencyResponsePage() {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="z-[7000] min-w-[240px]">
         <DropdownMenuItem onClick={() => setActiveCompanyTab('internal')}>
-          Internal
+          Internal Company
         </DropdownMenuItem>
         {organizations.map((organization) => (
           <DropdownMenuItem

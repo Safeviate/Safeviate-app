@@ -856,7 +856,7 @@ export function GapAnalysisChecklist({ audit, tenantId, caps, personnel }: GapAn
                                         <div className="space-y-3 rounded-xl border bg-muted/5 p-4">
                                             <div className="space-y-1">
                                                 <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Assigned Review Owner</p>
-                                                <p className="text-sm font-semibold">{auditeePerson ? `${auditeePerson.firstName} ${auditeePerson.lastName}` : 'Department or external organization'}</p>
+                                                <p className="text-sm font-semibold">{auditeePerson ? `${auditeePerson.firstName} ${auditeePerson.lastName}` : 'Department or external company'}</p>
                                             </div>
                                             {audit.auditeeSignoff ? (
                                                 <div className="rounded-lg border bg-background p-3 space-y-2">
@@ -875,7 +875,7 @@ export function GapAnalysisChecklist({ audit, tenantId, caps, personnel }: GapAn
                                                     </div>
                                                 </>
                                             ) : (
-                                                <p className="text-xs text-muted-foreground">This gap analysis target is a department or external organization, so a person-specific review owner signature is not required on this screen.</p>
+                                                <p className="text-xs text-muted-foreground">This gap analysis target is a department or external company, so a person-specific review owner signature is not required on this screen.</p>
                                             )}
                                         </div>
                                     </CardContent>

@@ -54,6 +54,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ organization: data }, { status: 200 });
   } catch (error) {
     console.error('[external-organizations] write failed:', error);
-    return NextResponse.json({ error: 'Failed to save external organization.' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to save external company.' }, { status: 500 });
   }
 }

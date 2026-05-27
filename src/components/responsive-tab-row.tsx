@@ -155,8 +155,8 @@ export function OrganizationTabsRow({
   const isMobile = useIsMobile();
   const activeOrganizationLabel =
     activeTab === 'internal'
-      ? 'Internal'
-      : organizations.find((organization) => organization.id === activeTab)?.name || 'Select Organization';
+      ? 'Internal Company'
+      : organizations.find((organization) => organization.id === activeTab)?.name || 'Select Company';
 
   return (
     <div className={className || 'border-b bg-muted/5 px-3 py-2 shrink-0'}>
@@ -187,7 +187,7 @@ export function OrganizationTabsRow({
           >
             <DropdownMenuItem onClick={() => onTabChange('internal')} className="text-[10px] font-bold uppercase">
               <Building className="h-3.5 w-3.5" />
-              Internal
+              Internal Company
             </DropdownMenuItem>
             {organizations.map((organization) => (
               <DropdownMenuItem
