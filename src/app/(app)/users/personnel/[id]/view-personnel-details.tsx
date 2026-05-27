@@ -435,7 +435,7 @@ export function ViewPersonnelDetails({ user, role, department, actions }: ViewPe
     let newPermissions: string[];
 
     newPermissions = checked
-        ? currentPermissions.filter(p => p !== `!${permissionId}`)
+        ? [...currentPermissions.filter(p => p !== `!${permissionId}`), permissionId]
         : [...currentPermissions.filter(p => p !== permissionId), `!${permissionId}`];
 
     try {
