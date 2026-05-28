@@ -1757,9 +1757,11 @@ export default function AircraftDetailPage({ params }: AircraftDetailPageProps) 
                                   <div className="min-w-0">
                                     <div className="flex flex-wrap items-center gap-2">
                                       <span className="text-[10px] font-black uppercase tracking-[0.18em] text-primary">{report.reportNumber}</span>
-                                      <Badge variant={report.urgency === 'High' ? 'destructive' : report.urgency === 'Medium' ? 'secondary' : 'outline'} className="text-[10px] uppercase tracking-widest">
-                                        {report.urgency}
-                                      </Badge>
+                                      {report.urgency ? (
+                                        <Badge variant={report.urgency === 'High' ? 'destructive' : report.urgency === 'Medium' ? 'secondary' : 'outline'} className="text-[10px] uppercase tracking-widest">
+                                          {report.urgency}
+                                        </Badge>
+                                      ) : null}
                                       <Badge variant={draft.workflowStatus === 'Closed' ? 'default' : 'outline'} className="text-[10px] uppercase tracking-widest">
                                         {draft.workflowStatus}
                                       </Badge>
@@ -1769,7 +1771,7 @@ export default function AircraftDetailPage({ params }: AircraftDetailPageProps) 
                                         </Badge>
                                       ) : null}
                                     </div>
-                                    <div className="mt-2 text-sm font-black text-foreground">{report.title}</div>
+                                    <div className="mt-2 text-sm font-black text-foreground">{report.title || report.summary}</div>
                                     <div className="mt-1 flex flex-wrap items-center gap-3 text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
                                       <span>{format(parseLocalDate(report.eventDate) || new Date(report.eventDate), 'dd MMM yyyy')}</span>
                                       <span>{report.eventTime}</span>

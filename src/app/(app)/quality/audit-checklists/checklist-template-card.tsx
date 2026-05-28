@@ -32,6 +32,7 @@ interface ChecklistTemplateCardProps {
   tenantId: string;
   departments: Department[];
   personnel: Personnel[];
+  organizations?: { id: string; name: string }[];
 }
 
 export function ChecklistTemplateCard({
@@ -40,6 +41,7 @@ export function ChecklistTemplateCard({
   tenantId,
   departments,
   personnel,
+  organizations = [],
 }: ChecklistTemplateCardProps) {
   const { toast } = useToast();
   const isMobile = useIsMobile();
@@ -94,6 +96,7 @@ export function ChecklistTemplateCard({
                         tenantId={tenantId}
                         personnel={personnel}
                         departments={departments}
+                        organizations={organizations}
                         trigger={
                           <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="cursor-pointer">
                             <PlayCircle className="mr-2 h-3.5 w-3.5" /> Create Audit
@@ -135,6 +138,7 @@ export function ChecklistTemplateCard({
                       tenantId={tenantId}
                       personnel={personnel}
                       departments={departments}
+                      organizations={organizations}
                       trigger={
                         <Button size="sm" className="h-8 flex-1 gap-1.5 text-[9px] font-black uppercase tracking-[0.08em]">
                           <PlayCircle className="h-3.5 w-3.5" /> Create Audit
@@ -197,6 +201,7 @@ export function ChecklistTemplateCard({
                         tenantId={tenantId}
                         personnel={personnel}
                         departments={departments}
+                        organizations={organizations}
                         trigger={
                           <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="cursor-pointer">
                             <PlayCircle className="mr-2 h-3.5 w-3.5" /> Create Audit

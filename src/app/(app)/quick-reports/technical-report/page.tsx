@@ -14,7 +14,6 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { CustomCalendar } from '@/components/ui/custom-calendar';
 import { useToast } from '@/hooks/use-toast';
@@ -27,10 +26,8 @@ const technicalReportSchema = z.object({
   eventDate: z.date({ required_error: 'Date is required.' }),
   eventTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, { message: 'Invalid time format (HH:mm).' }),
   location: z.string().min(1, 'Location is required.'),
-  title: z.string().min(3, 'Short title is required.'),
+  title: z.string().optional(),
   systemOrComponent: z.string().optional(),
-  grounded: z.boolean().default(false),
-  urgency: z.enum(['Low', 'Medium', 'High']),
   summary: z.string().min(10, 'Please provide a useful summary.'),
   immediateAction: z.string().optional(),
   reporterName: z.string().optional(),
@@ -88,8 +85,6 @@ export default function QuickTechnicalReportPage() {
       location: '',
       title: '',
       systemOrComponent: '',
-      grounded: false,
-      urgency: 'Medium',
       summary: '',
       immediateAction: '',
       reporterName: '',
@@ -111,10 +106,8 @@ export default function QuickTechnicalReportPage() {
             eventDate: format(values.eventDate, 'yyyy-MM-dd'),
             eventTime: values.eventTime,
             location: values.location,
-            title: values.title,
+            title: values.title?.trim() || null,
             systemOrComponent: values.systemOrComponent || null,
-            grounded: values.grounded,
-            urgency: values.urgency,
             summary: values.summary,
             immediateAction: values.immediateAction || null,
             photoAttachments: photoAttachments.length > 0 ? photoAttachments : null,
@@ -247,21 +240,21 @@ export default function QuickTechnicalReportPage() {
                 />
               </div>
 
-              {isPublicPortal ? (
-                <div className="grid gap-6 md:grid-cols-2">
-                  <FormField
-                    control={form.control}
-                    name="reporterName"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Your Name</FormLabel>
-                        <FormControl>
-                          <Input className="h-10" placeholder="Optional, helps with follow-up" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+              <div className="grid gap-6 md:grid-cols-2">
+                <FormField
+                  control={form.control}
+                  name="reporterName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Reporter Name</FormLabel>
+                      <FormControl>
+                        <Input className="h-10" placeholder="Enter the reporter name" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                {isPublicPortal ? (
                   <FormField
                     control={form.control}
                     name="reporterEmail"
@@ -275,8 +268,10 @@ export default function QuickTechnicalReportPage() {
                       </FormItem>
                     )}
                   />
-                </div>
-              ) : null}
+                ) : (
+                  <div />
+                )}
+              </div>
 
               <div className="grid gap-6 md:grid-cols-3">
                 <FormField
@@ -344,7 +339,7 @@ export default function QuickTechnicalReportPage() {
                     <FormItem>
                       <FormLabel>Short Title</FormLabel>
                       <FormControl>
-                        <Input placeholder="e.g. Nose wheel shimmy after landing" {...field} />
+                        <Input placeholder="Optional quick identifier for this report" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -357,51 +352,8 @@ export default function QuickTechnicalReportPage() {
                     <FormItem>
                       <FormLabel>System / Component</FormLabel>
                       <FormControl>
-                        <Input placeholder="e.g. Brakes, Avionics, Landing light" {...field} />
+                        <Input placeholder="Optional, e.g. Brakes, avionics, landing light" {...field} />
                       </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <div className="grid gap-6 md:grid-cols-2">
-                <FormField
-                  control={form.control}
-                  name="urgency"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Urgency</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger className="h-10">
-                            <SelectValue placeholder="Select urgency" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="Low">Low</SelectItem>
-                          <SelectItem value="Medium">Medium</SelectItem>
-                          <SelectItem value="High">High</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="grounded"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-col rounded-lg border p-3 justify-center bg-muted/10">
-                      <FormLabel className="text-xs">Ground Aircraft</FormLabel>
-                      <div className="flex items-center space-x-2 pt-2">
-                        <FormControl>
-                          <Switch checked={field.value} onCheckedChange={field.onChange} />
-                        </FormControl>
-                        <span className="text-[10px] font-medium text-muted-foreground">
-                          {field.value ? 'This report indicates the aircraft should not be dispatched.' : 'No grounding recommendation recorded.'}
-                        </span>
-                      </div>
                       <FormMessage />
                     </FormItem>
                   )}

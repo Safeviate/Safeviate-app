@@ -14,7 +14,7 @@ import { useUserProfile } from '@/hooks/use-user-profile';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import type { QualityAuditChecklistTemplate } from '@/types/quality';
+import type { ExternalOrganization, QualityAuditChecklistTemplate } from '@/types/quality';
 import type { Department } from '../../admin/department/page';
 import type { Personnel } from '../../users/personnel/page';
 
@@ -27,23 +27,27 @@ export default function AuditChecklistsManager() {
   const [templates, setTemplates] = useState<QualityAuditChecklistTemplate[]>([]);
   const [personnel, setPersonnel] = useState<Personnel[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [organizations, setOrganizations] = useState<ExternalOrganization[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const loadData = async () => {
     try {
-        const [templatesResponse, personnelResponse, deptsResponse] = await Promise.all([
+        const [templatesResponse, personnelResponse, deptsResponse, organizationsResponse] = await Promise.all([
           fetch('/api/quality-audit-templates', { cache: 'no-store' }),
           fetch('/api/personnel', { cache: 'no-store' }),
           fetch('/api/departments', { cache: 'no-store' }),
+          fetch('/api/external-organizations', { cache: 'no-store' }),
         ]);
-        const [templatesPayload, personnelPayload, deptsPayload] = await Promise.all([
+        const [templatesPayload, personnelPayload, deptsPayload, organizationsPayload] = await Promise.all([
           templatesResponse.json().catch(() => ({ templates: [] })),
           personnelResponse.json().catch(() => ({ personnel: [] })),
           deptsResponse.json().catch(() => ({ departments: [] })),
+          organizationsResponse.json().catch(() => ({ organizations: [] })),
         ]);
         setTemplates(Array.isArray(templatesPayload.templates) ? templatesPayload.templates : []);
         setPersonnel(Array.isArray(personnelPayload.personnel) ? personnelPayload.personnel : []);
         setDepartments(Array.isArray(deptsPayload.departments) ? deptsPayload.departments : []);
+        setOrganizations(Array.isArray(organizationsPayload.organizations) ? organizationsPayload.organizations : []);
     } catch (e) {
         console.error('Failed to load audit template data', e);
     } finally {
@@ -126,6 +130,7 @@ export default function AuditChecklistsManager() {
                             tenantId={tenantId || ''}
                             personnel={personnel || []}
                             departments={departments || []}
+                            organizations={organizations || []}
                         />
                     ))}
                   </Accordion>

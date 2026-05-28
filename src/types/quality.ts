@@ -109,6 +109,7 @@ export interface QualityAudit {
     auditNumber: string;
     auditorId: string;
     auditeeId: string;
+    targetId?: string | null;
     organizationId?: string | null; // NULL for internal (Safeviate) audits
     scope: string;
     auditDate: string; // ISO String

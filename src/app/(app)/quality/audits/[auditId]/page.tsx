@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Skeleton } from '@/components/ui/skeleton';
 import { CheckCircle2 } from 'lucide-react';
 import { format } from 'date-fns';
-import type { QualityAudit, QualityAuditChecklistTemplate, CorrectiveActionPlan } from '@/types/quality';
+import type { QualityAudit, QualityAuditChecklistTemplate, CorrectiveActionPlan, ExternalOrganization } from '@/types/quality';
 import { AuditChecklist } from './audit-checklist';
 import type { FindingLevelsSettings } from '@/app/(app)/admin/features/page';
 import { Progress } from '@/components/ui/progress';
@@ -42,6 +42,7 @@ export default function AuditDetailPage({ params }: AuditDetailPageProps) {
   const [findingLevelsSettings, setFindingLevelsSettings] = useState<FindingLevelsSettings | null>(null);
   const [caps, setCaps] = useState<CorrectiveActionPlan[]>([]);
   const [personnel, setPersonnel] = useState<Personnel[]>([]);
+  const [organizations, setOrganizations] = useState<ExternalOrganization[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -49,7 +50,7 @@ export default function AuditDetailPage({ params }: AuditDetailPageProps) {
     const load = async () => {
       try {
         const response = await fetch('/api/quality-audits', { cache: 'no-store' });
-        const payload = await response.json().catch(() => ({ audits: [], templates: [], caps: [], personnel: [], findingLevels: [] }));
+        const payload = await response.json().catch(() => ({ audits: [], templates: [], caps: [], personnel: [], organizations: [], findingLevels: [] }));
         const foundAudit = (payload.audits as QualityAudit[] | undefined)?.find(a => a.id === auditId);
         if (!cancelled && foundAudit) {
             setAudit(foundAudit);
@@ -58,6 +59,7 @@ export default function AuditDetailPage({ params }: AuditDetailPageProps) {
         }
         if (!cancelled) {
           setPersonnel(Array.isArray(payload.personnel) ? payload.personnel : []);
+          setOrganizations(Array.isArray(payload.organizations) ? payload.organizations : []);
           setFindingLevelsSettings(Array.isArray(payload.findingLevels) ? payload.findingLevels : null);
         }
       } catch (e) {
@@ -157,6 +159,7 @@ export default function AuditDetailPage({ params }: AuditDetailPageProps) {
               findingLevels={findingLevelsSettings?.levels || []}
               caps={caps || []}
               personnel={personnel || []}
+              organizations={organizations || []}
           />
         </CardContent>
       </Card>

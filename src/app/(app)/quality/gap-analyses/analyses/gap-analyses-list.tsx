@@ -9,11 +9,15 @@ import { Button } from '@/components/ui/button';
 import { ResponsiveCardGrid } from '@/components/responsive-card-grid';
 import { DeleteActionButton, ViewActionButton } from '@/components/record-action-buttons';
 import { MainPageHeader } from '@/components/page-header';
+import { CardControlHeader } from '@/components/page-header';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import type { QualityAudit, ExternalOrganization } from '@/types/quality';
 import type { Department } from '../../../admin/department/page';
 import type { Personnel } from '../../../users/personnel/page';
+import { OrganizationTabsRow } from '@/components/responsive-tab-row';
+import { useOrganizationScope } from '@/hooks/use-organization-scope';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 const parseLocalDate = (value: string) => {
   const [year, month, day] = value.split('-').map(Number);
@@ -68,11 +72,14 @@ function GapAnalysisActions({ analysis }: { analysis: EnrichedGapAnalysis }) {
 }
 
 export function GapAnalysesList() {
+  const { scopedOrganizationId, shouldShowOrganizationTabs } = useOrganizationScope({ viewAllPermissionId: 'quality-audits-view-all' });
+  const isMobile = useIsMobile();
   const [analyses, setAnalyses] = useState<QualityAudit[]>([]);
   const [personnel, setPersonnel] = useState<Personnel[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [organizations, setOrganizations] = useState<ExternalOrganization[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [activeOrgTab, setActiveOrgTab] = useState('internal');
 
   useEffect(() => {
     let cancelled = false;
@@ -105,6 +112,10 @@ export function GapAnalysesList() {
     };
   }, []);
 
+  useEffect(() => {
+    setActiveOrgTab(scopedOrganizationId);
+  }, [scopedOrganizationId]);
+
   const enrichedAnalyses = useMemo(() => {
     const personnelMap = new Map(personnel.map((person) => [person.id, `${person.firstName} ${person.lastName}`]));
     const departmentMap = new Map(departments.map((department) => [department.id, department.name]));
@@ -116,9 +127,17 @@ export function GapAnalysesList() {
         personnelMap.get(analysis.auditeeId) ||
         departmentMap.get(analysis.auditeeId) ||
         orgMap.get(analysis.organizationId || '') ||
-        analysis.auditeeId,
+      analysis.auditeeId,
     }));
   }, [analyses, personnel, departments, organizations]);
+
+  const filteredAnalyses = useMemo(() => {
+    return enrichedAnalyses.filter((analysis) =>
+      activeOrgTab === 'internal'
+        ? !analysis.organizationId
+        : analysis.organizationId === activeOrgTab
+    );
+  }, [activeOrgTab, enrichedAnalyses]);
 
   if (isLoading) {
     return (
@@ -143,14 +162,38 @@ export function GapAnalysesList() {
         }
       />
 
+      {shouldShowOrganizationTabs ? (
+        <Card className="border shadow-none">
+          <CardControlHeader
+            isMobile={isMobile}
+            context={(
+              <OrganizationTabsRow
+                organizations={organizations || []}
+                activeTab={activeOrgTab}
+                onTabChange={setActiveOrgTab}
+                className="border-0 bg-transparent px-0 py-0"
+              />
+            )}
+            mobileContext={(
+              <OrganizationTabsRow
+                organizations={organizations || []}
+                activeTab={activeOrgTab}
+                onTabChange={setActiveOrgTab}
+                className="border-0 bg-transparent px-0 py-0"
+              />
+            )}
+          />
+        </Card>
+      ) : null}
+
       <ResponsiveCardGrid
-        items={enrichedAnalyses}
+        items={filteredAnalyses}
         isLoading={false}
         gridClassName="sm:grid-cols-2 xl:grid-cols-3"
         className="p-0"
         emptyState={
           <div className="text-center p-8 text-muted-foreground text-sm italic uppercase font-bold tracking-widest bg-muted/5 rounded-xl border">
-            No gap analyses found.
+            No gap analyses found for this context.
           </div>
         }
         renderItem={(analysis) => (

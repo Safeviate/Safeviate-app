@@ -27,6 +27,8 @@ const quickSafetySchema = z.object({
   eventDate: z.date({ required_error: 'Date is required.' }),
   eventTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, { message: 'Invalid time format (HH:mm).' }),
   location: z.string().min(1, 'Location is required.'),
+  title: z.string().optional(),
+  systemOrComponent: z.string().optional(),
   aircraftId: z.string().optional(),
   summary: z.string().min(10, 'Please provide a useful summary.'),
   immediateAction: z.string().optional(),
@@ -83,6 +85,8 @@ export default function QuickSafetyReportPage() {
       eventDate: new Date(),
       eventTime: format(new Date(), 'HH:mm'),
       location: '',
+      title: '',
+      systemOrComponent: '',
       aircraftId: '',
       summary: '',
       immediateAction: '',
@@ -107,6 +111,8 @@ export default function QuickSafetyReportPage() {
             eventDate: format(values.eventDate, 'yyyy-MM-dd'),
             eventTime: values.eventTime,
             location: values.location,
+            title: values.title?.trim() || null,
+            systemOrComponent: values.systemOrComponent?.trim() || null,
             aircraftId: values.aircraftId && values.aircraftId !== 'unassigned' ? values.aircraftId : null,
             aircraftLabel: selectedAircraft ? `${selectedAircraft.tailNumber} (${selectedAircraft.model})` : null,
             summary: values.summary,
@@ -279,6 +285,35 @@ export default function QuickSafetyReportPage() {
                 />
               </div>
 
+              <div className="grid gap-6 md:grid-cols-2">
+                <FormField
+                  control={form.control}
+                  name="title"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Short Title</FormLabel>
+                      <FormControl>
+                        <Input className="h-10" placeholder="Optional quick identifier for this report" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="systemOrComponent"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>System / Component (If applicable)</FormLabel>
+                      <FormControl>
+                        <Input className="h-10" placeholder="e.g. Brake system, apron lighting, left wingtip" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
               <FormField
                 control={form.control}
                 name="submitAnonymous"
@@ -297,34 +332,38 @@ export default function QuickSafetyReportPage() {
                 )}
               />
 
-              {isPublicPortal && !form.watch('submitAnonymous') ? (
+              {!form.watch('submitAnonymous') ? (
                 <div className="grid gap-6 md:grid-cols-2">
                   <FormField
                     control={form.control}
                     name="reporterName"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Your Name</FormLabel>
+                        <FormLabel>Reporter Name</FormLabel>
                         <FormControl>
-                          <Input className="h-10" placeholder="Optional, helps with follow-up" {...field} />
+                          <Input className="h-10" placeholder="Enter the reporter name" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-                  <FormField
-                    control={form.control}
-                    name="reporterEmail"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Your Email</FormLabel>
-                        <FormControl>
-                          <Input type="email" className="h-10" placeholder="Optional contact email" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  {isPublicPortal ? (
+                    <FormField
+                      control={form.control}
+                      name="reporterEmail"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Your Email</FormLabel>
+                          <FormControl>
+                            <Input type="email" className="h-10" placeholder="Optional contact email" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  ) : (
+                    <div />
+                  )}
                 </div>
               ) : null}
 
@@ -333,7 +372,7 @@ export default function QuickSafetyReportPage() {
                 name="aircraftId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Aircraft Involved</FormLabel>
+                    <FormLabel>Aircraft Involved (If applicable)</FormLabel>
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
                         <SelectTrigger className="h-10">

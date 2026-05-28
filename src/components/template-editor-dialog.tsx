@@ -65,6 +65,22 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
+function toFormValues(defaultDepartmentId: string, existingTemplate?: QualityAuditChecklistTemplate): FormValues {
+  if (existingTemplate) {
+    return {
+      title: existingTemplate.title,
+      departmentId: existingTemplate.departmentId,
+      sections: existingTemplate.sections,
+    };
+  }
+
+  return {
+    title: '',
+    departmentId: defaultDepartmentId,
+    sections: [],
+  };
+}
+
 type TemplateEditorActionArgs = {
   complianceItems: ComplianceRequirement[];
   onAiGeneratedSections: (sections: ChecklistSection[]) => void;
@@ -174,11 +190,7 @@ export function TemplateEditorDialog({
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: existingTemplate || {
-      title: '',
-      departmentId: defaultDepartmentId,
-      sections: [],
-    },
+    defaultValues: toFormValues(defaultDepartmentId, existingTemplate),
   });
 
   const { fields: sectionFields, append: appendSection, remove: removeSection, move: moveSection } = useFieldArray({
@@ -188,7 +200,7 @@ export function TemplateEditorDialog({
 
   useEffect(() => {
     if (isOpen) {
-      form.reset(existingTemplate || { title: '', departmentId: defaultDepartmentId, sections: [] });
+      form.reset(toFormValues(defaultDepartmentId, existingTemplate));
     }
   }, [defaultDepartmentId, isOpen, existingTemplate, form]);
 
@@ -226,7 +238,6 @@ export function TemplateEditorDialog({
             ...dataToSave,
             id: crypto.randomUUID(),
             category: departmentOptions.find((d) => d.id === values.departmentId)?.name || 'General',
-            organizationId: '',
           };
 
       const response = await fetch(saveEndpoint, {

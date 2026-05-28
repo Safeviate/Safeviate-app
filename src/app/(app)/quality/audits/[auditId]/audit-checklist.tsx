@@ -9,7 +9,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import type { QualityAudit, QualityAuditChecklistTemplate, AuditChecklistItem, CorrectiveActionPlan } from '@/types/quality';
+import type { QualityAudit, QualityAuditChecklistTemplate, AuditChecklistItem, CorrectiveActionPlan, ExternalOrganization } from '@/types/quality';
 import { DocumentUploader } from '../../../users/personnel/[id]/document-uploader';
 import { FileUp, Camera, Trash2, ZoomIn, Edit, Save, ShieldCheck } from 'lucide-react';
 import Image from 'next/image';
@@ -72,6 +72,7 @@ interface AuditChecklistProps {
   findingLevels: FindingLevel[];
   caps: CorrectiveActionPlan[];
   personnel: Personnel[];
+  organizations: ExternalOrganization[];
 }
 
 const evidenceSchema = z.object({
@@ -94,7 +95,7 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
-export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel }: AuditChecklistProps) {
+export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel, organizations }: AuditChecklistProps) {
     const { toast } = useToast();
     const { hasPermission } = usePermissions();
     const { userProfile } = useUserProfile();
@@ -135,6 +136,12 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
     const canAuditorSign = !!userProfile?.id && userProfile.id === audit.auditorId;
     const auditeePerson = personnel.find((person) => person.id === audit.auditeeId) || null;
     const canAuditeeSign = !!userProfile?.id && !!auditeePerson && userProfile.id === audit.auditeeId;
+    const targetOrganization = audit.organizationId
+        ? organizations.find((organization) => organization.id === audit.organizationId) || null
+        : null;
+    const targetLabel = targetOrganization?.name
+        || audit.targetId
+        || 'Internal Company';
 
     const getSectionGate = (sectionItems: AuditChecklistItem[], findings: FormValues['findings']) => {
         if (sectionItems.length < 2) return null;
@@ -687,6 +694,12 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
                                     <CardTitle className="text-sm font-black uppercase tracking-tight">Assigned Sign-off</CardTitle>
                                 </CardHeader>
                                 <CardContent className="grid gap-6 pt-6 md:grid-cols-2">
+                                    <div className="space-y-3 rounded-xl border bg-muted/5 p-4 md:col-span-2">
+                                        <div className="space-y-1">
+                                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Audit Target</p>
+                                            <p className="text-sm font-semibold">{targetLabel}</p>
+                                        </div>
+                                    </div>
                                     <div className="space-y-3 rounded-xl border bg-muted/5 p-4">
                                         <div className="space-y-1">
                                             <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Assigned Auditor</p>

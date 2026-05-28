@@ -25,7 +25,8 @@ export async function GET(request: Request) {
     const tenantId = await getTenantId(request);
     if (!tenantId) return NextResponse.json({ templates: [] }, { status: 200 });
     const config = await getConfig(tenantId);
-    return NextResponse.json({ templates: Array.isArray(config['quality-audit-templates']) ? config['quality-audit-templates'] : [] }, { status: 200 });
+    const templates = Array.isArray(config['quality-audit-templates']) ? config['quality-audit-templates'] : [];
+    return NextResponse.json({ templates }, { status: 200 });
   } catch (error) {
     console.error('[quality-audit-templates] fallback to empty list:', error);
     return NextResponse.json({ templates: [] }, { status: 200 });

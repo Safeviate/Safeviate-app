@@ -38,6 +38,7 @@ const parseLocalDate = (value: string) => {
 
 type EnrichedAudit = QualityAudit & {
     auditeeName?: string;
+    targetName?: string;
 };
 
 const getStatusBadgeVariant = (status: QualityAudit['status']): "default" | "secondary" | "destructive" | "outline" => {
@@ -118,10 +119,14 @@ function AuditsTable({ audits, tenantId }: AuditsTableProps) {
                         </div>
                         <div className="grid gap-3 sm:grid-cols-2">
                             <div className="rounded-lg border bg-background px-3 py-3">
-                                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Auditee</p>
-                                <p className="mt-1 text-sm font-semibold text-foreground">{audit.auditeeName || audit.auditeeId}</p>
+                                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Audit Target</p>
+                                <p className="mt-1 text-sm font-semibold text-foreground">{audit.targetName || audit.auditeeName || audit.auditeeId}</p>
                             </div>
                             <div className="rounded-lg border bg-background px-3 py-3">
+                                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Auditee</p>
+                                <p className="mt-1 text-sm font-semibold text-foreground">{audit.auditeeName || '-'}</p>
+                            </div>
+                            <div className="rounded-lg border bg-background px-3 py-3 sm:col-span-2">
                                 <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Score</p>
                                 <p className="mt-1 text-sm font-semibold text-foreground">
                                     {audit.complianceScore !== undefined ? (
@@ -224,7 +229,14 @@ export default function AuditsPage() {
 
         return audits.map(audit => ({
             ...audit,
-            auditeeName: personnelMap.get(audit.auditeeId) || departmentMap.get(audit.auditeeId) || orgMap.get(audit.organizationId || ''),
+            auditeeName: personnelMap.get(audit.auditeeId) || '',
+            targetName:
+              orgMap.get(audit.organizationId || '') ||
+              departmentMap.get(audit.targetId || '') ||
+              departmentMap.get(audit.auditeeId) ||
+              personnelMap.get(audit.auditeeId) ||
+              audit.targetId ||
+              '',
         }));
     }, [audits, personnel, departments, organizations]);
 

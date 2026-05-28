@@ -20,10 +20,10 @@ export interface TechnicalQuickReport {
   eventDate: string;
   eventTime: string;
   location: string;
-  title: string;
+  title?: string | null;
   systemOrComponent?: string | null;
-  grounded: boolean;
-  urgency: 'Low' | 'Medium' | 'High';
+  grounded?: boolean;
+  urgency?: 'Low' | 'Medium' | 'High';
   summary: string;
   immediateAction?: string | null;
   photoAttachments?: QuickReportPhotoAttachment[] | null;
@@ -47,6 +47,8 @@ export interface QuickSafetyReport {
   eventDate: string;
   eventTime: string;
   location: string;
+  title?: string | null;
+  systemOrComponent?: string | null;
   aircraftId?: string | null;
   aircraftLabel?: string | null;
   summary: string;

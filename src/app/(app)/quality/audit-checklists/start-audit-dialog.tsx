@@ -42,6 +42,7 @@ const toNoonUtcIso = (date: Date) =>
   new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), 12)).toISOString();
 
 const formSchema = z.object({
+  targetId: z.string().min(1, 'Audit target is required.'),
   auditeeId: z.string().min(1, 'Auditee is required.'),
   scope: z.string().min(1, 'Scope is required.'),
   auditDate: z.date({ required_error: 'Audit date is required.' }),
@@ -54,6 +55,7 @@ interface StartAuditDialogProps {
   tenantId: string;
   personnel: Personnel[];
   departments: Department[];
+  organizations?: ExternalOrganization[];
   trigger?: React.ReactNode;
 }
 
@@ -62,6 +64,7 @@ export function StartAuditDialog({
   tenantId,
   personnel,
   departments,
+  organizations: providedOrganizations,
   trigger,
 }: StartAuditDialogProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -70,30 +73,49 @@ export function StartAuditDialog({
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [newAuditId, setNewAuditId] = useState<string | null>(null);
-  const [organizations, setOrganizations] = useState<ExternalOrganization[]>([]);
+  const [organizations, setOrganizations] = useState<ExternalOrganization[]>(providedOrganizations || []);
 
   useEffect(() => {
     if (isOpen) {
-        void fetch('/api/external-organizations', { cache: 'no-store' })
-          .then((response) => response.json())
-          .then((payload) => setOrganizations(Array.isArray(payload.organizations) ? payload.organizations : []))
-          .catch(() => setOrganizations([]));
+        if (providedOrganizations && providedOrganizations.length > 0) {
+          setOrganizations(providedOrganizations);
+        } else {
+          void fetch('/api/external-organizations', { cache: 'no-store' })
+            .then((response) => response.json())
+            .then((payload) => setOrganizations(Array.isArray(payload.organizations) ? payload.organizations : []))
+            .catch(() => setOrganizations([]));
+        }
     }
-  }, [isOpen]);
+  }, [isOpen, providedOrganizations]);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
+      targetId: '',
       auditeeId: '',
       scope: '',
       auditDate: new Date(),
     },
   });
+  const selectedTargetId = form.watch('targetId');
   const auditOwnerName = userProfile
     ? `${userProfile.firstName} ${userProfile.lastName}`.trim() || userProfile.email
     : 'Current user';
+  const selectedCompanyLabel = selectedTargetId
+    ? organizations.find((organization) => organization.id === selectedTargetId)?.name || 'Internal Company'
+    : 'Internal Company';
   const totalSections = template.sections.length;
   const totalItems = template.sections.reduce((count, section) => count + section.items.length, 0);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    form.reset({
+      targetId: '',
+      auditeeId: '',
+      scope: '',
+      auditDate: new Date(),
+    });
+  }, [form, isOpen]);
   
   useEffect(() => {
     if (!isOpen && newAuditId) {
@@ -118,7 +140,7 @@ export function StartAuditDialog({
         const newAuditNumber = `AUD-${String(nextCount).padStart(4, '0')}`;
 
         // Detect if auditee is an external company
-        const isExternalOrg = organizations?.some(org => org.id === values.auditeeId);
+        const isExternalOrg = organizations?.some(org => org.id === values.targetId);
 
         const createdId = crypto.randomUUID();
         const newAuditData: QualityAudit = {
@@ -128,7 +150,8 @@ export function StartAuditDialog({
             auditNumber: newAuditNumber,
             auditorId: userProfile.id,
             auditeeId: values.auditeeId,
-            organizationId: isExternalOrg ? values.auditeeId : null,
+            targetId: values.targetId,
+            organizationId: isExternalOrg ? values.targetId : null,
             scope: values.scope,
             auditDate: toNoonUtcIso(values.auditDate),
             status: 'Scheduled',
@@ -187,7 +210,11 @@ export function StartAuditDialog({
                 <div className="grid gap-2 sm:grid-cols-3">
                   <div className="rounded-lg border bg-background px-3 py-2">
                     <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Audit target</p>
-                    <p className="mt-1 text-sm font-semibold text-foreground">Department, person, or external company</p>
+                    <p className="mt-1 text-sm font-semibold text-foreground">Department or external company</p>
+                  </div>
+                  <div className="rounded-lg border bg-background px-3 py-2">
+                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Selected Company</p>
+                    <p className="mt-1 text-sm font-semibold text-foreground">{selectedCompanyLabel}</p>
                   </div>
                   <div className="rounded-lg border bg-background px-3 py-2">
                     <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Scope</p>
@@ -210,7 +237,7 @@ export function StartAuditDialog({
             </Card>
             <FormField
               control={form.control}
-              name="auditeeId"
+              name="targetId"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Audit Target</FormLabel>
@@ -233,16 +260,40 @@ export function StartAuditDialog({
                                     <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
                                ))}
                            </SelectGroup>
-                           <SelectGroup>
-                               <SelectLabel>Personnel</SelectLabel>
-                               {personnel.map(p => (
-                                    <SelectItem key={p.id} value={p.id}>{p.firstName} {p.lastName}</SelectItem>
-                                ))}
-                           </SelectGroup>
                         </SelectContent>
                    </Select>
                   <p className="text-xs text-muted-foreground">
-                    Choose the department, person, or external company this audit will be attached to.
+                    Choose the department or external company this audit will be attached to.
+                  </p>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="auditeeId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Auditee</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select auditee..." />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectLabel>Personnel</SelectLabel>
+                        {personnel.map((person) => (
+                          <SelectItem key={person.id} value={person.id}>
+                            {person.firstName} {person.lastName}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Choose the assigned person who will act as the auditee and sign the audit.
                   </p>
                   <FormMessage />
                 </FormItem>
