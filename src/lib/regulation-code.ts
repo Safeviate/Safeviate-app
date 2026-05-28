@@ -70,6 +70,7 @@ export function sanitizeComplianceMatrixEntry<T>(item: T): T {
     ...item,
     regulationCode: normalizeRegulationCode(record.regulationCode),
     parentRegulationCode: normalizeRegulationCode(record.parentRegulationCode),
+    documentHeading: normalizeTextValue(record.documentHeading),
     regulationStatement: normalizeTextValue(record.regulationStatement),
     technicalStandard: normalizeTextValue(record.technicalStandard),
     companyReference: normalizeTextValue(record.companyReference),

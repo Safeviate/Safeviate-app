@@ -35,6 +35,7 @@ export interface ComplianceRequirement {
     regulationFamily?: 'sacaa-cars' | 'sacaa-cats' | 'ohs';
     regulationCode: string;
     parentRegulationCode?: string;
+    documentHeading?: string;
     regulationStatement: string; // The short title/heading
     technicalStandard?: string; // The full, detailed body text
     companyReference: string;

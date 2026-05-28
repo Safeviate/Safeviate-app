@@ -274,6 +274,7 @@ function UploadRegulationsDialog({ tenantId, organizationId, regulationFamily, a
                 regulationFamily: targetFamily,
                 regulationCode: normalizeRegulationCode(req.regulationCode),
                 parentRegulationCode: normalizeRegulationCode(req.parentRegulationCode) || normalizeRegulationCode(targetHeader),
+                documentHeading: req.documentHeading?.trim() || '',
                 regulationStatement: req.regulationStatement?.trim() || normalizeRegulationCode(req.regulationCode),
             })).filter((item) => item.regulationCode);
 
@@ -1480,6 +1481,11 @@ export default function CoherenceMatrixPage() {
                     <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                             <p className="text-[10px] font-black uppercase tracking-[0.14em] text-foreground/50">Selected clause</p>
+                            {selectedMatrixItem.documentHeading?.trim() ? (
+                                <p className="mt-1 text-[10px] font-black uppercase tracking-[0.16em] text-foreground/65">
+                                    {selectedMatrixItem.documentHeading}
+                                </p>
+                            ) : null}
                             <p className="mt-1 text-[11px] font-black tracking-wide text-foreground/65">{selectedMatrixItem.regulationCode}</p>
                             <h3 className="mt-1 text-sm font-semibold leading-5 text-foreground break-words">
                                 {selectedMatrixItem.regulationStatement}
@@ -2669,16 +2675,30 @@ export default function CoherenceMatrixPage() {
                             <div className="min-w-0 flex-1">
                                 {depth === 0 ? (
                                     shouldShowSingleLineLabel(item) ? (
-                                        <p className={cn("text-[11px] font-black tracking-wide", nodeTextClassName)} style={nodeMutedTextStyle}>
-                                            {item.regulationCode}
-                                        </p>
-                                    ) : (
-                                        <p className={cn("flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm font-semibold leading-5", nodeTextClassName)}>
-                                            <span className="text-[11px] font-black tracking-wide" style={nodeMutedTextStyle}>
+                                        <div className="space-y-1">
+                                            {item.documentHeading?.trim() ? (
+                                                <p className={cn("text-[10px] font-black uppercase tracking-[0.16em]", nodeTextClassName)}>
+                                                    {item.documentHeading}
+                                                </p>
+                                            ) : null}
+                                            <p className={cn("text-[11px] font-black tracking-wide", nodeTextClassName)} style={nodeMutedTextStyle}>
                                                 {item.regulationCode}
-                                            </span>
-                                            <span>{item.regulationStatement}</span>
-                                        </p>
+                                            </p>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-1">
+                                            {item.documentHeading?.trim() ? (
+                                                <p className={cn("text-[10px] font-black uppercase tracking-[0.16em]", nodeTextClassName)}>
+                                                    {item.documentHeading}
+                                                </p>
+                                            ) : null}
+                                            <p className={cn("flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm font-semibold leading-5", nodeTextClassName)}>
+                                                <span className="text-[11px] font-black tracking-wide" style={nodeMutedTextStyle}>
+                                                    {item.regulationCode}
+                                                </span>
+                                                <span>{item.regulationStatement}</span>
+                                            </p>
+                                        </div>
                                     )
                                 ) : (
                                     <>

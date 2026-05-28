@@ -70,6 +70,7 @@ const formSchema = z.object({
     regulationFamily: z.enum(['sacaa-cars', 'sacaa-cats', 'ohs']).optional(),
     parentRegulationCode: z.string().optional(),
     regulationCode: z.string().min(1, 'Code is required.'),
+    documentHeading: z.string().optional(),
     regulationStatement: z.string().min(1, 'Statement is required.'),
     technicalStandard: z.string().optional(),
     companyReference: z.string().min(1, 'Reference is required.'),
@@ -107,6 +108,7 @@ type ComplianceItemFormValues = {
     regulationFamily?: 'sacaa-cars' | 'sacaa-cats' | 'ohs';
     parentRegulationCode?: string;
     regulationCode: string;
+    documentHeading?: string;
     regulationStatement: string;
     technicalStandard?: string;
     companyReference?: string;
@@ -133,6 +135,7 @@ export function ComplianceItemForm({ personnel, existingItem, onFormSubmit, tena
             regulationFamily: existingItem?.regulationFamily || defaultRegulationFamily || 'sacaa-cars',
             parentRegulationCode: existingItem?.parentRegulationCode || '',
             regulationCode: existingItem?.regulationCode || '',
+            documentHeading: existingItem?.documentHeading || '',
             regulationStatement: existingItem?.regulationStatement || '',
             technicalStandard: existingItem?.technicalStandard || '',
             companyReference: existingItem?.companyReference || '',
@@ -193,6 +196,7 @@ export function ComplianceItemForm({ personnel, existingItem, onFormSubmit, tena
                 ...values,
                 regulationCode: normalizeRegulationCode(values.regulationCode),
                 parentRegulationCode: normalizeRegulationCode(values.parentRegulationCode),
+                documentHeading: values.documentHeading?.trim() || '',
                 regulationStatement: values.regulationStatement.trim(),
                 nextAuditDate: values.nextAuditDate ? toNoonUtcIso(values.nextAuditDate) : null,
             };
@@ -291,6 +295,7 @@ export function ComplianceItemForm({ personnel, existingItem, onFormSubmit, tena
                                 <FormMessage />
                             </FormItem>
                         )} />
+                        <FormField control={form.control} name="documentHeading" render={({ field }) => ( <FormItem><FormLabel>Document Heading</FormLabel><FormControl><Input placeholder="e.g., Documents to be carried on board" {...field} /></FormControl><FormMessage /></FormItem> )} />
                         <FormField control={form.control} name="regulationStatement" render={({ field }) => ( <FormItem><FormLabel>Regulation Statement</FormLabel><FormControl><Input placeholder="The short title of the regulation..." {...field} /></FormControl><FormMessage /></FormItem> )} />
                         <FormField control={form.control} name="technicalStandard" render={({ field }) => ( <FormItem><FormLabel>Full Regulation Text</FormLabel><FormControl><Textarea placeholder="The full, detailed text of the regulation..." {...field} className="min-h-32" /></FormControl><FormMessage /></FormItem> )} />
                         <FormField control={form.control} name="companyReference" render={({ field }) => ( <FormItem><FormLabel>Company Reference</FormLabel><FormControl><Input placeholder="e.g., Ops Manual, Sec 4.2.1" {...field} /></FormControl><FormMessage /></FormItem> )} />
