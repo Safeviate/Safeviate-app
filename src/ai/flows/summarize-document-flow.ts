@@ -88,6 +88,10 @@ function buildUserContent(input: SummarizeDocumentInput) {
     'Create one requirement per visible heading or subheading, not one requirement per clause or paragraph.',
     'Keep each heading together with every clause, subclause, note, bullet, or paragraph that belongs to that heading.',
     'Do not split numbered or lettered clauses into separate requirements.',
+    'For SACAA CARS and similar regulations, treat a printed regulation number like 91.03.1 as the requirement heading unless the document shows a new printed regulation number.',
+    'If the source then continues with subordinate levels like (a), (b), (i), (ii), (iii), or double-letter markers such as (aa) and (bb), keep those as subordinate text lines under the same parent requirement unless a new regulation heading is visibly printed.',
+    'Do not promote subordinate markers such as (a), (i), or (aa) into standalone regulationCode values unless the document explicitly presents them as a true headed item with its own heading role.',
+    'When a heading has an inline title like "Documents to be carried on board" above regulation 91.03.1, preserve 91.03.1 as the regulationCode and use the title as regulationStatement if it clearly labels that regulation block.',
     'If the visible heading code is abbreviated to just a local section number like 2 under the selected parent code 141.01.18, reconstruct the full code as 141.01.18.2.',
     'If a heading is followed by clauses such as (1), (2), (a), or (b), return those clauses as technicalStandardLines on the same requirement, in reading order.',
     'If the source has a genuine nested subheading, create a separate requirement for that subheading and link it with parentRegulationCode. Otherwise keep the clauses on the same requirement.',
@@ -99,6 +103,8 @@ function buildUserContent(input: SummarizeDocumentInput) {
     'Example: "2. Quality assurance" followed by clauses (1) to (8) should become one requirement with regulationCode "2", regulationStatement "Quality assurance", and all clauses in technicalStandardLines.',
     'Example: "141.01.18.1.1 Quality policy and strategy" followed by clauses (1) to (4) should become one requirement with regulationCode "141.01.18.1.1", regulationStatement "Quality policy and strategy", and those clauses in technicalStandardLines.',
     'Example: if a clause list under a heading contains sub-bullets like (a) through (g), keep them inside technicalStandardLines for that same heading unless the document explicitly prints a deeper heading code.',
+    'Example: "Documents to be carried on board" followed by regulation "91.03.1" and subordinate text "(a) If an aircraft is engaged...", "(i) a certificate of registration;", and "(xvi) if a flight in RVSM airspace is contemplated..." should remain one extracted requirement with regulationCode "91.03.1", the heading title as regulationStatement, and every subordinate marker preserved in technicalStandardLines in reading order.',
+    'Example: subordinate lines "(aa) a valid RVSM licence endorsement..." and "(bb) if applicable, a valid RVSM operational approval..." are still part of the same parent requirement unless a new printed regulation heading appears.',
     `Selected Parent Code: ${input.targetParentCode || ''}`,
     input.isMultiPage ? 'Treat the supplied images as pages of a single continuous document.' : '',
     input.document.text ? `Document Content:\n${input.document.text}` : '',
@@ -140,7 +146,7 @@ async function runOpenAiSummarizeDocument(input: SummarizeDocumentInput) {
         {
           role: 'system',
           content:
-            'You are an expert aviation regulatory compliance analyst. Return only valid JSON. Extract compliance requirements with careful numbering fidelity. Preserve the printed hierarchy exactly. Never invent new section codes. Never split subordinate clauses into separate requirements unless the source shows a real nested heading.',
+            'You are an expert aviation regulatory compliance analyst. Return only valid JSON. Extract compliance requirements with careful numbering fidelity. Preserve the printed hierarchy exactly. Never invent new section codes. Never split subordinate clauses into separate requirements unless the source shows a real nested heading. Treat CARS-style subordinate markers like (a), (i), and (aa) as nested text under the printed regulation heading unless a new regulation heading is visibly printed.',
         },
         {
           role: 'user',
