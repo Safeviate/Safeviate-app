@@ -92,6 +92,7 @@ export default function GapAnalysisTemplateEditorPage() {
       generatedToastDescription={(count) => `${count} sections have been added to the form.`}
       importedToastTitle="Imported from Matrix"
       importedToastDescription={(count) => `${count} sections have been added to your gap analysis.`}
+      enableOrganizationSelection
       renderSectionActions={({ complianceItems, onAiGeneratedSections, onImportFromMatrix }) => (
         <>
           <ImportFromMatrixDialog complianceItems={complianceItems} onImport={onImportFromMatrix} />

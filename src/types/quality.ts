@@ -67,6 +67,7 @@ export interface QualityAuditChecklistTemplate {
     id: string;
     title: string;
     departmentId: string;
+    organizationId?: string | null;
     category?: string;
     sections: ChecklistSection[];
 }

@@ -30,13 +30,16 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { PlusCircle, GripVertical, Trash2, Library } from 'lucide-react';
-import type { QualityAuditChecklistTemplate, AuditChecklistItem, ChecklistSection, ComplianceRequirement } from '@/types/quality';
+import type { QualityAuditChecklistTemplate, AuditChecklistItem, ChecklistSection, ComplianceRequirement, ExternalOrganization } from '@/types/quality';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { HEADER_ACTION_BUTTON_CLASS, HEADER_MOBILE_ACTION_BUTTON_CLASS } from '@/components/page-header';
-import { MainPageHeader } from '@/components/page-header';
+import {
+  CardControlHeader,
+  HEADER_ACTION_BUTTON_CLASS,
+  HEADER_MOBILE_ACTION_BUTTON_CLASS,
+} from '@/components/page-header';
 import { BackNavButton } from '@/components/back-nav-button';
 
 type DepartmentOption = { id: string; name: string };
@@ -60,6 +63,7 @@ const sectionSchema = z.object({
 const formSchema = z.object({
   title: z.string().min(1, 'Template title is required.'),
   departmentId: z.string().min(1, 'Department is required.'),
+  companyId: z.string().default('internal'),
   sections: z.array(sectionSchema).min(1, 'At least one section is required.'),
 });
 
@@ -70,6 +74,7 @@ function toFormValues(defaultDepartmentId: string, existingTemplate?: QualityAud
     return {
       title: existingTemplate.title,
       departmentId: existingTemplate.departmentId,
+      companyId: existingTemplate.organizationId || 'internal',
       sections: existingTemplate.sections,
     };
   }
@@ -77,6 +82,7 @@ function toFormValues(defaultDepartmentId: string, existingTemplate?: QualityAud
   return {
     title: '',
     departmentId: defaultDepartmentId,
+    companyId: 'internal',
     sections: [],
   };
 }
@@ -103,6 +109,7 @@ interface TemplateEditorDialogProps {
   importedToastTitle: string;
   importedToastDescription: (sectionCount: number) => string;
   renderSectionActions: (args: TemplateEditorActionArgs) => ReactNode;
+  enableOrganizationSelection?: boolean;
   renderAsPage?: boolean;
   pageBackHref?: string;
   pageBackText?: string;
@@ -124,6 +131,7 @@ export function TemplateEditorDialog({
   importedToastTitle,
   importedToastDescription,
   renderSectionActions,
+  enableOrganizationSelection = false,
   renderAsPage = false,
   pageBackHref = '/',
   pageBackText = 'Back',
@@ -134,6 +142,7 @@ export function TemplateEditorDialog({
   const isMobile = useIsMobile();
   const [complianceItems, setComplianceItems] = useState<ComplianceRequirement[]>([]);
   const [availableDepartments, setAvailableDepartments] = useState<DepartmentOption[]>(departments);
+  const [organizations, setOrganizations] = useState<ExternalOrganization[]>([]);
   const departmentOptions = availableDepartments.length > 0 ? availableDepartments : [{ id: 'general', name: 'General' }];
   const defaultDepartmentId = availableDepartments[0]?.id ?? 'general';
   const dragSectionNode = useRef<HTMLDivElement | null>(null);
@@ -188,6 +197,30 @@ export function TemplateEditorDialog({
     };
   }, [departments, isOpen]);
 
+  useEffect(() => {
+    if ((!isOpen && !renderAsPage) || !enableOrganizationSelection) return;
+
+    let cancelled = false;
+    const loadOrganizations = async () => {
+      try {
+        const response = await fetch('/api/external-organizations', { cache: 'no-store' });
+        const payload = await response.json().catch(() => ({ organizations: [] }));
+        if (!cancelled && Array.isArray(payload.organizations)) {
+          setOrganizations(payload.organizations);
+        }
+      } catch {
+        if (!cancelled) {
+          setOrganizations([]);
+        }
+      }
+    };
+
+    void loadOrganizations();
+    return () => {
+      cancelled = true;
+    };
+  }, [enableOrganizationSelection, isOpen, renderAsPage]);
+
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: toFormValues(defaultDepartmentId, existingTemplate),
@@ -218,6 +251,11 @@ export function TemplateEditorDialog({
     try {
       const dataToSave = {
         ...values,
+        organizationId: enableOrganizationSelection
+          ? values.companyId === 'internal'
+            ? null
+            : values.companyId
+          : existingTemplate?.organizationId || null,
         sections: values.sections.map((section) => ({
           ...section,
           items: section.items.map((item) => ({
@@ -441,6 +479,33 @@ export function TemplateEditorDialog({
                   </FormItem>
                 )}
               />
+              {enableOrganizationSelection ? (
+                <FormField
+                  control={form.control}
+                  name="companyId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Selected Company</FormLabel>
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a company" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="internal">Internal Company</SelectItem>
+                          {organizations.map((organization) => (
+                            <SelectItem key={organization.id} value={organization.id}>
+                              {organization.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              ) : null}
             </div>
 
             <Separator />
@@ -541,13 +606,20 @@ export function TemplateEditorDialog({
   if (renderAsPage) {
     return (
       <div className="max-w-[1100px] mx-auto w-full flex flex-col gap-4 px-1 pt-4">
-        <MainPageHeader
-          title={`${existingTemplate ? 'Edit' : 'New'} ${templateLabel} Template`}
-          description={dialogDescription}
-          actions={<BackNavButton href={pageBackHref} text={pageBackText} />}
-        />
         <Card className="border shadow-none overflow-hidden">
-          <CardContent className="p-4 md:p-6">
+          <CardControlHeader
+            className="main-page-header flex w-full shrink-0 flex-col bg-[hsl(var(--card-header-band-background))]"
+            isMobile={false}
+            context={(
+              <div className="flex min-w-0 flex-col gap-1">
+                <p className="main-page-header__description text-[10px] font-medium text-muted-foreground sm:text-xs">
+                  {dialogDescription}
+                </p>
+              </div>
+            )}
+            actions={<BackNavButton href={pageBackHref} text={pageBackText} />}
+          />
+          <CardContent className="p-4 md:p-6 bg-muted/5">
             {editorForm}
           </CardContent>
         </Card>

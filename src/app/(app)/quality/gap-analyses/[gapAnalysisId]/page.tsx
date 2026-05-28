@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Skeleton } from '@/components/ui/skeleton';
 import { CheckCircle2 } from 'lucide-react';
 import { format } from 'date-fns';
-import type { QualityAudit, QualityAuditChecklistTemplate, CorrectiveActionPlan } from '@/types/quality';
+import type { QualityAudit, QualityAuditChecklistTemplate, CorrectiveActionPlan, ExternalOrganization } from '@/types/quality';
 import { GapAnalysisChecklist } from './gap-analysis';
 import { Progress } from '@/components/ui/progress';
 import type { Personnel } from '@/app/(app)/users/personnel/page';
@@ -40,6 +40,7 @@ export default function GapAnalysisDetailPage({ params }: GapAnalysisDetailPageP
   const [template, setTemplate] = useState<QualityAuditChecklistTemplate | null>(null);
   const [caps, setCaps] = useState<CorrectiveActionPlan[]>([]);
   const [personnel, setPersonnel] = useState<Personnel[]>([]);
+  const [organizations, setOrganizations] = useState<ExternalOrganization[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -47,7 +48,7 @@ export default function GapAnalysisDetailPage({ params }: GapAnalysisDetailPageP
     const load = async () => {
       try {
         const response = await fetch('/api/quality-gap-analyses', { cache: 'no-store' });
-        const payload = await response.json().catch(() => ({ audits: [], templates: [], caps: [], personnel: [] }));
+        const payload = await response.json().catch(() => ({ audits: [], templates: [], caps: [], personnel: [], organizations: [] }));
         const foundAudit = (payload.audits as QualityAudit[] | undefined)?.find(a => a.id === gapAnalysisId);
         if (!cancelled && foundAudit) {
             setAudit(foundAudit);
@@ -56,6 +57,7 @@ export default function GapAnalysisDetailPage({ params }: GapAnalysisDetailPageP
         }
         if (!cancelled) {
           setPersonnel(Array.isArray(payload.personnel) ? payload.personnel : []);
+          setOrganizations(Array.isArray(payload.organizations) ? payload.organizations : []);
         }
       } catch (e) {
         console.error('Failed to load gap analysis details', e);
@@ -153,6 +155,7 @@ export default function GapAnalysisDetailPage({ params }: GapAnalysisDetailPageP
               tenantId={tenantId!}
               caps={caps || []}
               personnel={personnel || []}
+              organizations={organizations || []}
           />
         </CardContent>
       </Card>

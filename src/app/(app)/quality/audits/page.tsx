@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { CardControlHeader, HEADER_COMPACT_CONTROL_CLASS } from "@/components/page-header";
+import { CardControlHeader, CARD_HEADER_BAND_CLASS, HEADER_ACTION_BUTTON_CLASS, HEADER_COMPACT_CONTROL_CLASS, HEADER_MOBILE_ACTION_BUTTON_CLASS } from "@/components/page-header";
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -19,10 +19,10 @@ import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { OrganizationTabsRow, ResponsiveTabRow } from '@/components/responsive-tab-row';
 import { DeleteActionButton, ViewActionButton } from '@/components/record-action-buttons';
-import { HEADER_ACTION_BUTTON_CLASS, HEADER_MOBILE_ACTION_BUTTON_CLASS } from '@/components/page-header';
 import { ResponsiveCardGrid } from '@/components/responsive-card-grid';
 import { TenantLayoutDisabledState } from '@/components/tenant-layout-disabled-state';
 import { useTenantRouteAccess } from '@/hooks/use-tenant-route-access';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
 import type { QualityAudit, ExternalOrganization } from '@/types/quality';
 import type { Department } from '../../admin/department/page';
@@ -159,8 +159,12 @@ export default function AuditsPage() {
     const { scopedOrganizationId, shouldShowOrganizationTabs } = useOrganizationScope({ viewAllPermissionId: 'quality-audits-view-all' });
     const { isPageEnabled, isSectionEnabled, isTabEnabled } = usePageLayout('audits');
     const isMobile = useIsMobile();
+    const router = useRouter();
+    const pathname = usePathname();
+    const searchParams = useSearchParams();
     const [activeOrgTab, setActiveOrgTab] = useState('internal');
     const [activeStatusTab, setActiveStatusTab] = useState('active');
+    const activeTab = pathname?.startsWith('/quality/audits') ? 'audits' : 'checklists';
 
     const [audits, setAudits] = useState<QualityAudit[]>([]);
     const [personnel, setPersonnel] = useState<Personnel[]>([]);
@@ -188,6 +192,17 @@ export default function AuditsPage() {
         window.addEventListener('safeviate-quality-updated', loadData);
         return () => window.removeEventListener('safeviate-quality-updated', loadData);
     }, []);
+
+    useEffect(() => {
+        const requestedOrg = searchParams?.get('org');
+        setActiveOrgTab(requestedOrg || scopedOrganizationId);
+    }, [scopedOrganizationId, searchParams]);
+
+    const handleOrganizationChange = (value: string) => {
+        setActiveOrgTab(value);
+        const nextPath = pathname || '/quality/audits';
+        router.replace(`${nextPath}?org=${encodeURIComponent(value)}`);
+    };
 
     const showTabs = useTabVisibility('audits', shouldShowOrganizationTabs);
     const showOrgTabs = showTabs && isSectionEnabled('organization-scope');
@@ -240,7 +255,7 @@ export default function AuditsPage() {
         }));
     }, [audits, personnel, departments, organizations]);
 
-    const renderOrgCard = (orgId: string | 'internal') => {
+    const renderOrgContent = (orgId: string | 'internal') => {
         const filteredByOrg = enrichedAudits.filter(a => 
             orgId === 'internal' ? !a.organizationId : a.organizationId === orgId
         );
@@ -250,155 +265,112 @@ export default function AuditsPage() {
 
         if (!showStatusTabs || statusTabs.length === 0) {
             return (
-                <Card className="h-full min-h-0 flex flex-col overflow-hidden border border-card-border shadow-none">
-                    <CardControlHeader
-                        isMobile={isMobile}
-                        context={showOrgTabs ? (
-                            <OrganizationTabsRow
-                                organizations={organizations || []}
-                                activeTab={activeOrgTab}
-                                onTabChange={setActiveOrgTab}
-                                className="border-0 bg-transparent px-0 py-0"
-                            />
-                        ) : undefined}
-                        mobileContext={showOrgTabs ? (
-                            <OrganizationTabsRow
-                                organizations={organizations || []}
-                                activeTab={activeOrgTab}
-                                onTabChange={setActiveOrgTab}
-                                className="border-0 bg-transparent px-0 py-0"
-                            />
-                        ) : undefined}
-                        actions={
-                            <Button
-                                asChild
-                                variant="outline"
-                                size="sm"
-                                className={isMobile ? HEADER_MOBILE_ACTION_BUTTON_CLASS : HEADER_COMPACT_CONTROL_CLASS}
-                            >
-                                <Link href="/quality/audit-checklists">
-                                    <span className="flex items-center gap-2">
-                                        <ShieldCheck className="h-3.5 w-3.5" />
-                                        {isMobile ? "Templates" : "Audit Templates"}
-                                    </span>
-                                    {isMobile ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : null}
-                                </Link>
-                            </Button>
-                        }
-                    />
-
-                    <CardContent className="p-0 flex-1 min-h-0 overflow-y-auto">
-                        <div className="p-4 lg:p-6">
-                            <AuditsTable audits={filteredByOrg} tenantId={tenantId || ''} />
-                        </div>
-                    </CardContent>
-                </Card>
+                <div className="p-4 lg:p-6">
+                    <AuditsTable audits={filteredByOrg} tenantId={tenantId || ''} />
+                </div>
             );
         }
 
         return (
-            <Card className="h-full min-h-0 flex flex-col overflow-hidden border border-card-border shadow-none">
-                <CardControlHeader
-                    isMobile={isMobile}
-                    context={showOrgTabs ? (
-                        <OrganizationTabsRow
-                            organizations={organizations || []}
-                            activeTab={activeOrgTab}
-                            onTabChange={setActiveOrgTab}
-                            className="border-0 bg-transparent px-0 py-0"
-                        />
-                    ) : undefined}
-                    mobileContext={showOrgTabs ? (
-                        <OrganizationTabsRow
-                            organizations={organizations || []}
-                            activeTab={activeOrgTab}
-                            onTabChange={setActiveOrgTab}
-                            className="border-0 bg-transparent px-0 py-0"
-                        />
-                    ) : undefined}
-                    actions={
-                        <Button
-                            asChild
-                            variant="outline"
-                            size="sm"
-                            className={isMobile ? HEADER_MOBILE_ACTION_BUTTON_CLASS : HEADER_COMPACT_CONTROL_CLASS}
-                        >
-                            <Link href="/quality/audit-checklists">
-                                <span className="flex items-center gap-2">
-                                    <ShieldCheck className="h-3.5 w-3.5" /> 
-                                    {isMobile ? "Templates" : "Audit Templates"}
-                                </span>
-                                {isMobile ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : null}
-                            </Link>
-                        </Button>
-                    }
-                />
-
-                <Tabs value={activeStatusTab} onValueChange={setActiveStatusTab} className="flex-1 min-h-0 flex flex-col overflow-hidden">
-                    {statusTabs.length > 1 ? (
-                      <ResponsiveTabRow
-                          value={activeStatusTab}
-                          onValueChange={setActiveStatusTab}
-                          placeholder="Filter Status"
-                          centerTabs
-                          className="px-3 py-2 border-b border-card-border/70 bg-muted/5 shrink-0 md:px-4"
-                          options={statusTabs.map((tab) => ({
-                              ...tab,
-                              icon: ListFilter,
-                          }))}
-                      />
+            <Tabs value={activeStatusTab} onValueChange={setActiveStatusTab} className="flex-1 min-h-0 flex flex-col overflow-hidden">
+                {statusTabs.length > 1 ? (
+                  <ResponsiveTabRow
+                      value={activeStatusTab}
+                      onValueChange={setActiveStatusTab}
+                      placeholder="Filter Status"
+                      centerTabs
+                      className="px-3 py-2 border-b border-card-border/70 bg-muted/5 shrink-0 md:px-4"
+                      options={statusTabs.map((tab) => ({
+                          ...tab,
+                          icon: ListFilter,
+                      }))}
+                  />
+                ) : null}
+                <div className="flex-1 min-h-0 overflow-y-auto">
+                    {isTabEnabled('active') ? (
+                      <TabsContent value="active" className="m-0 p-4 lg:p-6">
+                          <AuditsTable audits={activeAudits} tenantId={tenantId || ''} />
+                      </TabsContent>
                     ) : null}
-                    <CardContent className="p-0 flex-1 min-h-0 overflow-y-auto">
-                        {isTabEnabled('active') ? (
-                          <TabsContent value="active" className="m-0 p-4 lg:p-6">
-                              <AuditsTable audits={activeAudits} tenantId={tenantId || ''} />
-                          </TabsContent>
-                        ) : null}
-                        {isTabEnabled('archived') ? (
-                          <TabsContent value="archived" className="m-0 p-4 lg:p-6">
-                              <AuditsTable audits={archivedAudits} tenantId={tenantId || ''} />
-                          </TabsContent>
-                        ) : null}
-                    </CardContent>
-                </Tabs>
-            </Card>
+                    {isTabEnabled('archived') ? (
+                      <TabsContent value="archived" className="m-0 p-4 lg:p-6">
+                          <AuditsTable audits={archivedAudits} tenantId={tenantId || ''} />
+                      </TabsContent>
+                    ) : null}
+                </div>
+            </Tabs>
         );
     };
 
     if (isLoading) {
         return (
-            <div className="space-y-6 max-w-[1100px] mx-auto w-full px-1 pt-4">
+            <div className="max-w-[1100px] mx-auto w-full flex flex-col gap-6 h-full px-1 pt-4">
                 <Skeleton className="h-14 w-full" />
-                <Card className="shadow-none border">
-                    <CardContent className="p-6 space-y-4">
-                        <Skeleton className="h-10 w-full" />
-                        <Skeleton className="h-10 w-full" />
-                        <Skeleton className="h-10 w-full" />
-                    </CardContent>
-                </Card>
+                <Skeleton className="h-[500px] w-full" />
             </div>
         );
     }
 
     return (
-        <div className="max-w-[1100px] mx-auto w-full flex flex-col gap-6 h-full overflow-hidden px-1 pt-4">
-            {!showTabs || !showOrgTabs ? (
-                renderOrgCard(scopedOrganizationId)
-            ) : (
-                <Tabs value={activeOrgTab} onValueChange={setActiveOrgTab} className="w-full flex flex-col h-full overflow-hidden">
-                    <div className="flex-1 min-h-0 overflow-hidden">
-                        <TabsContent value="internal" className="m-0 p-0 h-full">
-                            {renderOrgCard('internal')}
-                        </TabsContent>
-                        
-                        {(organizations || []).map(org => (
-                            <TabsContent key={org.id} value={org.id} className="m-0 p-0 h-full">
-                                {renderOrgCard(org.id)}
-                            </TabsContent>
-                        ))}
+        <div className={cn("max-w-[1100px] mx-auto w-full flex flex-col gap-4 px-1 pt-4", isMobile ? "min-h-0 overflow-y-auto" : "h-full overflow-hidden")}>
+            <Card className={cn("flex flex-col shadow-none border", isMobile ? "min-h-0 overflow-visible" : "h-full overflow-hidden")}>
+                <CardControlHeader
+                    className="main-page-header flex w-full shrink-0 flex-col bg-[hsl(var(--card-header-band-background))]"
+                    isMobile={false}
+                    context={showTabs && showOrgTabs ? (
+                        <div className="flex min-w-0 items-center">
+                            <OrganizationTabsRow
+                                organizations={organizations || []}
+                                activeTab={activeOrgTab}
+                                onTabChange={handleOrganizationChange}
+                                className="border-0 bg-transparent px-0 py-0"
+                            />
+                        </div>
+                    ) : undefined}
+                    actions={
+                        <div className="main-page-header__actions flex w-full flex-wrap items-center justify-end gap-1.5 [&_button]:h-8 [&_button]:gap-1.5 [&_button]:px-3 [&_button]:text-[9px] [&_button]:tracking-[0.08em] [&_a]:h-8 [&_a]:gap-1.5 [&_a]:px-3 [&_a]:text-[9px] [&_a]:tracking-[0.08em]">
+                            <Button
+                                asChild
+                                variant={isMobile ? 'outline' : 'default'}
+                                className={isMobile ? HEADER_MOBILE_ACTION_BUTTON_CLASS : HEADER_ACTION_BUTTON_CLASS}
+                            >
+                                <Link href="/quality/audit-checklists">
+                                    <span className="flex items-center gap-2">
+                                        <ShieldCheck className="h-3.5 w-3.5" />
+                                        Audit Templates
+                                    </span>
+                                    {isMobile ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : null}
+                                </Link>
+                            </Button>
+                        </div>
+                    }
+                />
+                <div className={CARD_HEADER_BAND_CLASS}>
+                    <div className="flex flex-wrap items-center justify-center gap-2">
+                        <Button
+                            asChild
+                            variant={activeTab === 'checklists' ? 'default' : 'outline'}
+                            className={HEADER_COMPACT_CONTROL_CLASS}
+                        >
+                            <Link href={`/quality/audit-checklists?org=${encodeURIComponent(activeOrgTab)}`}>Audit Checklists</Link>
+                        </Button>
+                        <Button
+                            asChild
+                            variant={activeTab === 'audits' ? 'default' : 'outline'}
+                            className={HEADER_COMPACT_CONTROL_CLASS}
+                        >
+                            <Link href={`/quality/audits?org=${encodeURIComponent(activeOrgTab)}`}>Audits</Link>
+                        </Button>
                     </div>
-                </Tabs>
-            )}
+                </div>
+                <CardContent className={cn("flex-1 p-0 bg-muted/5", isMobile ? "overflow-y-auto" : "overflow-hidden")}>
+                    {!showTabs || !showOrgTabs ? (
+                        renderOrgContent(scopedOrganizationId)
+                    ) : (
+                        renderOrgContent(activeOrgTab)
+                    )}
+                </CardContent>
+            </Card>
         </div>
     )
 }

@@ -39,6 +39,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 import { usePermissions } from '@/hooks/use-permissions';
 import { useUserProfile } from '@/hooks/use-user-profile';
 import { SignaturePad } from '@/components/ui/signature-pad';
+import type { ExternalOrganization } from '@/types/quality';
 
 type EnrichedAudit = QualityAudit & { template: QualityAuditChecklistTemplate };
 type EnrichedCorrectiveActionPlan = CorrectiveActionPlan & {
@@ -64,6 +65,7 @@ interface GapAnalysisChecklistProps {
   tenantId: string;
   caps: CorrectiveActionPlan[];
   personnel: Personnel[];
+  organizations?: ExternalOrganization[];
 }
 
 const evidenceSchema = z.object({
@@ -92,7 +94,7 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
-export function GapAnalysisChecklist({ audit, tenantId, caps, personnel }: GapAnalysisChecklistProps) {
+export function GapAnalysisChecklist({ audit, tenantId, caps, personnel, organizations = [] }: GapAnalysisChecklistProps) {
     const { toast } = useToast();
     const { hasPermission } = usePermissions();
     const { userProfile } = useUserProfile();
@@ -132,6 +134,11 @@ export function GapAnalysisChecklist({ audit, tenantId, caps, personnel }: GapAn
     const canAuditorSign = !!userProfile?.id && userProfile.id === audit.auditorId;
     const auditeePerson = personnel.find((person) => person.id === audit.auditeeId) || null;
     const canAuditeeSign = !!userProfile?.id && !!auditeePerson && userProfile.id === audit.auditeeId;
+    const targetLabel =
+        organizations.find((organization) => organization.id === audit.organizationId)?.name
+        || getPersonnelDisplayName(personnel, audit.targetId || '')
+        || audit.targetId
+        || 'Internal Company';
     const mapLegacyFindingToGapStatus = (finding?: string | null): GapStatus => {
         switch (finding) {
             case 'Compliant':
@@ -829,6 +836,12 @@ export function GapAnalysisChecklist({ audit, tenantId, caps, personnel }: GapAn
                                         <CardTitle className="text-sm font-black uppercase tracking-tight">Assigned Sign-off</CardTitle>
                                     </CardHeader>
                                     <CardContent className="grid gap-6 pt-6 md:grid-cols-2">
+                                        <div className="space-y-3 rounded-xl border bg-muted/5 p-4 md:col-span-2">
+                                            <div className="space-y-1">
+                                                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Gap Analysis Target</p>
+                                                <p className="text-sm font-semibold">{targetLabel}</p>
+                                            </div>
+                                        </div>
                                         <div className="space-y-3 rounded-xl border bg-muted/5 p-4">
                                             <div className="space-y-1">
                                                 <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Assigned Analyst</p>

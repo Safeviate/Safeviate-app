@@ -42,7 +42,9 @@ const toNoonUtcIso = (date: Date) =>
   new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), 12)).toISOString();
 
 const formSchema = z.object({
-  auditeeId: z.string().min(1, 'Auditee is required.'),
+  companyId: z.string().min(1, 'Company is required.'),
+  targetId: z.string().min(1, 'Gap analysis target is required.'),
+  auditeeId: z.string().min(1, 'Review owner is required.'),
   scope: z.string().min(1, 'Scope is required.'),
   auditDate: z.date({ required_error: 'Start date is required.' }),
 });
@@ -86,6 +88,8 @@ export function StartGapAnalysisDialog({
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
+      companyId: 'internal',
+      targetId: '',
       auditeeId: '',
       scope: '',
       auditDate: new Date(),
@@ -94,6 +98,10 @@ export function StartGapAnalysisDialog({
   const auditOwnerName = userProfile
     ? `${userProfile.firstName} ${userProfile.lastName}`.trim() || userProfile.email
     : 'Current user';
+  const selectedCompanyLabel =
+    form.watch('companyId') === 'internal'
+      ? 'Internal Company'
+      : organizations.find((organization) => organization.id === form.watch('companyId'))?.name || 'External Company';
   const totalSections = template.sections.length;
   const totalItems = template.sections.reduce((count, section) => count + section.items.length, 0);
 
@@ -111,7 +119,7 @@ export function StartGapAnalysisDialog({
       const nextCount = auditsList.length + 1;
       const newAuditNumber = `GA-${String(nextCount).padStart(4, '0')}`;
 
-      const isExternalOrg = organizations?.some((org) => org.id === values.auditeeId);
+      const organizationId = values.companyId === 'internal' ? null : values.companyId;
       const createdId = crypto.randomUUID();
       const newAuditData: QualityAudit = {
         id: createdId,
@@ -120,7 +128,8 @@ export function StartGapAnalysisDialog({
         auditNumber: newAuditNumber,
         auditorId: userProfile.id,
         auditeeId: values.auditeeId,
-        organizationId: isExternalOrg ? values.auditeeId : null,
+        targetId: values.targetId,
+        organizationId,
         scope: values.scope,
         auditDate: toNoonUtcIso(values.auditDate),
         status: 'Scheduled',
@@ -164,12 +173,14 @@ export function StartGapAnalysisDialog({
       return;
     }
 
-    const defaultAuditeeId =
+      const defaultAuditeeId =
       personnel.find((person) => person.id === userProfile.id || person.email?.toLowerCase() === userProfile.email?.toLowerCase())?.id
       || personnel[0]?.id
       || departments[0]?.id
       || userProfile.id;
     void createAndOpenGapAnalysis({
+      companyId: 'internal',
+      targetId: departments[0]?.id || defaultAuditeeId,
       auditeeId: defaultAuditeeId,
       scope: template.title,
       auditDate: new Date(),
@@ -222,7 +233,15 @@ export function StartGapAnalysisDialog({
                 <div className="grid gap-2 sm:grid-cols-3">
                   <div className="rounded-lg border bg-background px-3 py-2">
                     <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Gap analysis target</p>
-                    <p className="mt-1 text-sm font-semibold text-foreground">Department, person, or external company</p>
+                    <p className="mt-1 text-sm font-semibold text-foreground">Department or business target</p>
+                  </div>
+                  <div className="rounded-lg border bg-background px-3 py-2">
+                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Selected company</p>
+                    <p className="mt-1 text-sm font-semibold text-foreground">{selectedCompanyLabel}</p>
+                  </div>
+                  <div className="rounded-lg border bg-background px-3 py-2">
+                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Review owner</p>
+                    <p className="mt-1 text-sm font-semibold text-foreground">Assigned person responsible for sign-off</p>
                   </div>
                   <div className="rounded-lg border bg-background px-3 py-2">
                     <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Scope</p>
@@ -245,7 +264,36 @@ export function StartGapAnalysisDialog({
             </Card>
             <FormField
               control={form.control}
-              name="auditeeId"
+              name="companyId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Company</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select company..." />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectLabel>Company Context</SelectLabel>
+                        <SelectItem value="internal">Internal Company</SelectItem>
+                        {(organizations || []).map((org) => (
+                          <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Choose the internal or external company this gap analysis belongs to.
+                  </p>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="targetId"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Gap Analysis Target</FormLabel>
@@ -262,12 +310,28 @@ export function StartGapAnalysisDialog({
                                     <SelectItem key={dept.id} value={dept.id}>{dept.name}</SelectItem>
                                ))}
                            </SelectGroup>
-                           <SelectGroup>
-                               <SelectLabel>External companies</SelectLabel>
-                               {(organizations || []).map(org => (
-                                    <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
-                               ))}
-                           </SelectGroup>
+                        </SelectContent>
+                   </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Choose the department or business target this gap analysis will be attached to.
+                  </p>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="auditeeId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Review Owner</FormLabel>
+                   <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select review owner..." />
+                            </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
                            <SelectGroup>
                                <SelectLabel>Personnel</SelectLabel>
                                {personnel.map(p => (
@@ -277,7 +341,7 @@ export function StartGapAnalysisDialog({
                         </SelectContent>
                    </Select>
                   <p className="text-xs text-muted-foreground">
-                    Choose the department, person, or external company this gap analysis will be attached to.
+                    Choose the assigned person who will act as the review owner and sign the gap analysis.
                   </p>
                   <FormMessage />
                 </FormItem>

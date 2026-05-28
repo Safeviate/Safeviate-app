@@ -6,44 +6,54 @@ import { Accordion } from '@/components/ui/accordion';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { MainPageHeader, CARD_HEADER_BAND_CLASS, HEADER_ACTION_BUTTON_CLASS, HEADER_COMPACT_CONTROL_CLASS } from "@/components/page-header";
+import { CardControlHeader, CARD_HEADER_BAND_CLASS, HEADER_ACTION_BUTTON_CLASS, HEADER_COMPACT_CONTROL_CLASS } from "@/components/page-header";
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useUserProfile } from '@/hooks/use-user-profile';
+import { useOrganizationScope } from '@/hooks/use-organization-scope';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { HEADER_MOBILE_ACTION_BUTTON_CLASS } from '@/components/page-header';
-import type { QualityAuditChecklistTemplate } from '@/types/quality';
+import type { ExternalOrganization, QualityAuditChecklistTemplate } from '@/types/quality';
 import type { Department } from '../../admin/department/page';
 import type { Personnel } from '../../users/personnel/page';
+import { OrganizationTabsRow } from '@/components/responsive-tab-row';
 
 export default function GapAnalysesManager() {
   const { tenantId } = useUserProfile();
+  const { scopedOrganizationId, shouldShowOrganizationTabs } = useOrganizationScope({ viewAllPermissionId: 'quality-audits-view-all' });
   const isMobile = useIsMobile();
+  const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const activeTab = pathname?.startsWith('/quality/gap-analyses/analyses') ? 'analyses' : 'checklists';
 
   const [templates, setTemplates] = useState<QualityAuditChecklistTemplate[]>([]);
   const [personnel, setPersonnel] = useState<Personnel[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [organizations, setOrganizations] = useState<ExternalOrganization[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [activeOrgTab, setActiveOrgTab] = useState('internal');
 
   const loadData = async () => {
     try {
-        const [templatesResponse, personnelResponse, deptsResponse] = await Promise.all([
+        const [templatesResponse, personnelResponse, deptsResponse, organizationsResponse] = await Promise.all([
           fetch('/api/quality-gap-analysis-templates', { cache: 'no-store' }),
           fetch('/api/personnel', { cache: 'no-store' }),
           fetch('/api/departments', { cache: 'no-store' }),
+          fetch('/api/external-organizations', { cache: 'no-store' }),
         ]);
-        const [templatesPayload, personnelPayload, deptsPayload] = await Promise.all([
+        const [templatesPayload, personnelPayload, deptsPayload, organizationsPayload] = await Promise.all([
           templatesResponse.json().catch(() => ({ templates: [] })),
           personnelResponse.json().catch(() => ({ personnel: [] })),
           deptsResponse.json().catch(() => ({ departments: [] })),
+          organizationsResponse.json().catch(() => ({ organizations: [] })),
         ]);
         setTemplates(Array.isArray(templatesPayload.templates) ? templatesPayload.templates : []);
         setPersonnel(Array.isArray(personnelPayload.personnel) ? personnelPayload.personnel : []);
         setDepartments(Array.isArray(deptsPayload.departments) ? deptsPayload.departments : []);
+        setOrganizations(Array.isArray(organizationsPayload.organizations) ? organizationsPayload.organizations : []);
     } catch (e) {
         console.error('Failed to load gap analysis template data', e);
     } finally {
@@ -55,16 +65,35 @@ export default function GapAnalysesManager() {
     void loadData();
       window.addEventListener('safeviate-gap-analysis-templates-updated', loadData);
       window.addEventListener('safeviate-departments-updated', loadData);
+      window.addEventListener('safeviate-external-organizations-updated', loadData);
       return () => {
       window.removeEventListener('safeviate-gap-analysis-templates-updated', loadData);
       window.removeEventListener('safeviate-departments-updated', loadData);
+      window.removeEventListener('safeviate-external-organizations-updated', loadData);
     };
   }, []);
 
+  useEffect(() => {
+    const requestedOrg = searchParams?.get('org');
+    setActiveOrgTab(requestedOrg || scopedOrganizationId);
+  }, [scopedOrganizationId, searchParams]);
+
+  const handleOrganizationChange = (value: string) => {
+    setActiveOrgTab(value);
+    const nextPath = pathname || '/quality/gap-analyses';
+    router.replace(`${nextPath}?org=${encodeURIComponent(value)}`);
+  };
+
   const groupedTemplates = useMemo(() => {
     if (!templates) return {};
-    
-    return templates.reduce((acc, template) => {
+
+    const scopedTemplates = templates.filter((template) =>
+      activeOrgTab === 'internal'
+        ? !template.organizationId
+        : template.organizationId === activeOrgTab
+    );
+
+    return scopedTemplates.reduce((acc, template) => {
       const category = template.category || 'Uncategorized';
       if (!acc[category]) {
         acc[category] = [];
@@ -72,7 +101,7 @@ export default function GapAnalysesManager() {
       acc[category].push(template);
       return acc;
     }, {} as Record<string, QualityAuditChecklistTemplate[]>);
-  }, [templates]);
+  }, [activeOrgTab, templates]);
 
   if (isLoading) {
     return (
@@ -86,18 +115,30 @@ export default function GapAnalysesManager() {
   return (
     <div className={cn("max-w-[1100px] mx-auto w-full flex flex-col gap-4 px-1 pt-4", isMobile ? "min-h-0 overflow-y-auto" : "h-full overflow-hidden")}>
       <Card className={cn("flex flex-col shadow-none border", isMobile ? "min-h-0 overflow-visible" : "h-full overflow-hidden")}>
-        <MainPageHeader 
-          title="Gap Checklists"
-          description="Manage the checklist templates that feed the live gap analysis records."
+        <CardControlHeader
+          className="main-page-header flex w-full shrink-0 flex-col bg-[hsl(var(--card-header-band-background))]"
+          isMobile={false}
+          context={shouldShowOrganizationTabs ? (
+            <div className="flex min-w-0 items-center">
+              <OrganizationTabsRow
+                organizations={organizations || []}
+                activeTab={activeOrgTab}
+                onTabChange={handleOrganizationChange}
+                className="border-0 bg-transparent px-0 py-0"
+              />
+            </div>
+          ) : undefined}
           actions={
-            <Button asChild variant={isMobile ? 'outline' : 'default'} className={isMobile ? HEADER_MOBILE_ACTION_BUTTON_CLASS : HEADER_ACTION_BUTTON_CLASS}>
-              <Link href="/quality/gap-analyses/template/new">
-                <span className="flex items-center gap-2">
-                  <span className="h-4 w-4">+</span>
-                  New Gap Analysis Template
-                </span>
-              </Link>
-            </Button>
+            <div className="main-page-header__actions flex w-full flex-wrap items-center justify-end gap-1.5 [&_button]:h-8 [&_button]:gap-1.5 [&_button]:px-3 [&_button]:text-[9px] [&_button]:tracking-[0.08em] [&_a]:h-8 [&_a]:gap-1.5 [&_a]:px-3 [&_a]:text-[9px] [&_a]:tracking-[0.08em]">
+              <Button asChild variant={isMobile ? 'outline' : 'default'} className={isMobile ? HEADER_MOBILE_ACTION_BUTTON_CLASS : HEADER_ACTION_BUTTON_CLASS}>
+                <Link href="/quality/gap-analyses/template/new">
+                  <span className="flex items-center gap-2">
+                    <span className="h-4 w-4">+</span>
+                    New Gap Analysis Template
+                  </span>
+                </Link>
+              </Button>
+            </div>
           }
         />
         <div className={CARD_HEADER_BAND_CLASS}>
@@ -107,14 +148,14 @@ export default function GapAnalysesManager() {
               variant={activeTab === 'checklists' ? 'default' : 'outline'}
               className={HEADER_COMPACT_CONTROL_CLASS}
             >
-              <Link href="/quality/gap-analyses">Gap Checklists</Link>
+              <Link href={`/quality/gap-analyses?org=${encodeURIComponent(activeOrgTab)}`}>Gap Checklists</Link>
             </Button>
             <Button
               asChild
               variant={activeTab === 'analyses' ? 'default' : 'outline'}
               className={HEADER_COMPACT_CONTROL_CLASS}
             >
-              <Link href="/quality/gap-analyses/analyses">Gap Analyses</Link>
+              <Link href={`/quality/gap-analyses/analyses?org=${encodeURIComponent(activeOrgTab)}`}>Gap Analyses</Link>
             </Button>
           </div>
         </div>
