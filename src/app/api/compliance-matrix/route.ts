@@ -5,10 +5,7 @@ import { isMasterTenantEmail, MASTER_TENANT_ID } from '@/lib/server/tenant-acces
 import { getServerSession } from 'next-auth';
 import { NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
-
-function normalizeRegulationCode(value?: string | null) {
-  return value?.trim() || '';
-}
+import { normalizeRegulationCode, sanitizeComplianceMatrixEntry } from '@/lib/regulation-code';
 
 type ComplianceMatrixEntry = {
   id: string;
@@ -128,7 +125,8 @@ export async function GET(request: Request) {
     const tenantId = await getTenantId(request);
     if (!tenantId) return NextResponse.json({ items: [] }, { status: 200 });
     const config = await getConfig(tenantId);
-    return NextResponse.json({ items: Array.isArray(config['compliance-matrix']) ? config['compliance-matrix'] : [] }, { status: 200 });
+    const items = Array.isArray(config['compliance-matrix']) ? config['compliance-matrix'].map((item) => sanitizeComplianceMatrixEntry(item as Record<string, unknown>)) : [];
+    return NextResponse.json({ items }, { status: 200 });
   } catch (error) {
     console.error('[compliance-matrix] fallback to empty list:', error);
     return NextResponse.json({ items: [] }, { status: 200 });
@@ -145,7 +143,12 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
   const item = body?.item;
   if (!item || typeof item !== 'object') return NextResponse.json({ error: 'Invalid item payload' }, { status: 400 });
-  const incoming = { ...item, id: (item as ComplianceMatrixEntry).id || randomUUID() } as ComplianceMatrixEntry;
+  const incoming = {
+    ...item,
+    id: (item as ComplianceMatrixEntry).id || randomUUID(),
+    regulationCode: normalizeRegulationCode((item as ComplianceMatrixEntry).regulationCode),
+    parentRegulationCode: normalizeRegulationCode((item as ComplianceMatrixEntry).parentRegulationCode) || null,
+  } as ComplianceMatrixEntry;
   const config = await getConfig(tenantId);
   const items = Array.isArray(config['compliance-matrix']) ? (config['compliance-matrix'] as ComplianceMatrixEntry[]) : [];
   const nextItems = items.some((entry) => entry.id === incoming.id)

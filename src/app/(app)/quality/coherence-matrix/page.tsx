@@ -48,6 +48,7 @@ import type { CorrectiveActionPlan, GapStatus, QualityAudit, QualityAuditCheckli
 import { GripVertical, List } from 'lucide-react';
 import { TenantLayoutDisabledState } from '@/components/tenant-layout-disabled-state';
 import { useTenantRouteAccess } from '@/hooks/use-tenant-route-access';
+import { normalizeRegulationCode, sanitizeComplianceMatrixEntry } from '@/lib/regulation-code';
 
 const REGULATION_TABS = [
     { value: 'sacaa-cars', label: 'SACAA CARs' },
@@ -80,10 +81,6 @@ function formatParentOptionLabel(option: { code: string; label: string }) {
 
 function shouldShowSingleLineLabel(item: ComplianceRequirement) {
     return item.regulationStatement?.trim() === item.regulationCode.trim();
-}
-
-function normalizeRegulationCode(value?: string | null) {
-    return value?.trim() || '';
 }
 
 function getInlineMarker(parentCode: string, childCode: string) {
@@ -278,7 +275,16 @@ function UploadRegulationsDialog({ tenantId, organizationId, regulationFamily, a
                 regulationCode: normalizeRegulationCode(req.regulationCode),
                 parentRegulationCode: normalizeRegulationCode(req.parentRegulationCode) || normalizeRegulationCode(targetHeader),
                 regulationStatement: req.regulationStatement?.trim() || normalizeRegulationCode(req.regulationCode),
-            }));
+            })).filter((item) => item.regulationCode);
+
+            if (newItems.length === 0) {
+                toast({
+                    variant: 'destructive',
+                    title: 'No Valid Regulations',
+                    description: 'The AI output did not contain any usable regulation codes to save.',
+                });
+                return;
+            }
 
             await Promise.all(newItems.map((item) => fetch(`/api/compliance-matrix?tenantId=${encodeURIComponent(tenantId)}`, {
                 method: 'POST',
@@ -613,7 +619,7 @@ export default function CoherenceMatrixPage() {
           orgResponse.json().catch(() => ({ organizations: [] })),
           auditsResponse.json().catch(() => ({ audits: [], templates: [], caps: [] })),
         ]);
-        setComplianceItems(Array.isArray(matrixPayload.items) ? matrixPayload.items : []);
+        setComplianceItems(Array.isArray(matrixPayload.items) ? matrixPayload.items.map((item: ComplianceRequirement) => sanitizeComplianceMatrixEntry(item)) : []);
         setPersonnel(Array.isArray(personnelPayload.personnel) ? personnelPayload.personnel : []);
         setOrganizations(Array.isArray(orgPayload.organizations) ? orgPayload.organizations : []);
         setQualityAudits(Array.isArray(auditsPayload.audits) ? auditsPayload.audits : []);
@@ -962,15 +968,25 @@ export default function CoherenceMatrixPage() {
         getItemFamily(item) === activeRegulationTab
     );
     const sortedItems = [...filteredItems].sort((a, b) => naturalSort(a.regulationCode, b.regulationCode));
+    const availableItemCodes = new Set(
+        sortedItems
+            .map((item) => normalizeRegulationCode(item.regulationCode))
+            .filter(Boolean)
+    );
     const groupedItems = sortedItems.reduce((acc, item) => {
         const parentCode = normalizeRegulationCode(item.parentRegulationCode);
-        if (parentCode) {
+        const itemCode = normalizeRegulationCode(item.regulationCode);
+        if (parentCode && parentCode !== itemCode) {
             if (!acc[parentCode]) acc[parentCode] = [];
             acc[parentCode].push(item);
         }
         return acc;
     }, {} as Record<string, ComplianceRequirement[]>);
-    const topLevelItems = sortedItems.filter(item => !item.parentRegulationCode);
+    const topLevelItems = sortedItems.filter((item) => {
+        const itemCode = normalizeRegulationCode(item.regulationCode);
+        const parentCode = normalizeRegulationCode(item.parentRegulationCode);
+        return !parentCode || parentCode === itemCode || !availableItemCodes.has(parentCode);
+    });
     const renderInlineClauseLines = (parentCode: string, items: ComplianceRequirement[], ancestors: string[]) => {
         return (
             <div className="rounded-md border border-slate-200 bg-background/60">
@@ -1286,9 +1302,16 @@ export default function CoherenceMatrixPage() {
         });
     };
 
-    const branchMatchesIndexQuery = (item: ComplianceRequirement): boolean => {
+    const branchMatchesIndexQuery = (item: ComplianceRequirement, visitedCodes = new Set<string>()): boolean => {
         if (!normalizedIndexQuery) return true;
         const normalizedCode = normalizeRegulationCode(item.regulationCode);
+        if (normalizedCode && visitedCodes.has(normalizedCode)) {
+            return false;
+        }
+        const nextVisitedCodes = new Set(visitedCodes);
+        if (normalizedCode) {
+            nextVisitedCodes.add(normalizedCode);
+        }
         const directMatch = [item.regulationCode, item.regulationStatement]
             .filter(Boolean)
             .join(' ')
@@ -1306,12 +1329,19 @@ export default function CoherenceMatrixPage() {
         if (technicalLineMatch) return true;
 
         const childItems = groupedItems[normalizedCode] || [];
-        return childItems.some((child) => branchMatchesIndexQuery(child));
+        return childItems.some((child) => branchMatchesIndexQuery(child, nextVisitedCodes));
     };
 
-    const renderIndexBranch = (items: ComplianceRequirement[], depth = 0): React.ReactNode[] => {
+    const renderIndexBranch = (items: ComplianceRequirement[], depth = 0, ancestorCodes = new Set<string>()): React.ReactNode[] => {
         return items.flatMap((item) => {
             const normalizedCode = normalizeRegulationCode(item.regulationCode);
+            if (normalizedCode && ancestorCodes.has(normalizedCode)) {
+                return [];
+            }
+            const nextAncestorCodes = new Set(ancestorCodes);
+            if (normalizedCode) {
+                nextAncestorCodes.add(normalizedCode);
+            }
             if (normalizedIndexQuery && !branchMatchesIndexQuery(item)) {
                 return [];
             }
@@ -1426,7 +1456,7 @@ export default function CoherenceMatrixPage() {
                     </div>
                     {hasIndexChildren && isExpanded ? (
                         <div className="space-y-0.5">
-                            {renderIndexBranch(childItems, depth + 1)}
+                            {renderIndexBranch(childItems, depth + 1, nextAncestorCodes)}
                         </div>
                     ) : null}
                 </div>
