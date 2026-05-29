@@ -10,7 +10,7 @@ import {
   HEADER_SECONDARY_BUTTON_CLASS,
 } from "@/components/page-header";
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Edit, Trash2, ChevronDown, WandSparkles, Loader2, ClipboardPaste, Layers, MoreHorizontal, Copy } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, ChevronDown, ChevronLeft, ChevronRight, WandSparkles, Loader2, ClipboardPaste, Layers, MoreHorizontal, Copy } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose, DialogTrigger } from '@/components/ui/dialog';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -48,7 +48,7 @@ import type { CorrectiveActionPlan, GapStatus, QualityAudit, QualityAuditCheckli
 import { GripVertical, List } from 'lucide-react';
 import { TenantLayoutDisabledState } from '@/components/tenant-layout-disabled-state';
 import { useTenantRouteAccess } from '@/hooks/use-tenant-route-access';
-import { normalizeRegulationCode, sanitizeComplianceMatrixEntry } from '@/lib/regulation-code';
+import { normalizeIndentationArray, normalizeRegulationCode, sanitizeComplianceMatrixEntry } from '@/lib/regulation-code';
 
 const REGULATION_TABS = [
     { value: 'sacaa-cars', label: 'SACAA CARs' },
@@ -60,7 +60,11 @@ const CLAUSE_INSPECTOR_MIN_WIDTH = 360;
 const CLAUSE_INSPECTOR_MAX_WIDTH = 640;
 const CLAUSE_INSPECTOR_DEFAULT_WIDTH = 420;
 const CLAUSE_SPLIT_HANDLE_WIDTH = 24;
+const TECHNICAL_STANDARD_MAX_INDENT = 6;
 type RegulationFamily = (typeof REGULATION_TABS)[number]['value'];
+type MatrixPreviewRequirement = SummarizeDocumentOutput['requirements'][number] & {
+    technicalStandardIndentation?: number[];
+};
 
 function regulationTabToUiValue(value: RegulationFamily) {
     return value.replace(/[^a-z0-9_-]/gi, '_');
@@ -120,7 +124,7 @@ function getClauseAnalysisRowId(itemId: string, marker: string) {
 }
 
 function getClauseAnalysisEntries(item: ComplianceRequirement): ClauseAnalysisEntry[] {
-    const structuredLines = getStructuredTechnicalLines(item.technicalStandard).filter((line) => line.marker);
+    const structuredLines = getStructuredTechnicalLines(item.technicalStandard, item.technicalStandardIndentation).filter((line) => line.marker);
     const existingEntries = new Map((item.analysisEntries || []).map((entry) => [entry.marker, entry]));
 
     return structuredLines.map((line, index) => {
@@ -157,47 +161,99 @@ function formatStructuredTechnicalStandard(value?: string | null) {
 }
 
 function getStructuredTechnicalIndent(marker: string) {
+    const baseLevel = /^Note:/i.test(marker)
+        ? 2
+        : /^\(\d+\)$/.test(marker)
+            ? 1
+            : /^\((?:i|ii|iii|iv|vi|vii|viii|ix|x|xi|xii|xiii|xiv|xv|xvi|xvii|xviii|xix|xx)\)$/i.test(marker)
+                ? 3
+                : /^\([a-z]\)$/i.test(marker)
+                    ? 2
+                    : /^\([A-Z]\)$/.test(marker)
+                        ? 3
+                        : 0;
+
     if (/^Note:/i.test(marker)) {
-        return { indentClassName: 'pl-10', markerClassName: 'w-12', extraClassName: 'italic' };
+        return { indentLevel: baseLevel, markerClassName: 'w-12', extraClassName: 'italic' };
     }
 
     if (/^\(\d+\)$/.test(marker)) {
-        return { indentClassName: 'pl-3', markerClassName: 'w-8', extraClassName: '' };
+        return { indentLevel: baseLevel, markerClassName: 'w-8', extraClassName: '' };
     }
 
     if (/^\((?:i|ii|iii|iv|vi|vii|viii|ix|x|xi|xii|xiii|xiv|xv|xvi|xvii|xviii|xix|xx)\)$/i.test(marker)) {
-        return { indentClassName: 'pl-16', markerClassName: 'w-10', extraClassName: '' };
+        return { indentLevel: baseLevel, markerClassName: 'w-10', extraClassName: '' };
     }
 
     if (/^\([a-z]\)$/i.test(marker)) {
-        return { indentClassName: 'pl-10', markerClassName: 'w-8', extraClassName: '' };
+        return { indentLevel: baseLevel, markerClassName: 'w-8', extraClassName: '' };
     }
 
     if (/^\([A-Z]\)$/.test(marker)) {
-        return { indentClassName: 'pl-16', markerClassName: 'w-10', extraClassName: '' };
+        return { indentLevel: baseLevel, markerClassName: 'w-10', extraClassName: '' };
     }
 
-    return { indentClassName: '', markerClassName: 'w-0', extraClassName: '' };
+    return { indentLevel: baseLevel, markerClassName: 'w-0', extraClassName: '' };
 }
 
-function getStructuredTechnicalLines(value?: string | null) {
+function clampTechnicalIndentLevel(level: number) {
+    return Math.min(TECHNICAL_STANDARD_MAX_INDENT, Math.max(0, Math.round(level)));
+}
+
+function getTechnicalIndentClassName(level: number) {
+    switch (clampTechnicalIndentLevel(level)) {
+        case 0:
+            return '';
+        case 1:
+            return 'pl-3';
+        case 2:
+            return 'pl-10';
+        case 3:
+            return 'pl-16';
+        case 4:
+            return 'pl-24';
+        case 5:
+            return 'pl-32';
+        default:
+            return 'pl-40';
+    }
+}
+
+function getStructuredTechnicalLines(value?: string | null, indentationOverrides?: number[]) {
     return formatStructuredTechnicalStandard(value)
         .split('\n')
         .map((line) => line.trim())
         .filter(Boolean)
-        .map((line) => {
+        .map((line, index) => {
             const markerMatch = line.match(/^((?:\(\d+\)|\([a-z]\)|\((?:i|ii|iii|iv|vi|vii|viii|ix|x|xi|xii|xiii|xiv|xv|xvi|xvii|xviii|xix|xx)\)|\([A-Z]\)|Note:))\s*(.*)$/i);
             const marker = markerMatch?.[1] || '';
             const content = markerMatch?.[2] || line;
-            const { indentClassName, markerClassName, extraClassName } = getStructuredTechnicalIndent(marker);
+            const { indentLevel: defaultIndentLevel, markerClassName, extraClassName } = getStructuredTechnicalIndent(marker);
+            const indentLevel = clampTechnicalIndentLevel(indentationOverrides?.[index] ?? defaultIndentLevel);
 
             return {
                 marker,
                 content,
-                className: `${indentClassName} ${extraClassName}`.trim(),
+                indentLevel,
+                defaultIndentLevel,
+                className: `${getTechnicalIndentClassName(indentLevel)} ${extraClassName}`.trim(),
                 markerClassName,
             };
         });
+}
+
+function getNormalizedTechnicalIndentation(
+    value?: string | null,
+    indentationOverrides?: number[],
+) {
+    const lines = getStructuredTechnicalLines(value, indentationOverrides);
+    if (lines.length === 0) {
+        return [];
+    }
+
+    const normalized = lines.map((line) => clampTechnicalIndentLevel(line.indentLevel));
+    const hasManualOverride = normalized.some((level, index) => level !== clampTechnicalIndentLevel(lines[index]?.defaultIndentLevel ?? 0));
+    return hasManualOverride ? normalized : [];
 }
 
 function getItemFamily(item: ComplianceRequirement): RegulationFamily {
@@ -219,7 +275,7 @@ function UploadRegulationsDialog({ tenantId, organizationId, regulationFamily, a
     const [isMultiImageMode, setIsMultiImageMode] = useState(false);
     const [targetFamily, setTargetFamily] = useState<RegulationFamily>(regulationFamily);
     const [targetHeader, setTargetHeader] = useState('');
-    const [previewRequirements, setPreviewRequirements] = useState<SummarizeDocumentOutput['requirements'] | null>(null);
+    const [previewRequirements, setPreviewRequirements] = useState<MatrixPreviewRequirement[] | null>(null);
     const [previewInput, setPreviewInput] = useState<SummarizeDocumentInput | null>(null);
 
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -258,7 +314,7 @@ function UploadRegulationsDialog({ tenantId, organizationId, regulationFamily, a
         setStagedImages(prev => prev.filter((_, i) => i !== index));
     };
 
-    const saveRequirements = async (input: SummarizeDocumentInput, requirements: SummarizeDocumentOutput['requirements']) => {
+    const saveRequirements = async (input: SummarizeDocumentInput, requirements: MatrixPreviewRequirement[]) => {
         setIsSaving(true);
         setIsProcessing(true);
         try {
@@ -276,6 +332,10 @@ function UploadRegulationsDialog({ tenantId, organizationId, regulationFamily, a
                 parentRegulationCode: normalizeRegulationCode(req.parentRegulationCode) || normalizeRegulationCode(targetHeader),
                 documentHeading: req.documentHeading?.trim() || '',
                 regulationStatement: req.regulationStatement?.trim() || normalizeRegulationCode(req.regulationCode),
+                technicalStandardIndentation: getNormalizedTechnicalIndentation(
+                    req.technicalStandard,
+                    normalizeIndentationArray(req.technicalStandardIndentation),
+                ),
             })).filter((item) => item.regulationCode);
 
             if (newItems.length === 0) {
@@ -404,6 +464,38 @@ function UploadRegulationsDialog({ tenantId, organizationId, regulationFamily, a
         }
     };
 
+    const updatePreviewRequirementIndentation = useCallback((requirementIndex: number, lineIndex: number, nextIndentLevel: number) => {
+        setPreviewRequirements((current) => {
+            if (!current) return current;
+
+            return current.map((requirement, index) => {
+                if (index !== requirementIndex) {
+                    return requirement;
+                }
+
+                const nextIndentation = [...normalizeIndentationArray(requirement.technicalStandardIndentation)];
+                nextIndentation[lineIndex] = clampTechnicalIndentLevel(nextIndentLevel);
+
+                return {
+                    ...requirement,
+                    technicalStandardIndentation: getNormalizedTechnicalIndentation(requirement.technicalStandard, nextIndentation),
+                };
+            });
+        });
+    }, []);
+
+    const resetPreviewRequirementIndentation = useCallback((requirementIndex: number) => {
+        setPreviewRequirements((current) => {
+            if (!current) return current;
+
+            return current.map((requirement, index) =>
+                index === requirementIndex
+                    ? { ...requirement, technicalStandardIndentation: [] }
+                    : requirement
+            );
+        });
+    }, []);
+
     const canProcess = !!targetHeader.trim() && (file || pastedText.trim() || stagedImages.length > 0);
 
     return (
@@ -531,7 +623,7 @@ function UploadRegulationsDialog({ tenantId, organizationId, regulationFamily, a
                             <div className="flex items-center justify-between gap-3">
                                 <div>
                                     <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">AI Preview</p>
-                                    <p className="text-xs text-muted-foreground">Review the extracted JSON before saving it to the matrix.</p>
+                                    <p className="text-xs text-muted-foreground">Review the extracted requirements and correct indentation before saving them to the matrix.</p>
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <Button type="button" variant="ghost" size="sm" onClick={copyPreviewJson}>
@@ -543,10 +635,108 @@ function UploadRegulationsDialog({ tenantId, organizationId, regulationFamily, a
                                     </Button>
                                 </div>
                             </div>
-                            <ScrollArea className="max-h-72 rounded-md border bg-white">
-                                <pre className="p-3 text-[11px] leading-5 whitespace-pre-wrap break-words">
-                                    {JSON.stringify({ requirements: previewRequirements }, null, 2)}
-                                </pre>
+                            <div className="rounded-md border border-card-border/70 bg-background/70 px-3 py-2 text-[11px] leading-5 text-foreground/70">
+                                <span className="font-semibold text-foreground">Indentation help:</span> use the left arrow to promote a line up one level and the right arrow to demote it deeper under its parent clause. Reset indents returns that requirement to automatic marker-based formatting.
+                            </div>
+                            <ScrollArea className="max-h-[28rem] rounded-md border bg-white">
+                                <div className="space-y-3 p-3">
+                                    {previewRequirements.map((requirement, requirementIndex) => {
+                                        const previewLines = getStructuredTechnicalLines(
+                                            requirement.technicalStandard,
+                                            normalizeIndentationArray(requirement.technicalStandardIndentation),
+                                        );
+                                        const hasManualIndentation = normalizeIndentationArray(requirement.technicalStandardIndentation).length > 0;
+
+                                        return (
+                                            <div key={`${requirement.regulationCode}-${requirementIndex}`} className="space-y-3 rounded-md border border-card-border/70 bg-card/40 p-3">
+                                                <div className="flex flex-wrap items-start justify-between gap-3">
+                                                    <div className="min-w-0 space-y-1">
+                                                        {requirement.documentHeading?.trim() ? (
+                                                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-primary/80">
+                                                                {requirement.documentHeading}
+                                                            </p>
+                                                        ) : null}
+                                                        <p className="text-[11px] font-black tracking-wide text-foreground/65">
+                                                            {requirement.regulationCode}
+                                                        </p>
+                                                        <p className="text-sm font-semibold leading-5 text-foreground">
+                                                            {requirement.regulationStatement}
+                                                        </p>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        {hasManualIndentation ? (
+                                                            <Badge variant="outline" className="border-primary/30 bg-primary/5 text-[10px] font-black uppercase tracking-[0.12em] text-primary">
+                                                                Manual indentation
+                                                            </Badge>
+                                                        ) : null}
+                                                        <Button
+                                                            type="button"
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={() => resetPreviewRequirementIndentation(requirementIndex)}
+                                                            disabled={!hasManualIndentation}
+                                                        >
+                                                            Reset indents
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                                {previewLines.length > 0 ? (
+                                                    <div className="space-y-1.5">
+                                                        {previewLines.map((line, lineIndex) => (
+                                                            <div key={`${line.marker}-${line.content}-${lineIndex}`} className="flex items-start gap-2">
+                                                                <div className="flex shrink-0 items-center gap-1 pt-1">
+                                                                    <Button
+                                                                        type="button"
+                                                                        variant="outline"
+                                                                        size="icon"
+                                                                        className="h-7 w-7 border-card-border/80"
+                                                                        onClick={() => updatePreviewRequirementIndentation(requirementIndex, lineIndex, line.indentLevel - 1)}
+                                                                        disabled={line.indentLevel <= 0}
+                                                                        aria-label={`Promote preview line ${lineIndex + 1}`}
+                                                                    >
+                                                                        <ChevronLeft className="h-3.5 w-3.5" />
+                                                                    </Button>
+                                                                    <Button
+                                                                        type="button"
+                                                                        variant="outline"
+                                                                        size="icon"
+                                                                        className="h-7 w-7 border-card-border/80"
+                                                                        onClick={() => updatePreviewRequirementIndentation(requirementIndex, lineIndex, line.indentLevel + 1)}
+                                                                        disabled={line.indentLevel >= TECHNICAL_STANDARD_MAX_INDENT}
+                                                                        aria-label={`Demote preview line ${lineIndex + 1}`}
+                                                                    >
+                                                                        <ChevronRight className="h-3.5 w-3.5" />
+                                                                    </Button>
+                                                                </div>
+                                                                <div className="min-w-0 flex-1 rounded-md border border-card-border/70 bg-background/80 px-3 py-2">
+                                                                    <div
+                                                                        className={cn(
+                                                                            'flex items-start text-sm font-medium leading-6 text-foreground/80',
+                                                                            line.className
+                                                                        )}
+                                                                    >
+                                                                        {line.marker ? (
+                                                                            <span className={cn('shrink-0 font-semibold text-foreground/55', line.markerClassName)}>
+                                                                                {line.marker}
+                                                                            </span>
+                                                                        ) : null}
+                                                                        <span className="min-w-0 flex-1 break-words">
+                                                                            {line.content}
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                ) : requirement.technicalStandard?.trim() ? (
+                                                    <p className="text-sm leading-6 text-foreground/80">{requirement.technicalStandard}</p>
+                                                ) : (
+                                                    <p className="text-sm text-muted-foreground">No subordinate clause text detected for this preview item.</p>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
                             </ScrollArea>
                         </div>
                     ) : null}
@@ -593,6 +783,7 @@ export default function CoherenceMatrixPage() {
   const [expandedIndexCodes, setExpandedIndexCodes] = useState<Record<string, boolean>>({});
   const [editingClauseTextId, setEditingClauseTextId] = useState<string | null>(null);
   const [clauseTextDraft, setClauseTextDraft] = useState('');
+  const [clauseIndentDraft, setClauseIndentDraft] = useState<number[]>([]);
   const [isClauseTextSaving, setIsClauseTextSaving] = useState(false);
   const [editingItem, setEditingItem] = useState<ComplianceRequirement | null>(null);
   const [formMode, setFormMode] = useState<'item' | 'header' | 'subheader'>('item');
@@ -719,20 +910,48 @@ export default function CoherenceMatrixPage() {
   const beginClauseTextEdit = useCallback((item: ComplianceRequirement) => {
     setEditingClauseTextId(item.id);
     setClauseTextDraft(item.technicalStandard || '');
+    setClauseIndentDraft(normalizeIndentationArray(item.technicalStandardIndentation));
   }, []);
 
   const cancelClauseTextEdit = useCallback(() => {
     setEditingClauseTextId(null);
     setClauseTextDraft('');
+    setClauseIndentDraft([]);
   }, []);
+
+  const updateClauseIndentDraft = useCallback((lineIndex: number, nextIndentLevel: number) => {
+    setClauseIndentDraft((current) => {
+        const next = [...current];
+        next[lineIndex] = clampTechnicalIndentLevel(nextIndentLevel);
+        return next;
+    });
+  }, []);
+
+  const resetClauseIndentDraft = useCallback(() => {
+    setClauseIndentDraft([]);
+  }, []);
+
+  const clearClauseIndentation = useCallback(async (item: ComplianceRequirement) => {
+    const saved = await updateMatrixItemField(item, { technicalStandardIndentation: [] });
+    if (saved) {
+        toast({
+            title: 'Indentation reset',
+            description: `${item.regulationCode} is back on automatic indentation.`,
+        });
+    }
+  }, [toast, updateMatrixItemField]);
 
   const saveClauseTextEdit = useCallback(async (item: ComplianceRequirement) => {
     setIsClauseTextSaving(true);
     try {
-        const saved = await updateMatrixItemField(item, { technicalStandard: clauseTextDraft });
+        const saved = await updateMatrixItemField(item, {
+            technicalStandard: clauseTextDraft,
+            technicalStandardIndentation: getNormalizedTechnicalIndentation(clauseTextDraft, clauseIndentDraft),
+        });
         if (saved) {
             setEditingClauseTextId(null);
             setClauseTextDraft('');
+            setClauseIndentDraft([]);
             toast({
                 title: 'Clause text updated',
                 description: `${item.regulationCode} text saved.`,
@@ -741,7 +960,7 @@ export default function CoherenceMatrixPage() {
     } finally {
         setIsClauseTextSaving(false);
     }
-  }, [clauseTextDraft, toast, updateMatrixItemField]);
+  }, [clauseIndentDraft, clauseTextDraft, toast, updateMatrixItemField]);
 
   const clampClauseInspectorWidth = useCallback((value: number) => {
     return Math.min(CLAUSE_INSPECTOR_MAX_WIDTH, Math.max(CLAUSE_INSPECTOR_MIN_WIDTH, Math.round(value)));
@@ -1017,8 +1236,8 @@ export default function CoherenceMatrixPage() {
         );
     };
 
-    const renderTechnicalStandardText = (value?: string | null) => {
-        const lines = getStructuredTechnicalLines(value);
+    const renderTechnicalStandardText = (value?: string | null, indentationOverrides?: number[]) => {
+        const lines = getStructuredTechnicalLines(value, indentationOverrides);
         const rawValue = value?.trim() || '';
         if (lines.length === 0) {
             return rawValue ? (
@@ -1055,25 +1274,36 @@ export default function CoherenceMatrixPage() {
     const renderClauseTextCard = (item: ComplianceRequirement, isExpanded: boolean, onToggleExpanded: () => void, canEditClause: boolean) => {
         const hasTechnicalText = Boolean(item.technicalStandard?.trim());
         const isEditingClauseText = editingClauseTextId === item.id;
+        const hasManualIndentation = normalizeIndentationArray(item.technicalStandardIndentation).length > 0;
+        const draftLines = isEditingClauseText
+            ? getStructuredTechnicalLines(clauseTextDraft, clauseIndentDraft)
+            : [];
 
         return (
             <div className="space-y-2 rounded-md border border-card-border/70 bg-background/60 px-3 py-2">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                    {hasTechnicalText ? (
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            size="compact"
-                            className="-ml-1 h-7 whitespace-nowrap px-1.5 text-[9px] font-black uppercase tracking-[0.08em] text-foreground/70 hover:bg-accent/30"
-                            onClick={onToggleExpanded}
-                            disabled={isEditingClauseText}
-                        >
-                            <ChevronDown className={cn('mr-1 h-3.5 w-3.5 transition-transform', isExpanded && 'rotate-180')} />
-                            {isExpanded ? 'Hide text' : 'Show text'}
-                        </Button>
-                    ) : (
-                        <span className="text-[9px] font-black uppercase tracking-[0.12em] text-foreground/45">No clause text</span>
-                    )}
+                    <div className="flex flex-wrap items-center gap-2">
+                        {hasTechnicalText ? (
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="compact"
+                                className="-ml-1 h-7 whitespace-nowrap px-1.5 text-[9px] font-black uppercase tracking-[0.08em] text-foreground/70 hover:bg-accent/30"
+                                onClick={onToggleExpanded}
+                                disabled={isEditingClauseText}
+                            >
+                                <ChevronDown className={cn('mr-1 h-3.5 w-3.5 transition-transform', isExpanded && 'rotate-180')} />
+                                {isExpanded ? 'Hide text' : 'Show text'}
+                            </Button>
+                        ) : (
+                            <span className="text-[9px] font-black uppercase tracking-[0.12em] text-foreground/45">No clause text</span>
+                        )}
+                        {hasManualIndentation ? (
+                            <Badge variant="outline" className="border-primary/30 bg-primary/5 text-[9px] font-black uppercase tracking-[0.12em] text-primary">
+                                Manual indentation
+                            </Badge>
+                        ) : null}
+                    </div>
                     {canEditClause ? (
                         isEditingClauseText ? (
                             <div className="flex items-center gap-2">
@@ -1087,6 +1317,16 @@ export default function CoherenceMatrixPage() {
                                 >
                                     <WandSparkles className="mr-1 h-3.5 w-3.5" />
                                     Auto format
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="compact"
+                                    className="h-7 px-2 text-[9px] font-black uppercase tracking-[0.08em] text-foreground/70 hover:bg-accent/30"
+                                    onClick={resetClauseIndentDraft}
+                                    disabled={isClauseTextSaving || clauseIndentDraft.length === 0}
+                                >
+                                    Reset indents
                                 </Button>
                                 <Button
                                     type="button"
@@ -1110,16 +1350,29 @@ export default function CoherenceMatrixPage() {
                                 </Button>
                             </div>
                         ) : (
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="compact"
-                                className="h-7 px-2 text-[9px] font-black uppercase tracking-[0.08em] text-foreground/70 hover:bg-accent/30"
-                                onClick={() => beginClauseTextEdit(item)}
-                            >
-                                <Edit className="mr-1 h-3.5 w-3.5" />
-                                Edit text
-                            </Button>
+                            <div className="flex items-center gap-2">
+                                {hasManualIndentation ? (
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="compact"
+                                        className="h-7 px-2 text-[9px] font-black uppercase tracking-[0.08em] text-foreground/70 hover:bg-accent/30"
+                                        onClick={() => void clearClauseIndentation(item)}
+                                    >
+                                        Reset indents
+                                    </Button>
+                                ) : null}
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="compact"
+                                    className="h-7 px-2 text-[9px] font-black uppercase tracking-[0.08em] text-foreground/70 hover:bg-accent/30"
+                                    onClick={() => beginClauseTextEdit(item)}
+                                >
+                                    <Edit className="mr-1 h-3.5 w-3.5" />
+                                    Edit text
+                                </Button>
+                            </div>
                         )
                     ) : null}
                 </div>
@@ -1141,10 +1394,69 @@ export default function CoherenceMatrixPage() {
                         <p className="text-[10px] leading-4 text-foreground/55">
                             Use line breaks and spacing here to correct clause indentation. Press Ctrl+Shift+F to auto format.
                         </p>
+                        {draftLines.length > 0 ? (
+                            <div className="space-y-2 rounded-md border border-card-border/70 bg-card/40 p-2">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <p className="text-[10px] font-black uppercase tracking-[0.12em] text-foreground/60">
+                                        Indentation preview
+                                    </p>
+                                    <p className="text-[10px] leading-4 text-foreground/50">
+                                        Use the arrows to promote or demote each detected clause line.
+                                    </p>
+                                </div>
+                                <div className="space-y-1.5">
+                                    {draftLines.map((line, index) => (
+                                        <div key={`${line.marker}-${line.content}-${index}`} className="flex items-start gap-2">
+                                            <div className="flex shrink-0 items-center gap-1 pt-1">
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="icon"
+                                                    className="h-7 w-7 border-card-border/80"
+                                                    onClick={() => updateClauseIndentDraft(index, line.indentLevel - 1)}
+                                                    disabled={isClauseTextSaving || line.indentLevel <= 0}
+                                                    aria-label={`Promote line ${index + 1}`}
+                                                >
+                                                    <ChevronLeft className="h-3.5 w-3.5" />
+                                                </Button>
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="icon"
+                                                    className="h-7 w-7 border-card-border/80"
+                                                    onClick={() => updateClauseIndentDraft(index, line.indentLevel + 1)}
+                                                    disabled={isClauseTextSaving || line.indentLevel >= TECHNICAL_STANDARD_MAX_INDENT}
+                                                    aria-label={`Demote line ${index + 1}`}
+                                                >
+                                                    <ChevronRight className="h-3.5 w-3.5" />
+                                                </Button>
+                                            </div>
+                                            <div className="min-w-0 flex-1 rounded-md border border-card-border/70 bg-background/80 px-3 py-2">
+                                                <div
+                                                    className={cn(
+                                                        'flex items-start text-sm font-medium leading-6 text-foreground/80',
+                                                        line.className
+                                                    )}
+                                                >
+                                                    {line.marker ? (
+                                                        <span className={cn('shrink-0 font-semibold text-foreground/55', line.markerClassName)}>
+                                                            {line.marker}
+                                                        </span>
+                                                    ) : null}
+                                                    <span className="min-w-0 flex-1 break-words">
+                                                        {line.content}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ) : null}
                     </div>
                 ) : hasTechnicalText ? (
                     isExpanded ? (
-                        <div className="space-y-1">{renderTechnicalStandardText(item.technicalStandard)}</div>
+                        <div className="space-y-1">{renderTechnicalStandardText(item.technicalStandard, item.technicalStandardIndentation)}</div>
                     ) : (
                         <p className="text-[12px] leading-5 text-foreground/70">{getTechnicalExcerpt(item.technicalStandard)}</p>
                     )
@@ -1320,7 +1632,7 @@ export default function CoherenceMatrixPage() {
             .includes(normalizedIndexQuery);
         if (directMatch) return true;
 
-        const technicalLineMatch = getStructuredTechnicalLines(item.technicalStandard).some((line) =>
+        const technicalLineMatch = getStructuredTechnicalLines(item.technicalStandard, item.technicalStandardIndentation).some((line) =>
             [line.marker, line.content]
                 .filter(Boolean)
                 .join(' ')
@@ -1490,8 +1802,13 @@ export default function CoherenceMatrixPage() {
                             <h3 className="mt-1 text-sm font-semibold leading-5 text-foreground break-words">
                                 {selectedMatrixItem.regulationStatement}
                             </h3>
-                            {selectedMatrixItem.responsibleManagerId?.trim() ? (
-                                <div className="mt-2">
+                            {selectedMatrixItem.responsibleManagerId?.trim() || normalizeIndentationArray(selectedMatrixItem.technicalStandardIndentation).length > 0 ? (
+                                <div className="mt-2 flex flex-wrap items-center gap-2">
+                                    {normalizeIndentationArray(selectedMatrixItem.technicalStandardIndentation).length > 0 ? (
+                                        <Badge variant="outline" className="h-5 border-primary/30 bg-primary/5 px-2 text-[9px] font-black uppercase tracking-[0.08em] text-primary">
+                                            Manual indentation
+                                        </Badge>
+                                    ) : null}
                                     <Badge variant="outline" className="h-5 border-card-border bg-background/70 px-2 text-[9px] font-black uppercase tracking-[0.08em] text-foreground">
                                         Responsible {getManagerLabel(selectedMatrixItem.responsibleManagerId) || '-'}
                                     </Badge>
@@ -2612,7 +2929,7 @@ export default function CoherenceMatrixPage() {
                                 {child.technicalStandard?.trim() ? (
                                     <div className="space-y-2 overflow-hidden">
                                         <div className="rounded-md border border-card-border/70 bg-background/60 px-4 py-3">
-                                            {renderTechnicalStandardText(child.technicalStandard)}
+                                            {renderTechnicalStandardText(child.technicalStandard, child.technicalStandardIndentation)}
                                         </div>
                                     </div>
                                 ) : null}
@@ -2752,7 +3069,7 @@ export default function CoherenceMatrixPage() {
                 )}>
                     {item.technicalStandard?.trim() ? (
                         <div className="space-y-2 overflow-hidden">
-                            {renderTechnicalStandardText(item.technicalStandard)}
+                            {renderTechnicalStandardText(item.technicalStandard, item.technicalStandardIndentation)}
                         </div>
                     ) : null}
                     {renderRequirementMeta(item)}

@@ -38,6 +38,7 @@ export interface ComplianceRequirement {
     documentHeading?: string;
     regulationStatement: string; // The short title/heading
     technicalStandard?: string; // The full, detailed body text
+    technicalStandardIndentation?: number[];
     companyReference: string;
     responsibleManagerId: string;
     gapStatus?: GapStatus;
