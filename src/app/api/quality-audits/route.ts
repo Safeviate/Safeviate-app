@@ -57,11 +57,11 @@ async function loadExternalOrganizations(tenantId: string) {
 
 async function loadAircraft(tenantId: string) {
   await ensureAircraftSchema();
-  const rows = await prisma.$queryRawUnsafe<{ data: unknown }[]>(
-    `SELECT data FROM aircraft_records WHERE tenant_id = $1 ORDER BY created_at ASC`,
-    tenantId
-  );
-  return rows.map((row) => row.data as Aircraft);
+  const rows = await prisma.aircraftRecord.findMany({
+    where: { tenantId },
+    orderBy: { createdAt: 'asc' },
+  });
+  return rows.map((row) => row.data as unknown as Aircraft);
 }
 
 export async function GET(request: Request) {
