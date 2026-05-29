@@ -19,6 +19,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import type { QualityAudit, ExternalOrganization } from '@/types/quality';
+import type { Aircraft } from '@/types/aircraft';
 import type { Department } from '../../../admin/department/page';
 import type { Personnel } from '../../../users/personnel/page';
 import { OrganizationTabsRow } from '@/components/responsive-tab-row';
@@ -37,6 +38,7 @@ const parseLocalDate = (value: string) => {
 type EnrichedGapAnalysis = QualityAudit & {
   targetName?: string;
   reviewOwnerName?: string;
+  assetName?: string;
 };
 
 const getStatusBadgeVariant = (status: QualityAudit['status']): "default" | "secondary" | "destructive" | "outline" => {
@@ -89,6 +91,7 @@ export function GapAnalysesList() {
   const [personnel, setPersonnel] = useState<Personnel[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [organizations, setOrganizations] = useState<ExternalOrganization[]>([]);
+  const [aircraft, setAircraft] = useState<Aircraft[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeOrgTab, setActiveOrgTab] = useState('internal');
   const activeTab = pathname?.startsWith('/quality/gap-analyses/analyses') ? 'analyses' : 'checklists';
@@ -99,7 +102,7 @@ export function GapAnalysesList() {
     const loadData = async () => {
       try {
         const response = await fetch('/api/quality-gap-analyses', { cache: 'no-store' });
-        const payload = await response.json().catch(() => ({ audits: [], personnel: [], departments: [], organizations: [] }));
+        const payload = await response.json().catch(() => ({ audits: [], personnel: [], departments: [], organizations: [], aircraft: [] }));
 
         if (cancelled) return;
 
@@ -107,6 +110,7 @@ export function GapAnalysesList() {
         setPersonnel(Array.isArray(payload.personnel) ? payload.personnel : []);
         setDepartments(Array.isArray(payload.departments) ? payload.departments : []);
         setOrganizations(Array.isArray(payload.organizations) ? payload.organizations : []);
+        setAircraft(Array.isArray(payload.aircraft) ? payload.aircraft : []);
       } catch (error) {
         console.error('Failed to load gap analyses', error);
       } finally {
@@ -139,6 +143,7 @@ export function GapAnalysesList() {
     const personnelMap = new Map(personnel.map((person) => [person.id, `${person.firstName} ${person.lastName}`]));
     const departmentMap = new Map(departments.map((department) => [department.id, department.name]));
     const orgMap = new Map(organizations.map((organization) => [organization.id, organization.name]));
+    const aircraftMap = new Map(aircraft.map((item) => [item.id, item.tailNumber]));
 
     return analyses.map((analysis) => ({
       ...analysis,
@@ -151,8 +156,9 @@ export function GapAnalysesList() {
       reviewOwnerName:
         personnelMap.get(analysis.auditeeId) ||
         analysis.auditeeId,
+      assetName: aircraftMap.get(analysis.assetId || '') || '',
     }));
-  }, [analyses, personnel, departments, organizations]);
+  }, [aircraft, analyses, personnel, departments, organizations]);
 
   const filteredAnalyses = useMemo(() => {
     return enrichedAnalyses.filter((analysis) =>
@@ -262,6 +268,10 @@ export function GapAnalysesList() {
                     <div className="rounded-lg border bg-background px-3 py-3">
                       <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Review Owner</p>
                       <p className="mt-1 text-sm font-semibold text-foreground">{analysis.reviewOwnerName || '-'}</p>
+                    </div>
+                    <div className="rounded-lg border bg-background px-3 py-3 sm:col-span-2">
+                      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Asset</p>
+                      <p className="mt-1 text-sm font-semibold text-foreground">{analysis.assetName || 'Not linked to an asset'}</p>
                     </div>
                   </div>
                   <div className="grid gap-3 sm:grid-cols-1">

@@ -35,6 +35,7 @@ import { CustomCalendar } from '@/components/ui/custom-calendar';
 import { CalendarIcon, PlayCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { QualityAudit, QualityAuditChecklistTemplate, ExternalOrganization } from '@/types/quality';
+import type { Aircraft } from '@/types/aircraft';
 import type { Department } from '../../admin/department/page';
 import type { Personnel } from '../../users/personnel/page';
 
@@ -44,6 +45,7 @@ const toNoonUtcIso = (date: Date) =>
 const formSchema = z.object({
   companyId: z.string().min(1, 'Company is required.'),
   targetId: z.string().min(1, 'Gap analysis target is required.'),
+  assetId: z.string().optional(),
   auditeeId: z.string().min(1, 'Review owner is required.'),
   scope: z.string().min(1, 'Scope is required.'),
   auditDate: z.date({ required_error: 'Start date is required.' }),
@@ -75,6 +77,7 @@ export function StartGapAnalysisDialog({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [newAuditId, setNewAuditId] = useState<string | null>(null);
   const [organizations, setOrganizations] = useState<ExternalOrganization[]>([]);
+  const [aircraft, setAircraft] = useState<Aircraft[]>([]);
 
   useEffect(() => {
     if (isOpen) {
@@ -82,6 +85,10 @@ export function StartGapAnalysisDialog({
           .then((response) => response.json())
           .then((payload) => setOrganizations(Array.isArray(payload.organizations) ? payload.organizations : []))
           .catch(() => setOrganizations([]));
+        void fetch('/api/aircraft', { cache: 'no-store' })
+          .then((response) => response.json())
+          .then((payload) => setAircraft(Array.isArray(payload.aircraft) ? payload.aircraft : []))
+          .catch(() => setAircraft([]));
     }
   }, [isOpen]);
 
@@ -90,6 +97,7 @@ export function StartGapAnalysisDialog({
     defaultValues: {
       companyId: 'internal',
       targetId: '',
+      assetId: '',
       auditeeId: '',
       scope: '',
       auditDate: new Date(),
@@ -102,8 +110,27 @@ export function StartGapAnalysisDialog({
     form.watch('companyId') === 'internal'
       ? 'Internal Company'
       : organizations.find((organization) => organization.id === form.watch('companyId'))?.name || 'External Company';
+  const selectedCompanyId = form.watch('companyId');
+  const selectedAssetId = form.watch('assetId');
+  const availableAircraft = aircraft.filter((item) => {
+    const ownerId = item.organizationId?.trim() || '';
+    if (selectedCompanyId && selectedCompanyId !== 'internal') {
+      return ownerId === selectedCompanyId;
+    }
+    return !ownerId || ownerId === tenantId;
+  });
+  const selectedAssetLabel = selectedAssetId
+    ? availableAircraft.find((item) => item.id === selectedAssetId)?.tailNumber || 'Selected asset'
+    : 'Not linked to an asset';
   const totalSections = template.sections.length;
   const totalItems = template.sections.reduce((count, section) => count + section.items.length, 0);
+
+  useEffect(() => {
+    if (!selectedAssetId) return;
+    if (!availableAircraft.some((item) => item.id === selectedAssetId)) {
+      form.setValue('assetId', '');
+    }
+  }, [availableAircraft, form, selectedAssetId]);
 
   const createAndOpenGapAnalysis = async (values: FormValues) => {
     if (!userProfile) {
@@ -129,6 +156,7 @@ export function StartGapAnalysisDialog({
         auditorId: userProfile.id,
         auditeeId: values.auditeeId,
         targetId: values.targetId,
+        assetId: values.assetId?.trim() || null,
         organizationId,
         scope: values.scope,
         auditDate: toNoonUtcIso(values.auditDate),
@@ -181,6 +209,7 @@ export function StartGapAnalysisDialog({
     void createAndOpenGapAnalysis({
       companyId: 'internal',
       targetId: departments[0]?.id || defaultAuditeeId,
+      assetId: '',
       auditeeId: defaultAuditeeId,
       scope: template.title,
       auditDate: new Date(),
@@ -238,6 +267,10 @@ export function StartGapAnalysisDialog({
                   <div className="rounded-lg border bg-background px-3 py-2">
                     <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Selected company</p>
                     <p className="mt-1 text-sm font-semibold text-foreground">{selectedCompanyLabel}</p>
+                  </div>
+                  <div className="rounded-lg border bg-background px-3 py-2">
+                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Asset</p>
+                    <p className="mt-1 text-sm font-semibold text-foreground">{selectedAssetLabel}</p>
                   </div>
                   <div className="rounded-lg border bg-background px-3 py-2">
                     <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Review owner</p>
@@ -314,6 +347,32 @@ export function StartGapAnalysisDialog({
                    </Select>
                   <p className="text-xs text-muted-foreground">
                     Choose the department or business target this gap analysis will be attached to.
+                  </p>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="assetId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Asset</FormLabel>
+                  <Select onValueChange={(value) => field.onChange(value === 'none' ? '' : value)} value={field.value || 'none'}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select asset if applicable..." />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="none">No linked asset</SelectItem>
+                      {availableAircraft.map((item) => (
+                        <SelectItem key={item.id} value={item.id}>{item.tailNumber} - {item.make} {item.model}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    If this gap analysis applies to a specific aircraft, link it here so the history also appears on that asset file.
                   </p>
                   <FormMessage />
                 </FormItem>

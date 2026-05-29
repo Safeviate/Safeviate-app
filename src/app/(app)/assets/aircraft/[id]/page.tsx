@@ -71,6 +71,7 @@ import { CustomCalendar } from '@/components/ui/custom-calendar';
 import type { Aircraft, AircraftComponent, AircraftDefect } from '@/types/aircraft';
 import type { MaintenanceLog } from '@/types/maintenance';
 import type { QuickReportWorkflowStatus, TechnicalQuickReport } from '@/types/quick-reports';
+import type { QualityAudit } from '@/types/quality';
 import { Separator } from '@/components/ui/separator';
 import { useUserProfile } from '@/hooks/use-user-profile';
 import type { DocumentExpirySettings } from '@/app/(app)/admin/document-dates/page';
@@ -358,6 +359,8 @@ export default function AircraftDetailPage({ params }: AircraftDetailPageProps) 
   const [inspectionSettings, setInspectionSettings] = useState<AircraftInspectionWarningSettings | null>(null);
   const [usageSummary, setUsageSummary] = useState<UsageSummaryPayload>({});
   const [technicalReports, setTechnicalReports] = useState<TechnicalQuickReport[]>([]);
+  const [qualityAudits, setQualityAudits] = useState<QualityAudit[]>([]);
+  const [gapAnalyses, setGapAnalyses] = useState<QualityAudit[]>([]);
   const [technicalReportDrafts, setTechnicalReportDrafts] = useState<Record<string, TechnicalReportDraft>>({});
   const [technicalReportAssignees, setTechnicalReportAssignees] = useState<TechnicalReportAssigneeOption[]>([]);
   const [savingTechnicalReportId, setSavingTechnicalReportId] = useState<string | null>(null);
@@ -366,11 +369,13 @@ export default function AircraftDetailPage({ params }: AircraftDetailPageProps) 
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-        const [response, configResponse, summaryResponse, technicalReportsResponse] = await Promise.all([
+        const [response, configResponse, summaryResponse, technicalReportsResponse, qualityAuditsResponse, gapAnalysesResponse] = await Promise.all([
           fetch(`/api/aircraft/${aircraftId}`, { cache: 'no-store' }),
           fetch('/api/tenant-config', { cache: 'no-store' }),
           fetch('/api/dashboard-summary', { cache: 'no-store' }),
           fetch('/api/technical-reports', { cache: 'no-store' }),
+          fetch('/api/quality-audits', { cache: 'no-store' }),
+          fetch('/api/quality-gap-analyses', { cache: 'no-store' }),
         ]);
         const payload = await response.json().catch(() => ({ aircraft: null }));
         const normalizedAircraft = normalizeAircraftComponentReferences((payload.aircraft as Aircraft | null) || null);
@@ -400,6 +405,10 @@ export default function AircraftDetailPage({ params }: AircraftDetailPageProps) 
           ? (technicalPayload.reports as TechnicalQuickReport[])
           : [];
         setTechnicalReports(nextTechnicalReports);
+        const qualityPayload = await qualityAuditsResponse.json().catch(() => ({ audits: [] }));
+        const gapPayload = await gapAnalysesResponse.json().catch(() => ({ audits: [] }));
+        setQualityAudits(Array.isArray(qualityPayload?.audits) ? (qualityPayload.audits as QualityAudit[]) : []);
+        setGapAnalyses(Array.isArray(gapPayload?.audits) ? (gapPayload.audits as QualityAudit[]) : []);
         setTechnicalReportDrafts(
           Object.fromEntries(
             nextTechnicalReports.map((report) => [
@@ -585,6 +594,20 @@ export default function AircraftDetailPage({ params }: AircraftDetailPageProps) 
         .filter((report) => report.aircraftId === aircraft?.id)
         .sort((left, right) => `${right.eventDate}T${right.eventTime}`.localeCompare(`${left.eventDate}T${left.eventTime}`)),
     [technicalReports, aircraft?.id]
+  );
+  const qualityAuditsForAircraft = useMemo(
+    () =>
+      qualityAudits
+        .filter((audit) => audit.assetId === aircraft?.id)
+        .sort((left, right) => right.auditDate.localeCompare(left.auditDate)),
+    [aircraft?.id, qualityAudits]
+  );
+  const gapAnalysesForAircraft = useMemo(
+    () =>
+      gapAnalyses
+        .filter((analysis) => analysis.assetId === aircraft?.id)
+        .sort((left, right) => right.auditDate.localeCompare(left.auditDate)),
+    [aircraft?.id, gapAnalyses]
   );
 
   const setTechnicalReportDraftValue = useCallback(
@@ -1724,6 +1747,89 @@ export default function AircraftDetailPage({ params }: AircraftDetailPageProps) 
 
               <TabsContent value="defects" className={cn("mt-0 outline-none", isMobile ? "min-h-0" : "h-full overflow-y-auto no-scrollbar")}>
                 <CardContent className="p-4 sm:p-6">
+                  <Card className="mb-4 overflow-hidden border shadow-none">
+                    <CardHeader className="border-b bg-muted/20 px-4 py-3">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="min-w-0">
+                          <h3 className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-primary">
+                            <History className="h-3.5 w-3.5" />
+                            Quality Review History
+                          </h3>
+                          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
+                            Audits and gap analyses linked to this aircraft will appear here.
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge variant="outline" className="h-6 px-2 text-[10px] font-black uppercase tracking-widest">
+                            {qualityAuditsForAircraft.length} audits
+                          </Badge>
+                          <Badge variant="outline" className="h-6 px-2 text-[10px] font-black uppercase tracking-widest">
+                            {gapAnalysesForAircraft.length} gap analyses
+                          </Badge>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                      {qualityAuditsForAircraft.length === 0 && gapAnalysesForAircraft.length === 0 ? (
+                        <div className="flex min-h-[160px] flex-col items-center justify-center gap-4 bg-muted/5 px-6 py-10 text-center">
+                          <div className="flex h-12 w-12 items-center justify-center rounded-md border bg-background">
+                            <History className="h-5 w-5 text-muted-foreground/60" />
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-sm font-bold uppercase tracking-wider text-foreground">No linked quality reviews</p>
+                            <p className="text-[10px] font-bold uppercase tracking-widest italic text-muted-foreground">
+                              Link this aircraft in an audit or gap analysis to build its quality history here.
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="divide-y">
+                          {qualityAuditsForAircraft.map((audit) => (
+                            <div key={audit.id} className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="text-[10px] font-black uppercase tracking-[0.18em] text-primary">{audit.auditNumber}</span>
+                                  <Badge variant="outline" className="text-[10px] uppercase tracking-widest">Audit</Badge>
+                                  <Badge variant={audit.status === 'Closed' ? 'default' : audit.status === 'Finalized' ? 'secondary' : 'outline'} className="text-[10px] uppercase tracking-widest">
+                                    {audit.status}
+                                  </Badge>
+                                </div>
+                                <div className="mt-2 text-sm font-black text-foreground">{audit.title}</div>
+                                <div className="mt-1 flex flex-wrap items-center gap-3 text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
+                                  <span>{format(parseLocalDate(audit.auditDate) || new Date(audit.auditDate), 'dd MMM yyyy')}</span>
+                                  <span>{audit.scope}</span>
+                                </div>
+                              </div>
+                              <Button asChild type="button" size="sm" variant="outline" className="h-8 px-3 text-[10px] font-black uppercase">
+                                <Link href={`/quality/audits/${audit.id}`}>Open Audit</Link>
+                              </Button>
+                            </div>
+                          ))}
+                          {gapAnalysesForAircraft.map((analysis) => (
+                            <div key={analysis.id} className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="text-[10px] font-black uppercase tracking-[0.18em] text-primary">{analysis.auditNumber}</span>
+                                  <Badge variant="outline" className="text-[10px] uppercase tracking-widest">Gap Analysis</Badge>
+                                  <Badge variant={analysis.status === 'Closed' ? 'default' : analysis.status === 'Finalized' ? 'secondary' : 'outline'} className="text-[10px] uppercase tracking-widest">
+                                    {analysis.status}
+                                  </Badge>
+                                </div>
+                                <div className="mt-2 text-sm font-black text-foreground">{analysis.title}</div>
+                                <div className="mt-1 flex flex-wrap items-center gap-3 text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
+                                  <span>{format(parseLocalDate(analysis.auditDate) || new Date(analysis.auditDate), 'dd MMM yyyy')}</span>
+                                  <span>{analysis.scope}</span>
+                                </div>
+                              </div>
+                              <Button asChild type="button" size="sm" variant="outline" className="h-8 px-3 text-[10px] font-black uppercase">
+                                <Link href={`/quality/gap-analyses/${analysis.id}`}>Open Gap Analysis</Link>
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
                   <Card className="mb-4 overflow-hidden border shadow-none">
                     <CardHeader className="border-b bg-muted/20 px-4 py-3">
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">

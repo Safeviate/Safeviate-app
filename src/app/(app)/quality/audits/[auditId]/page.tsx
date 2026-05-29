@@ -7,6 +7,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { CheckCircle2 } from 'lucide-react';
 import { format } from 'date-fns';
 import type { QualityAudit, QualityAuditChecklistTemplate, CorrectiveActionPlan, ExternalOrganization } from '@/types/quality';
+import type { Aircraft } from '@/types/aircraft';
 import { AuditChecklist } from './audit-checklist';
 import type { FindingLevelsSettings } from '@/app/(app)/admin/features/page';
 import { Progress } from '@/components/ui/progress';
@@ -43,6 +44,7 @@ export default function AuditDetailPage({ params }: AuditDetailPageProps) {
   const [caps, setCaps] = useState<CorrectiveActionPlan[]>([]);
   const [personnel, setPersonnel] = useState<Personnel[]>([]);
   const [organizations, setOrganizations] = useState<ExternalOrganization[]>([]);
+  const [aircraft, setAircraft] = useState<Aircraft[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -50,7 +52,7 @@ export default function AuditDetailPage({ params }: AuditDetailPageProps) {
     const load = async () => {
       try {
         const response = await fetch('/api/quality-audits', { cache: 'no-store' });
-        const payload = await response.json().catch(() => ({ audits: [], templates: [], caps: [], personnel: [], organizations: [], findingLevels: [] }));
+        const payload = await response.json().catch(() => ({ audits: [], templates: [], caps: [], personnel: [], organizations: [], aircraft: [], findingLevels: [] }));
         const foundAudit = (payload.audits as QualityAudit[] | undefined)?.find(a => a.id === auditId);
         if (!cancelled && foundAudit) {
             setAudit(foundAudit);
@@ -60,6 +62,7 @@ export default function AuditDetailPage({ params }: AuditDetailPageProps) {
         if (!cancelled) {
           setPersonnel(Array.isArray(payload.personnel) ? payload.personnel : []);
           setOrganizations(Array.isArray(payload.organizations) ? payload.organizations : []);
+          setAircraft(Array.isArray(payload.aircraft) ? payload.aircraft : []);
           setFindingLevelsSettings(Array.isArray(payload.findingLevels) ? payload.findingLevels : null);
         }
       } catch (e) {
@@ -90,6 +93,7 @@ export default function AuditDetailPage({ params }: AuditDetailPageProps) {
     if (!audit || !template) return null;
     return { ...audit, template };
   }, [audit, template]);
+  const assetLabel = aircraft.find((item) => item.id === audit?.assetId)?.tailNumber || '';
 
   if (isLoading) {
     return (
@@ -137,7 +141,7 @@ export default function AuditDetailPage({ params }: AuditDetailPageProps) {
               <CardTitle className="text-2xl font-black uppercase truncate">Audit {audit.auditNumber}: {audit.title}</CardTitle>
             </div>
             <CardDescription className="text-sm font-medium">
-              Performed on {format(parseLocalDate(audit.auditDate), 'PPP')} • Status: <Badge variant="outline" className="text-[10px] h-5 py-0 uppercase font-black border-primary/20 bg-primary/5 text-primary">{audit.status}</Badge>
+              Performed on {format(parseLocalDate(audit.auditDate), 'PPP')} • Status: <Badge variant="outline" className="text-[10px] h-5 py-0 uppercase font-black border-primary/20 bg-primary/5 text-primary">{audit.status}</Badge> • Asset: <span className="font-semibold text-foreground">{assetLabel || 'No linked asset'}</span>
             </CardDescription>
           </div>
 
@@ -160,6 +164,7 @@ export default function AuditDetailPage({ params }: AuditDetailPageProps) {
               caps={caps || []}
               personnel={personnel || []}
               organizations={organizations || []}
+              aircraft={aircraft || []}
           />
         </CardContent>
       </Card>

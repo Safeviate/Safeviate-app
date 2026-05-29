@@ -25,6 +25,7 @@ import { useTenantRouteAccess } from '@/hooks/use-tenant-route-access';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 
 import type { QualityAudit, ExternalOrganization } from '@/types/quality';
+import type { Aircraft } from '@/types/aircraft';
 import type { Department } from '../../admin/department/page';
 import type { Personnel } from '../../users/personnel/page';
 
@@ -39,6 +40,7 @@ const parseLocalDate = (value: string) => {
 type EnrichedAudit = QualityAudit & {
     auditeeName?: string;
     targetName?: string;
+    assetName?: string;
 };
 
 const getStatusBadgeVariant = (status: QualityAudit['status']): "default" | "secondary" | "destructive" | "outline" => {
@@ -127,6 +129,10 @@ function AuditsTable({ audits, tenantId }: AuditsTableProps) {
                                 <p className="mt-1 text-sm font-semibold text-foreground">{audit.auditeeName || '-'}</p>
                             </div>
                             <div className="rounded-lg border bg-background px-3 py-3 sm:col-span-2">
+                                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Asset</p>
+                                <p className="mt-1 text-sm font-semibold text-foreground">{audit.assetName || 'Not linked to an asset'}</p>
+                            </div>
+                            <div className="rounded-lg border bg-background px-3 py-3 sm:col-span-2">
                                 <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Score</p>
                                 <p className="mt-1 text-sm font-semibold text-foreground">
                                     {audit.complianceScore !== undefined ? (
@@ -169,17 +175,19 @@ export default function AuditsPage() {
     const [audits, setAudits] = useState<QualityAudit[]>([]);
     const [personnel, setPersonnel] = useState<Personnel[]>([]);
     const [departments, setDepartments] = useState<Department[]>([]);
-  const [organizations, setOrganizations] = useState<ExternalOrganization[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+    const [organizations, setOrganizations] = useState<ExternalOrganization[]>([]);
+    const [aircraft, setAircraft] = useState<Aircraft[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
 
     const loadData = async () => {
         try {
             const response = await fetch('/api/quality-audits', { cache: 'no-store' });
-            const payload = await response.json().catch(() => ({ audits: [], personnel: [], departments: [], organizations: [] }));
+            const payload = await response.json().catch(() => ({ audits: [], personnel: [], departments: [], organizations: [], aircraft: [] }));
             setAudits(Array.isArray(payload.audits) ? payload.audits : []);
             setPersonnel(Array.isArray(payload.personnel) ? payload.personnel : []);
             setDepartments(Array.isArray(payload.departments) ? payload.departments : []);
             setOrganizations(Array.isArray(payload.organizations) ? payload.organizations : []);
+            setAircraft(Array.isArray(payload.aircraft) ? payload.aircraft : []);
         } catch (e) {
             console.error('Failed to load quality data', e);
         } finally {
@@ -241,6 +249,7 @@ export default function AuditsPage() {
         const personnelMap = new Map(personnel.map(p => [p.id, `${p.firstName} ${p.lastName}`]));
         const departmentMap = new Map(departments.map(d => [d.id, d.name]));
         const orgMap = new Map(organizations.map(o => [o.id, o.name]));
+        const aircraftMap = new Map(aircraft.map((item) => [item.id, item.tailNumber]));
 
         return audits.map(audit => ({
             ...audit,
@@ -252,8 +261,9 @@ export default function AuditsPage() {
               personnelMap.get(audit.auditeeId) ||
               audit.targetId ||
               '',
+            assetName: aircraftMap.get(audit.assetId || '') || '',
         }));
-    }, [audits, personnel, departments, organizations]);
+    }, [aircraft, audits, personnel, departments, organizations]);
 
     const renderOrgContent = (orgId: string | 'internal') => {
         const filteredByOrg = enrichedAudits.filter(a => 

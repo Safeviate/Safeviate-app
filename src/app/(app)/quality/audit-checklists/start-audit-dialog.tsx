@@ -35,6 +35,7 @@ import { CustomCalendar } from '@/components/ui/custom-calendar';
 import { CalendarIcon, PlayCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { QualityAudit, QualityAuditChecklistTemplate, ExternalOrganization } from '@/types/quality';
+import type { Aircraft } from '@/types/aircraft';
 import type { Department } from '../../admin/department/page';
 import type { Personnel } from '../../users/personnel/page';
 
@@ -43,6 +44,7 @@ const toNoonUtcIso = (date: Date) =>
 
 const formSchema = z.object({
   targetId: z.string().min(1, 'Audit target is required.'),
+  assetId: z.string().optional(),
   auditeeId: z.string().min(1, 'Auditee is required.'),
   scope: z.string().min(1, 'Scope is required.'),
   auditDate: z.date({ required_error: 'Audit date is required.' }),
@@ -74,6 +76,7 @@ export function StartAuditDialog({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [newAuditId, setNewAuditId] = useState<string | null>(null);
   const [organizations, setOrganizations] = useState<ExternalOrganization[]>(providedOrganizations || []);
+  const [aircraft, setAircraft] = useState<Aircraft[]>([]);
 
   useEffect(() => {
     if (isOpen) {
@@ -85,6 +88,10 @@ export function StartAuditDialog({
             .then((payload) => setOrganizations(Array.isArray(payload.organizations) ? payload.organizations : []))
             .catch(() => setOrganizations([]));
         }
+        void fetch('/api/aircraft', { cache: 'no-store' })
+          .then((response) => response.json())
+          .then((payload) => setAircraft(Array.isArray(payload.aircraft) ? payload.aircraft : []))
+          .catch(() => setAircraft([]));
     }
   }, [isOpen, providedOrganizations]);
 
@@ -92,18 +99,31 @@ export function StartAuditDialog({
     resolver: zodResolver(formSchema),
     defaultValues: {
       targetId: '',
+      assetId: '',
       auditeeId: '',
       scope: '',
       auditDate: new Date(),
     },
   });
   const selectedTargetId = form.watch('targetId');
+  const selectedAssetId = form.watch('assetId');
   const auditOwnerName = userProfile
     ? `${userProfile.firstName} ${userProfile.lastName}`.trim() || userProfile.email
     : 'Current user';
   const selectedCompanyLabel = selectedTargetId
     ? organizations.find((organization) => organization.id === selectedTargetId)?.name || 'Internal Company'
     : 'Internal Company';
+  const isExternalCompanyTarget = !!selectedTargetId && organizations.some((organization) => organization.id === selectedTargetId);
+  const availableAircraft = aircraft.filter((item) => {
+    const ownerId = item.organizationId?.trim() || '';
+    if (isExternalCompanyTarget) {
+      return ownerId === selectedTargetId;
+    }
+    return !ownerId || ownerId === tenantId;
+  });
+  const selectedAssetLabel = selectedAssetId
+    ? availableAircraft.find((item) => item.id === selectedAssetId)?.tailNumber || 'Selected asset'
+    : 'Not linked to an asset';
   const totalSections = template.sections.length;
   const totalItems = template.sections.reduce((count, section) => count + section.items.length, 0);
 
@@ -111,11 +131,19 @@ export function StartAuditDialog({
     if (!isOpen) return;
     form.reset({
       targetId: '',
+      assetId: '',
       auditeeId: '',
       scope: '',
       auditDate: new Date(),
     });
   }, [form, isOpen]);
+
+  useEffect(() => {
+    if (!selectedAssetId) return;
+    if (!availableAircraft.some((item) => item.id === selectedAssetId)) {
+      form.setValue('assetId', '');
+    }
+  }, [availableAircraft, form, selectedAssetId]);
   
   useEffect(() => {
     if (!isOpen && newAuditId) {
@@ -151,6 +179,7 @@ export function StartAuditDialog({
             auditorId: userProfile.id,
             auditeeId: values.auditeeId,
             targetId: values.targetId,
+            assetId: values.assetId?.trim() || null,
             organizationId: isExternalOrg ? values.targetId : null,
             scope: values.scope,
             auditDate: toNoonUtcIso(values.auditDate),
@@ -217,6 +246,10 @@ export function StartAuditDialog({
                     <p className="mt-1 text-sm font-semibold text-foreground">{selectedCompanyLabel}</p>
                   </div>
                   <div className="rounded-lg border bg-background px-3 py-2">
+                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Asset</p>
+                    <p className="mt-1 text-sm font-semibold text-foreground">{selectedAssetLabel}</p>
+                  </div>
+                  <div className="rounded-lg border bg-background px-3 py-2">
                     <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Scope</p>
                     <p className="mt-1 text-sm font-semibold text-foreground">Short description of what is being reviewed</p>
                   </div>
@@ -264,6 +297,34 @@ export function StartAuditDialog({
                    </Select>
                   <p className="text-xs text-muted-foreground">
                     Choose the department or external company this audit will be attached to.
+                  </p>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="assetId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Asset</FormLabel>
+                  <Select onValueChange={(value) => field.onChange(value === 'none' ? '' : value)} value={field.value || 'none'}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select asset if applicable..." />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="none">No linked asset</SelectItem>
+                      {availableAircraft.map((item) => (
+                        <SelectItem key={item.id} value={item.id}>
+                          {item.tailNumber} - {item.make} {item.model}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    If this audit applies to a specific aircraft, link it here so the audit history also appears on that asset file.
                   </p>
                   <FormMessage />
                 </FormItem>
