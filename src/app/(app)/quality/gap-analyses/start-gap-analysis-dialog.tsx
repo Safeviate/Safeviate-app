@@ -239,7 +239,7 @@ export function StartGapAnalysisDialog({
                 <Button><PlayCircle className='mr-2 h-4 w-4' /> Create Gap Analysis</Button>
             </DialogTrigger>
         )}
-      <DialogContent className="sm:max-w-[720px]">
+      <DialogContent className="flex max-h-[90vh] flex-col overflow-hidden sm:max-w-[720px]">
         <DialogHeader>
           <DialogTitle>Create Gap Analysis Session</DialogTitle>
           <DialogDescription>
@@ -247,7 +247,8 @@ export function StartGapAnalysisDialog({
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 pt-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col overflow-hidden pt-4">
+            <div className="min-h-0 flex-1 space-y-6 overflow-y-auto pr-1">
             <Card className="border bg-muted/20 shadow-none">
               <CardContent className="space-y-3 p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -450,7 +451,8 @@ export function StartGapAnalysisDialog({
                     </FormItem>
                 )}
              />
-            <DialogFooter>
+            </div>
+            <DialogFooter className="mt-6 shrink-0 border-t bg-background pt-4">
               <DialogClose asChild><Button type="button" variant="outline" disabled={isSubmitting}>Cancel</Button></DialogClose>
               <Button type="submit" disabled={isSubmitting}>{isSubmitting ? "Creating..." : "Create Gap Analysis"}</Button>
             </DialogFooter>
