@@ -63,6 +63,7 @@
     "drizzle-kit": "^0.31.10",
     "drizzle-orm": "^0.45.2",
     "embla-carousel-react": "^8.6.0",
+    "framer-motion": "^12.40.0",
     "genkit": "^1.20.0",
     "geomagnetism": "^0.2.0",
     "leaflet": "^1.9.4",
