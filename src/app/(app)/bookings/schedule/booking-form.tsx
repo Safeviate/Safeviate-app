@@ -22,6 +22,7 @@ import { DocumentUploader } from '@/components/document-uploader';
 import { format, addMinutes, isBefore } from 'date-fns';
 import type { Aircraft } from '@/types/aircraft';
 import type { AircraftMaintenanceWindow } from '@/types/aircraft';
+import type { AircraftInspectionWarningSettings } from '@/types/inspection';
 import type { PilotProfile, Personnel } from '@/app/(app)/users/personnel/page';
 import type { Booking, OverrideLog, TrainingRoute, ChecklistPhoto, PreFlightData } from '@/types/booking';
 import { Trash2, ShieldAlert, Lock, Eye, MapIcon, ClipboardCheck, Activity, CheckCircle2, PlaneTakeoff } from 'lucide-react';
@@ -34,6 +35,7 @@ import { cn } from '@/lib/utils';
 import { broadcastBookingUpdate } from '@/lib/booking-updates';
 import { getBlockingBookingForTracking, isBookingEligibleForTracking } from '@/lib/booking-tracking';
 import { getAircraftHourSnapshot } from '@/lib/aircraft-hours';
+import { getAircraftInspectionStatus, isAircraftInspectionBlocked } from '@/lib/aircraft-inspection';
 import { DEFAULT_TRAINING_EXERCISE_TEMPLATE_KEY, getTrainingExerciseTemplate, getTrainingExerciseTemplateOptions, resolveTrainingExerciseTemplates } from '@/lib/training-exercise-templates';
 
 const parseLocalDate = (value?: string | null) => {
@@ -142,6 +144,17 @@ export function BookingForm({ isOpen, setIsOpen, aircraft, startTime, tenantId, 
     const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
     const canEditBooking = hasPermission('bookings-schedule-manage');
     const aircraftSnapshot = useMemo<PreFlightData>(() => getAircraftHourSnapshot(aircraft), [aircraft]);
+    const inspectionSettings = useMemo(() => {
+        const config = tenant as Record<string, unknown> | null | undefined;
+        const inspection = config?.['inspection-warning-settings'];
+        return inspection && typeof inspection === 'object'
+            ? (inspection as AircraftInspectionWarningSettings)
+            : null;
+    }, [tenant]);
+    const inspectionStatus = useMemo(
+        () => getAircraftInspectionStatus(aircraft, inspectionSettings),
+        [aircraft, inspectionSettings]
+    );
     const [preFlight, setPreFlight] = useState(existingBooking?.preFlightData || aircraftSnapshot);
     const [postFlight, setPostFlight] = useState(existingBooking?.postFlightData || {
         hobbs: 0,
@@ -323,6 +336,16 @@ export function BookingForm({ isOpen, setIsOpen, aircraft, startTime, tenantId, 
                 setIsSubmitting(false);
                 return;
             }
+        }
+
+        if (!existingBooking && data.type !== 'Maintenance' && isAircraftInspectionBlocked(aircraft, inspectionSettings)) {
+            toast({
+                variant: 'destructive',
+                title: 'Aircraft Service Blocked',
+                description: `${aircraft.tailNumber} cannot be booked until an authorised person updates the aircraft hours.`,
+            });
+            setIsSubmitting(false);
+            return;
         }
 
         // VALIDATION: Cannot book in the past
@@ -524,6 +547,11 @@ export function BookingForm({ isOpen, setIsOpen, aircraft, startTime, tenantId, 
                     <DialogTitle className="text-base font-black uppercase tracking-tight sm:text-lg">{existingBooking ? `Booking #${existingBooking.bookingNumber}` : `New Booking for ${aircraft.tailNumber}`}</DialogTitle>
                     <DialogDescription className="text-xs sm:text-sm">
                         {format(startTime, 'PPP')} • Fleet: {aircraft.tailNumber}
+                        {!existingBooking && !isMaintenanceBooking ? (
+                            <span className="mt-1 block text-[10px] font-medium text-muted-foreground">
+                                Aircraft with red service warnings cannot be booked until an authorised person updates the hours.
+                            </span>
+                        ) : null}
                     </DialogDescription>
                 </DialogHeader>
 
@@ -533,6 +561,16 @@ export function BookingForm({ isOpen, setIsOpen, aircraft, startTime, tenantId, 
                         <div className="text-xs text-amber-800">
                             <p className="font-bold">Record Locked</p>
                             <p>This flight has been approved or technical logging has started. Basic schedule details cannot be modified by standard users.</p>
+                        </div>
+                    </div>
+                )}
+
+                {!existingBooking && !isMaintenanceBooking && inspectionStatus.isBlocked && (
+                    <div className="mb-3 flex items-start gap-3 rounded-md border border-red-200 bg-red-50 p-2.5 sm:p-3">
+                        <ShieldAlert className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+                        <div className="text-xs text-red-800">
+                            <p className="font-bold">Aircraft Service Blocked</p>
+                            <p>This aircraft cannot be booked until an authorised person updates the hours.</p>
                         </div>
                     </div>
                 )}
@@ -1088,7 +1126,7 @@ export function BookingForm({ isOpen, setIsOpen, aircraft, startTime, tenantId, 
                             <div className="flex gap-2 w-full sm:w-auto sm:ml-auto">
                                 <DialogClose asChild><Button type="button" variant="outline" className="flex-1 sm:flex-none">Cancel</Button></DialogClose>
                                 {canManageSchedule && !isLocked && (
-                                    <Button type="submit" disabled={isSubmitting || !canEditBooking} className="flex-1 sm:flex-none">
+                                    <Button type="submit" disabled={isSubmitting || !canEditBooking || (!existingBooking && !isMaintenanceBooking && inspectionStatus.isBlocked)} className="flex-1 sm:flex-none">
                                         {isSubmitting ? 'Saving...' : isMaintenanceBooking ? 'Save Maintenance' : 'Save Booking'}
                                     </Button>
                                 )}

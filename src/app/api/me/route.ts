@@ -69,12 +69,12 @@ export async function GET(request: Request) {
 
     if (isMasterTenantEmail(email)) {
       const selectedTenantId = await resolveTenantOverride(request, email, MASTER_TENANT_ID);
-      const selectedTenant = await prisma.tenant.findUnique({
-        where: { id: selectedTenantId },
-        select: { id: true, name: true },
-      }).catch(() => null);
 
       if (selectedTenantId !== MASTER_TENANT_ID) {
+        const selectedTenant = await prisma.tenant.findUnique({
+          where: { id: selectedTenantId },
+          select: { id: true, name: true },
+        }).catch(() => null);
         const personnelProfile = await prisma.personnel.findFirst({
           where: {
             tenantId: selectedTenantId,
@@ -134,7 +134,7 @@ export async function GET(request: Request) {
           }, selectedTenantId),
           tenant: {
             id: selectedTenantId,
-            name: selectedTenant?.name || (selectedTenantId === MASTER_TENANT_ID ? 'Safeviate' : selectedTenantId),
+            name: selectedTenantId === MASTER_TENANT_ID ? 'Safeviate' : selectedTenantId,
           },
           rolePermissions: ['*'],
         },
@@ -152,11 +152,9 @@ export async function GET(request: Request) {
     const canBootstrapMasterProfile = sessionRole === 'dev' || sessionRole === 'developer';
 
     if (!profile && email && canBootstrapMasterProfile) {
-      await prisma.tenant.upsert({
-        where: { id: 'safeviate' },
-        update: { updatedAt: new Date() },
-        create: { id: 'safeviate', name: 'Safeviate' },
-      });
+      if (!(await isDatabaseAvailable())) {
+        return NextResponse.json({ profile: null }, { status: 200 });
+      }
 
       const firstName = session?.user?.name?.split(' ')[0] ?? 'User';
       const lastName = session?.user?.name?.split(' ').slice(1).join(' ') || '';

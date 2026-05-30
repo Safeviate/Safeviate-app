@@ -1,5 +1,5 @@
 import { authOptions } from '@/auth';
-import { prisma } from '@/lib/prisma';
+import { isDatabaseAvailable, prisma } from '@/lib/prisma';
 import { ensureRolesSchema } from '@/lib/server/bootstrap-db';
 import { getServerSession } from 'next-auth';
 
@@ -39,6 +39,14 @@ export async function authenticateAiRequest() {
       tenantId: 'safeviate',
       userProfile: { id: session?.user?.id || email, role: 'developer', permissions: ['*'] },
       effectivePermissions: new Set(['*']),
+    };
+  }
+
+  if (!(await isDatabaseAvailable())) {
+    return {
+      ok: false as const,
+      status: 503,
+      error: 'Database is unavailable.',
     };
   }
 

@@ -1,5 +1,5 @@
 import { authOptions } from '@/auth';
-import { prisma } from '@/lib/prisma';
+import { isDatabaseAvailable, prisma } from '@/lib/prisma';
 import { ensurePersonnelSchema, ensureRolesSchema } from '@/lib/server/bootstrap-db';
 import { getOrSetRouteCache } from '@/lib/server/route-cache';
 import { getTenantIdForRoute } from '@/lib/server/session-tenant';
@@ -15,11 +15,9 @@ export async function GET(request: Request) {
       return NextResponse.json({ roles: [], departments: [], personnel: [] }, { status: 200 });
     }
 
-    await prisma.tenant.upsert({
-      where: { id: 'safeviate' },
-      update: { updatedAt: new Date() },
-      create: { id: 'safeviate', name: 'Safeviate' },
-    });
+    if (!(await isDatabaseAvailable())) {
+      return NextResponse.json({ roles: [], departments: [], personnel: [] }, { status: 200 });
+    }
 
     const tenantId = await getTenantIdForRoute(request);
     if (!tenantId) {

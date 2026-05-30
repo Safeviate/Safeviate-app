@@ -1,10 +1,10 @@
 import { authOptions } from '@/auth';
 import { prisma } from '@/lib/prisma';
 import { getTenantIdForRoute } from '@/lib/server/session-tenant';
-import { normalizeUploadUrl } from '@/lib/server/azure-blob';
 import { ensureAircraftSchema } from '@/lib/server/bootstrap-db';
 import { getOrSetRouteCache, invalidateRouteCache } from '@/lib/server/route-cache';
 import { recordSimulationRouteMetric } from '@/lib/server/simulation-telemetry';
+import { normalizeAircraftRecord } from '@/lib/server/aircraft-normalize';
 import { getServerSession } from 'next-auth';
 import { NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
@@ -13,24 +13,6 @@ const SUPER_USERS = ['deanebolton@gmail.com', 'barry@safeviate.com'];
 
 async function getTenantId(request: Request) {
   return getTenantIdForRoute(request, { allowDevelopmentFallback: true });
-}
-
-function normalizeAircraftDocumentUrls(aircraft: unknown) {
-  if (!aircraft || typeof aircraft !== 'object') return aircraft;
-
-  const record = aircraft as Record<string, unknown>;
-  const documents = Array.isArray(record.documents)
-    ? record.documents.map((document) => {
-        if (!document || typeof document !== 'object') return document;
-        const docRecord = document as Record<string, unknown>;
-        return {
-          ...docRecord,
-          url: typeof docRecord.url === 'string' ? normalizeUploadUrl(docRecord.url) : docRecord.url,
-        };
-      })
-    : record.documents;
-
-  return { ...record, documents };
 }
 
 export async function GET(request: Request) {
@@ -58,7 +40,7 @@ export async function GET(request: Request) {
       writes: 0,
       durationMs: Date.now() - startedAt,
     });
-    return NextResponse.json({ aircraft: aircraft.map((row) => normalizeAircraftDocumentUrls(row.data)) }, { status: 200 });
+    return NextResponse.json({ aircraft: aircraft.map((row) => normalizeAircraftRecord(row.data)) }, { status: 200 });
   } catch (error) {
     console.error('[aircraft] fallback to empty list:', error);
     await recordSimulationRouteMetric({
@@ -87,18 +69,12 @@ export async function POST(request: Request) {
     const data = {
       ...incoming,
       id,
+      tailNumber: incoming.tailNumber || incoming.registration || incoming.registrationNumber,
+      registration: incoming.registration || incoming.tailNumber || incoming.registrationNumber,
+      registrationNumber: incoming.registrationNumber || incoming.tailNumber || incoming.registration,
       organizationId: incoming.organizationId || tenantId,
       components: Array.isArray(incoming.components) ? incoming.components : [],
-      documents: Array.isArray(incoming.documents)
-        ? incoming.documents.map((document: unknown) => {
-            if (!document || typeof document !== 'object') return document;
-            const docRecord = document as Record<string, unknown>;
-            return {
-              ...docRecord,
-              url: typeof docRecord.url === 'string' ? normalizeUploadUrl(docRecord.url) : docRecord.url,
-            };
-          })
-        : [],
+      documents: Array.isArray(incoming.documents) ? incoming.documents : [],
     };
 
     await prisma.aircraftRecord.upsert({

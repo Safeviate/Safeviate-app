@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { hash } from 'bcryptjs';
-import { prisma } from '@/lib/prisma';
+import { isDatabaseAvailable, prisma } from '@/lib/prisma';
 import { getPublicBaseUrl } from '@/lib/server/site-url';
 
 const INVITE_TTL_DAYS = 7;
@@ -202,6 +202,10 @@ export async function completePasswordSetup(token: string, password: string): Pr
   const displayName = invite.name?.trim() || email.split('@')[0] || 'User';
   const { firstName, lastName } = splitName(displayName);
   const userId = invite.userId || `user_${email.replace(/[^a-z0-9]+/g, '_')}`;
+
+  if (!(await isDatabaseAvailable())) {
+    return { success: false, error: 'Database is unavailable.' };
+  }
 
   await prisma.tenant.upsert({
     where: { id: invite.tenantId },

@@ -1,5 +1,5 @@
 import { authOptions } from '@/auth';
-import { prisma } from '@/lib/prisma';
+import { isDatabaseAvailable, prisma } from '@/lib/prisma';
 import { ensureTenantConfigSchema } from '@/lib/server/bootstrap-db';
 import { getOrSetRouteCache, invalidateRouteCache } from '@/lib/server/route-cache';
 import { MASTER_TENANT_ID, isMasterTenantEmail } from '@/lib/server/tenant-access';
@@ -19,19 +19,13 @@ export async function GET(request: Request) {
       return NextResponse.json({ config: null }, { status: 200 });
     }
 
-    await ensureTenantConfigSchema();
-
     const isDeveloper = role === 'dev' || role === 'developer';
     const isMaster = isMasterTenantEmail(email);
-    const sessionTenantId = (await getTenantIdFromSession(request, MASTER_TENANT_ID)) || MASTER_TENANT_ID;
-    const tenantId = tenantIdFromQuery && (isDeveloper || isMaster) ? tenantIdFromQuery : sessionTenantId;
-    const tenantExists = await prisma.tenant.findUnique({
-      where: { id: tenantId },
-      select: { id: true },
-    }).catch(() => null);
+    const tenantId = tenantIdFromQuery && (isDeveloper || isMaster)
+      ? tenantIdFromQuery
+      : (await getTenantIdFromSession(request, MASTER_TENANT_ID)) || MASTER_TENANT_ID;
 
-    if (!tenantExists) {
-      invalidateRouteCache(`tenant-config:${tenantId}`);
+    if (!(await isDatabaseAvailable())) {
       return NextResponse.json({ config: null }, { status: 200 });
     }
 
@@ -75,7 +69,9 @@ export async function PUT(request: Request) {
 
     await ensureTenantConfigSchema();
 
-    const resolvedTenantId = tenantIdFromQuery || (await getTenantIdFromSession(request, MASTER_TENANT_ID)) || MASTER_TENANT_ID;
+    const resolvedTenantId = tenantIdFromQuery && (isDeveloper || isMaster)
+      ? tenantIdFromQuery
+      : (await getTenantIdFromSession(request, MASTER_TENANT_ID)) || MASTER_TENANT_ID;
 
     const existingRow = await prisma.tenantConfig.findUnique({
       where: { tenantId: resolvedTenantId },

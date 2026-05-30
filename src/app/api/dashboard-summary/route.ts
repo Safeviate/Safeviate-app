@@ -194,12 +194,6 @@ export async function GET() {
       return NextResponse.json(EMPTY_SUMMARY, { status: 200 });
     }
 
-    await prisma.tenant.upsert({
-      where: { id: 'safeviate' },
-      update: { updatedAt: new Date() },
-      create: { id: 'safeviate', name: 'Safeviate' },
-    });
-
     const tenantConfig = await readTenantConfig(resolvedTenantId);
 
     await Promise.all([

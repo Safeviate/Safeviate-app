@@ -1,5 +1,5 @@
 import { authOptions } from '@/auth';
-import { prisma } from '@/lib/prisma';
+import { isDatabaseAvailable, prisma } from '@/lib/prisma';
 import { invalidateTenantScopedCaches } from '@/lib/server/route-cache';
 import { getTenantIdForRoute } from '@/lib/server/session-tenant';
 import { isMasterTenantEmail } from '@/lib/server/tenant-access';
@@ -26,7 +26,18 @@ export async function GET(request: Request) {
   try {
     const tenantId = await getTenantId(request);
     if (!tenantId) {
-      return NextResponse.json({ tenants: process.env.NODE_ENV === 'development' ? FALLBACK_TENANTS : [] }, { status: 200 });
+      return NextResponse.json({
+        tenants: process.env.NODE_ENV === 'development' ? FALLBACK_TENANTS : [],
+        databaseAvailable: true,
+      }, { status: 200 });
+    }
+
+    if (!(await isDatabaseAvailable())) {
+      if (process.env.NODE_ENV === 'development') {
+        return NextResponse.json({ tenants: FALLBACK_TENANTS, databaseAvailable: false }, { status: 200 });
+      }
+
+      return NextResponse.json({ tenants: [], databaseAvailable: false }, { status: 200 });
     }
 
     if (!(await canManageTenants())) {
@@ -34,14 +45,23 @@ export async function GET(request: Request) {
         where: { id: tenantId },
         select: { id: true, name: true },
       }).catch(() => null);
-      return NextResponse.json({ tenants: tenant ? [tenant] : (process.env.NODE_ENV === 'development' ? FALLBACK_TENANTS : []) }, { status: 200 });
+      return NextResponse.json({
+        tenants: tenant ? [tenant] : (process.env.NODE_ENV === 'development' ? FALLBACK_TENANTS : []),
+        databaseAvailable: true,
+      }, { status: 200 });
     }
 
     const tenants = await prisma.tenant.findMany({ orderBy: { name: 'asc' } }).catch(() => []);
-    return NextResponse.json({ tenants: tenants.length > 0 ? tenants : (process.env.NODE_ENV === 'development' ? FALLBACK_TENANTS : []) }, { status: 200 });
+    return NextResponse.json({
+      tenants: tenants.length > 0 ? tenants : (process.env.NODE_ENV === 'development' ? FALLBACK_TENANTS : []),
+      databaseAvailable: true,
+    }, { status: 200 });
   } catch (error) {
     console.error('[tenants] fallback to empty list:', error);
-    return NextResponse.json({ tenants: process.env.NODE_ENV === 'development' ? FALLBACK_TENANTS : [] }, { status: 200 });
+    return NextResponse.json({
+      tenants: process.env.NODE_ENV === 'development' ? FALLBACK_TENANTS : [],
+      databaseAvailable: false,
+    }, { status: 200 });
   }
 }
 

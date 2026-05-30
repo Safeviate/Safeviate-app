@@ -13,14 +13,17 @@ import type { Tenant } from '@/types/quality';
 export default function DatabasePage() {
   const { toast } = useToast();
   const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [databaseAvailable, setDatabaseAvailable] = useState(true);
 
   const loadTenants = useCallback(async () => {
     try {
       const response = await fetch('/api/tenants', { cache: 'no-store' });
-      const payload = await response.json().catch(() => ({ tenants: [] }));
+      const payload = await response.json().catch(() => ({ tenants: [], databaseAvailable: false }));
       const rows = Array.isArray(payload?.tenants) ? (payload.tenants as Tenant[]) : [];
+      setDatabaseAvailable(payload?.databaseAvailable !== false);
       setTenants(rows.filter((tenant) => tenant.id !== 'safeviate'));
     } catch {
+      setDatabaseAvailable(false);
       setTenants([]);
     }
   }, []);
@@ -84,6 +87,11 @@ export default function DatabasePage() {
           }
         />
         <CardContent className="flex-1 min-h-0 overflow-auto bg-background p-4 sm:p-6">
+          {!databaseAvailable && (
+            <div className="mb-4 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
+              The database is not reachable from this local environment, so this page is showing a fallback shell instead of live tenant records.
+            </div>
+          )}
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {tenants.length > 0 ? (
               tenants.map((tenant) => (
@@ -117,7 +125,7 @@ export default function DatabasePage() {
               ))
             ) : (
               <div className="rounded-3xl border border-dashed bg-background px-5 py-8 text-sm font-semibold uppercase tracking-widest text-muted-foreground">
-                No client tenants found.
+                {databaseAvailable ? 'No client tenants found.' : 'No live tenant records available while the database is offline.'}
               </div>
             )}
           </div>

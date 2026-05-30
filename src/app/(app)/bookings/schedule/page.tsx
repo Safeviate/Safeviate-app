@@ -5,13 +5,15 @@ import { Card, CardContent } from '@/components/ui/card';
 import { MainPageHeader, HEADER_MOBILE_ACTION_BUTTON_CLASS } from "@/components/page-header";
 import type { Aircraft } from '@/types/aircraft';
 import type { AircraftMaintenanceWindow } from '@/types/aircraft';
+import type { AircraftInspectionWarningSettings } from '@/types/inspection';
 import type { PilotProfile, Personnel } from '@/app/(app)/users/personnel/page';
 import { format, startOfDay, getHours, getMinutes, differenceInMinutes, isSameDay, setHours, setMinutes, isBefore, addDays, subDays, startOfToday, parse } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { getAircraftInspectionStatus, isAircraftInspectionBlocked } from '@/lib/aircraft-inspection';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
-import { CalendarIcon, ChevronDown, Lock, Pencil, Trash2, Wrench } from 'lucide-react';
+import { CalendarIcon, ChevronDown, Lock, Pencil, ShieldAlert, Trash2, Wrench } from 'lucide-react';
 import { CustomCalendar } from '@/components/ui/custom-calendar';
 import { BookingForm } from './booking-form';
 import { DebriefRoomBookingForm } from './debrief-room-booking-form';
@@ -44,6 +46,7 @@ const ROOM_LANE_WIDTH_CLASS = "w-[190px]";
 const ROOM_LANE_FLEX_CLASS = "flex-[0_0_190px]";
 const VEHICLE_LANE_WIDTH_CLASS = "w-[220px]";
 const VEHICLE_LANE_FLEX_CLASS = "flex-[0_0_220px]";
+const formatHoursValue = (value: number) => `${value.toFixed(1)}h`;
 const BRIEFING_ROOMS = [
     { id: 'briefing-room-1', name: 'Briefing Room 1' },
     { id: 'briefing-room-2', name: 'Briefing Room 2' },
@@ -474,6 +477,7 @@ export default function SchedulePage() {
   const [allBookings, setAllBookings] = useState<Booking[]>([]);
   const [vehicleUsageRecords, setVehicleUsageRecords] = useState<VehicleUsageLite[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [inspectionSettings, setInspectionSettings] = useState<AircraftInspectionWarningSettings | null>(null);
   const [personnel, setPersonnel] = useState<Personnel[]>([]);
   const [instructors, setInstructors] = useState<PilotProfile[]>([]);
   const [students, setStudents] = useState<PilotProfile[]>([]);
@@ -500,15 +504,17 @@ export default function SchedulePage() {
 
       setIsLoading(true);
       try {
-        const [scheduleResponse, summaryResponse, vehicleResponse] = await Promise.all([
+        const [scheduleResponse, summaryResponse, vehicleResponse, tenantConfigResponse] = await Promise.all([
           fetch('/api/schedule-data', { cache: 'no-store' }),
           fetch('/api/dashboard-summary', { cache: 'no-store' }),
           fetch('/api/vehicle-usage', { cache: 'no-store' }),
+          fetch('/api/tenant-config', { cache: 'no-store' }),
         ]);
 
         const schedulePayload = await scheduleResponse.json();
         const summaryPayload = await summaryResponse.json();
         const vehiclePayload = await vehicleResponse.json().catch(() => ({ vehicles: [], usageRecords: [] }));
+        const tenantConfigPayload = await tenantConfigResponse.json().catch(() => ({ config: null }));
         if (!cancelled) {
           const scheduleBookings = schedulePayload.bookings ?? [];
           const apiAircraft = schedulePayload.aircraft ?? [];
@@ -527,6 +533,15 @@ export default function SchedulePage() {
           setInstructors(summaryPayload.instructors ?? []);
           setStudents(summaryPayload.students ?? []);
           setPrivatePilots(summaryPayload.privatePilots ?? []);
+          const config = tenantConfigPayload?.config && typeof tenantConfigPayload.config === 'object'
+            ? (tenantConfigPayload.config as Record<string, unknown>)
+            : {};
+          const inspectionConfig = config['inspection-warning-settings'];
+          setInspectionSettings(
+            inspectionConfig && typeof inspectionConfig === 'object'
+              ? (inspectionConfig as AircraftInspectionWarningSettings)
+              : null
+          );
         }
       } finally {
         if (!cancelled) setIsLoading(false);
@@ -669,6 +684,15 @@ export default function SchedulePage() {
         variant: 'destructive',
         title: 'Aircraft In Maintenance',
         description: `${ac.tailNumber} is blocked for ${nextMaintenance.title || 'maintenance'} through ${format(parse(nextMaintenance.toDate, 'yyyy-MM-dd', new Date()), 'PPP')}.`,
+      });
+      return;
+    }
+
+    if (isAircraftInspectionBlocked(ac, inspectionSettings)) {
+      toast({
+        variant: 'destructive',
+        title: 'Aircraft Service Blocked',
+        description: `${ac.tailNumber} cannot be booked until an authorised person updates the aircraft hours.`,
       });
       return;
     }
@@ -1050,28 +1074,61 @@ export default function SchedulePage() {
                                 <div className={cn(
                                   TIME_COL_WIDTH_CLASS,
                                   isMobile && 'w-14',
-                                  "flex-shrink-0 flex items-center justify-center font-bold text-[10px] text-swimlane-header-foreground uppercase tracking-wider h-12 bg-swimlane-header border-r sticky left-0 z-50 shadow-[2px_0_5px_rgba(0,0,0,0.1)]"
+                                  "flex-shrink-0 flex items-center justify-center font-bold text-[10px] text-swimlane-header-foreground uppercase tracking-wider h-20 bg-swimlane-header border-r sticky left-0 z-50 shadow-[2px_0_5px_rgba(0,0,0,0.1)]"
                                 )}>
                                     TIME
                                 </div>
-                                {(aircraft || []).map((ac) => (
-                                    <div
-                                        key={ac.id}
-                                        className={cn(
-                                          LANE_FLEX_CLASS,
-                                          LANE_WIDTH_CLASS,
-                                          isMobile && "w-[112px] flex-[0_0_112px]",
-                                          "border-r flex items-center justify-center font-bold text-xs px-2 text-center text-swimlane-header-foreground h-12 bg-swimlane-header whitespace-normal leading-tight",
-                                          highlightedAircraftId === ac.id && "bg-primary text-primary-foreground"
-                                        )}
-                                    >
-                                        {ac.tailNumber}
-                                    </div>
-                                ))}
+                                {(aircraft || []).map((ac) => {
+                                    const inspectionStatus = getAircraftInspectionStatus(ac, inspectionSettings);
+                                    const isServiceBlocked = inspectionStatus.isBlocked;
+
+                                    return (
+                                        <div
+                                            key={ac.id}
+                                            className={cn(
+                                                LANE_FLEX_CLASS,
+                                                LANE_WIDTH_CLASS,
+                                                isMobile && "w-[112px] flex-[0_0_112px]",
+                                                "border-r flex items-center justify-center font-bold text-xs px-2 text-center text-swimlane-header-foreground h-20 bg-swimlane-header whitespace-normal leading-tight",
+                                                highlightedAircraftId === ac.id && "bg-primary text-primary-foreground",
+                                                isServiceBlocked && highlightedAircraftId !== ac.id && "bg-red-500/15 text-red-950"
+                                            )}
+                                        >
+                                            <div className="flex w-full flex-col items-center justify-center gap-0.5 px-1 text-center leading-tight">
+                                                <span className="w-full truncate text-[12px] font-bold">
+                                                    {ac.tailNumber}
+                                                </span>
+                                                <span
+                                                    className={cn(
+                                                        "w-full truncate rounded-full border px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide",
+                                                        isServiceBlocked && "shadow-sm"
+                                                    )}
+                                                    style={inspectionStatus.fiftyStyle || undefined}
+                                                >
+                                                    50h {formatHoursValue(inspectionStatus.hoursTo50)} left
+                                                </span>
+                                                <span
+                                                    className={cn(
+                                                        "w-full truncate rounded-full border px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide",
+                                                        isServiceBlocked && "shadow-sm"
+                                                    )}
+                                                    style={inspectionStatus.hundredStyle || undefined}
+                                                >
+                                                    100h {formatHoursValue(inspectionStatus.hoursTo100)} left
+                                                </span>
+                                                {isServiceBlocked ? (
+                                                    <span className="mt-0.5 w-full rounded-full border border-red-300 bg-red-100/90 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-[0.12em] text-red-900">
+                                                        Service Blocked
+                                                    </span>
+                                                ) : null}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
                                 {extraLanes.map((_, laneIdx) => (
                                     <div
                                         key={`extra-h-${laneIdx}`}
-                                        className={cn(LANE_FLEX_CLASS, LANE_WIDTH_CLASS, isMobile && "w-[112px] flex-[0_0_112px]", "border-r bg-swimlane-header h-12")}
+                                        className={cn(LANE_FLEX_CLASS, LANE_WIDTH_CLASS, isMobile && "w-[112px] flex-[0_0_112px]", "border-r bg-swimlane-header h-20")}
                                     />
                                 ))}
                             </div>
@@ -1100,11 +1157,18 @@ export default function SchedulePage() {
                                     );
                                     const activeMaintenance = (ac.maintenanceWindows || []).filter((window) => isDateWithinWindow(selectedDateKey, window));
                                     const isAircraftInMaintenance = activeMaintenance.length > 0;
+                                    const inspectionStatus = getAircraftInspectionStatus(ac, inspectionSettings);
+                                    const isServiceBlocked = inspectionStatus.isBlocked;
 
                                     return (
                                         <div
                                             key={ac.id}
-                                            className={cn(LANE_FLEX_CLASS, LANE_WIDTH_CLASS, "border-r relative")}
+                                            className={cn(
+                                                LANE_FLEX_CLASS,
+                                                LANE_WIDTH_CLASS,
+                                                "border-r relative",
+                                                isServiceBlocked && "bg-red-500/[0.02]"
+                                            )}
                                         >
                                             {Array.from({ length: TOTAL_HOURS }).map((_, hour) => {
                                                 const isPast = isPastDaySelected || (isTodaySelected && hour < getHours(now));
@@ -1113,14 +1177,25 @@ export default function SchedulePage() {
                                                         key={hour}
                                                         className={cn(
                                                             "border-b relative transition-colors",
-                                                            isPast || isAircraftInMaintenance ? "bg-red-500/[0.02] cursor-not-allowed" : "cursor-pointer hover:bg-accent/50",
-                                                            !canManageSchedule && !isPast && !isAircraftInMaintenance && "cursor-default"
+                                                            isPast || isAircraftInMaintenance || isServiceBlocked ? "bg-red-500/[0.02] cursor-not-allowed" : "cursor-pointer hover:bg-accent/50",
+                                                            !canManageSchedule && !isPast && !isAircraftInMaintenance && !isServiceBlocked && "cursor-default"
                                                         )}
                                                         style={{ height: `${HOUR_HEIGHT_PX}px` }}
                                                         onClick={() => handleSlotClick(ac, hour)}
                                                     />
                                                 );
                                             })}
+                                            {isServiceBlocked ? (
+                                                <div className="absolute inset-x-1 top-1 z-20 rounded-md border border-red-300 bg-red-50/95 px-2 py-1 shadow-sm">
+                                                    <div className="flex items-center gap-1 text-[10px] font-black uppercase tracking-[0.16em] text-red-900">
+                                                        <ShieldAlert className="h-3 w-3" />
+                                                        Service Blocked
+                                                    </div>
+                                                    <div className="mt-1 text-[9px] font-semibold uppercase tracking-[0.12em] text-red-800">
+                                                        New bookings disabled until hours are updated
+                                                    </div>
+                                                </div>
+                                            ) : null}
                                             {activeMaintenance.length > 0 ? (
                                                 <div className="absolute inset-x-1 top-1 bottom-1 z-20 rounded-md border-2 border-amber-600 bg-amber-100/90 px-2 py-2 shadow-sm">
                                                     <div className="flex items-center gap-1 text-[10px] font-black uppercase tracking-[0.16em] text-amber-900">

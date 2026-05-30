@@ -7,7 +7,7 @@ import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import { AppProviders } from '@/providers';
 import { authOptions } from '@/auth';
-import { prisma } from '@/lib/prisma';
+import { isDatabaseAvailable, prisma } from '@/lib/prisma';
 import { assertRequiredEnv } from '@/lib/server/env';
 import { ensureAiEnvironment } from '@/lib/server/ai-env';
 import { ensureTenantConfigSchema } from '@/lib/server/bootstrap-db';
@@ -57,6 +57,10 @@ async function getInitialTenantBootstrap(): Promise<TenantBootstrapConfig> {
     const session = await getServerSession(authOptions);
     const email = session?.user?.email?.trim().toLowerCase();
     if (!email) return { theme: null, tenant: null };
+
+    if (!(await isDatabaseAvailable())) {
+      return { theme: null, tenant: null };
+    }
 
     await ensureTenantConfigSchema();
 

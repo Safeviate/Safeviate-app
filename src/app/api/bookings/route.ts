@@ -1,5 +1,7 @@
 import { authOptions } from '@/auth';
+import { isAircraftInspectionBlocked } from '@/lib/aircraft-inspection';
 import { prisma } from '@/lib/prisma';
+import { normalizeAircraftRecord } from '@/lib/server/aircraft-normalize';
 import { getTenantIdForRoute } from '@/lib/server/session-tenant';
 import { getCompletedAircraftHourPatch } from '@/lib/aircraft-hours';
 import { ensureBookingsSchema } from '@/lib/server/bootstrap-db';
@@ -9,6 +11,7 @@ import { recordSimulationRouteMetric } from '@/lib/server/simulation-telemetry';
 import { getServerSession } from 'next-auth';
 import { NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
+import type { AircraftInspectionWarningSettings } from '@/types/inspection';
 
 const SUPER_USERS = ['deanebolton@gmail.com', 'barry@safeviate.com'];
 
@@ -105,6 +108,33 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => null);
     const incoming = body?.booking ?? {};
     const id = incoming.id || randomUUID();
+
+    if (incoming.aircraftId && incoming.type !== 'Maintenance') {
+      const [aircraftRow, configRow] = await Promise.all([
+        prisma.aircraftRecord.findFirst({
+          where: { id: incoming.aircraftId, tenantId: resolvedTenantId },
+          select: { data: true },
+        }),
+        prisma.tenantConfig.findUnique({
+          where: { tenantId: resolvedTenantId },
+          select: { data: true },
+        }),
+      ]);
+
+      const aircraft = aircraftRow?.data ? normalizeAircraftRecord(aircraftRow.data) : null;
+      const inspectionSettings = (
+        (configRow?.data as Record<string, unknown> | null | undefined)?.['inspection-warning-settings']
+      ) as AircraftInspectionWarningSettings | undefined;
+
+      if (aircraft && isAircraftInspectionBlocked(aircraft, inspectionSettings || null)) {
+        return NextResponse.json(
+          {
+            error: 'Aircraft service hours must be updated before new bookings can be created.',
+          },
+          { status: 409 }
+        );
+      }
+    }
 
     await ensureBookingsSchema();
 

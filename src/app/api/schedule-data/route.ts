@@ -1,5 +1,6 @@
 import { isDatabaseAvailable, prisma } from '@/lib/prisma';
 import { ensureAircraftSchema, ensureBookingsSchema, ensurePersonnelSchema } from '@/lib/server/bootstrap-db';
+import { normalizeAircraftRecord } from '@/lib/server/aircraft-normalize';
 import { getOrSetRouteCache } from '@/lib/server/route-cache';
 import { recordSimulationRouteMetric } from '@/lib/server/simulation-telemetry';
 import { getTenantIdFromSession } from '@/lib/server/session-tenant';
@@ -111,7 +112,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json(
       {
-        aircraft: aircraftRows.map((row) => row.data),
+        aircraft: aircraftRows.map((row) => normalizeAircraftRecord(row.data)),
         bookings: bookingRows.map((row) => row.data),
         instructors,
         instructorDuty,

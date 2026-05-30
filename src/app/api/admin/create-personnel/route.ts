@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { authenticateAiRequest } from '@/lib/server/ai-auth';
 import { ensurePersonnelSchema } from '@/lib/server/bootstrap-db';
-import { prisma } from '@/lib/prisma';
+import { isDatabaseAvailable, prisma } from '@/lib/prisma';
 import { Prisma } from '@/generated/prisma/client';
 import { invalidatePersonnelDirectoryCaches } from '@/lib/server/route-cache';
 import { createPasswordSetupInvite } from '@/lib/server/password-setup';
@@ -38,6 +38,10 @@ export async function POST(request: Request) {
 
     if (!tenantId || !email || !firstName || !lastName || !role) {
       return NextResponse.json({ error: 'Missing required user information.' }, { status: 400 });
+    }
+
+    if (!(await isDatabaseAvailable())) {
+      return NextResponse.json({ error: 'Database is unavailable.' }, { status: 503 });
     }
 
     await prisma.tenant.upsert({

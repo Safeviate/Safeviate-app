@@ -47,6 +47,11 @@ export default function PermissionsPage() {
                             <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
                               Permission group
                             </p>
+                            {resource.description ? (
+                              <p className="text-[10px] leading-snug text-muted-foreground">
+                                {resource.description}
+                              </p>
+                            ) : null}
                           </div>
                           <Badge variant="secondary" className="h-6 rounded-full px-2 text-[9px] font-black uppercase">
                             {resource.actions.length} actions

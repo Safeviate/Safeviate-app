@@ -5,6 +5,7 @@ export type PermissionResource = {
   name: string;
   actions: PermissionAction[];
   hidden?: boolean;
+  description?: string;
 };
 
 /**
@@ -19,7 +20,12 @@ export const permissionsConfig: PermissionResource[] = [
   { id: 'operations-documents', name: 'Company Documents', actions: ['view', 'manage'] },
   { id: 'operations-erp', name: 'Emergency Response Plan', actions: ['view', 'edit', 'manage'] },
   
-  { id: 'bookings', name: 'Bookings', actions: ['view', 'edit', 'manage'] },
+  {
+    id: 'bookings',
+    name: 'Bookings',
+    actions: ['view', 'edit', 'manage'],
+    description: 'Schedule access also respects aircraft service-block rules, so red 50h/100h warnings prevent new flight bookings until hours are updated.',
+  },
 
   { id: 'accounting', name: 'Accounting & Billing', actions: ['view', 'edit', 'manage'] },
 

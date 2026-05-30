@@ -1,6 +1,6 @@
 import { authOptions } from '@/auth';
 import { Prisma } from '@/generated/prisma/client';
-import { prisma } from '@/lib/prisma';
+import { isDatabaseAvailable, prisma } from '@/lib/prisma';
 import {
   ensureAircraftSchema,
   ensureBookingsSchema,
@@ -369,11 +369,9 @@ async function getTenantContext(): Promise<TenantContext | null> {
   const email = session?.user?.email?.trim().toLowerCase();
   if (!email) return null;
 
-  await prisma.tenant.upsert({
-    where: { id: 'safeviate' },
-    update: { updatedAt: new Date() },
-    create: { id: 'safeviate', name: 'Safeviate' },
-  });
+  if (!(await isDatabaseAvailable())) {
+    return null;
+  }
 
   const currentUser = await prisma.user.findUnique({
     where: { email },
