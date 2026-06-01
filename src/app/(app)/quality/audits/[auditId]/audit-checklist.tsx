@@ -135,11 +135,18 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
         [normalizedSections]
     );
     const effectiveFindingLevels = findingLevels.length > 0 ? findingLevels : defaultFindingLevels;
-    const canAuditorSign = !!userProfile?.id && userProfile.id === audit.auditorId;
+    const currentPersonnelProfile = userProfile?.email
+        ? personnel.find((person) => (person.email || '').trim().toLowerCase() === userProfile.email.trim().toLowerCase()) || null
+        : null;
+    const activeAuditorId = currentPersonnelProfile?.id || userProfile?.id || '';
+    const canAuditorSign = !!activeAuditorId && activeAuditorId === audit.auditorId;
     const auditeePerson = personnel.find((person) => person.id === audit.auditeeId) || null;
     const canAuditeeSign = !!userProfile?.id && !!auditeePerson && userProfile.id === audit.auditeeId;
     const auditorDisplayName =
         getPersonnelDisplayName(personnel, audit.auditorId)
+        || (currentPersonnelProfile && currentPersonnelProfile.email?.trim().toLowerCase() === userProfile?.email?.trim().toLowerCase()
+            ? `${currentPersonnelProfile.firstName || ''} ${currentPersonnelProfile.lastName || ''}`.trim() || currentPersonnelProfile.email || ''
+            : '')
         || (userProfile?.id === audit.auditorId
             ? `${userProfile.firstName} ${userProfile.lastName}`.trim() || userProfile.email
             : '')
@@ -237,7 +244,7 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
             await persistAudit(
                 {
                     auditorSignoff: {
-                        signedById: userProfile.id,
+                        signedById: activeAuditorId,
                         signedByName: `${userProfile.firstName} ${userProfile.lastName}`.trim(),
                         signatureUrl: auditorSignatureDataUrl,
                         signedAt: new Date().toISOString(),
@@ -592,13 +599,13 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
                          <FormField control={form.control} name={`findings.${itemIndex}.comment`} render={({ field }) => (
                              <FormItem>
                                  <FormLabel className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Notes / Observations</FormLabel>
-                                 <FormControl><Textarea placeholder="Details about compliance status..." {...field} disabled={isReadOnly || isInheritedFinding} className="min-h-[80px] text-sm font-medium bg-muted/5 border-slate-200" /></FormControl>
+                                 <FormControl><Textarea placeholder="Details about compliance status..." {...field} disabled={isReadOnly} className="min-h-[80px] text-sm font-medium bg-muted/5 border-slate-200" /></FormControl>
                              </FormItem>
                          )} />
                          <FormField control={form.control} name={`findings.${itemIndex}.suggestedImprovements`} render={({ field }) => (
                              <FormItem>
                                  <FormLabel className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Suggested Improvements</FormLabel>
-                                 <FormControl><Textarea placeholder="Recommendations for performance..." {...field} disabled={isReadOnly || isInheritedFinding} className="min-h-[80px] text-sm font-medium bg-muted/5 border-slate-200" /></FormControl>
+                                 <FormControl><Textarea placeholder="Recommendations for performance..." {...field} disabled={isReadOnly} className="min-h-[80px] text-sm font-medium bg-muted/5 border-slate-200" /></FormControl>
                              </FormItem>
                          )} />
                     </div>
@@ -608,7 +615,7 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
                             <div className="space-y-2">
                                 <div className="flex justify-between items-center">
                                     <FormLabel className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Supporting Evidence</FormLabel>
-                                    {!isReadOnly && !isInheritedFinding && (
+                                    {!isReadOnly && (
                                         <div className="flex gap-2">
                                             <DocumentUploader
                                                 restrictedMode="file"
@@ -643,7 +650,7 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
                                             <div className="flex-1 min-w-[100px] text-[10px] font-bold uppercase tracking-tight truncate">
                                                 {ev.description}
                                             </div>
-                                            {!isReadOnly && !isInheritedFinding && (
+                                            {!isReadOnly && (
                                                 <Button 
                                                     type="button" 
                                                     variant="ghost" 

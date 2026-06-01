@@ -633,7 +633,7 @@ const getQualityMetrics = (summary: SummaryPayload): QualityMetrics => {
       status: audit.status,
       dateLabel: format(new Date(audit.auditDate), 'dd MMM yyyy'),
       complianceScore: typeof audit.complianceScore === 'number' ? audit.complianceScore : null,
-      findingCount: Array.isArray(audit.findings) ? audit.findings.filter((finding) => finding.finding !== 'Compliant').length : 0,
+      findingCount: Array.isArray(audit.findings) ? audit.findings.filter((finding) => finding.finding === 'Non Compliant').length : 0,
     }));
 
   const compliantScores = audits
@@ -642,7 +642,7 @@ const getQualityMetrics = (summary: SummaryPayload): QualityMetrics => {
 
   const openFindings = audits.reduce((sum, audit) => {
     const findings = Array.isArray(audit.findings) ? audit.findings : [];
-    return sum + findings.filter((finding) => finding.finding !== 'Compliant').length;
+    return sum + findings.filter((finding) => finding.finding === 'Non Compliant').length;
   }, 0);
 
   const openCaps = caps.filter((cap) => cap.status !== 'Closed' && cap.status !== 'Cancelled').length;

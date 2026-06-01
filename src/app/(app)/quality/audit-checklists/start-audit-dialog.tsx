@@ -126,6 +126,9 @@ export function StartAuditDialog({
     : 'Not linked to an asset';
   const totalSections = template.sections.length;
   const totalItems = template.sections.reduce((count, section) => count + section.items.length, 0);
+  const currentPersonnelProfile = userProfile?.email
+    ? personnel.find((person) => (person.email || '').trim().toLowerCase() === userProfile.email.trim().toLowerCase()) || null
+    : null;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -176,7 +179,7 @@ export function StartAuditDialog({
             templateId: template.id,
             title: template.title,
             auditNumber: newAuditNumber,
-            auditorId: userProfile.id,
+            auditorId: currentPersonnelProfile?.id || userProfile.id,
             auditeeId: values.auditeeId,
             targetId: values.targetId,
             assetId: values.assetId?.trim() || null,
