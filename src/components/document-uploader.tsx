@@ -44,6 +44,7 @@ export function DocumentUploader({ trigger, defaultFileName = '', onDocumentUplo
   const [fileName, setFileName] = useState(defaultFileName);
   const [file, setFile] = useState<File | null>(null);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const fileAccept = '.pdf,.csv,.txt,image/*';
 
   useEffect(() => {
     let active = true;
@@ -115,6 +116,9 @@ export function DocumentUploader({ trigger, defaultFileName = '', onDocumentUplo
     if (isOpen && uploadMode === 'camera' && !capturedImage) {
       const getCameraPermission = async () => {
         try {
+          if (!navigator.mediaDevices?.getUserMedia) {
+            throw new Error('Camera access is not supported in this browser.');
+          }
           const constraints = {
             video: {
               facingMode: { ideal: cameraFacingMode },
@@ -193,12 +197,22 @@ export function DocumentUploader({ trigger, defaultFileName = '', onDocumentUplo
     setCapturedImage(null);
   };
 
-  const dataUrlToFile = async (dataUrl: string, name: string) => {
-    const response = await fetch(dataUrl);
-    const blob = await response.blob();
-    return new File([blob], name, {
-      type: blob.type || 'image/jpeg',
-    });
+  const dataUrlToFile = (dataUrl: string, name: string) => {
+    const [header, base64Payload] = dataUrl.split(',');
+    if (!header || !base64Payload) {
+      throw new Error('Captured photo data is invalid.');
+    }
+
+    const mimeMatch = header.match(/data:(.*?);base64/);
+    const mimeType = mimeMatch?.[1] || 'image/jpeg';
+    const binary = atob(base64Payload);
+    const bytes = new Uint8Array(binary.length);
+
+    for (let index = 0; index < binary.length; index += 1) {
+      bytes[index] = binary.charCodeAt(index);
+    }
+
+    return new File([bytes], name, { type: mimeType });
   };
 
   const uploadToServer = async (selectedFile: File, displayName: string) => {
@@ -334,7 +348,7 @@ export function DocumentUploader({ trigger, defaultFileName = '', onDocumentUplo
                 <TabsContent value="file">
                     <div className="space-y-2 pt-4">
                         <Label htmlFor="file-upload">File</Label>
-                        <Input id="file-upload" type="file" onChange={handleFileChange} />
+                        <Input id="file-upload" type="file" accept={fileAccept} onChange={handleFileChange} />
                         {file && <p className="text-sm text-muted-foreground">Selected: {file.name}</p>}
                     </div>
                 </TabsContent>

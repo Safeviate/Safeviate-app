@@ -374,7 +374,20 @@ export default function LoginClient() {
         title: 'Login Successful',
         description: 'Welcome back to Safeviate.',
       });
-      window.location.assign(result.url || '/dashboard');
+      const nextUrl = (() => {
+        if (!result.url) {
+          return '/dashboard';
+        }
+
+        try {
+          const resolvedUrl = new URL(result.url, window.location.origin);
+          return `${resolvedUrl.pathname}${resolvedUrl.search}${resolvedUrl.hash}` || '/dashboard';
+        } catch {
+          return '/dashboard';
+        }
+      })();
+
+      window.location.assign(nextUrl);
     } catch (error) {
       console.error('Login failed:', error);
       const message = getLoginErrorMessage(error instanceof Error ? error.message : undefined);

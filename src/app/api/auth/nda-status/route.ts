@@ -32,12 +32,7 @@ export async function GET(request: Request) {
       ? requestedTenantId || sessionTenantId || inferredTenantId
       : sessionTenantId || inferredTenantId;
     const passwordSetupStatus = await getPasswordSetupStatusByEmail(requestEmail, resolvedTenantId);
-    const passwordSetupPending = !passwordSetupStatus.hasActivePassword;
-    const passwordSetupMessage = passwordSetupStatus.hasActivePassword
-      ? ''
-      : passwordSetupStatus.hasPendingInvite
-        ? 'Password setup is still pending. Please open the reset link you received and save a new password.'
-        : 'This account does not have an active password yet. Please request a new password reset link.';
+    const { passwordSetupPending, passwordSetupMessage } = passwordSetupStatus;
     const enabled = await isBetaNdaRequiredForTenant(resolvedTenantId);
     if (!enabled) {
       return NextResponse.json({

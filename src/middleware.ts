@@ -51,7 +51,7 @@ function applySecurityHeaders(response: NextResponse) {
   response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
   response.headers.set('X-Content-Type-Options', 'nosniff');
   response.headers.set('X-Frame-Options', 'SAMEORIGIN');
-  response.headers.set('Permissions-Policy', 'camera=(), geolocation=(), microphone=()');
+  response.headers.set('Permissions-Policy', 'camera=(self), geolocation=(self), microphone=(self)');
 }
 
 export const config = {

@@ -138,6 +138,12 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
     const canAuditorSign = !!userProfile?.id && userProfile.id === audit.auditorId;
     const auditeePerson = personnel.find((person) => person.id === audit.auditeeId) || null;
     const canAuditeeSign = !!userProfile?.id && !!auditeePerson && userProfile.id === audit.auditeeId;
+    const auditorDisplayName =
+        getPersonnelDisplayName(personnel, audit.auditorId)
+        || (userProfile?.id === audit.auditorId
+            ? `${userProfile.firstName} ${userProfile.lastName}`.trim() || userProfile.email
+            : '')
+        || audit.auditorId;
     const targetOrganization = audit.organizationId
         ? organizations.find((organization) => organization.id === audit.organizationId) || null
         : null;
@@ -629,7 +635,7 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
                                     {evidence.map((ev, evidenceIndex) => (
                                         <div key={evidenceIndex} className="flex items-center gap-3 p-2 border rounded-lg bg-muted/20 group">
                                             <div className="relative h-10 w-10 flex-shrink-0">
-                                                <Image src={ev.url} alt="Evidence" fill className="rounded object-cover" />
+                                                <img src={ev.url} alt="Evidence" className="h-full w-full rounded object-cover" />
                                                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer rounded" onClick={() => handleViewImage(ev.url)}>
                                                     <ZoomIn className="h-4 w-4 text-white" />
                                                 </div>
@@ -712,7 +718,7 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
                                     <div className="space-y-3 rounded-xl border bg-muted/5 p-4">
                                         <div className="space-y-1">
                                             <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Assigned Auditor</p>
-                                            <p className="text-sm font-semibold">{getPersonnelDisplayName(personnel, audit.auditorId) || audit.auditorId}</p>
+                                            <p className="text-sm font-semibold">{auditorDisplayName}</p>
                                         </div>
                                         {audit.auditorSignoff ? (
                                             <div className="rounded-lg border bg-background p-3 space-y-2">
