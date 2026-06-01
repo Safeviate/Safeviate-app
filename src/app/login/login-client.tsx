@@ -257,6 +257,7 @@ export default function LoginClient() {
   const [isLoginLoading, setIsLoginLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [loginOpen, setLoginOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
   const tenantId = searchParams?.get('tenantId')?.trim() || '';
@@ -397,6 +398,14 @@ export default function LoginClient() {
     }
   };
 
+  const toggleMobileMenu = () => {
+    setMobileMenuOpen((current) => !current);
+  };
+
+  const closeMobileMenu = () => {
+    setMobileMenuOpen(false);
+  };
+
   return (
     <main className="min-h-screen overflow-hidden bg-[#06101e] text-white">
       <div className="pointer-events-none fixed inset-0 opacity-70">
@@ -405,18 +414,30 @@ export default function LoginClient() {
         <div className="absolute right-0 top-0 h-full w-1/3 bg-[linear-gradient(135deg,transparent_0%,rgba(255,255,255,.05)_45%,transparent_45%,transparent_55%,rgba(255,255,255,.04)_55%,transparent_100%)] bg-[size:90px_90px] opacity-30" />
       </div>
 
-      <header className="relative z-10 mx-auto flex max-w-[1180px] items-center justify-between px-5 py-6 md:px-8">
-        <a href="#" className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-400/10 ring-1 ring-cyan-300/30">
-            <ShieldCheck className="h-7 w-7 text-cyan-300" />
-          </div>
-          <div>
-            <p className="text-2xl font-black uppercase tracking-[0.18em]">Safeviate</p>
-            <p className="text-[10px] font-bold uppercase tracking-[0.34em] text-slate-400">
-              One platform. Total control.
-            </p>
-          </div>
-        </a>
+      <header className="relative z-10 mx-auto flex max-w-[1180px] flex-col gap-4 px-5 py-6 md:px-8 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex w-full items-start justify-between gap-3 lg:w-auto lg:items-center">
+          <a href="#" className="flex min-w-0 items-center gap-3">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-cyan-400/10 ring-1 ring-cyan-300/30">
+              <ShieldCheck className="h-7 w-7 text-cyan-300" />
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-xl font-black uppercase tracking-[0.16em] sm:text-2xl">Safeviate</p>
+              <p className="text-[9px] font-bold uppercase tracking-[0.24em] text-slate-400 sm:text-[10px] sm:tracking-[0.34em]">
+                One platform. Total control.
+              </p>
+            </div>
+          </a>
+
+          <button
+            className="rounded-xl border border-white/15 p-2 lg:hidden"
+            aria-label="Menu"
+            aria-expanded={mobileMenuOpen}
+            onClick={toggleMobileMenu}
+            type="button"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+        </div>
 
         <nav className="hidden items-center gap-7 text-sm font-semibold text-slate-200 lg:flex">
           {['Platform', 'Workspaces', 'Solutions', 'Resources', 'Company'].map((item) => (
@@ -437,9 +458,35 @@ export default function LoginClient() {
           <Button className="rounded-xl bg-blue-500 px-6 font-bold text-white hover:bg-blue-400">Book Demo</Button>
         </div>
 
-        <button className="rounded-xl border border-white/15 p-2 lg:hidden" aria-label="Menu">
-          <Menu className="h-5 w-5" />
-        </button>
+        <div className="flex w-full gap-2 lg:hidden">
+          <Button
+            variant="outline"
+            onClick={openLogin}
+            className="flex-1 rounded-xl border-white/25 bg-transparent px-4 py-2 text-xs font-black uppercase tracking-[0.12em] text-white hover:bg-white/10"
+          >
+            Sign In
+          </Button>
+          <Button className="rounded-xl bg-blue-500 px-4 py-2 text-xs font-black uppercase tracking-[0.12em] text-white hover:bg-blue-400">
+            Demo
+          </Button>
+        </div>
+
+        {mobileMenuOpen ? (
+          <div className="w-full rounded-2xl border border-white/10 bg-[#081529]/95 p-3 shadow-xl shadow-black/20 lg:hidden">
+            <nav className="flex flex-col gap-2">
+              {['Platform', 'Workspaces', 'Solutions', 'Resources', 'Company'].map((item) => (
+                <a
+                  key={item}
+                  href="#"
+                  onClick={closeMobileMenu}
+                  className="rounded-xl border border-white/10 px-4 py-3 text-sm font-semibold text-slate-100 transition hover:bg-white/5"
+                >
+                  {item}
+                </a>
+              ))}
+            </nav>
+          </div>
+        ) : null}
       </header>
 
       <section className="relative z-10 mx-auto grid max-w-[1180px] items-center gap-6 px-5 pb-8 pt-6 md:px-8 lg:grid-cols-[0.88fr_1.12fr] lg:pt-8">
