@@ -70,9 +70,12 @@ const workspaces = [
       'Aircraft scheduling and booking lifecycle',
       'Student progression and debrief workflows',
       'Instructor oversight and personnel-linked training',
+      'Coherence Matrix visibility for operational oversight and planning',
+      'QR code quick safety reports tied to live operational activity',
       'Fleet availability linked to maintenance and thresholds',
-      'Conflict detection and maintenance window awareness',
+      'Fleet reliability program',
       'Pre-flight and post-flight workflow support',
+      'Training, safety, and operational reporting in one connected record set',
     ],
     cta: 'Explore Flight Schools Workspace',
   },
@@ -560,6 +563,14 @@ export default function LoginClient() {
             </Button>
           </div>
         </motion.div>
+      </section>
+
+      <section className="relative z-10 mx-auto max-w-[1180px] px-5 py-2 md:px-8">
+        <div className="rounded-2xl border border-amber-300/25 bg-amber-300/10 px-4 py-3 text-sm text-amber-100 backdrop-blur-xl">
+          <span className="font-black uppercase tracking-[0.12em] text-amber-200">In Development</span>{' '}
+          This page and platform are still evolving, with features, workflows, and refinements being added on a
+          near-daily basis.
+        </div>
       </section>
 
       <section className="relative z-10 mx-auto grid max-w-[1180px] gap-4 px-5 py-6 md:px-8 lg:grid-cols-3">
