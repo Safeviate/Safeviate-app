@@ -155,7 +155,8 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
         ? organizations.find((organization) => organization.id === audit.organizationId) || null
         : null;
     const assetLabel = aircraft.find((item) => item.id === audit.assetId)?.tailNumber || '';
-    const targetLabel = targetOrganization?.name
+    const targetLabel = audit.targetName?.trim()
+        || targetOrganization?.name
         || audit.targetId
         || 'Internal Company';
 

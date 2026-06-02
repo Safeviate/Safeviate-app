@@ -44,6 +44,7 @@ const toNoonUtcIso = (date: Date) =>
 
 const formSchema = z.object({
   targetId: z.string().min(1, 'Audit target is required.'),
+  targetName: z.string().min(1, 'Audit target name is required.'),
   assetId: z.string().optional(),
   auditeeId: z.string().min(1, 'Auditee is required.'),
   scope: z.string().min(1, 'Scope is required.'),
@@ -99,6 +100,7 @@ export function StartAuditDialog({
     resolver: zodResolver(formSchema),
     defaultValues: {
       targetId: '',
+      targetName: '',
       assetId: '',
       auditeeId: '',
       scope: '',
@@ -106,6 +108,7 @@ export function StartAuditDialog({
     },
   });
   const selectedTargetId = form.watch('targetId');
+  const selectedTargetName = form.watch('targetName');
   const selectedAssetId = form.watch('assetId');
   const auditOwnerName = userProfile
     ? `${userProfile.firstName} ${userProfile.lastName}`.trim() || userProfile.email
@@ -134,6 +137,7 @@ export function StartAuditDialog({
     if (!isOpen) return;
     form.reset({
       targetId: '',
+      targetName: '',
       assetId: '',
       auditeeId: '',
       scope: '',
@@ -147,6 +151,18 @@ export function StartAuditDialog({
       form.setValue('assetId', '');
     }
   }, [availableAircraft, form, selectedAssetId]);
+
+  useEffect(() => {
+    if (!selectedTargetId) return;
+    const selectedDepartmentName = departments.find((department) => department.id === selectedTargetId)?.name;
+    const selectedOrganizationName = organizations.find((organization) => organization.id === selectedTargetId)?.name;
+    const resolvedTargetName = selectedOrganizationName || selectedDepartmentName || '';
+    const currentTargetName = form.getValues('targetName').trim();
+    if (!resolvedTargetName || currentTargetName === resolvedTargetName) return;
+    if (!currentTargetName) {
+      form.setValue('targetName', resolvedTargetName, { shouldValidate: true });
+    }
+  }, [departments, form, organizations, selectedTargetId]);
   
   useEffect(() => {
     if (!isOpen && newAuditId) {
@@ -182,6 +198,7 @@ export function StartAuditDialog({
             auditorId: currentPersonnelProfile?.id || userProfile.id,
             auditeeId: values.auditeeId,
             targetId: values.targetId,
+            targetName: values.targetName.trim(),
             assetId: values.assetId?.trim() || null,
             organizationId: isExternalOrg ? values.targetId : null,
             scope: values.scope,
@@ -243,7 +260,7 @@ export function StartAuditDialog({
                 <div className="grid gap-2 sm:grid-cols-3">
                   <div className="rounded-lg border bg-background px-3 py-2">
                     <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Audit target</p>
-                    <p className="mt-1 text-sm font-semibold text-foreground">Department or external company</p>
+                    <p className="mt-1 text-sm font-semibold text-foreground">{selectedTargetName?.trim() || 'Manual target name pending'}</p>
                   </div>
                   <div className="rounded-lg border bg-background px-3 py-2">
                     <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Selected Company</p>
@@ -301,6 +318,22 @@ export function StartAuditDialog({
                    </Select>
                   <p className="text-xs text-muted-foreground">
                     Choose the department or external company this audit will be attached to.
+                  </p>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="targetName"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Audit Target Name</FormLabel>
+                  <FormControl>
+                    <Input placeholder="e.g., Student Files, Flight Dispatch, Line Maintenance" {...field} />
+                  </FormControl>
+                  <p className="text-xs text-muted-foreground">
+                    Enter the exact target label you want displayed on the audit record and summary cards.
                   </p>
                   <FormMessage />
                 </FormItem>

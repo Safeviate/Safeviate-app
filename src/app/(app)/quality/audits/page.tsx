@@ -119,6 +119,10 @@ function AuditsTable({ audits, tenantId }: AuditsTableProps) {
                             <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Title</p>
                             <p className="mt-1 text-sm font-semibold text-foreground">{audit.title}</p>
                         </div>
+                        <div className="rounded-lg border bg-background px-3 py-3">
+                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Scope</p>
+                            <p className="mt-1 text-sm font-semibold text-foreground">{audit.scope || '-'}</p>
+                        </div>
                         <div className="grid gap-3 sm:grid-cols-2">
                             <div className="rounded-lg border bg-background px-3 py-3">
                                 <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Audit Target</p>
@@ -255,6 +259,7 @@ export default function AuditsPage() {
             ...audit,
             auditeeName: personnelMap.get(audit.auditeeId) || '',
             targetName:
+              audit.targetName?.trim() ||
               orgMap.get(audit.organizationId || '') ||
               departmentMap.get(audit.targetId || '') ||
               departmentMap.get(audit.auditeeId) ||
