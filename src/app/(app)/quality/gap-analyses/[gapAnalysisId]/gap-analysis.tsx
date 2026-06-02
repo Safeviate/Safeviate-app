@@ -109,6 +109,9 @@ export function GapAnalysisChecklist({ audit, tenantId, caps, personnel, organiz
     const [selectedCap, setSelectedCap] = useState<EnrichedCorrectiveActionPlan | null>(null);
     const isReadOnly = audit.status === 'Finalized' || audit.status === 'Closed' || audit.status === 'Archived';
     const canViewCaps = hasPermission('quality-caps-view') || hasPermission('quality-audits-manage') || hasPermission('admin-view');
+    const currentUserIdentityLabel = userProfile?.email?.trim()
+        || userProfile?.id
+        || '';
 
     const normalizedSections = useMemo(() => {
         return audit.template.sections.map((section) => {
@@ -133,12 +136,16 @@ export function GapAnalysisChecklist({ audit, tenantId, caps, personnel, organiz
         () => normalizedSections.length > 0 ? [normalizedSections[0].id] : [],
         [normalizedSections]
     );
+    const isLegacySeedAuditorId = /^vercel-seed-/i.test((audit.auditorId || '').trim());
     const canAuditorSign = !!userProfile?.id && userProfile.id === audit.auditorId;
-    const auditorDisplayName =
-        getPersonnelDisplayName(personnel, audit.auditorId)
+    const auditorDisplayName = audit.auditorName?.trim()
+        || audit.auditorSignoff?.signedByName?.trim()
+        || (canAuditorSign ? currentUserIdentityLabel : '')
+        || getPersonnelDisplayName(personnel, audit.auditorId)
         || (userProfile?.id === audit.auditorId
             ? `${userProfile.firstName} ${userProfile.lastName}`.trim() || userProfile.email
             : '')
+        || (isLegacySeedAuditorId ? currentUserIdentityLabel : '')
         || audit.auditorId;
     const auditeePerson = personnel.find((person) => person.id === audit.auditeeId) || null;
     const canAuditeeSign = !!userProfile?.id && !!auditeePerson && userProfile.id === audit.auditeeId;
@@ -300,7 +307,7 @@ export function GapAnalysisChecklist({ audit, tenantId, caps, personnel, organiz
                 {
                     auditorSignoff: {
                         signedById: userProfile.id,
-                        signedByName: `${userProfile.firstName} ${userProfile.lastName}`.trim(),
+                        signedByName: currentUserIdentityLabel,
                         signatureUrl: auditorSignatureDataUrl,
                         signedAt: new Date().toISOString(),
                     },

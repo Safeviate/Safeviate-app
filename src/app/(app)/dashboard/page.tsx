@@ -6,6 +6,7 @@ import { AlertTriangle, BadgeAlert, ChevronDown, ClipboardCheck, MoreHorizontal,
 import { format } from 'date-fns';
 import { useTheme } from '@/components/theme-provider';
 import { useTenantConfig } from '@/hooks/use-tenant-config';
+import { useOrganizationScope } from '@/hooks/use-organization-scope';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -604,8 +605,13 @@ const getCapSourceDetails = (cap: CorrectiveActionPlan, audits: QualityAudit[]) 
   };
 };
 
-const getQualityMetrics = (summary: SummaryPayload): QualityMetrics => {
-  const audits = (Array.isArray(summary.audits) ? summary.audits : []) as QualityAudit[];
+const getQualityMetrics = (summary: SummaryPayload, organizationScopeId: string): QualityMetrics => {
+  const allAudits = (Array.isArray(summary.audits) ? summary.audits : []) as QualityAudit[];
+  const audits = allAudits.filter((audit) =>
+    organizationScopeId === 'internal'
+      ? !audit.organizationId
+      : audit.organizationId === organizationScopeId
+  );
   const caps = (Array.isArray(summary.caps) ? summary.caps : []) as CorrectiveActionPlan[];
   const personnel = (Array.isArray(summary.personnel) ? summary.personnel : []) as Array<{
     id: string;
@@ -645,8 +651,10 @@ const getQualityMetrics = (summary: SummaryPayload): QualityMetrics => {
     return sum + findings.filter((finding) => finding.finding === 'Non Compliant').length;
   }, 0);
 
-  const openCaps = caps.filter((cap) => cap.status !== 'Closed' && cap.status !== 'Cancelled').length;
-  const capActionRows = caps.flatMap((cap) => {
+  const scopedAuditIds = new Set(audits.map((audit) => audit.id));
+  const scopedCaps = caps.filter((cap) => scopedAuditIds.has(cap.auditId));
+  const openCaps = scopedCaps.filter((cap) => cap.status !== 'Closed' && cap.status !== 'Cancelled').length;
+  const capActionRows = scopedCaps.flatMap((cap) => {
     const source = getCapSourceDetails(cap, audits);
     const activeActions = (cap.actions || []).filter((action) => action.status !== 'Closed' && action.status !== 'Cancelled');
 
@@ -767,6 +775,7 @@ export default function DashboardPage() {
   const { isLoading: isAccessLoading, isAllowed } = useTenantRouteAccess({ href: '/dashboard' });
   const { uiMode } = useTheme();
   const { tenant } = useTenantConfig();
+  const { scopedOrganizationId } = useOrganizationScope({ viewAllPermissionId: 'quality-audits-view-all' });
   const isMobile = useIsMobile();
   const [activeIndustry, setActiveIndustry] = useState<DashboardIndustry>('ATO');
   const [activeTab, setActiveTab] = useState('fleet');
@@ -1722,7 +1731,7 @@ export default function DashboardPage() {
                         ) : tab.value === 'safety' ? (
                           <SafetyOverviewCard modern={isModern} summary={summary} />
                         ) : tab.value === 'quality' ? (
-                          <QualityOverviewCard modern={isModern} summary={summary} />
+                          <QualityOverviewCard modern={isModern} summary={summary} organizationScopeId={scopedOrganizationId} />
                         ) : (
                           <StageCard tabLabel={tab.label} modern={isModern} />
                         )}
@@ -1741,7 +1750,7 @@ export default function DashboardPage() {
                       ) : tab.value === 'safety' ? (
                         <SafetyOverviewCard modern={isModern} summary={summary} />
                       ) : tab.value === 'quality' ? (
-                        <QualityOverviewCard modern={isModern} summary={summary} />
+                        <QualityOverviewCard modern={isModern} summary={summary} organizationScopeId={scopedOrganizationId} />
                       ) : (
                         <StageCard tabLabel={tab.label} modern={isModern} />
                       )}
@@ -2188,8 +2197,8 @@ function SafetyOverviewCard({ modern, summary }: { modern: boolean; summary: Sum
   );
 }
 
-function QualityOverviewCard({ modern, summary }: { modern: boolean; summary: SummaryPayload }) {
-  const metrics = getQualityMetrics(summary);
+function QualityOverviewCard({ modern, summary, organizationScopeId }: { modern: boolean; summary: SummaryPayload; organizationScopeId: string }) {
+  const metrics = getQualityMetrics(summary, organizationScopeId);
   const QualityIcon = ClipboardCheck;
 
   return (

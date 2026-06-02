@@ -111,7 +111,9 @@ export interface QualityAudit {
     title: string;
     auditNumber: string;
     auditorId: string;
+    auditorName?: string | null;
     auditeeId: string;
+    auditeeName?: string | null;
     targetId?: string | null;
     targetName?: string | null;
     assetId?: string | null;

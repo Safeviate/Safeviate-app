@@ -14,7 +14,7 @@ import { DocumentUploader } from '../../../users/personnel/[id]/document-uploade
 import { FileUp, Camera, Trash2, ZoomIn, Edit, Save, ShieldCheck } from 'lucide-react';
 import Image from 'next/image';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import type { FindingLevel } from '@/app/(app)/admin/features/page';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -101,6 +101,7 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
     const { toast } = useToast();
     const { hasPermission } = usePermissions();
     const { userProfile } = useUserProfile();
+    const [auditSnapshot, setAuditSnapshot] = useState<QualityAudit>(audit);
     const [isImageViewerOpen, setIsImageViewerOpen] = useState(false);
     const [viewingImageUrl, setViewingImageUrl] = useState<string | null>(null);
     const [auditorSignatureDataUrl, setAuditorSignatureDataUrl] = useState('');
@@ -110,6 +111,10 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
     const [selectedCap, setSelectedCap] = useState<EnrichedCorrectiveActionPlan | null>(null);
     const isReadOnly = audit.status === 'Finalized' || audit.status === 'Closed' || audit.status === 'Archived';
     const canViewCaps = hasPermission('quality-caps-view') || hasPermission('quality-audits-manage') || hasPermission('admin-view');
+
+    useEffect(() => {
+        setAuditSnapshot(audit);
+    }, [audit]);
 
     const normalizedSections = useMemo(() => {
         return audit.template.sections.map((section) => {
@@ -138,25 +143,49 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
     const currentPersonnelProfile = userProfile?.email
         ? personnel.find((person) => (person.email || '').trim().toLowerCase() === userProfile.email.trim().toLowerCase()) || null
         : null;
+    const currentUserIdentityLabel = userProfile?.email?.trim()
+        || currentPersonnelProfile?.email?.trim()
+        || userProfile?.id
+        || '';
+    const isLegacySeedAuditorId = /^vercel-seed-/i.test((audit.auditorId || '').trim());
     const activeAuditorId = currentPersonnelProfile?.id || userProfile?.id || '';
-    const canAuditorSign = !!activeAuditorId && activeAuditorId === audit.auditorId;
+    const normalizedCurrentUserIdentity = currentUserIdentityLabel.trim().toLowerCase();
+    const normalizedAuditAuditorName = (audit.auditorName || '').trim().toLowerCase();
+    const normalizedSignedAuditorName = (audit.auditorSignoff?.signedByName || '').trim().toLowerCase();
+    const canAuditorSign = (
+        (!!activeAuditorId && activeAuditorId === audit.auditorId)
+        || (!!normalizedCurrentUserIdentity && normalizedAuditAuditorName === normalizedCurrentUserIdentity)
+        || (!!normalizedCurrentUserIdentity && normalizedSignedAuditorName === normalizedCurrentUserIdentity)
+        || isLegacySeedAuditorId
+    );
     const auditeePerson = personnel.find((person) => person.id === audit.auditeeId) || null;
     const canAuditeeSign = !!userProfile?.id && !!auditeePerson && userProfile.id === audit.auditeeId;
-    const auditorDisplayName =
-        getPersonnelDisplayName(personnel, audit.auditorId)
+    const auditorDisplayName = audit.auditorName?.trim()
+        || audit.auditorSignoff?.signedByName?.trim()
+        || (canAuditorSign ? currentUserIdentityLabel : '')
+        || getPersonnelDisplayName(personnel, audit.auditorId)
         || (currentPersonnelProfile && currentPersonnelProfile.email?.trim().toLowerCase() === userProfile?.email?.trim().toLowerCase()
             ? `${currentPersonnelProfile.firstName || ''} ${currentPersonnelProfile.lastName || ''}`.trim() || currentPersonnelProfile.email || ''
             : '')
         || (userProfile?.id === audit.auditorId
             ? `${userProfile.firstName} ${userProfile.lastName}`.trim() || userProfile.email
             : '')
+        || (isLegacySeedAuditorId ? currentUserIdentityLabel : '')
         || audit.auditorId;
+    const resolvedAuditeeName = audit.auditeeName?.trim()
+        || (auditeePerson ? `${auditeePerson.firstName} ${auditeePerson.lastName}`.trim() || auditeePerson.email || '' : '')
+        || '';
     const targetOrganization = audit.organizationId
         ? organizations.find((organization) => organization.id === audit.organizationId) || null
+        : null;
+    const targetOrganizationFromTargetId = audit.targetId
+        ? organizations.find((organization) => organization.id === audit.targetId) || null
         : null;
     const assetLabel = aircraft.find((item) => item.id === audit.assetId)?.tailNumber || '';
     const targetLabel = audit.targetName?.trim()
         || targetOrganization?.name
+        || targetOrganizationFromTargetId?.name
+        || getPersonnelDisplayName(personnel, audit.targetId || '')
         || audit.targetId
         || 'Internal Company';
 
@@ -199,14 +228,19 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
     };
 
     const persistAudit = async (nextAudit: Partial<QualityAudit>, toastMessage?: { title: string; description: string }) => {
+        const nextPersistedAudit: QualityAudit = {
+            ...auditSnapshot,
+            auditorName: auditSnapshot.auditorName || auditorDisplayName || undefined,
+            auditeeName: auditSnapshot.auditeeName || resolvedAuditeeName || undefined,
+            targetName: auditSnapshot.targetName || targetLabel || undefined,
+            ...nextAudit,
+        };
+
         const response = await fetch('/api/quality-audits', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            audit: {
-              ...audit,
-              ...nextAudit,
-            },
+            audit: nextPersistedAudit,
           }),
         });
 
@@ -214,6 +248,8 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
         if (!response.ok) {
             throw new Error(payload?.error || 'Failed to save audit');
         }
+
+        setAuditSnapshot((payload?.audit as QualityAudit | undefined) ?? nextPersistedAudit);
 
         window.dispatchEvent(new Event('safeviate-quality-updated'));
 
@@ -244,9 +280,10 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
         try {
             await persistAudit(
                 {
+                    auditorId: activeAuditorId || auditSnapshot.auditorId,
                     auditorSignoff: {
-                        signedById: activeAuditorId,
-                        signedByName: `${userProfile.firstName} ${userProfile.lastName}`.trim(),
+                        signedById: activeAuditorId || userProfile.id,
+                        signedByName: currentUserIdentityLabel,
                         signatureUrl: auditorSignatureDataUrl,
                         signedAt: new Date().toISOString(),
                     },
@@ -729,10 +766,18 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
                                             <p className="text-sm font-semibold">{auditorDisplayName}</p>
                                         </div>
                                         {audit.auditorSignoff ? (
-                                            <div className="rounded-lg border bg-background p-3 space-y-2">
-                                                <p className="text-sm font-semibold">{audit.auditorSignoff.signedByName}</p>
-                                                <img src={audit.auditorSignoff.signatureUrl} alt="Auditor signature" className="max-h-16 rounded border bg-white p-1" />
-                                                <p className="text-xs text-muted-foreground">Signed on {format(new Date(audit.auditorSignoff.signedAt), 'PPP p')}</p>
+                                            <div className="rounded-lg border bg-background p-3">
+                                                <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(220px,320px)] lg:items-center">
+                                                    <div className="space-y-2 min-w-0">
+                                                        <p className="text-sm font-semibold break-all">{audit.auditorSignoff.signedByName}</p>
+                                                        <p className="text-xs text-muted-foreground">Signed on {format(new Date(audit.auditorSignoff.signedAt), 'PPP p')}</p>
+                                                    </div>
+                                                    <div className="min-w-0 flex justify-start lg:justify-end">
+                                                        <div className="flex h-24 w-full max-w-full lg:max-w-[320px] items-center justify-center rounded border bg-white p-2 overflow-hidden">
+                                                            <img src={audit.auditorSignoff.signatureUrl} alt="Auditor signature" className="max-h-full w-auto max-w-full object-contain" />
+                                                        </div>
+                                                    </div>
+                                                </div>
                                             </div>
                                         ) : (
                                             <>
@@ -753,10 +798,18 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
                                             <p className="text-sm font-semibold">{auditeePerson ? `${auditeePerson.firstName} ${auditeePerson.lastName}` : 'Department or external company'}</p>
                                         </div>
                                         {audit.auditeeSignoff ? (
-                                            <div className="rounded-lg border bg-background p-3 space-y-2">
-                                                <p className="text-sm font-semibold">{audit.auditeeSignoff.signedByName}</p>
-                                                <img src={audit.auditeeSignoff.signatureUrl} alt="Auditee signature" className="max-h-16 rounded border bg-white p-1" />
-                                                <p className="text-xs text-muted-foreground">Signed on {format(new Date(audit.auditeeSignoff.signedAt), 'PPP p')}</p>
+                                            <div className="rounded-lg border bg-background p-3">
+                                                <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(220px,320px)] lg:items-center">
+                                                    <div className="space-y-2 min-w-0">
+                                                        <p className="text-sm font-semibold break-all">{audit.auditeeSignoff.signedByName}</p>
+                                                        <p className="text-xs text-muted-foreground">Signed on {format(new Date(audit.auditeeSignoff.signedAt), 'PPP p')}</p>
+                                                    </div>
+                                                    <div className="min-w-0 flex justify-start lg:justify-end">
+                                                        <div className="flex h-24 w-full max-w-full lg:max-w-[320px] items-center justify-center rounded border bg-white p-2 overflow-hidden">
+                                                            <img src={audit.auditeeSignoff.signatureUrl} alt="Auditee signature" className="max-h-full w-auto max-w-full object-contain" />
+                                                        </div>
+                                                    </div>
+                                                </div>
                                             </div>
                                         ) : auditeePerson ? (
                                             <>

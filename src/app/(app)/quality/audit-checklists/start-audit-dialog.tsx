@@ -109,10 +109,11 @@ export function StartAuditDialog({
   });
   const selectedTargetId = form.watch('targetId');
   const selectedTargetName = form.watch('targetName');
+  const selectedAuditeeId = form.watch('auditeeId');
   const selectedAssetId = form.watch('assetId');
-  const auditOwnerName = userProfile
-    ? `${userProfile.firstName} ${userProfile.lastName}`.trim() || userProfile.email
-    : 'Current user';
+  const auditOwnerName = userProfile?.email?.trim()
+    || (userProfile ? `${userProfile.firstName} ${userProfile.lastName}`.trim() : '')
+    || 'Current user';
   const selectedCompanyLabel = selectedTargetId
     ? organizations.find((organization) => organization.id === selectedTargetId)?.name || 'Internal Company'
     : 'Internal Company';
@@ -132,6 +133,12 @@ export function StartAuditDialog({
   const currentPersonnelProfile = userProfile?.email
     ? personnel.find((person) => (person.email || '').trim().toLowerCase() === userProfile.email.trim().toLowerCase()) || null
     : null;
+  const selectedAuditee = selectedAuditeeId
+    ? personnel.find((person) => person.id === selectedAuditeeId) || null
+    : null;
+  const selectedAuditeeLabel = selectedAuditee
+    ? `${selectedAuditee.firstName || ''} ${selectedAuditee.lastName || ''}`.trim() || selectedAuditee.email || ''
+    : '';
 
   useEffect(() => {
     if (!isOpen) return;
@@ -180,12 +187,6 @@ export function StartAuditDialog({
     setIsSubmitting(true);
     
     try {
-        const auditsResponse = await fetch('/api/quality-audits', { cache: 'no-store' });
-        const auditsPayload = await auditsResponse.json().catch(() => ({ audits: [] }));
-        const auditsList = Array.isArray(auditsPayload.audits) ? (auditsPayload.audits as QualityAudit[]) : [];
-        const nextCount = auditsList.length + 1;
-        const newAuditNumber = `AUD-${String(nextCount).padStart(4, '0')}`;
-
         // Detect if auditee is an external company
         const isExternalOrg = organizations?.some(org => org.id === values.targetId);
 
@@ -194,9 +195,11 @@ export function StartAuditDialog({
             id: createdId,
             templateId: template.id,
             title: template.title,
-            auditNumber: newAuditNumber,
+            auditNumber: '',
             auditorId: currentPersonnelProfile?.id || userProfile.id,
+            auditorName: userProfile.email?.trim() || auditOwnerName,
             auditeeId: values.auditeeId,
+            auditeeName: selectedAuditeeLabel || values.auditeeId,
             targetId: values.targetId,
             targetName: values.targetName.trim(),
             assetId: values.assetId?.trim() || null,
@@ -213,9 +216,11 @@ export function StartAuditDialog({
           body: JSON.stringify({ audit: newAuditData }),
         });
         if (!response.ok) throw new Error('Failed to save audit');
+        const payload = await response.json().catch(() => null);
+        const savedAudit = payload?.audit as QualityAudit | undefined;
         
         setNewAuditId(createdId);
-        toast({ title: 'Audit Created', description: `Audit ${newAuditNumber} is ready to open.` });
+        toast({ title: 'Audit Created', description: `Audit ${savedAudit?.auditNumber || 'AUD-0001'} is ready to open.` });
         
         window.dispatchEvent(new Event('safeviate-quality-updated'));
         setIsOpen(false);
@@ -279,7 +284,7 @@ export function StartAuditDialog({
                     <p className="mt-1 text-sm font-semibold text-foreground">Planned audit date and opening timestamp</p>
                   </div>
                   <div className="rounded-lg border bg-background px-3 py-2 sm:col-span-2">
-                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Audit owner</p>
+                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Auditor</p>
                     <p className="mt-1 text-sm font-semibold text-foreground">{auditOwnerName}</p>
                   </div>
                   <div className="rounded-lg border bg-background px-3 py-2">

@@ -38,6 +38,7 @@ const parseLocalDate = (value: string) => {
 };
 
 type EnrichedAudit = QualityAudit & {
+    auditorName?: string;
     auditeeName?: string;
     targetName?: string;
     assetName?: string;
@@ -133,6 +134,10 @@ function AuditsTable({ audits, tenantId }: AuditsTableProps) {
                                 <p className="mt-1 text-sm font-semibold text-foreground">{audit.auditeeName || '-'}</p>
                             </div>
                             <div className="rounded-lg border bg-background px-3 py-3 sm:col-span-2">
+                                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Assigned Auditor</p>
+                                <p className="mt-1 text-sm font-semibold text-foreground">{audit.auditorName || '-'}</p>
+                            </div>
+                            <div className="rounded-lg border bg-background px-3 py-3 sm:col-span-2">
                                 <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Asset</p>
                                 <p className="mt-1 text-sm font-semibold text-foreground">{audit.assetName || 'Not linked to an asset'}</p>
                             </div>
@@ -165,7 +170,7 @@ function AuditsTable({ audits, tenantId }: AuditsTableProps) {
 
 export default function AuditsPage() {
     const { isLoading: isAccessLoading, isAllowed } = useTenantRouteAccess({ href: '/quality/audits' });
-    const { tenantId } = useUserProfile();
+    const { tenantId, userProfile } = useUserProfile();
     const { scopedOrganizationId, shouldShowOrganizationTabs } = useOrganizationScope({ viewAllPermissionId: 'quality-audits-view-all' });
     const { isPageEnabled, isSectionEnabled, isTabEnabled } = usePageLayout('audits');
     const isMobile = useIsMobile();
@@ -182,6 +187,7 @@ export default function AuditsPage() {
     const [organizations, setOrganizations] = useState<ExternalOrganization[]>([]);
     const [aircraft, setAircraft] = useState<Aircraft[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const currentUserIdentityLabel = userProfile?.email?.trim() || userProfile?.id || '';
 
     const loadData = async () => {
         try {
@@ -254,21 +260,38 @@ export default function AuditsPage() {
         const departmentMap = new Map(departments.map(d => [d.id, d.name]));
         const orgMap = new Map(organizations.map(o => [o.id, o.name]));
         const aircraftMap = new Map(aircraft.map((item) => [item.id, item.tailNumber]));
+        const currentPersonnelProfile = userProfile?.email
+          ? personnel.find((person) => (person.email || '').trim().toLowerCase() === userProfile.email.trim().toLowerCase()) || null
+          : null;
+        const activeAuditorId = currentPersonnelProfile?.id || userProfile?.id || '';
 
         return audits.map(audit => ({
             ...audit,
-            auditeeName: personnelMap.get(audit.auditeeId) || '',
+            auditorName:
+              ((activeAuditorId && audit.auditorId === activeAuditorId) ? currentUserIdentityLabel : '') ||
+              (/^vercel-seed-/i.test((audit.auditorId || '').trim()) ? currentUserIdentityLabel : '') ||
+              audit.auditorName?.trim() ||
+              personnelMap.get(audit.auditorId) ||
+              audit.auditorId ||
+              '',
+            auditeeName:
+              audit.auditeeName?.trim() ||
+              personnelMap.get(audit.auditeeId) ||
+              audit.auditeeId ||
+              '',
             targetName:
               audit.targetName?.trim() ||
               orgMap.get(audit.organizationId || '') ||
+              orgMap.get(audit.targetId || '') ||
               departmentMap.get(audit.targetId || '') ||
+              personnelMap.get(audit.targetId || '') ||
               departmentMap.get(audit.auditeeId) ||
               personnelMap.get(audit.auditeeId) ||
               audit.targetId ||
               '',
             assetName: aircraftMap.get(audit.assetId || '') || '',
         }));
-    }, [aircraft, audits, personnel, departments, organizations]);
+    }, [aircraft, audits, currentUserIdentityLabel, departments, organizations, personnel, userProfile?.email, userProfile?.id]);
 
     const renderOrgContent = (orgId: string | 'internal') => {
         const filteredByOrg = enrichedAudits.filter(a => 
@@ -280,7 +303,7 @@ export default function AuditsPage() {
 
         if (!showStatusTabs || statusTabs.length === 0) {
             return (
-                <div className="p-4 lg:p-6">
+                <div className="overflow-y-auto p-4 lg:p-6">
                     <AuditsTable audits={filteredByOrg} tenantId={tenantId || ''} />
                 </div>
             );
@@ -303,12 +326,12 @@ export default function AuditsPage() {
                 ) : null}
                 <div className="flex-1 min-h-0 overflow-y-auto">
                     {isTabEnabled('active') ? (
-                      <TabsContent value="active" className="m-0 p-4 lg:p-6">
+                      <TabsContent value="active" className="m-0 p-4 pb-6 lg:p-6 lg:pb-8">
                           <AuditsTable audits={activeAudits} tenantId={tenantId || ''} />
                       </TabsContent>
                     ) : null}
                     {isTabEnabled('archived') ? (
-                      <TabsContent value="archived" className="m-0 p-4 lg:p-6">
+                      <TabsContent value="archived" className="m-0 p-4 pb-6 lg:p-6 lg:pb-8">
                           <AuditsTable audits={archivedAudits} tenantId={tenantId || ''} />
                       </TabsContent>
                     ) : null}
@@ -327,8 +350,8 @@ export default function AuditsPage() {
     }
 
     return (
-        <div className={cn("max-w-[1100px] mx-auto w-full flex flex-col gap-4 px-1 pt-4", isMobile ? "min-h-0 overflow-y-auto" : "h-full overflow-hidden")}>
-            <Card className={cn("flex flex-col shadow-none border", isMobile ? "min-h-0 overflow-visible" : "h-full overflow-hidden")}>
+        <div className={cn("max-w-[1100px] mx-auto w-full flex flex-col gap-4 px-1 pt-4", isMobile ? "min-h-0 overflow-y-auto" : "h-full min-h-0 overflow-hidden")}>
+            <Card className={cn("flex flex-col shadow-none border", isMobile ? "min-h-0 overflow-visible" : "h-full min-h-0 overflow-hidden")}>
                 <CardControlHeader
                     className="main-page-header flex w-full shrink-0 flex-col bg-[hsl(var(--card-header-band-background))]"
                     isMobile={false}
@@ -378,7 +401,7 @@ export default function AuditsPage() {
                         </Button>
                     </div>
                 </div>
-                <CardContent className={cn("flex-1 p-0 bg-muted/5", isMobile ? "overflow-y-auto" : "overflow-hidden")}>
+                <CardContent className={cn("flex-1 min-h-0 p-0 bg-muted/5", isMobile ? "overflow-y-auto" : "overflow-y-auto")}>
                     {!showTabs || !showOrgTabs ? (
                         renderOrgContent(scopedOrganizationId)
                     ) : (
