@@ -42,6 +42,7 @@ import {
   Wrench,
   MoreHorizontal,
   ChevronDown,
+  QrCode,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
@@ -1001,6 +1002,12 @@ export default function AircraftDetailPage({ params }: AircraftDetailPageProps) 
                 actions={
                   <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
                     <BackNavButton href="/assets/aircraft" text="Back to Fleet" />
+                    <Button asChild variant="outline" className="h-8 px-3 text-[10px] font-black uppercase tracking-widest border-slate-300">
+                      <Link href={`/assets/aircraft/${aircraft.id}/qr-code`}>
+                        <QrCode className="mr-1.5 h-3.5 w-3.5" />
+                        QR Code
+                      </Link>
+                    </Button>
                     <EditAircraftDialog aircraft={aircraft} tenantId={tenantId || ''} />
                   </div>
                 }

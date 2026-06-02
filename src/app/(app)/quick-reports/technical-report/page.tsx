@@ -1,7 +1,7 @@
 'use client';
 
 import { ChangeEvent, useMemo, useEffect, useState } from 'react';
-import { usePathname, useParams, useRouter } from 'next/navigation';
+import { usePathname, useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -39,6 +39,7 @@ type TechnicalReportValues = z.infer<typeof technicalReportSchema>;
 export default function QuickTechnicalReportPage() {
   const router = useRouter();
   const pathname = usePathname() || '';
+  const searchParams = useSearchParams();
   const params = useParams<{ tenantId?: string }>();
   const { toast } = useToast();
   const [aircrafts, setAircrafts] = useState<Aircraft[]>([]);
@@ -46,6 +47,8 @@ export default function QuickTechnicalReportPage() {
   const [photoAttachments, setPhotoAttachments] = useState<QuickReportPhotoAttachment[]>([]);
   const publicTenantId = typeof params?.tenantId === 'string' ? params.tenantId.trim() : '';
   const isPublicPortal = pathname.startsWith('/report/');
+  const lockedAircraftId = searchParams?.get('aircraftId')?.trim() || '';
+  const lockedAircraft = lockedAircraftId ? aircrafts.find((aircraft) => aircraft.id === lockedAircraftId) || null : null;
   const returnHref = isPublicPortal && publicTenantId ? `/report/${encodeURIComponent(publicTenantId)}` : '/quick-reports';
   const showBackButton = !isPublicPortal;
   const photoHelperText = useMemo(
@@ -74,7 +77,7 @@ export default function QuickTechnicalReportPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [publicTenantId]);
 
   const form = useForm<TechnicalReportValues>({
     resolver: zodResolver(technicalReportSchema),
@@ -92,10 +95,19 @@ export default function QuickTechnicalReportPage() {
     },
   });
 
+  useEffect(() => {
+    form.setValue('aircraftId', lockedAircraftId);
+  }, [form, lockedAircraftId]);
+
   const onSubmit = async (values: TechnicalReportValues) => {
     setIsSubmitting(true);
     try {
       const selectedAircraft = aircrafts.find((aircraft) => aircraft.id === values.aircraftId);
+      const aircraftLabel = selectedAircraft
+        ? `${selectedAircraft.tailNumber} (${selectedAircraft.model})`
+        : lockedAircraft
+          ? `${lockedAircraft.tailNumber} (${lockedAircraft.model})`
+          : null;
       const response = await fetch('/api/technical-reports', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -112,7 +124,7 @@ export default function QuickTechnicalReportPage() {
             immediateAction: values.immediateAction || null,
             photoAttachments: photoAttachments.length > 0 ? photoAttachments : null,
             aircraftId: values.aircraftId && values.aircraftId !== 'unassigned' ? values.aircraftId : null,
-            aircraftLabel: selectedAircraft ? `${selectedAircraft.tailNumber} (${selectedAircraft.model})` : null,
+            aircraftLabel,
             tenantId: publicTenantId || undefined,
             submittedByName: isPublicPortal ? values.reporterName?.trim() || 'External Reporter' : undefined,
             submittedByEmail: isPublicPortal ? values.reporterEmail?.trim() || null : undefined,
@@ -216,27 +228,49 @@ export default function QuickTechnicalReportPage() {
                 <FormField
                   control={form.control}
                   name="aircraftId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Aircraft Involved</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger className="h-10">
-                            <SelectValue placeholder="Select an aircraft if relevant" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="unassigned">Not aircraft-specific</SelectItem>
-                          {aircrafts.map((aircraft) => (
-                            <SelectItem key={aircraft.id} value={aircraft.id}>
-                              {aircraft.tailNumber} ({aircraft.model})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+                  render={({ field }) => {
+                    if (lockedAircraftId) {
+                      return (
+                        <FormItem>
+                          <FormLabel>Aircraft Involved</FormLabel>
+                          <FormControl>
+                            <input type="hidden" {...field} value={lockedAircraftId} />
+                          </FormControl>
+                          <div className="rounded-lg border bg-muted/20 p-3">
+                            <p className="text-sm font-semibold text-foreground">
+                              {lockedAircraft ? `${lockedAircraft.tailNumber} (${lockedAircraft.model})` : 'Loading aircraft details from the QR code...'}
+                            </p>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              This report was opened from an aircraft QR code and is locked to that aircraft.
+                            </p>
+                          </div>
+                          <FormMessage />
+                        </FormItem>
+                      );
+                    }
+
+                    return (
+                      <FormItem>
+                        <FormLabel>Aircraft Involved</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger className="h-10">
+                              <SelectValue placeholder="Select an aircraft if relevant" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="unassigned">Not aircraft-specific</SelectItem>
+                            {aircrafts.map((aircraft) => (
+                              <SelectItem key={aircraft.id} value={aircraft.id}>
+                                {aircraft.tailNumber} ({aircraft.model})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    );
+                  }}
                 />
               </div>
 

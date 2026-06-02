@@ -159,7 +159,17 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
         || isLegacySeedAuditorId
     );
     const auditeePerson = personnel.find((person) => person.id === audit.auditeeId) || null;
-    const canAuditeeSign = !!userProfile?.id && !!auditeePerson && userProfile.id === audit.auditeeId;
+    const currentAuditeeProfile = userProfile?.email
+        ? personnel.find((person) => (person.email || '').trim().toLowerCase() === userProfile.email.trim().toLowerCase()) || null
+        : null;
+    const activeAuditeeId = currentAuditeeProfile?.id || userProfile?.id || '';
+    const normalizedAuditAuditeeName = (audit.auditeeName || '').trim().toLowerCase();
+    const normalizedSignedAuditeeName = (audit.auditeeSignoff?.signedByName || '').trim().toLowerCase();
+    const canAuditeeSign = (
+        (!!activeAuditeeId && activeAuditeeId === audit.auditeeId)
+        || (!!normalizedCurrentUserIdentity && normalizedAuditAuditeeName === normalizedCurrentUserIdentity)
+        || (!!normalizedCurrentUserIdentity && normalizedSignedAuditeeName === normalizedCurrentUserIdentity)
+    );
     const auditorDisplayName = audit.auditorName?.trim()
         || audit.auditorSignoff?.signedByName?.trim()
         || (canAuditorSign ? currentUserIdentityLabel : '')
@@ -173,6 +183,8 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
         || (isLegacySeedAuditorId ? currentUserIdentityLabel : '')
         || audit.auditorId;
     const resolvedAuditeeName = audit.auditeeName?.trim()
+        || audit.auditeeSignoff?.signedByName?.trim()
+        || (canAuditeeSign ? currentUserIdentityLabel : '')
         || (auditeePerson ? `${auditeePerson.firstName} ${auditeePerson.lastName}`.trim() || auditeePerson.email || '' : '')
         || '';
     const targetOrganization = audit.organizationId
@@ -322,9 +334,10 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
         try {
             await persistAudit(
                 {
+                    auditeeId: activeAuditeeId || auditSnapshot.auditeeId,
                     auditeeSignoff: {
-                        signedById: userProfile.id,
-                        signedByName: `${userProfile.firstName} ${userProfile.lastName}`.trim(),
+                        signedById: activeAuditeeId || userProfile.id,
+                        signedByName: currentUserIdentityLabel,
                         signatureUrl: auditeeSignatureDataUrl,
                         signedAt: new Date().toISOString(),
                     },
@@ -795,7 +808,7 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
                                     <div className="space-y-3 rounded-xl border bg-muted/5 p-4">
                                         <div className="space-y-1">
                                             <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Assigned Auditee</p>
-                                            <p className="text-sm font-semibold">{auditeePerson ? `${auditeePerson.firstName} ${auditeePerson.lastName}` : 'Department or external company'}</p>
+                                            <p className="text-sm font-semibold">{resolvedAuditeeName || 'Department or external company'}</p>
                                         </div>
                                         {audit.auditeeSignoff ? (
                                             <div className="rounded-lg border bg-background p-3">

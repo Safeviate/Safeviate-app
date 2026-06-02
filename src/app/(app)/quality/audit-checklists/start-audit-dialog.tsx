@@ -251,7 +251,14 @@ export function StartAuditDialog({
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col overflow-hidden pt-4">
             <div className="min-h-0 flex-1 space-y-6 overflow-y-auto pr-1">
-            <Card className="border bg-muted/20 shadow-none">
+            <div className="rounded-lg border bg-muted/20 p-4">
+              <div className="space-y-1">
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Audit session details</p>
+                <p className="text-sm font-semibold text-foreground">{template.title}</p>
+                <p className="text-xs text-muted-foreground">Set the target, auditee, scope, and planned date below. The scheduled audit will be created from these values.</p>
+              </div>
+            </div>
+            <Card className="hidden">
               <CardContent className="space-y-3 p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
@@ -262,32 +269,36 @@ export function StartAuditDialog({
                     {totalSections} sections · {totalItems} items
                   </div>
                 </div>
-                <div className="grid gap-2 sm:grid-cols-3">
-                  <div className="rounded-lg border bg-background px-3 py-2">
+                <div className="grid gap-2 lg:grid-cols-6">
+                  <div className="rounded-lg border bg-background px-3 py-2 lg:col-span-2">
                     <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Audit target</p>
                     <p className="mt-1 text-sm font-semibold text-foreground">{selectedTargetName?.trim() || 'Manual target name pending'}</p>
                   </div>
-                  <div className="rounded-lg border bg-background px-3 py-2">
+                  <div className="rounded-lg border bg-background px-3 py-2 lg:col-span-2">
                     <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Selected Company</p>
                     <p className="mt-1 text-sm font-semibold text-foreground">{selectedCompanyLabel}</p>
                   </div>
-                  <div className="rounded-lg border bg-background px-3 py-2">
+                  <div className="rounded-lg border bg-background px-3 py-2 lg:col-span-2">
                     <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Asset</p>
                     <p className="mt-1 text-sm font-semibold text-foreground">{selectedAssetLabel}</p>
                   </div>
-                  <div className="rounded-lg border bg-background px-3 py-2">
+                  <div className="rounded-lg border bg-background px-3 py-2 lg:col-span-2">
                     <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Scope</p>
                     <p className="mt-1 text-sm font-semibold text-foreground">Short description of what is being reviewed</p>
                   </div>
-                  <div className="rounded-lg border bg-background px-3 py-2">
+                  <div className="rounded-lg border bg-background px-3 py-2 lg:col-span-2">
                     <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Start date</p>
                     <p className="mt-1 text-sm font-semibold text-foreground">Planned audit date and opening timestamp</p>
                   </div>
-                  <div className="rounded-lg border bg-background px-3 py-2 sm:col-span-2">
+                  <div className="rounded-lg border bg-background px-3 py-2 lg:col-span-2">
                     <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Auditor</p>
                     <p className="mt-1 text-sm font-semibold text-foreground">{auditOwnerName}</p>
                   </div>
-                  <div className="rounded-lg border bg-background px-3 py-2">
+                  <div className="rounded-lg border bg-background px-3 py-2 lg:col-span-3">
+                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Auditee</p>
+                    <p className="mt-1 text-sm font-semibold text-foreground">{selectedAuditeeLabel || 'Auditee pending'}</p>
+                  </div>
+                  <div className="rounded-lg border bg-background px-3 py-2 lg:col-span-3">
                     <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Status on create</p>
                     <p className="mt-1 text-sm font-semibold text-foreground">Scheduled</p>
                   </div>
@@ -340,6 +351,10 @@ export function StartAuditDialog({
                   <p className="text-xs text-muted-foreground">
                     Enter the exact target label you want displayed on the audit record and summary cards.
                   </p>
+                  <div className="rounded-lg border bg-muted/10 px-3 py-2">
+                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Audit target preview</p>
+                    <p className="mt-1 text-sm font-semibold text-foreground">{field.value?.trim() || 'Manual target name pending'}</p>
+                  </div>
                   <FormMessage />
                 </FormItem>
               )}
@@ -368,10 +383,26 @@ export function StartAuditDialog({
                   <p className="text-xs text-muted-foreground">
                     If this audit applies to a specific aircraft, link it here so the audit history also appears on that asset file.
                   </p>
+                  <div className="rounded-lg border bg-muted/10 px-3 py-2">
+                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Asset preview</p>
+                    <p className="mt-1 text-sm font-semibold text-foreground">{selectedAssetLabel}</p>
+                  </div>
                   <FormMessage />
                 </FormItem>
               )}
             />
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="rounded-lg border bg-muted/10 px-3 py-3">
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Auditor</p>
+                <p className="mt-1 text-sm font-semibold text-foreground break-all">{auditOwnerName}</p>
+                <p className="mt-1 text-xs text-muted-foreground">The signed-in user will be assigned as the auditor.</p>
+              </div>
+              <div className="rounded-lg border bg-muted/10 px-3 py-3">
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Selected company</p>
+                <p className="mt-1 text-sm font-semibold text-foreground">{selectedCompanyLabel}</p>
+                <p className="mt-1 text-xs text-muted-foreground">This is the department or external company the audit will be attached to.</p>
+              </div>
+            </div>
             <FormField
               control={form.control}
               name="auditeeId"
@@ -398,6 +429,10 @@ export function StartAuditDialog({
                   <p className="text-xs text-muted-foreground">
                     Choose the assigned person who will act as the auditee and sign the audit.
                   </p>
+                  <div className="rounded-lg border bg-muted/10 px-3 py-2">
+                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Auditee preview</p>
+                    <p className="mt-1 text-sm font-semibold text-foreground">{selectedAuditeeLabel || 'Auditee pending'}</p>
+                  </div>
                   <FormMessage />
                 </FormItem>
               )}
@@ -411,6 +446,10 @@ export function StartAuditDialog({
                 <p className="text-xs text-muted-foreground">
                   Keep this short and specific so the audit purpose is obvious at a glance.
                 </p>
+                <div className="rounded-lg border bg-muted/10 px-3 py-2">
+                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Scope preview</p>
+                  <p className="mt-1 text-sm font-semibold text-foreground">{field.value?.trim() || 'Short description of what is being reviewed'}</p>
+                </div>
                 <FormMessage />
               </FormItem>
             )} />
@@ -442,6 +481,16 @@ export function StartAuditDialog({
                     <p className="text-xs text-muted-foreground">
                       This is the date the audit session will be opened and scheduled from.
                     </p>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="rounded-lg border bg-muted/10 px-3 py-2">
+                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Planned start</p>
+                        <p className="mt-1 text-sm font-semibold text-foreground">{field.value ? format(field.value, "PPP") : 'Date pending'}</p>
+                      </div>
+                      <div className="rounded-lg border bg-muted/10 px-3 py-2">
+                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Status on create</p>
+                        <p className="mt-1 text-sm font-semibold text-foreground">Scheduled</p>
+                      </div>
+                    </div>
                     <FormMessage />
                     </FormItem>
                 )}
