@@ -25,6 +25,31 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Save } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
+import { useUserProfile } from '@/hooks/use-user-profile';
+
+const isEmailLike = (value?: string | null) => Boolean(value && /\S+@\S+\.\S+/.test(value));
+
+const resolveReporterLabel = (
+  report: {
+    isAnonymous?: boolean | null;
+    submittedBy?: string | null;
+    submittedByEmail?: string | null;
+    submittedByName?: string | null;
+  },
+  currentUserEmail?: string | null,
+) => {
+  if (report.isAnonymous) return 'Anonymous';
+  const submittedByEmail = report.submittedByEmail?.trim() || '';
+  const submittedByName = report.submittedByName?.trim() || '';
+  const submittedBy = report.submittedBy?.trim() || '';
+  const viewerEmail = currentUserEmail?.trim() || '';
+
+  if (submittedByEmail) return submittedByEmail;
+  if (submittedByName && !/^vercel user$/i.test(submittedByName)) return submittedByName;
+  if (isEmailLike(submittedBy)) return submittedBy;
+  if ((/^vercel user$/i.test(submittedByName) || /^vercel-user$/i.test(submittedBy)) && viewerEmail) return viewerEmail;
+  return submittedByName || submittedBy || 'Signed-in User';
+};
 
 const reportStatuses = ['Open', 'Under Review', 'Awaiting Action', 'Closed'];
 const eventClassifications = ['Hazard', 'Incident', 'Accident'];
@@ -77,6 +102,8 @@ interface TriageFormProps {
 
 export function TriageForm({ report, tenantId, isStacked = false }: TriageFormProps) {
   const { toast } = useToast();
+  const { userProfile } = useUserProfile();
+  const reporterLabel = resolveReporterLabel(report, userProfile?.email);
 
   const form = useForm<TriageFormValues>({
     resolver: zodResolver(triageSchema),
@@ -121,7 +148,7 @@ export function TriageForm({ report, tenantId, isStacked = false }: TriageFormPr
             <section className="space-y-3">
                 <div className="flex flex-col gap-0.5">
                     <p className="text-[10px] font-black uppercase tracking-widest text-primary opacity-80">Initial Narrative</p>
-                    <p className="text-[11px] text-muted-foreground font-medium italic">Filed {format(new Date(report.submittedAt), 'PPP')} by {report.submittedByName}</p>
+                    <p className="text-[11px] text-muted-foreground font-medium italic">Filed {format(new Date(report.submittedAt), 'PPP')} by {reporterLabel}</p>
                 </div>
                 <div className="p-5 rounded-xl bg-primary/5 border border-primary/10 shadow-inner">
                     <p className="text-sm text-foreground font-medium leading-relaxed whitespace-pre-wrap italic opacity-90">&quot;{report.description}&quot;</p>

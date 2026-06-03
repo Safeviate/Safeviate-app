@@ -71,6 +71,7 @@ export interface SafetyReport {
     reportType: ReportType;
     status: ReportStatus;
     submittedBy: string;
+    submittedByEmail?: string | null;
     submittedByName: string;
     submittedAt: string; // ISO String
     closedDate?: string; // ISO String

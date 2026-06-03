@@ -25,7 +25,7 @@ export default function NewSafetyReportPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { tenantId } = useUserProfile();
+  const { tenantId, userProfile } = useUserProfile();
   const [aircrafts, setAircrafts] = useReactState<Aircraft[]>([]);
 
   useEffect(() => {
@@ -51,6 +51,9 @@ export default function NewSafetyReportPage() {
       toast({ variant: 'destructive', title: 'Error', description: 'You must be logged in to file a report.' });
       return;
     }
+
+    const reporterEmail = userProfile?.email?.trim() || '';
+    const reporterLabel = reporterEmail || [userProfile?.firstName, userProfile?.lastName].filter(Boolean).join(' ').trim() || 'Signed-in User';
     
     setIsSubmitting(true);
 
@@ -63,8 +66,9 @@ export default function NewSafetyReportPage() {
               reportNumber: `${getReportTypePrefix(values.reportType)}-${String(Date.now()).slice(-4)}`,
               reportType: values.reportType,
               status: 'Open',
-              submittedBy: 'vercel-user',
-              submittedByName: values.isAnonymous ? 'Anonymous' : 'Vercel User',
+              submittedBy: values.isAnonymous ? 'anonymous' : (reporterEmail || userProfile?.id || 'signed-in-user'),
+              submittedByEmail: values.isAnonymous ? null : reporterEmail || null,
+              submittedByName: values.isAnonymous ? 'Anonymous' : reporterLabel,
               submittedAt: new Date().toISOString(),
               isAnonymous: values.isAnonymous,
               eventDate: format(values.eventDate, 'yyyy-MM-dd'),

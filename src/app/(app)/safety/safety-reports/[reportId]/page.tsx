@@ -28,6 +28,30 @@ import { ResponsiveTabRow } from '@/components/responsive-tab-row';
 import { HEADER_SECONDARY_BUTTON_CLASS } from '@/components/page-header';
 import { usePageLayout } from '@/hooks/use-page-layout';
 
+const isEmailLike = (value?: string | null) => Boolean(value && /\S+@\S+\.\S+/.test(value));
+
+const resolveReporterLabel = (
+  report: {
+    isAnonymous?: boolean | null;
+    submittedBy?: string | null;
+    submittedByEmail?: string | null;
+    submittedByName?: string | null;
+  },
+  currentUserEmail?: string | null,
+) => {
+  if (report.isAnonymous) return 'Anonymous';
+  const submittedByEmail = report.submittedByEmail?.trim() || '';
+  const submittedByName = report.submittedByName?.trim() || '';
+  const submittedBy = report.submittedBy?.trim() || '';
+  const viewerEmail = currentUserEmail?.trim() || '';
+
+  if (submittedByEmail) return submittedByEmail;
+  if (submittedByName && !/^vercel user$/i.test(submittedByName)) return submittedByName;
+  if (isEmailLike(submittedBy)) return submittedBy;
+  if ((/^vercel user$/i.test(submittedByName) || /^vercel-user$/i.test(submittedBy)) && viewerEmail) return viewerEmail;
+  return submittedByName || submittedBy || 'Signed-in User';
+};
+
 interface SafetyReportDetailPageProps {
   params: Promise<{ reportId: string }>;
 }
@@ -164,6 +188,8 @@ export default function SafetyReportDetailPage({ params }: SafetyReportDetailPag
     );
   }
 
+  const reporterLabel = resolveReporterLabel(report, userProfile?.email);
+
   const renderFullReportSections = (isStacked = false) => (
     <div className={isStacked ? 'flex flex-col gap-8 p-6 pb-20' : 'p-6 pb-20'}>
       <TriageForm report={report} tenantId={tenantId} isStacked={isStacked} />
@@ -226,7 +252,7 @@ export default function SafetyReportDetailPage({ params }: SafetyReportDetailPag
                     Report {report.reportNumber}
                   </CardTitle>
                   <CardDescription className="mt-1 text-xs font-medium">
-                    Filed on {format(new Date(report.submittedAt), 'PPP')} by <span className="text-foreground font-semibold">{report.submittedByName}</span>
+                    Filed on {format(new Date(report.submittedAt), 'PPP')} by <span className="text-foreground font-semibold">{reporterLabel}</span>
                   </CardDescription>
                   {report.sourceQuickReportNumber ? (
                     <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -327,7 +353,7 @@ export default function SafetyReportDetailPage({ params }: SafetyReportDetailPag
             <CardHeader className="p-0 pb-4">
                 <CardTitle className="text-2xl">Safety Report {report.reportNumber}</CardTitle>
                 <CardDescription>
-                Filed on {format(new Date(report.submittedAt), 'PPP')} by {report.submittedByName}
+                Filed on {format(new Date(report.submittedAt), 'PPP')} by {reporterLabel}
                 </CardDescription>
             </CardHeader>
             <CardContent className="p-0 border-t pt-4">

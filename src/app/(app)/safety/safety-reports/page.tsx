@@ -44,6 +44,30 @@ const parseLocalDate = (value: string) => {
     return new Date(year, month - 1, day, 12);
 };
 
+const isEmailLike = (value?: string | null) => Boolean(value && /\S+@\S+\.\S+/.test(value));
+
+const resolveReporterLabel = (
+    report: {
+        isAnonymous?: boolean | null;
+        submittedBy?: string | null;
+        submittedByEmail?: string | null;
+        submittedByName?: string | null;
+    },
+    currentUserEmail?: string | null,
+) => {
+    if (report.isAnonymous) return 'Anonymous';
+    const submittedByEmail = report.submittedByEmail?.trim() || '';
+    const submittedByName = report.submittedByName?.trim() || '';
+    const submittedBy = report.submittedBy?.trim() || '';
+    const viewerEmail = currentUserEmail?.trim() || '';
+
+    if (submittedByEmail) return submittedByEmail;
+    if (submittedByName && !/^vercel user$/i.test(submittedByName)) return submittedByName;
+    if (isEmailLike(submittedBy)) return submittedBy;
+    if ((/^vercel user$/i.test(submittedByName) || /^vercel-user$/i.test(submittedBy)) && viewerEmail) return viewerEmail;
+    return submittedByName || submittedBy || 'Signed-in User';
+};
+
 const getStatusBadgeVariant = (status: string): 'default' | 'secondary' | 'destructive' | 'outline' => {
     switch (status) {
         case 'Closed': return 'default';
@@ -89,6 +113,7 @@ interface ReportsTableProps {
     reports: SafetyReport[];
     tenantId: string;
     canManage: boolean;
+    currentUserEmail?: string | null;
 }
 
 interface QuickSafetyInboxProps {
@@ -102,7 +127,7 @@ interface TechnicalIntakeProps {
     reports: TechnicalQuickReport[];
 }
 
-function ReportsTable({ reports, tenantId, canManage }: ReportsTableProps) {
+function ReportsTable({ reports, tenantId, canManage, currentUserEmail }: ReportsTableProps) {
     return (
         <ResponsiveCardGrid
             items={reports}
@@ -133,7 +158,7 @@ function ReportsTable({ reports, tenantId, canManage }: ReportsTableProps) {
                         </div>
                         <div className="flex items-center gap-2 text-xs font-bold">
                             <User className="h-3.5 w-3.5 text-muted-foreground" />
-                            Filed by: {report.submittedByName}
+                            Filed by: {resolveReporterLabel(report, currentUserEmail)}
                         </div>
                         {report.sourceQuickReportNumber ? (
                             <div className="flex flex-wrap items-center gap-2">
@@ -218,7 +243,7 @@ function QuickSafetyInbox({ reports, canManage, classifyingReportId, onClassify 
                                 </div>
                                 <div className="flex items-center gap-2 text-xs font-bold">
                                     <User className="h-3.5 w-3.5 text-muted-foreground" />
-                                    Filed by: {report.submittedByName}
+                                    Filed by: {resolveReporterLabel(report)}
                                 </div>
                                 {report.aircraftLabel ? (
                                     <div className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
@@ -328,7 +353,7 @@ function TechnicalIntake({ reports }: TechnicalIntakeProps) {
                                 </div>
                                 <div className="flex items-center gap-2 text-xs font-bold">
                                     <User className="h-3.5 w-3.5 text-muted-foreground" />
-                                    Filed by: {report.submittedByName}
+                                    Filed by: {resolveReporterLabel(report)}
                                 </div>
                                 {report.aircraftLabel ? (
                                     <div className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
@@ -437,7 +462,7 @@ function SafetyRecommendationsDialog({ reports }: { reports: SafetyReport[] }) {
 }
 
 export default function SafetyReportsPage() {
-  const { tenantId } = useUserProfile();
+  const { tenantId, userProfile } = useUserProfile();
   const { hasPermission } = usePermissions();
   const { scopedOrganizationId, shouldShowOrganizationTabs } = useOrganizationScope({ viewAllPermissionId: 'safety-reports-manage' });
   const { isPageEnabled } = usePageLayout('safety-reports');
@@ -581,7 +606,8 @@ export default function SafetyReportsPage() {
             reportType: report.reportType,
             status: 'Open',
             submittedBy: report.submittedByEmail || report.submittedById || 'quick-safety-report',
-            submittedByName: report.submittedByName,
+            submittedByEmail: report.submittedByEmail || null,
+            submittedByName: report.submittedByEmail || report.submittedByName,
             submittedAt: new Date().toISOString(),
             isAnonymous: false,
             eventDate: report.eventDate,
@@ -716,7 +742,7 @@ export default function SafetyReportsPage() {
                         />
                     </>
                 ) : null}
-                <ReportsTable reports={filteredReports} tenantId={tenantId || ''} canManage={canManageAll} />
+                <ReportsTable reports={filteredReports} tenantId={tenantId || ''} canManage={canManageAll} currentUserEmail={userProfile?.email} />
             </CardContent>
         </Card>
     );
