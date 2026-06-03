@@ -52,8 +52,9 @@ export default function NewSafetyReportPage() {
       return;
     }
 
+    const filedOnBehalfOf = values.submittedOnBehalfOf?.trim() || '';
     const reporterEmail = userProfile?.email?.trim() || '';
-    const reporterLabel = reporterEmail || [userProfile?.firstName, userProfile?.lastName].filter(Boolean).join(' ').trim() || 'Signed-in User';
+    const reporterLabel = filedOnBehalfOf || reporterEmail || [userProfile?.firstName, userProfile?.lastName].filter(Boolean).join(' ').trim() || 'Signed-in User';
     
     setIsSubmitting(true);
 
@@ -69,6 +70,7 @@ export default function NewSafetyReportPage() {
               submittedBy: values.isAnonymous ? 'anonymous' : (reporterEmail || userProfile?.id || 'signed-in-user'),
               submittedByEmail: values.isAnonymous ? null : reporterEmail || null,
               submittedByName: values.isAnonymous ? 'Anonymous' : reporterLabel,
+              submittedOnBehalfOf: values.isAnonymous ? null : (filedOnBehalfOf || null),
               submittedAt: new Date().toISOString(),
               isAnonymous: values.isAnonymous,
               eventDate: format(values.eventDate, 'yyyy-MM-dd'),

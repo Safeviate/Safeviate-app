@@ -52,15 +52,18 @@ const resolveReporterLabel = (
         submittedBy?: string | null;
         submittedByEmail?: string | null;
         submittedByName?: string | null;
+        submittedOnBehalfOf?: string | null;
     },
     currentUserEmail?: string | null,
 ) => {
     if (report.isAnonymous) return 'Anonymous';
+    const submittedOnBehalfOf = report.submittedOnBehalfOf?.trim() || '';
     const submittedByEmail = report.submittedByEmail?.trim() || '';
     const submittedByName = report.submittedByName?.trim() || '';
     const submittedBy = report.submittedBy?.trim() || '';
     const viewerEmail = currentUserEmail?.trim() || '';
 
+    if (submittedOnBehalfOf) return submittedOnBehalfOf;
     if (submittedByEmail) return submittedByEmail;
     if (submittedByName && !/^vercel user$/i.test(submittedByName)) return submittedByName;
     if (isEmailLike(submittedBy)) return submittedBy;
@@ -160,6 +163,11 @@ function ReportsTable({ reports, tenantId, canManage, currentUserEmail }: Report
                             <User className="h-3.5 w-3.5 text-muted-foreground" />
                             Filed by: {resolveReporterLabel(report, currentUserEmail)}
                         </div>
+                        {report.submittedOnBehalfOf ? (
+                            <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+                                On behalf of {report.submittedOnBehalfOf}
+                            </div>
+                        ) : null}
                         {report.sourceQuickReportNumber ? (
                             <div className="flex flex-wrap items-center gap-2">
                                 <Badge variant="outline" className="h-5 text-[9px] font-black uppercase">

@@ -24,6 +24,7 @@ import { useTenantConfig } from '@/hooks/use-tenant-config';
 const formSchema = z.object({
   reportType: z.string().min(1, "Report type is required."),
   isAnonymous: z.boolean().default(false),
+  submittedOnBehalfOf: z.string().optional(),
   eventDate: z.date({ required_error: "Event date is required." }),
   eventTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, { message: "Invalid time format (HH:mm)." }),
   location: z.string().min(1, "Location is required."),
@@ -58,6 +59,7 @@ export function NewSafetyReportForm({ aircrafts, onSubmit, isSubmitting }: NewSa
     defaultValues: {
       reportType: '',
       isAnonymous: false,
+      submittedOnBehalfOf: '',
       eventTime: format(new Date(), 'HH:mm'),
       location: '',
       aircraftId: '',
@@ -126,6 +128,27 @@ export function NewSafetyReportForm({ aircrafts, onSubmit, isSubmitting }: NewSa
                     )}
                 />
             </div>
+
+            <FormField
+                control={form.control}
+                name="submittedOnBehalfOf"
+                render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>File On Behalf Of</FormLabel>
+                        <FormControl>
+                            <Input
+                                placeholder="Enter the name or email of the person this report is being filed for"
+                                {...field}
+                                className="h-10 bg-background border-slate-200"
+                            />
+                        </FormControl>
+                        <p className="text-[11px] font-medium text-muted-foreground">
+                            Optional. If entered, this name will appear on the report as the person who filed it.
+                        </p>
+                        <FormMessage />
+                    </FormItem>
+                )}
+            />
 
             <Separator />
 

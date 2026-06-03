@@ -36,15 +36,18 @@ const resolveReporterLabel = (
     submittedBy?: string | null;
     submittedByEmail?: string | null;
     submittedByName?: string | null;
+    submittedOnBehalfOf?: string | null;
   },
   currentUserEmail?: string | null,
 ) => {
   if (report.isAnonymous) return 'Anonymous';
+  const submittedOnBehalfOf = report.submittedOnBehalfOf?.trim() || '';
   const submittedByEmail = report.submittedByEmail?.trim() || '';
   const submittedByName = report.submittedByName?.trim() || '';
   const submittedBy = report.submittedBy?.trim() || '';
   const viewerEmail = currentUserEmail?.trim() || '';
 
+  if (submittedOnBehalfOf) return submittedOnBehalfOf;
   if (submittedByEmail) return submittedByEmail;
   if (submittedByName && !/^vercel user$/i.test(submittedByName)) return submittedByName;
   if (isEmailLike(submittedBy)) return submittedBy;
@@ -254,6 +257,11 @@ export default function SafetyReportDetailPage({ params }: SafetyReportDetailPag
                   <CardDescription className="mt-1 text-xs font-medium">
                     Filed on {format(new Date(report.submittedAt), 'PPP')} by <span className="text-foreground font-semibold">{reporterLabel}</span>
                   </CardDescription>
+                  {report.submittedOnBehalfOf ? (
+                    <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
+                      On behalf of {report.submittedOnBehalfOf}
+                    </p>
+                  ) : null}
                   {report.sourceQuickReportNumber ? (
                     <div className="mt-2 flex flex-wrap items-center gap-2">
                       <Badge variant="outline" className="h-6 px-2 text-[10px] font-black uppercase tracking-widest">
@@ -355,6 +363,11 @@ export default function SafetyReportDetailPage({ params }: SafetyReportDetailPag
                 <CardDescription>
                 Filed on {format(new Date(report.submittedAt), 'PPP')} by {reporterLabel}
                 </CardDescription>
+                {report.submittedOnBehalfOf ? (
+                  <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
+                    On behalf of {report.submittedOnBehalfOf}
+                  </p>
+                ) : null}
             </CardHeader>
             <CardContent className="p-0 border-t pt-4">
                 <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">Original Description</h4>

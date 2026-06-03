@@ -35,15 +35,18 @@ const resolveReporterLabel = (
     submittedBy?: string | null;
     submittedByEmail?: string | null;
     submittedByName?: string | null;
+    submittedOnBehalfOf?: string | null;
   },
   currentUserEmail?: string | null,
 ) => {
   if (report.isAnonymous) return 'Anonymous';
+  const submittedOnBehalfOf = report.submittedOnBehalfOf?.trim() || '';
   const submittedByEmail = report.submittedByEmail?.trim() || '';
   const submittedByName = report.submittedByName?.trim() || '';
   const submittedBy = report.submittedBy?.trim() || '';
   const viewerEmail = currentUserEmail?.trim() || '';
 
+  if (submittedOnBehalfOf) return submittedOnBehalfOf;
   if (submittedByEmail) return submittedByEmail;
   if (submittedByName && !/^vercel user$/i.test(submittedByName)) return submittedByName;
   if (isEmailLike(submittedBy)) return submittedBy;
@@ -149,6 +152,11 @@ export function TriageForm({ report, tenantId, isStacked = false }: TriageFormPr
                 <div className="flex flex-col gap-0.5">
                     <p className="text-[10px] font-black uppercase tracking-widest text-primary opacity-80">Initial Narrative</p>
                     <p className="text-[11px] text-muted-foreground font-medium italic">Filed {format(new Date(report.submittedAt), 'PPP')} by {reporterLabel}</p>
+                    {report.submittedOnBehalfOf ? (
+                      <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
+                        On behalf of {report.submittedOnBehalfOf}
+                      </p>
+                    ) : null}
                 </div>
                 <div className="p-5 rounded-xl bg-primary/5 border border-primary/10 shadow-inner">
                     <p className="text-sm text-foreground font-medium leading-relaxed whitespace-pre-wrap italic opacity-90">&quot;{report.description}&quot;</p>

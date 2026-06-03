@@ -73,6 +73,7 @@ export interface SafetyReport {
     submittedBy: string;
     submittedByEmail?: string | null;
     submittedByName: string;
+    submittedOnBehalfOf?: string | null;
     submittedAt: string; // ISO String
     closedDate?: string; // ISO String
     isAnonymous: boolean;
