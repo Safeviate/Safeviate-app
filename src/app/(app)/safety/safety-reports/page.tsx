@@ -684,7 +684,7 @@ export default function SafetyReportsPage() {
     );
 
     return (
-        <Card className="flex-1 flex flex-col overflow-hidden shadow-none border rounded-xl">
+        <Card className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border shadow-none">
             <div className="flex flex-col bg-muted/5">
                 <div className={CARD_HEADER_BAND_CLASS} style={headerBandBorderStyle}>
                     <div className="flex items-center gap-3">
@@ -704,7 +704,7 @@ export default function SafetyReportsPage() {
                     </div>
                 </div>
             </div>
-            <CardContent className="flex-1 p-0 bg-background overflow-y-auto">
+            <CardContent className="min-h-0 flex-1 overflow-y-auto p-0 bg-background">
                 {orgId === 'internal' ? (
                     <>
                         <TechnicalIntake reports={technicalReports} />
@@ -724,7 +724,7 @@ export default function SafetyReportsPage() {
 
   if (isLoading) {
     return (
-        <div className="max-w-[1100px] mx-auto w-full space-y-6 pt-4 px-1">
+        <div className="mx-auto w-full max-w-[1100px] space-y-6 px-1 pt-4">
             <Skeleton className="h-20 w-full" />
             <Skeleton className="h-[500px] w-full" />
         </div>
@@ -733,19 +733,19 @@ export default function SafetyReportsPage() {
 
   const showTabs = shouldShowOrganizationTabs;
 
-    return (
-        <div className="max-w-[1100px] mx-auto w-full flex flex-col gap-6 pt-4 px-1 h-full overflow-hidden">
+  return (
+        <div className="mx-auto flex h-full min-h-0 w-full max-w-[1100px] flex-col gap-6 overflow-hidden px-1 pt-4">
         {!showTabs ? (
             renderOrgCard(scopedOrganizationId)
         ) : (
-            <Tabs value={activeOrgTab} onValueChange={setActiveOrgTab} className="w-full flex flex-col h-full overflow-hidden">
-                <div className="flex-1 min-h-0 overflow-hidden">
-                    <TabsContent value="internal" className="mt-0 h-full">
+            <Tabs value={activeOrgTab} onValueChange={setActiveOrgTab} className="flex h-full min-h-0 w-full flex-col overflow-hidden">
+                <div className="min-h-0 flex-1 overflow-hidden">
+                    <TabsContent value="internal" className="mt-0 h-full min-h-0">
                         {renderOrgCard('internal')}
                     </TabsContent>
                     
                     {(organizations || []).map(org => (
-                        <TabsContent key={org.id} value={org.id} className="mt-0 h-full">
+                        <TabsContent key={org.id} value={org.id} className="mt-0 h-full min-h-0">
                             {renderOrgCard(org.id)}
                         </TabsContent>
                     ))}
