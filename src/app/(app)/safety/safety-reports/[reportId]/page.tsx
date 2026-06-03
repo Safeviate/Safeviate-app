@@ -128,7 +128,7 @@ export default function SafetyReportDetailPage({ params }: SafetyReportDetailPag
       { value: 'triage', label: 'Report & Triage' },
       { value: 'hazards', label: 'Hazard & Risk ID' },
       { value: 'investigation', label: 'Investigation' },
-      { value: 'cap', label: 'Corrective Actions' },
+      { value: 'cap', label: 'Corrective Actions Review' },
       { value: 'review', label: 'Final Review' },
       { value: 'discussion', label: myMentionsCount > 0 ? `Discussion (${myMentionsCount})` : 'Discussion' },
     ];
@@ -143,6 +143,10 @@ export default function SafetyReportDetailPage({ params }: SafetyReportDetailPag
   }, [activeTab, showReportViews, visibleReportTabs]);
 
   const isLoading = isLoadingReport || isLoadingPersonnel || isLoadingRiskMatrix;
+
+  const handleReportSaved = (updatedReport: SafetyReport) => {
+    setReport(updatedReport);
+  };
 
   const handlePrint = () => {
     window.print();
@@ -199,8 +203,10 @@ export default function SafetyReportDetailPage({ params }: SafetyReportDetailPag
       <HazardIdentificationForm
         report={report}
         tenantId={tenantId}
+        personnel={personnel || []}
         riskMatrixColors={riskMatrixSettings?.colors}
         isStacked={isStacked}
+        onReportSaved={handleReportSaved}
       />
       <InvestigationForm
         report={report}
@@ -208,7 +214,7 @@ export default function SafetyReportDetailPage({ params }: SafetyReportDetailPag
         personnel={personnel || []}
         isStacked={isStacked}
       />
-      <CorrectiveActionsForm report={report} tenantId={tenantId} personnel={personnel || []} isStacked={isStacked} />
+      <CorrectiveActionsForm report={report} tenantId={tenantId} personnel={personnel || []} isStacked={isStacked} onReportSaved={handleReportSaved} />
       <FinalReview
         report={report}
         tenantId={tenantId}
@@ -226,11 +232,11 @@ export default function SafetyReportDetailPage({ params }: SafetyReportDetailPag
       case 'triage':
         return <TriageForm report={report} tenantId={tenantId} />;
       case 'hazards':
-        return <HazardIdentificationForm report={report} tenantId={tenantId} riskMatrixColors={riskMatrixSettings?.colors} />;
+        return <HazardIdentificationForm report={report} tenantId={tenantId} personnel={personnel || []} riskMatrixColors={riskMatrixSettings?.colors} onReportSaved={handleReportSaved} />;
       case 'investigation':
         return <InvestigationForm report={report} tenantId={tenantId} personnel={personnel || []} />;
       case 'cap':
-        return <CorrectiveActionsForm report={report} tenantId={tenantId} personnel={personnel || []} />;
+        return <CorrectiveActionsForm report={report} tenantId={tenantId} personnel={personnel || []} onReportSaved={handleReportSaved} />;
       case 'review':
         return <FinalReview report={report} tenantId={tenantId} personnel={personnel || []} riskMatrixColors={riskMatrixSettings?.colors} />;
       case 'discussion':
@@ -343,9 +349,9 @@ export default function SafetyReportDetailPage({ params }: SafetyReportDetailPag
                     {renderFullReportSections(true)}
                   </TabsContent>
                   <TabsContent value="triage" className="m-0 h-full outline-none overflow-hidden h-full"><TriageForm report={report} tenantId={tenantId} /></TabsContent>
-                  <TabsContent value="hazards" className="m-0 h-full outline-none overflow-hidden h-full"><HazardIdentificationForm report={report} tenantId={tenantId} riskMatrixColors={riskMatrixSettings?.colors} /></TabsContent>
+                  <TabsContent value="hazards" className="m-0 h-full outline-none overflow-hidden h-full"><HazardIdentificationForm report={report} tenantId={tenantId} personnel={personnel || []} riskMatrixColors={riskMatrixSettings?.colors} onReportSaved={handleReportSaved} /></TabsContent>
                   <TabsContent value="investigation" className="m-0 h-full outline-none overflow-hidden h-full"><InvestigationForm report={report} tenantId={tenantId} personnel={personnel || []} /></TabsContent>
-                  <TabsContent value="cap" className="m-0 h-full outline-none overflow-hidden h-full"><CorrectiveActionsForm report={report} tenantId={tenantId} personnel={personnel || []} /></TabsContent>
+                  <TabsContent value="cap" className="m-0 h-full outline-none overflow-hidden h-full"><CorrectiveActionsForm report={report} tenantId={tenantId} personnel={personnel || []} onReportSaved={handleReportSaved} /></TabsContent>
                   <TabsContent value="review" className="m-0 h-full outline-none overflow-hidden h-full"><FinalReview report={report} tenantId={tenantId} personnel={personnel || []} riskMatrixColors={riskMatrixSettings?.colors} /></TabsContent>
                   <TabsContent value="discussion" className="m-0 h-full outline-none overflow-hidden h-full"><ReportForum report={report} tenantId={tenantId} /></TabsContent>
                 </>
@@ -376,9 +382,9 @@ export default function SafetyReportDetailPage({ params }: SafetyReportDetailPag
           </Card>
           <div className="flex flex-col gap-10">
               <TriageForm report={report} tenantId={tenantId} isStacked />
-              <HazardIdentificationForm report={report} tenantId={tenantId} riskMatrixColors={riskMatrixSettings?.colors} isStacked />
+              <HazardIdentificationForm report={report} tenantId={tenantId} personnel={personnel || []} riskMatrixColors={riskMatrixSettings?.colors} isStacked onReportSaved={handleReportSaved} />
               <InvestigationForm report={report} tenantId={tenantId} personnel={personnel || []} isStacked />
-              <CorrectiveActionsForm report={report} tenantId={tenantId} personnel={personnel || []} isStacked />
+              <CorrectiveActionsForm report={report} tenantId={tenantId} personnel={personnel || []} isStacked onReportSaved={handleReportSaved} />
               <FinalReview report={report} tenantId={tenantId} personnel={personnel || []} riskMatrixColors={riskMatrixSettings?.colors} isStacked />
           </div>
       </div>

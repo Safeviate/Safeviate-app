@@ -5,6 +5,7 @@ export type InvestigationMemberRole = 'Lead Investigator' | 'Team Member' | 'Tec
 export type InvestigationTaskStatus = 'Open' | 'In Progress' | 'Completed';
 export type CorrectiveActionStatus = 'Open' | 'In Progress' | 'Closed' | 'Cancelled';
 export type RiskLevel = 'Low' | 'Medium' | 'High' | 'Critical';
+export type CorrectiveActionRiskView = 'Initial' | 'Residual';
 
 export interface InvestigationMember {
     userId: string;
@@ -23,12 +24,19 @@ export interface ReportRisk {
     id: string;
     description: string;
     riskAssessment: RiskAssessment;
+    mitigations?: ReportMitigation[];
 }
 
 export interface ReportHazard {
     id: string;
     description: string;
     risks?: ReportRisk[];
+}
+
+export interface ReportMitigation {
+    id: string;
+    description: string;
+    residualRiskAssessment: RiskAssessment;
 }
 
 export interface InvestigationTask {
@@ -53,6 +61,13 @@ export interface CorrectiveAction {
     id: string;
     description: string;
     responsiblePersonId: string;
+    hazardId?: string | null;
+    riskId?: string | null;
+    riskAssessmentView?: CorrectiveActionRiskView | null;
+    residualLikelihood?: number | null;
+    residualSeverity?: number | null;
+    residualRiskScore?: number | null;
+    residualRiskLevel?: RiskLevel | null;
     deadline: string; // ISO String
     status: CorrectiveActionStatus;
 }

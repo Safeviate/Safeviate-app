@@ -27,6 +27,7 @@ import React from 'react';
 import { dispatchSafeviateEvent, SAFEVIATE_SAFETY_REPORTS_UPDATED } from '@/lib/client-events';
 import { SignaturePad } from '@/components/ui/signature-pad';
 import { useUserProfile } from '@/hooks/use-user-profile';
+import type { ReportHazard, ReportRisk } from '@/types/safety-report';
 
 // --- Helper Functions ---
 const getRiskLevel = (score: number): 'Low' | 'Medium' | 'High' | 'Critical' => {
@@ -58,12 +59,93 @@ const getRiskScoreColor = (
     return { backgroundColor: '#10b981', color: 'white' };
 };
 
+type ReviewRiskEntry = {
+  hazardId: string;
+  hazardDescription: string;
+  riskId: string;
+  riskDescription: string;
+  residualRiskLikelihood: number;
+  residualRiskSeverity: number;
+  residualRiskScore: number;
+  residualRiskLevel: 'Low' | 'Medium' | 'High' | 'Critical';
+};
+
+const deriveReviewRisks = (report: SafetyReport): ReviewRiskEntry[] => {
+  const initialHazards = report.initialHazards || [];
+  const mitigatedHazards = report.mitigatedHazards || [];
+
+  return initialHazards.flatMap((hazard) => {
+    const sourceRisks = hazard.risks?.length
+      ? hazard.risks
+      : [{
+          id: `${hazard.id}-risk`,
+          description: 'Residual risk after mitigation',
+          riskAssessment: {
+            likelihood: 1,
+            severity: 1,
+            riskScore: 1,
+            riskLevel: 'Low' as const,
+          },
+        }];
+
+    return sourceRisks.map((risk) => {
+      const mitigatedHazard = mitigatedHazards.find((entry) => entry.id === hazard.id);
+      const mitigatedRisk = mitigatedHazard?.risks?.find((entry) => entry.id === risk.id) || mitigatedHazard?.risks?.[0];
+      const assessment = mitigatedRisk?.riskAssessment || risk.riskAssessment;
+
+      return {
+        hazardId: hazard.id,
+        hazardDescription: hazard.description,
+        riskId: risk.id,
+        riskDescription: risk.description,
+        residualRiskLikelihood: assessment?.likelihood || 1,
+        residualRiskSeverity: assessment?.severity || 1,
+        residualRiskScore: assessment?.riskScore || 1,
+        residualRiskLevel: assessment?.riskLevel || 'Low',
+      };
+    });
+  });
+};
+
+const buildMitigatedHazardsFromReview = (report: SafetyReport, reviewedRisks: FormValues['risks']): ReportHazard[] => {
+  const grouped = new Map<string, ReportHazard>();
+
+  for (const reviewedRisk of reviewedRisks) {
+    const existing = grouped.get(reviewedRisk.hazardId);
+    const risk: ReportRisk = {
+      id: reviewedRisk.riskId,
+      description: reviewedRisk.riskDescription,
+      riskAssessment: {
+        likelihood: reviewedRisk.residualRiskLikelihood,
+        severity: reviewedRisk.residualRiskSeverity,
+        riskScore: reviewedRisk.residualRiskScore,
+        riskLevel: reviewedRisk.residualRiskLevel,
+      },
+    };
+
+    if (existing) {
+      existing.risks = [...(existing.risks || []), risk];
+      continue;
+    }
+
+    grouped.set(reviewedRisk.hazardId, {
+      id: reviewedRisk.hazardId,
+      description: reviewedRisk.hazardDescription,
+      risks: [risk],
+    });
+  }
+
+  return Array.from(grouped.values());
+};
+
 // --- Form Schemas ---
-const hazardReviewSchema = z.object({
-  id: z.string(),
-  description: z.string(),
-    residualRiskLikelihood: z.number(),
-    residualRiskSeverity: z.number(),
+const riskReviewSchema = z.object({
+  hazardId: z.string(),
+  hazardDescription: z.string(),
+  riskId: z.string(),
+  riskDescription: z.string(),
+  residualRiskLikelihood: z.number(),
+  residualRiskSeverity: z.number(),
   residualRiskScore: z.number(),
   residualRiskLevel: z.enum(["Low", "Medium", "High", "Critical"]),
 });
@@ -77,7 +159,7 @@ const signatureSchema = z.object({
 });
 
 const reportReviewSchema = z.object({
-  hazards: z.array(hazardReviewSchema),
+  risks: z.array(riskReviewSchema),
   signatures: z.array(signatureSchema).optional(),
 });
 
@@ -99,29 +181,23 @@ export function FinalReview({ report, tenantId, personnel, riskMatrixColors, isS
   const form = useForm<FormValues>({
     resolver: zodResolver(reportReviewSchema),
     defaultValues: {
-      hazards: report.initialHazards?.map(h => ({
-          id: h.id,
-          description: h.description,
-          residualRiskLikelihood: h.risks?.[0]?.riskAssessment.likelihood || 1,
-          residualRiskSeverity: h.risks?.[0]?.riskAssessment.severity || 1,
-          residualRiskScore: h.risks?.[0]?.riskAssessment.riskScore || 1,
-          residualRiskLevel: h.risks?.[0]?.riskAssessment.riskLevel || 'Low',
-      })) || [],
+      risks: deriveReviewRisks(report),
       signatures: report.signatures || [],
     },
   });
 
-  const { fields: hazardFields, remove: removeHazard } = useFieldArray({
+  const { fields: riskFields } = useFieldArray({
     control: form.control,
-    name: "hazards",
+    name: "risks",
   });
 
   const onSubmit = async (values: FormValues) => {
     try {
+      const mitigatedHazards = buildMitigatedHazardsFromReview(report, values.risks);
       const response = await fetch(`/api/safety-reports/${report.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ report: { ...report, initialHazards: values.hazards } }),
+        body: JSON.stringify({ report: { ...report, mitigatedHazards } }),
       });
 
       if (!response.ok) {
@@ -198,12 +274,12 @@ export function FinalReview({ report, tenantId, personnel, riskMatrixColors, isS
             <form onSubmit={form.handleSubmit(onSubmit)} className="h-full flex flex-col">
               {isStacked ? (
                 <div className="p-6 space-y-10">
-                    <ReviewFields form={form} hazardFields={hazardFields} riskMatrixColors={riskMatrixColors} handleSignReport={handleSignReport} signatureDataUrl={signatureDataUrl} onSignatureChange={setSignatureDataUrl} />
+                    <ReviewFields report={report} form={form} riskFields={riskFields} riskMatrixColors={riskMatrixColors} handleSignReport={handleSignReport} signatureDataUrl={signatureDataUrl} onSignatureChange={setSignatureDataUrl} />
                 </div>
               ) : (
                 <ScrollArea className="flex-1 p-6">
                   <div className="space-y-10">
-                    <ReviewFields form={form} hazardFields={hazardFields} riskMatrixColors={riskMatrixColors} handleSignReport={handleSignReport} signatureDataUrl={signatureDataUrl} onSignatureChange={setSignatureDataUrl} />
+                    <ReviewFields report={report} form={form} riskFields={riskFields} riskMatrixColors={riskMatrixColors} handleSignReport={handleSignReport} signatureDataUrl={signatureDataUrl} onSignatureChange={setSignatureDataUrl} />
                   </div>
                 </ScrollArea>
               )}
@@ -223,15 +299,16 @@ export function FinalReview({ report, tenantId, personnel, riskMatrixColors, isS
 }
 
 type ReviewFieldsProps = {
+  report: SafetyReport;
   form: UseFormReturn<FormValues>;
-  hazardFields: FieldArrayWithId<FormValues, 'hazards', 'id'>[];
+  riskFields: FieldArrayWithId<FormValues, 'risks', 'id'>[];
   riskMatrixColors?: Record<string, string>;
   handleSignReport: () => void | Promise<void>;
   signatureDataUrl: string;
   onSignatureChange: (value: string) => void;
 };
 
-function ReviewFields({ form, hazardFields, riskMatrixColors, handleSignReport, signatureDataUrl, onSignatureChange }: ReviewFieldsProps) {
+function ReviewFields({ report, form, riskFields, riskMatrixColors, handleSignReport, signatureDataUrl, onSignatureChange }: ReviewFieldsProps) {
   const signatures = form.watch('signatures') ?? [];
 
   return (
@@ -239,21 +316,41 @@ function ReviewFields({ form, hazardFields, riskMatrixColors, handleSignReport, 
       <section>
         <div className="flex items-center gap-2 mb-6">
             <div className="p-1.5 rounded-md bg-primary/10 text-primary"><ShieldCheck className="h-4 w-4" /></div>
-            <h3 className="text-sm font-black uppercase tracking-widest text-foreground">Hazard Residual Risk Review</h3>
+            <h3 className="text-sm font-black uppercase tracking-widest text-foreground">Residual Risk Review</h3>
         </div>
         <div className="space-y-4">
-          {hazardFields.map((field, index) => (
+          {riskFields.map((field, index) => (
             <div key={field.id} className="p-4 border rounded-xl bg-muted/5">
               <div className="flex justify-between items-start gap-4 mb-4">
                 <div className="flex-1">
                   <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1">Hazard {index + 1}</p>
-                  <p className="text-sm font-bold text-foreground">{field.description}</p>
+                  <p className="text-sm font-bold text-foreground">{field.hazardDescription}</p>
+                  <p className="mt-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Linked Risk</p>
+                  <p className="text-sm font-semibold text-foreground">{field.riskDescription}</p>
                 </div>
                 <div className="flex items-center gap-3 bg-background border px-3 py-1.5 rounded-full shadow-sm">
                    <span className="text-[10px] font-black uppercase tracking-widest opacity-60">Residual Risk:</span>
                    <span className="font-mono font-black text-xs">{(field.residualRiskLikelihood * field.residualRiskSeverity)}</span>
                 </div>
               </div>
+              {report?.correctiveActions?.some((action) => action.hazardId === field.hazardId && (!action.riskId || action.riskId === field.riskId)) ? (
+                <div className="mt-3 rounded-lg border bg-background px-3 py-3">
+                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Linked Mitigation Actions</p>
+                  <div className="mt-2 space-y-2">
+                    {report.correctiveActions
+                      .filter((action) => action.hazardId === field.hazardId && (!action.riskId || action.riskId === field.riskId))
+                      .map((action) => (
+                        <div key={action.id} className="flex flex-col gap-1 rounded-md border bg-muted/10 px-3 py-2">
+                          <p className="text-xs font-semibold text-foreground">{action.description}</p>
+                          <div className="flex flex-wrap gap-2 text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+                            <span>Status {action.status}</span>
+                            {action.riskId ? <span>Risk linked</span> : <span>Hazard-wide action</span>}
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              ) : null}
             </div>
           ))}
         </div>
