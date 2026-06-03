@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { ensureTechnicalReportsSchema } from '@/lib/server/bootstrap-db';
+import { invalidateTenantScopedCaches } from '@/lib/server/route-cache';
 import { resolveQuickReportContext } from '@/lib/server/quick-report-context';
 import { NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
@@ -36,6 +37,7 @@ export async function POST(request: Request) {
       context.tenantId,
       JSON.stringify(data),
     );
+    invalidateTenantScopedCaches(context.tenantId);
 
     return NextResponse.json({ report: data }, { status: 201 });
   } catch (error) {
@@ -96,6 +98,7 @@ export async function PUT(request: Request) {
       context.tenantId,
       JSON.stringify(data),
     );
+    invalidateTenantScopedCaches(context.tenantId);
 
     return NextResponse.json({ report: data }, { status: 200 });
   } catch (error) {

@@ -137,6 +137,12 @@ export default function QuickTechnicalReportPage() {
         throw new Error(payload?.error || 'Failed to submit technical report.');
       }
 
+      if (typeof window !== 'undefined') {
+        const updateStamp = JSON.stringify({ tenantId: publicTenantId || null, at: Date.now() });
+        window.localStorage.setItem('safeviate-technical-reports-updated', updateStamp);
+        window.dispatchEvent(new Event('safeviate-technical-reports-updated'));
+      }
+
       toast({
         title: 'Technical Report Submitted',
         description: 'The preliminary technical report has been captured for management follow-up.',
@@ -212,7 +218,7 @@ export default function QuickTechnicalReportPage() {
                   <div className="min-w-0">
                     <CardTitle>Preliminary Technical Report</CardTitle>
                     <CardDescription>
-                      Use this for early technical reporting before engineering or management completes deeper analysis and assignment.
+                      Use this for preliminary technical reporting before engineering or management completes deeper analysis and assignment.
                     </CardDescription>
                   </div>
                 </div>
@@ -241,7 +247,7 @@ export default function QuickTechnicalReportPage() {
                               {lockedAircraft ? `${lockedAircraft.tailNumber} (${lockedAircraft.model})` : 'Loading aircraft details from the QR code...'}
                             </p>
                             <p className="mt-1 text-xs text-muted-foreground">
-                              This report was opened from an aircraft QR code and is locked to that aircraft.
+                              This preliminary technical report was opened from an aircraft QR code and is locked to that aircraft.
                             </p>
                           </div>
                           <FormMessage />
@@ -498,7 +504,7 @@ export default function QuickTechnicalReportPage() {
             </Button>
             <Button type="submit" disabled={isSubmitting}>
               {isSubmitting ? <Wrench className="mr-2 h-4 w-4 animate-pulse" /> : <Wrench className="mr-2 h-4 w-4" />}
-              Submit Technical Report
+              Submit Preliminary Technical Report
             </Button>
           </div>
         </form>

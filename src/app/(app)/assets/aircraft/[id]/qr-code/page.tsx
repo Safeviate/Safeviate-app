@@ -66,7 +66,7 @@ export default async function AircraftQrPage({ params }: AircraftQrPageProps) {
       <Card className="overflow-hidden border shadow-none print:border-0 print:shadow-none">
         <MainPageHeader
           title={`${aircraft.tailNumber} QR Code`}
-          description="Print this code for the aircraft so technical reports open with the correct aircraft already selected."
+          description="Print this code for the aircraft so preliminary technical reports open with the correct aircraft already selected."
           actions={
             <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
               <BackNavButton href={`/assets/aircraft/${aircraft.id}`} text="Back to Aircraft" />
@@ -84,9 +84,9 @@ export default async function AircraftQrPage({ params }: AircraftQrPageProps) {
                 </div>
                 <div className="space-y-1">
                   <p className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground">Aircraft-specific QR</p>
-                  <CardTitle className="text-base font-black uppercase tracking-tight">Report Technical Issues</CardTitle>
+                  <CardTitle className="text-base font-black uppercase tracking-tight">Preliminary Technical Report</CardTitle>
                   <CardDescription className="text-sm">
-                    Use this code on the aircraft, in the hangar, or on the dispatch card to capture defects against the correct airframe.
+                    Use this code on the aircraft, in the hangar, or on the dispatch card to file preliminary technical reports against the correct airframe.
                   </CardDescription>
                 </div>
               </div>
@@ -114,7 +114,7 @@ export default async function AircraftQrPage({ params }: AircraftQrPageProps) {
               <CardHeader className="border-b bg-muted/5">
                 <CardTitle className="text-base font-black uppercase tracking-tight">How It Works</CardTitle>
                 <CardDescription className="text-sm">
-                  Scanning the code opens the public technical report form with this aircraft already filled in.
+                  Scanning the code opens the public preliminary technical report form with this aircraft already filled in.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3 p-4">
@@ -123,7 +123,7 @@ export default async function AircraftQrPage({ params }: AircraftQrPageProps) {
                   Preselected aircraft
                 </Badge>
                 <p className="text-sm text-muted-foreground">
-                  The QR targets the public technical report route for {tenant.name}, with the aircraft ID embedded so the reporting form cannot drift onto a different airframe.
+                  The QR targets the public preliminary technical report route for {tenant.name}, with the aircraft ID embedded so the reporting form cannot drift onto a different airframe.
                 </p>
                 <div className="rounded-lg border bg-muted/20 p-3 text-sm font-medium break-all">
                   {shareUrl}
@@ -135,10 +135,10 @@ export default async function AircraftQrPage({ params }: AircraftQrPageProps) {
               <CardContent className="space-y-2 p-4">
                 <p className="text-[10px] font-black uppercase tracking-[0.16em] text-foreground">Recommended placement</p>
                 <p className="text-sm text-muted-foreground">
-                  Put this on the airframe, tech log, dispatch card, or hangar wall so pilots and engineers report defects against the exact aircraft.
+                  Put this on the airframe, tech log, dispatch card, or hangar wall so pilots and engineers file preliminary technical reports against the exact aircraft.
                 </p>
                 <Button asChild variant="outline" className="w-full print:hidden">
-                  <Link href={reportPath}>Open Public Report Link</Link>
+                  <Link href={reportPath}>Open Preliminary Technical Report Link</Link>
                 </Button>
               </CardContent>
             </Card>

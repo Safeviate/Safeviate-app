@@ -431,9 +431,23 @@ export default function AircraftDetailPage({ params }: AircraftDetailPageProps) 
 
   useEffect(() => {
     loadData();
-    const events = ['safeviate-aircrafts-updated', 'safeviate-inspection-warning-settings-updated', 'safeviate-tenant-config-updated'];
+    const events = [
+      'safeviate-aircrafts-updated',
+      'safeviate-inspection-warning-settings-updated',
+      'safeviate-tenant-config-updated',
+      'safeviate-technical-reports-updated',
+    ];
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === 'safeviate-technical-reports-updated') {
+        loadData();
+      }
+    };
     events.forEach(e => window.addEventListener(e, loadData));
-    return () => events.forEach(e => window.removeEventListener(e, loadData));
+    window.addEventListener('storage', handleStorage);
+    return () => {
+      events.forEach(e => window.removeEventListener(e, loadData));
+      window.removeEventListener('storage', handleStorage);
+    };
   }, [loadData, aircraftId]);
 
   const utilisationChartNow = new Date();
@@ -595,6 +609,10 @@ export default function AircraftDetailPage({ params }: AircraftDetailPageProps) 
         .filter((report) => report.aircraftId === aircraft?.id)
         .sort((left, right) => `${right.eventDate}T${right.eventTime}`.localeCompare(`${left.eventDate}T${left.eventTime}`)),
     [technicalReports, aircraft?.id]
+  );
+  const openTechnicalReports = useMemo(
+    () => technicalReportsForAircraft.filter((report) => (report.status || 'Open') !== 'Closed'),
+    [technicalReportsForAircraft]
   );
   const qualityAuditsForAircraft = useMemo(
     () =>
@@ -1754,7 +1772,7 @@ export default function AircraftDetailPage({ params }: AircraftDetailPageProps) 
 
               <TabsContent value="defects" className={cn("mt-0 outline-none", isMobile ? "min-h-0" : "h-full overflow-y-auto no-scrollbar")}>
                 <CardContent className="p-4 sm:p-6">
-                  <Card className="mb-4 overflow-hidden border shadow-none">
+                  <Card id="technical-report-notifications" className="mb-4 overflow-hidden border shadow-none scroll-mt-16">
                     <CardHeader className="border-b bg-muted/20 px-4 py-3">
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                         <div className="min-w-0">
@@ -1842,15 +1860,71 @@ export default function AircraftDetailPage({ params }: AircraftDetailPageProps) 
                       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                         <div className="min-w-0">
                           <h3 className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-primary">
-                            <FileText className="h-3.5 w-3.5" />
-                            Technical Quick Reports
+                            <AlertCircle className="h-3.5 w-3.5" />
+                            Preliminary Technical Report
                           </h3>
                           <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
-                            Linked preliminary technical reports for this aircraft can be assigned and managed here.
+                            Open preliminary technical reports for this aircraft that still need follow-up.
                           </p>
                         </div>
                         <Badge variant="outline" className="h-6 px-2 text-[10px] font-black uppercase tracking-widest">
-                          {technicalReportsForAircraft.length} linked
+                          {openTechnicalReports.length} open
+                        </Badge>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-3 p-4">
+                      {openTechnicalReports.length > 0 ? (
+                        <div className="divide-y rounded-xl border bg-background">
+                          {openTechnicalReports.slice(0, 3).map((report) => (
+                            <div key={report.id} className="grid gap-3 px-4 py-4 md:grid-cols-[minmax(0,1.35fr)_repeat(2,minmax(0,0.8fr))] md:items-center">
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-black uppercase tracking-tight">
+                                  {report.reportNumber} · {report.title || report.summary}
+                                </p>
+                                <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                                  {report.location || 'Unknown location'} · Filed by {report.submittedByName}
+                                </p>
+                              </div>
+                              <div className="rounded-lg border bg-muted/5 px-3 py-3">
+                                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Status</p>
+                                <Badge variant={report.status === 'Closed' ? 'default' : 'destructive'} className="mt-2 text-[10px] uppercase tracking-widest">
+                                  {report.status}
+                                </Badge>
+                              </div>
+                              <div className="rounded-lg border bg-muted/5 px-3 py-3">
+                                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Filed</p>
+                                <p className="mt-1 text-sm font-black">
+                                  {format(parseLocalDate(report.eventDate) || new Date(report.eventDate), 'dd MMM yyyy')}
+                                </p>
+                                <Button asChild variant="link" className="mt-1 h-auto px-0 text-[10px] font-black uppercase tracking-[0.18em] text-primary">
+                                  <Link href={`#technical-report-${report.id}`}>Open preliminary technical report</Link>
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="flex min-h-[120px] items-center justify-center rounded-xl border border-dashed bg-muted/5 px-6 py-8 text-center">
+                          <p className="text-sm font-black uppercase tracking-wider text-foreground">No open preliminary technical report notifications</p>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  <Card className="mb-4 overflow-hidden border shadow-none">
+                    <CardHeader className="border-b bg-muted/20 px-4 py-3">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="min-w-0">
+                          <h3 className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-primary">
+                            <FileText className="h-3.5 w-3.5" />
+                            Preliminary Technical Report
+                          </h3>
+                          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
+                            Open preliminary technical reports for this aircraft can be reviewed and managed here.
+                          </p>
+                        </div>
+                        <Badge variant="outline" className="h-6 px-2 text-[10px] font-black uppercase tracking-widest">
+                          {technicalReportsForAircraft.length} open
                         </Badge>
                       </div>
                     </CardHeader>
@@ -1865,7 +1939,7 @@ export default function AircraftDetailPage({ params }: AircraftDetailPageProps) 
                             };
 
                             return (
-                              <div key={report.id} className="space-y-4 px-4 py-4">
+                              <div key={report.id} id={`technical-report-${report.id}`} className="space-y-4 px-4 py-4 scroll-mt-16">
                                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                                   <div className="min-w-0">
                                     <div className="flex flex-wrap items-center gap-2">
@@ -1983,7 +2057,7 @@ export default function AircraftDetailPage({ params }: AircraftDetailPageProps) 
                             <FileText className="h-5 w-5 text-muted-foreground/60" />
                           </div>
                           <div className="space-y-1">
-                            <p className="text-sm font-bold uppercase tracking-wider text-foreground">No linked technical quick reports</p>
+                            <p className="text-sm font-bold uppercase tracking-wider text-foreground">No linked preliminary technical reports</p>
                             <p className="text-[10px] font-bold uppercase tracking-widest italic text-muted-foreground">
                               Preliminary technical reports tied to this aircraft will appear here for engineering management.
                             </p>

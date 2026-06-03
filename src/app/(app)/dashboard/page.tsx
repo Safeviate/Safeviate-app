@@ -41,6 +41,7 @@ import type { AttendanceRecordData } from '@/types/attendance';
 import type { QualityAudit, CorrectiveActionPlan } from '@/types/quality';
 import type { Risk as SafetyRisk } from '@/types/risk';
 import type { SafetyReport } from '@/types/safety-report';
+import type { TechnicalQuickReport } from '@/types/quick-reports';
 import type { InstructorHourWarningSettings, MilestoneWarning, StudentMilestoneSettings, StudentProgressReport } from '@/types/training';
 import type { IndustryType } from '@/types/quality';
 import { TenantLayoutDisabledState } from '@/components/tenant-layout-disabled-state';
@@ -67,6 +68,7 @@ type SummaryPayload = {
   }>;
   audits?: QualityAudit[];
   reports?: SafetyReport[];
+  technicalReports?: TechnicalQuickReport[];
   caps?: CorrectiveActionPlan[];
   risks?: SafetyRisk[];
   attendanceRecords?: AttendanceRecordData[];
@@ -820,8 +822,21 @@ export default function DashboardPage() {
 
     void load();
 
+    const handleTechnicalReportUpdate = () => {
+      void load();
+    };
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === 'safeviate-technical-reports-updated') {
+        void load();
+      }
+    };
+    window.addEventListener('safeviate-technical-reports-updated', handleTechnicalReportUpdate);
+    window.addEventListener('storage', handleStorage);
+
     return () => {
       cancelled = true;
+      window.removeEventListener('safeviate-technical-reports-updated', handleTechnicalReportUpdate);
+      window.removeEventListener('storage', handleStorage);
     };
   }, []);
 
@@ -1723,7 +1738,7 @@ export default function DashboardPage() {
                     {tabs.filter((tab) => tab.value !== 'fleet').map((tab) => (
                       <TabsContent key={tab.value} value={tab.value} className="m-0">
                         {tab.value === 'overview' ? (
-                          <InstructorOverviewCard modern={isModern} metrics={instructorMetrics} />
+                          <InstructorOverviewCard modern={isModern} metrics={instructorMetrics} summary={summary} />
                         ) : tab.value === 'instructors' ? (
                           <InstructorLoadCard modern={isModern} metrics={instructorMetrics} />
                         ) : tab.value === 'students' ? (
@@ -1742,7 +1757,7 @@ export default function DashboardPage() {
                   tabs.map((tab) => (
                     <TabsContent key={tab.value} value={tab.value} className="m-0">
                       {tab.value === 'overview' ? (
-                        <InstructorOverviewCard modern={isModern} metrics={instructorMetrics} />
+                        <InstructorOverviewCard modern={isModern} metrics={instructorMetrics} summary={summary} />
                       ) : tab.value === 'instructors' ? (
                         <InstructorLoadCard modern={isModern} metrics={instructorMetrics} />
                       ) : tab.value === 'students' ? (
@@ -1800,8 +1815,20 @@ function StageCard({ tabLabel, modern }: { tabLabel: string; modern: boolean }) 
   );
 }
 
-function InstructorOverviewCard({ modern, metrics }: { modern: boolean; metrics: InstructorMetrics }) {
+function InstructorOverviewCard({
+  modern,
+  metrics,
+  summary,
+}: {
+  modern: boolean;
+  metrics: InstructorMetrics;
+  summary: SummaryPayload;
+}) {
   const topRows = metrics.rows.slice(0, 3);
+  const technicalNotifications = (Array.isArray(summary.technicalReports) ? summary.technicalReports : [])
+    .filter((report) => (report.status || 'Open') !== 'Closed')
+    .sort((left, right) => `${right.eventDate}T${right.eventTime}`.localeCompare(`${left.eventDate}T${left.eventTime}`))
+    .slice(0, 4);
 
   return (
     <Card className={cn(DASHBOARD_SHELL_CLASS, 'min-h-[calc(100vh-18rem)]', modern && 'border-slate-200/80 bg-white/95')}>
@@ -1888,6 +1915,50 @@ function InstructorOverviewCard({ modern, metrics }: { modern: boolean; metrics:
               <SummaryLine label="Near limit" value={String(metrics.watchCount)} />
               <SummaryLine label="Over limit" value={String(metrics.overCount)} />
             </div>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border bg-background">
+          <div className="flex items-center justify-between gap-3 border-b bg-muted/5 px-4 py-3">
+            <div className="min-w-0">
+              <p className="text-sm font-black uppercase tracking-tight">Preliminary Technical Report Notifications</p>
+              <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                Open preliminary technical reports needing company follow-up.
+              </p>
+            </div>
+            <Badge variant="outline" className="text-[10px] font-black uppercase">
+              {technicalNotifications.length} open
+            </Badge>
+          </div>
+          <div className="divide-y">
+            {technicalNotifications.length > 0 ? (
+              technicalNotifications.map((report) => (
+                <div key={report.id} className="grid gap-3 px-4 py-4 md:grid-cols-[minmax(0,1.4fr)_repeat(2,minmax(0,0.8fr))] md:items-center">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-black uppercase tracking-tight">
+                      {report.reportNumber} · {report.title || report.summary}
+                    </p>
+                    <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                      {report.aircraftLabel || 'Aircraft not set'} · {report.location || 'Unknown location'}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border bg-background px-3 py-3">
+                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Status</p>
+                    <Badge variant={report.status === 'Closed' ? 'default' : 'destructive'} className="mt-2 text-[10px] font-black uppercase">
+                      {report.status}
+                    </Badge>
+                  </div>
+                  <div className="rounded-lg border bg-background px-3 py-3">
+                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Filed</p>
+                    <p className="mt-1 text-sm font-black">{format(parseLocalDate(report.eventDate) || new Date(report.eventDate), 'dd MMM yyyy')}</p>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="px-4 py-10 text-center text-sm text-muted-foreground">
+                No open preliminary technical reports right now.
+              </div>
+            )}
           </div>
         </div>
       </CardContent>

@@ -8,6 +8,7 @@ import {
   ensureMeetingsSchema,
   ensurePersonnelSchema,
   ensureQualityAuditsSchema,
+  ensureTechnicalReportsSchema,
   ensureRisksSchema,
   ensureSafetyReportsSchema,
 } from '@/lib/server/bootstrap-db';
@@ -30,6 +31,7 @@ const EMPTY_SUMMARY = {
   mocs: [],
   audits: [],
   reports: [],
+  technicalReports: [],
   caps: [],
   risks: [],
   attendanceRecords: [],
@@ -204,6 +206,7 @@ export async function GET() {
       ensureMeetingsSchema(),
       ensurePersonnelSchema(),
       ensureQualityAuditsSchema(),
+      ensureTechnicalReportsSchema(),
       ensureCorrectiveActionPlansSchema(),
       ensureRisksSchema(),
       ensureSafetyReportsSchema(),
@@ -219,6 +222,7 @@ export async function GET() {
       riskRows,
       attendanceRows,
       meetingRows,
+      technicalReportRows,
     ] = await getOrSetRouteCache(`dashboard-summary:v2:${resolvedTenantId}`, 30_000, async () => Promise.all([
       safeFindMany('bookings', prisma.bookingRecord.findMany({ where: { tenantId: resolvedTenantId }, select: { data: true } })),
       safeFindMany('aircrafts', prisma.aircraftRecord.findMany({ where: { tenantId: resolvedTenantId }, select: { data: true } })),
@@ -268,6 +272,13 @@ export async function GET() {
         'meetings',
         prisma.$queryRawUnsafe<{ data: unknown }[]>(
           `SELECT data FROM meetings WHERE tenant_id = $1 ORDER BY created_at DESC`,
+          resolvedTenantId
+        )
+      ),
+      safeFindMany(
+        'technical_reports',
+        prisma.$queryRawUnsafe<{ data: unknown }[]>(
+          `SELECT data FROM technical_reports WHERE tenant_id = $1 ORDER BY created_at DESC`,
           resolvedTenantId
         )
       ),
@@ -367,6 +378,7 @@ export async function GET() {
         risks: riskRows.map((row) => row.data),
         attendanceRecords,
         meetings: meetingRows.map((row) => row.data),
+        technicalReports: technicalReportRows.map((row) => row.data),
         clockedInCount,
         openAttendanceSessions,
         totalDutyMinutes,

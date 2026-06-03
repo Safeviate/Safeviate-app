@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import type { Tenant } from '@/types/quality';
+import type { TechnicalQuickReport } from '@/types/quick-reports';
 import Link from 'next/link';
 
 const findCurrentItem = (
@@ -79,6 +80,15 @@ export function AppHeader() {
     detail: string;
     dueDate: string;
     severity: 'overdue' | 'due-soon';
+  }>>([]);
+  const [technicalReportNotifications, setTechnicalReportNotifications] = useState<Array<{
+    id: string;
+    title: string;
+    detail: string;
+    reportDate: string;
+    aircraftId: string;
+    aircraftLabel: string;
+    severity: 'open' | 'closed';
   }>>([]);
   type CapNotification = {
     id: string;
@@ -147,7 +157,7 @@ export function AppHeader() {
   useEffect(() => {
     let cancelled = false;
 
-    const loadCapNotifications = async () => {
+    const loadNotifications = async () => {
       try {
         const response = await fetch('/api/dashboard-summary', { cache: 'no-store' });
         const payload = response.ok ? await response.json().catch(() => ({})) : {};
@@ -155,6 +165,9 @@ export function AppHeader() {
         const dueSoonCutoff = new Date(now);
         dueSoonCutoff.setDate(now.getDate() + 30);
         const caps = Array.isArray(payload?.caps) ? payload.caps : [];
+        const technicalReports = Array.isArray(payload?.technicalReports)
+          ? (payload.technicalReports as TechnicalQuickReport[])
+          : [];
 
         const notifications = caps.flatMap((cap: any) => {
           const activeActions = Array.isArray(cap?.actions)
@@ -177,27 +190,59 @@ export function AppHeader() {
           });
         });
 
+        const reportNotifications = technicalReports
+          .filter((report) => (report.status || 'Open') !== 'Closed')
+          .sort((left, right) => `${right.eventDate}T${right.eventTime}`.localeCompare(`${left.eventDate}T${left.eventTime}`))
+          .slice(0, 5)
+          .map((report) => ({
+            id: report.id,
+            title: report.title || report.summary,
+            detail: report.location || 'Unknown location',
+            reportDate: `${report.eventDate}T${report.eventTime}`,
+            aircraftId: report.aircraftId || '',
+            aircraftLabel: report.aircraftLabel || 'Aircraft not set',
+            severity: 'open' as const,
+          }));
+
         if (!cancelled) {
           setCapNotifications(
             notifications
               .sort((a: CapNotification, b: CapNotification) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
               .slice(0, 5)
           );
+          setTechnicalReportNotifications(reportNotifications);
         }
       } catch {
-        if (!cancelled) setCapNotifications([]);
+        if (!cancelled) {
+          setCapNotifications([]);
+          setTechnicalReportNotifications([]);
+        }
       }
     };
 
-    void loadCapNotifications();
-    window.addEventListener('safeviate-quality-updated', loadCapNotifications);
+    void loadNotifications();
+    window.addEventListener('safeviate-quality-updated', loadNotifications);
+    window.addEventListener('safeviate-technical-reports-updated', loadNotifications);
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === 'safeviate-technical-reports-updated') {
+        void loadNotifications();
+      }
+    };
+    window.addEventListener('storage', handleStorage);
     return () => {
       cancelled = true;
-      window.removeEventListener('safeviate-quality-updated', loadCapNotifications);
+      window.removeEventListener('safeviate-quality-updated', loadNotifications);
+      window.removeEventListener('safeviate-technical-reports-updated', loadNotifications);
+      window.removeEventListener('storage', handleStorage);
     };
   }, []);
 
   const capAlertCount = useMemo(() => capNotifications.length, [capNotifications]);
+  const technicalReportAlertCount = useMemo(
+    () => technicalReportNotifications.length,
+    [technicalReportNotifications]
+  );
+  const notificationCount = capAlertCount + technicalReportAlertCount;
 
   const handleSignOut = () => {
     void signOut({ callbackUrl: '/login' });
@@ -268,9 +313,9 @@ export function AppHeader() {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="app-topbar-icon relative h-8 w-8">
               <Bell className="h-4 w-4" />
-              {capAlertCount > 0 ? (
+              {notificationCount > 0 ? (
                 <Badge className="absolute -right-1 -top-1 h-4 min-w-4 rounded-full border-0 bg-amber-500 px-1 text-[8px] font-black text-white">
-                  {capAlertCount}
+                  {notificationCount}
                 </Badge>
               ) : null}
             </Button>
@@ -281,10 +326,12 @@ export function AppHeader() {
             className="w-80 rounded-2xl border border-sidebar-border/70 bg-sidebar shadow-[0_18px_50px_rgba(0,0,0,0.35)] backdrop-blur-md"
           >
             <DropdownMenuLabel className="text-xs font-semibold uppercase tracking-[0.08em] text-sidebar-foreground/70">
-              Corrective Actions
+              Notifications
             </DropdownMenuLabel>
             <DropdownMenuLabel className="text-[10px] font-semibold text-sidebar-foreground/80">
-              {capAlertCount > 0 ? `${capAlertCount} action${capAlertCount === 1 ? '' : 's'} need attention` : 'No overdue or due-soon actions'}
+              {notificationCount > 0
+                ? `${notificationCount} item${notificationCount === 1 ? '' : 's'} need attention`
+                : 'No overdue actions or open preliminary technical reports'}
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             {capNotifications.length > 0 ? (
@@ -304,6 +351,36 @@ export function AppHeader() {
             ) : (
               <div className="px-3 py-4 text-sm text-sidebar-foreground/60">Nothing urgent right now.</div>
             )}
+            {technicalReportNotifications.length > 0 ? (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs font-semibold uppercase tracking-[0.08em] text-sidebar-foreground/70">
+                  Preliminary Technical Reports
+                </DropdownMenuLabel>
+                {technicalReportNotifications.map((item) => (
+                  <DropdownMenuItem key={item.id} asChild>
+                    <Link
+                      href={item.aircraftId ? `/assets/aircraft/${item.aircraftId}#technical-report-notifications` : '/dashboard'}
+                      className="flex items-start gap-3"
+                    >
+                      <AlertTriangle className="mt-0.5 h-4 w-4 text-sky-500" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-xs font-semibold text-sidebar-foreground">{item.aircraftLabel}</span>
+                        <span className="block truncate text-[10px] uppercase tracking-widest text-sidebar-foreground/75">
+                          {item.title}
+                        </span>
+                        <span className="block text-[10px] uppercase tracking-widest text-sidebar-foreground/55">
+                          {item.detail} · {new Date(item.reportDate).toLocaleDateString()}
+                        </span>
+                        <span className="block text-[9px] font-black uppercase tracking-[0.18em] text-sky-500">
+                          Open preliminary technical report
+                        </span>
+                      </span>
+                    </Link>
+                  </DropdownMenuItem>
+                ))}
+              </>
+            ) : null}
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
               <Link href="/quality/task-tracker">Open Task Tracker</Link>
