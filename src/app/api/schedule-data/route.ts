@@ -4,6 +4,7 @@ import { normalizeAircraftRecord } from '@/lib/server/aircraft-normalize';
 import { getOrSetRouteCache } from '@/lib/server/route-cache';
 import { recordSimulationRouteMetric } from '@/lib/server/simulation-telemetry';
 import { getTenantIdFromSession } from '@/lib/server/session-tenant';
+import { resolveQuickReportContext } from '@/lib/server/quick-report-context';
 import { NextResponse } from 'next/server';
 
 type ScheduleInstructorDuty = {
@@ -58,7 +59,13 @@ export async function GET(request: Request) {
   const startedAt = Date.now();
   let tenantId: string | null = null;
   try {
-    tenantId = await getTenantIdFromSession(request);
+    const requestUrl = new URL(request.url);
+    const publicTenantId = requestUrl.searchParams.get('tenantId')?.trim() || null;
+    const context = publicTenantId
+      ? await resolveQuickReportContext({ publicTenantId })
+      : { tenantId: await getTenantIdFromSession(request) };
+
+    tenantId = context?.tenantId ?? null;
     if (!tenantId) {
       return NextResponse.json({ aircraft: [], bookings: [], instructors: [], instructorDuty: [] }, { status: 200 });
     }

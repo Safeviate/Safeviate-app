@@ -41,7 +41,7 @@ import type { AttendanceRecordData } from '@/types/attendance';
 import type { QualityAudit, CorrectiveActionPlan } from '@/types/quality';
 import type { Risk as SafetyRisk } from '@/types/risk';
 import type { SafetyReport } from '@/types/safety-report';
-import type { TechnicalQuickReport } from '@/types/quick-reports';
+import type { QuickSafetyReport, TechnicalQuickReport } from '@/types/quick-reports';
 import type { InstructorHourWarningSettings, MilestoneWarning, StudentMilestoneSettings, StudentProgressReport } from '@/types/training';
 import type { IndustryType } from '@/types/quality';
 import { TenantLayoutDisabledState } from '@/components/tenant-layout-disabled-state';
@@ -782,6 +782,7 @@ export default function DashboardPage() {
   const [activeIndustry, setActiveIndustry] = useState<DashboardIndustry>('ATO');
   const [activeTab, setActiveTab] = useState('fleet');
   const [summary, setSummary] = useState<SummaryPayload>({});
+  const [quickSafetyReports, setQuickSafetyReports] = useState<QuickSafetyReport[]>([]);
   const [fleetTargetHours, setFleetTargetHours] = useState(DEFAULT_FLEET_TARGET_HOURS);
   const [fleetPeriod, setFleetPeriod] = useState<FleetPeriod>('month');
   const [instructorPeriod, setInstructorPeriod] = useState<FleetPeriod>('month');
@@ -808,13 +809,19 @@ export default function DashboardPage() {
     const load = async () => {
       setIsLoading(true);
       try {
-        const response = await fetch('/api/dashboard-summary', { cache: 'no-store' });
-        const payload = (await parseJsonResponse<SummaryPayload>(response)) ?? {};
+        const [summaryResponse, quickSafetyResponse] = await Promise.all([
+          fetch('/api/dashboard-summary', { cache: 'no-store' }),
+          fetch('/api/quick-safety-reports', { cache: 'no-store' }),
+        ]);
+        const payload = (await parseJsonResponse<SummaryPayload>(summaryResponse)) ?? {};
+        const quickSafetyPayload = await quickSafetyResponse.json().catch(() => ({ reports: [] }));
         if (!cancelled) {
           setSummary(payload);
+          setQuickSafetyReports(Array.isArray(quickSafetyPayload?.reports) ? quickSafetyPayload.reports : []);
         }
       } catch {
         if (!cancelled) setSummary({});
+        if (!cancelled) setQuickSafetyReports([]);
       } finally {
         if (!cancelled) setIsLoading(false);
       }
@@ -825,17 +832,24 @@ export default function DashboardPage() {
     const handleTechnicalReportUpdate = () => {
       void load();
     };
+    const handleQuickSafetyReportUpdate = () => {
+      void load();
+    };
     const handleStorage = (event: StorageEvent) => {
-      if (event.key === 'safeviate-technical-reports-updated') {
+      if (event.key === 'safeviate-technical-reports-updated' || event.key === 'safeviate-quick-safety-reports-updated') {
         void load();
       }
     };
     window.addEventListener('safeviate-technical-reports-updated', handleTechnicalReportUpdate);
+    window.addEventListener('safeviate-quick-safety-reports-updated', handleQuickSafetyReportUpdate);
+    window.addEventListener('safeviate-safety-reports-updated', handleQuickSafetyReportUpdate);
     window.addEventListener('storage', handleStorage);
 
     return () => {
       cancelled = true;
       window.removeEventListener('safeviate-technical-reports-updated', handleTechnicalReportUpdate);
+      window.removeEventListener('safeviate-quick-safety-reports-updated', handleQuickSafetyReportUpdate);
+      window.removeEventListener('safeviate-safety-reports-updated', handleQuickSafetyReportUpdate);
       window.removeEventListener('storage', handleStorage);
     };
   }, []);
@@ -1354,6 +1368,38 @@ export default function DashboardPage() {
 
   const activeIndustryLabel = INDUSTRY_SWITCHER.find((item) => item.value === activeIndustry)?.label || activeIndustry;
   const activeTabLabel = tabs.find((tab) => tab.value === activeTab)?.label || tabs[0]?.label || 'Overview';
+  const openTechnicalReports = useMemo(
+    () => (Array.isArray(summary.technicalReports) ? summary.technicalReports : []).filter((report) => (report.status || 'Open') !== 'Closed'),
+    [summary.technicalReports]
+  );
+  const openQuickSafetyReports = useMemo(
+    () =>
+      quickSafetyReports.filter(
+        (report) => (report.status || 'Open') !== 'Closed' && !report.linkedSafetyReportId
+      ),
+    [quickSafetyReports]
+  );
+  const quickReportAttentionCount = openTechnicalReports.length + openQuickSafetyReports.length;
+  const renderIndustryLabel = (industry: DashboardIndustry, label: string) => (
+    <span className="flex items-center gap-2">
+      <span>{label}</span>
+      {industry === 'ATO' && quickReportAttentionCount > 0 ? (
+        <Badge variant="destructive" className="h-5 px-2 text-[9px] font-black uppercase tracking-widest">
+          {quickReportAttentionCount}
+        </Badge>
+      ) : null}
+    </span>
+  );
+  const renderTabLabel = (tab: IndustryTab) => (
+    <span className="flex items-center gap-2">
+      <span>{tab.label}</span>
+      {tab.value === 'safety' && quickReportAttentionCount > 0 ? (
+        <Badge variant="destructive" className="h-5 px-2 text-[9px] font-black uppercase tracking-widest">
+          {quickReportAttentionCount}
+        </Badge>
+      ) : null}
+    </span>
+  );
 
   return (
     <div
@@ -1362,6 +1408,43 @@ export default function DashboardPage() {
         isModern && 'gap-7 px-2 md:px-1'
       )}
     >
+      {quickReportAttentionCount > 0 ? (
+        <Card className={cn('border-amber-300 bg-amber-50/80 shadow-none', isModern && 'border-amber-300/80 bg-amber-50/70')}>
+          <CardContent className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
+            <div className="min-w-0">
+              <p className="text-sm font-black uppercase tracking-tight text-amber-950">Quick Reports Need Attention</p>
+              <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.16em] text-amber-900/80">
+                {openTechnicalReports.length} preliminary technical report{openTechnicalReports.length === 1 ? '' : 's'}
+                {openQuickSafetyReports.length > 0
+                  ? ` and ${openQuickSafetyReports.length} quick safety report${openQuickSafetyReports.length === 1 ? '' : 's'}`
+                  : ''}{' '}
+                are waiting for review.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="outline" className="border-amber-300 bg-white text-[10px] font-black uppercase text-amber-950">
+                Technical {openTechnicalReports.length}
+              </Badge>
+              {openQuickSafetyReports.length > 0 ? (
+                <Badge variant="outline" className="border-amber-300 bg-white text-[10px] font-black uppercase text-amber-950">
+                  Safety {openQuickSafetyReports.length}
+                </Badge>
+              ) : null}
+              <Button
+                type="button"
+                variant="outline"
+                className="border-amber-300 bg-white text-[10px] font-black uppercase text-amber-950 hover:bg-amber-100"
+                onClick={() => {
+                  setActiveIndustry('ATO');
+                  setActiveTab('safety');
+                }}
+              >
+                Review Quick Reports
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
       <Card className={cn(DASHBOARD_SHELL_CLASS, 'flex min-h-0 flex-1 flex-col', isModern && 'border-slate-200/80 bg-white/95')}>
         <CardHeader className={cn(CARD_HEADER_BAND_CLASS, 'sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80', isModern && 'bg-white/95 supports-[backdrop-filter]:bg-white/85')}>
           <div className={CARD_HEADER_SCOPE_ZONE_CLASS}>
@@ -1403,7 +1486,7 @@ export default function DashboardPage() {
                       onClick={() => setActiveIndustry(item.value as DashboardIndustry)}
                       className="text-[10px] font-bold uppercase"
                     >
-                      {item.label}
+                      {renderIndustryLabel(item.value as DashboardIndustry, item.label)}
                     </DropdownMenuItem>
                   ))}
                 </DropdownMenuContent>
@@ -1413,7 +1496,7 @@ export default function DashboardPage() {
                 <TabsList className={HEADER_TAB_LIST_CLASS}>
                   {INDUSTRY_SWITCHER.map((item) => (
                     <TabsTrigger key={item.value} value={item.value} className={HEADER_TAB_TRIGGER_CLASS}>
-                      {item.label}
+                      {renderIndustryLabel(item.value as DashboardIndustry, item.label)}
                     </TabsTrigger>
                   ))}
                 </TabsList>
@@ -1444,27 +1527,28 @@ export default function DashboardPage() {
                       <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-60" />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="center" className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-[var(--radix-dropdown-menu-trigger-width)]">
-                    {tabs.map((tab) => (
-                      <DropdownMenuItem
-                        key={tab.value}
-                        onClick={() => setActiveTab(tab.value)}
-                        className="text-[10px] font-bold uppercase"
-                      >
-                        {tab.label}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              ) : (
-                <TabsList className={cn(HEADER_TAB_LIST_CLASS, 'border-0 bg-transparent px-0 py-0 justify-center')}>
+                <DropdownMenuContent align="center" className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-[var(--radix-dropdown-menu-trigger-width)]">
                   {tabs.map((tab) => (
-                    <TabsTrigger key={tab.value} value={tab.value} className={HEADER_TAB_TRIGGER_CLASS}>
+                    <DropdownMenuItem
+                      key={tab.value}
+                      onClick={() => setActiveTab(tab.value)}
+                      className="text-[10px] font-bold uppercase"
+                    >
                       {tab.label}
-                    </TabsTrigger>
+                      {tab.value === 'safety' && quickReportAttentionCount > 0 ? ` (${quickReportAttentionCount})` : ''}
+                    </DropdownMenuItem>
                   ))}
-                </TabsList>
-              )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <TabsList className={cn(HEADER_TAB_LIST_CLASS, 'border-0 bg-transparent px-0 py-0 justify-center')}>
+                {tabs.map((tab) => (
+                  <TabsTrigger key={tab.value} value={tab.value} className={HEADER_TAB_TRIGGER_CLASS}>
+                    {renderTabLabel(tab)}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            )}
             </div>
 
             {activeIndustry === 'ATO' && activeTab === 'fleet' ? (
@@ -2134,6 +2218,10 @@ function SafetyOverviewCard({ modern, summary }: { modern: boolean; summary: Sum
   const SafetyIcon = ShieldAlert;
   const reports = metrics.reportRows;
   const risks = metrics.riskRows;
+  const technicalNotifications = (Array.isArray(summary.technicalReports) ? summary.technicalReports : [])
+    .filter((report) => (report.status || 'Open') !== 'Closed')
+    .sort((left, right) => `${right.eventDate}T${right.eventTime}`.localeCompare(`${left.eventDate}T${left.eventTime}`))
+    .slice(0, 4);
 
   return (
     <Card className={cn(DASHBOARD_SHELL_CLASS, 'min-h-[calc(100vh-18rem)]', modern && 'border-slate-200/80 bg-white/95')}>
@@ -2217,6 +2305,53 @@ function SafetyOverviewCard({ modern, summary }: { modern: boolean; summary: Sum
                 <SummaryLine label="Open hazards" value={String(metrics.openRisks)} />
                 <SummaryLine label="Open CAPs" value={String(metrics.openCaps)} />
                 <SummaryLine label="Recent reports" value={String(metrics.recentReports)} />
+              </div>
+            </div>
+
+            <div className="rounded-2xl border bg-background">
+              <div className="flex items-center justify-between gap-3 border-b bg-muted/5 px-4 py-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-black uppercase tracking-tight">Preliminary Technical Reports</p>
+                  <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                    Aircraft-linked reports filed through QR or quick intake.
+                  </p>
+                </div>
+                <Badge variant="outline" className="text-[10px] font-black uppercase">
+                  {technicalNotifications.length} open
+                </Badge>
+              </div>
+              <div className="divide-y">
+                {technicalNotifications.length > 0 ? (
+                  technicalNotifications.map((report) => (
+                    <div key={report.id} className="grid gap-3 px-4 py-4 md:grid-cols-[minmax(0,1.2fr)_repeat(2,minmax(0,0.8fr))] md:items-center">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-black uppercase tracking-tight">{report.aircraftLabel || 'Aircraft not set'}</p>
+                        <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                          {report.reportNumber} Â· {report.title || report.summary}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border bg-background px-3 py-3">
+                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Status</p>
+                        <Badge variant={report.status === 'Closed' ? 'default' : 'destructive'} className="mt-2 text-[10px] font-black uppercase">
+                          {report.status}
+                        </Badge>
+                      </div>
+                      <div className="rounded-lg border bg-background px-3 py-3">
+                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Filed</p>
+                        <p className="mt-1 text-sm font-black">{format(parseLocalDate(report.eventDate) || new Date(report.eventDate), 'dd MMM yyyy')}</p>
+                        <Button asChild variant="link" className="mt-1 h-auto px-0 text-[10px] font-black uppercase tracking-[0.18em] text-primary">
+                          <Link href={report.aircraftId ? `/assets/aircraft/${report.aircraftId}#technical-report-notifications` : '/dashboard'}>
+                            Open aircraft report
+                          </Link>
+                        </Button>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="px-4 py-10 text-center text-sm text-muted-foreground">
+                    No open preliminary technical reports right now.
+                  </div>
+                )}
               </div>
             </div>
 

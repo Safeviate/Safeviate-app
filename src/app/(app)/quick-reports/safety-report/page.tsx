@@ -18,6 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { CustomCalendar } from '@/components/ui/custom-calendar';
 import { useToast } from '@/hooks/use-toast';
+import { useUserProfile } from '@/hooks/use-user-profile';
 import type { Aircraft } from '@/types/aircraft';
 import type { QuickReportPhotoAttachment } from '@/types/quick-reports';
 import { cn } from '@/lib/utils';
@@ -44,11 +45,13 @@ export default function QuickSafetyReportPage() {
   const pathname = usePathname() || '';
   const params = useParams<{ tenantId?: string }>();
   const { toast } = useToast();
+  const { tenantId: scopedTenantId } = useUserProfile();
   const [aircrafts, setAircrafts] = useState<Aircraft[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [photoAttachments, setPhotoAttachments] = useState<QuickReportPhotoAttachment[]>([]);
   const publicTenantId = typeof params?.tenantId === 'string' ? params.tenantId.trim() : '';
   const isPublicPortal = pathname.startsWith('/report/');
+  const activeTenantId = isPublicPortal ? publicTenantId : (scopedTenantId || '').trim();
   const returnHref = isPublicPortal && publicTenantId ? `/report/${encodeURIComponent(publicTenantId)}` : '/quick-reports';
   const showBackButton = !isPublicPortal;
   const photoHelperText = useMemo(
@@ -61,7 +64,7 @@ export default function QuickSafetyReportPage() {
     const loadAircraft = async () => {
       try {
         const response = await fetch(
-          publicTenantId ? `/api/schedule-data?tenantId=${encodeURIComponent(publicTenantId)}` : '/api/schedule-data',
+          activeTenantId ? `/api/schedule-data?tenantId=${encodeURIComponent(activeTenantId)}` : '/api/schedule-data',
           { cache: 'no-store' }
         );
         const payload = await response.json().catch(() => ({ aircraft: [] }));
@@ -77,7 +80,7 @@ export default function QuickSafetyReportPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [activeTenantId]);
 
   const form = useForm<QuickSafetyValues>({
     resolver: zodResolver(quickSafetySchema),
@@ -387,11 +390,16 @@ export default function QuickSafetyReportPage() {
                           </SelectItem>
                         ))}
                       </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                        </Select>
+                        <p className="text-xs text-muted-foreground">
+                          {isPublicPortal
+                            ? 'Aircraft list is scoped to the tenant embedded in the QR code.'
+                            : `Aircraft list is scoped to ${scopedTenantId || 'the active tenant'}.`}
+                        </p>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                />
 
               <FormField
                 control={form.control}

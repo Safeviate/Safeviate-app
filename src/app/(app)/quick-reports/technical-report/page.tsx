@@ -17,6 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { CustomCalendar } from '@/components/ui/custom-calendar';
 import { useToast } from '@/hooks/use-toast';
+import { useUserProfile } from '@/hooks/use-user-profile';
 import type { Aircraft } from '@/types/aircraft';
 import type { QuickReportPhotoAttachment } from '@/types/quick-reports';
 import { cn } from '@/lib/utils';
@@ -42,11 +43,13 @@ export default function QuickTechnicalReportPage() {
   const searchParams = useSearchParams();
   const params = useParams<{ tenantId?: string }>();
   const { toast } = useToast();
+  const { tenantId: scopedTenantId } = useUserProfile();
   const [aircrafts, setAircrafts] = useState<Aircraft[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [photoAttachments, setPhotoAttachments] = useState<QuickReportPhotoAttachment[]>([]);
   const publicTenantId = typeof params?.tenantId === 'string' ? params.tenantId.trim() : '';
   const isPublicPortal = pathname.startsWith('/report/');
+  const activeTenantId = isPublicPortal ? publicTenantId : (scopedTenantId || '').trim();
   const lockedAircraftId = searchParams?.get('aircraftId')?.trim() || '';
   const lockedAircraft = lockedAircraftId ? aircrafts.find((aircraft) => aircraft.id === lockedAircraftId) || null : null;
   const returnHref = isPublicPortal && publicTenantId ? `/report/${encodeURIComponent(publicTenantId)}` : '/quick-reports';
@@ -61,7 +64,7 @@ export default function QuickTechnicalReportPage() {
     const loadAircraft = async () => {
       try {
         const response = await fetch(
-          publicTenantId ? `/api/schedule-data?tenantId=${encodeURIComponent(publicTenantId)}` : '/api/schedule-data',
+          activeTenantId ? `/api/schedule-data?tenantId=${encodeURIComponent(activeTenantId)}` : '/api/schedule-data',
           { cache: 'no-store' }
         );
         const payload = await response.json().catch(() => ({ aircraft: [] }));
@@ -77,7 +80,7 @@ export default function QuickTechnicalReportPage() {
     return () => {
       cancelled = true;
     };
-  }, [publicTenantId]);
+  }, [activeTenantId]);
 
   const form = useForm<TechnicalReportValues>({
     resolver: zodResolver(technicalReportSchema),
@@ -140,7 +143,9 @@ export default function QuickTechnicalReportPage() {
       if (typeof window !== 'undefined') {
         const updateStamp = JSON.stringify({ tenantId: publicTenantId || null, at: Date.now() });
         window.localStorage.setItem('safeviate-technical-reports-updated', updateStamp);
+        window.localStorage.setItem('safeviate-safety-reports-updated', updateStamp);
         window.dispatchEvent(new Event('safeviate-technical-reports-updated'));
+        window.dispatchEvent(new Event('safeviate-safety-reports-updated'));
       }
 
       toast({
@@ -273,6 +278,11 @@ export default function QuickTechnicalReportPage() {
                             ))}
                           </SelectContent>
                         </Select>
+                        <p className="text-xs text-muted-foreground">
+                          {isPublicPortal
+                            ? 'Aircraft list is scoped to the tenant embedded in the QR code.'
+                            : `Aircraft list is scoped to ${scopedTenantId || 'the active tenant'}.`}
+                        </p>
                         <FormMessage />
                       </FormItem>
                     );
