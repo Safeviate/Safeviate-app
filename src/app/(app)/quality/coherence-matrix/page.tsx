@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useState, useCallback, useEffect, useMemo, useRef, type CSSProperties } from 'react';
+import { Fragment, useState, useCallback, useEffect, useMemo, useRef, useDeferredValue, useTransition, type CSSProperties } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
@@ -86,6 +86,14 @@ type MatrixTableRow = {
     hasChildren: boolean;
     anchorId: string;
     firstClauseAnchorId: string | null;
+};
+
+type MatrixGapRow = MatrixTableRow & {
+    mappedCount: number;
+    assessedCount: number;
+    openCapCount: number;
+    latestFinding?: AuditFindingSummary;
+    gapStatus: 'Open gap' | 'Partial coverage' | 'Covered' | 'Unassessed' | 'Not applicable';
 };
 
 function buildAuditSummaryMaps(
@@ -929,6 +937,7 @@ export default function CoherenceMatrixPage() {
   const isMobile = useIsMobile();
   const [activeOrgTab, setActiveOrgTab] = useState('internal');
   const [activeRegulationTab, setActiveRegulationTab] = useState<RegulationFamily>('sacaa-cars');
+  const [, startRegulationTabTransition] = useTransition();
   const [activeMatrixAnchorId, setActiveMatrixAnchorId] = useState<string | null>(null);
   const [clauseInspectorWidth, setClauseInspectorWidth] = useState(CLAUSE_INSPECTOR_DEFAULT_WIDTH);
   const clauseInspectorWidthStyle = { '--clause-inspector-width': `${clauseInspectorWidth}px` } as CSSProperties;
@@ -962,8 +971,11 @@ export default function CoherenceMatrixPage() {
     [qualityAudits, qualityAuditTemplates, correctiveActionPlans],
   );
   const effectiveOrgId: string | 'internal' = shouldShowOrganizationTabs ? activeOrgTab : (scopedOrganizationId || 'internal');
-  const normalizedSearchQuery = useMemo(() => matrixSearchQuery.trim().toLowerCase(), [matrixSearchQuery]);
-  const normalizedIndexQuery = useMemo(() => matrixIndexQuery.trim().toLowerCase(), [matrixIndexQuery]);
+  const deferredActiveRegulationTab = useDeferredValue(activeRegulationTab);
+  const deferredMatrixSearchQuery = useDeferredValue(matrixSearchQuery);
+  const deferredMatrixIndexQuery = useDeferredValue(matrixIndexQuery);
+  const normalizedSearchQuery = useMemo(() => deferredMatrixSearchQuery.trim().toLowerCase(), [deferredMatrixSearchQuery]);
+  const normalizedIndexQuery = useMemo(() => deferredMatrixIndexQuery.trim().toLowerCase(), [deferredMatrixIndexQuery]);
   const getManagerLabel = useCallback((managerId?: string | null) => {
     const normalizedManagerId = managerId?.trim() || '';
     if (!normalizedManagerId) return '';
@@ -989,6 +1001,10 @@ export default function CoherenceMatrixPage() {
   const activeFamilyItems = useMemo(
     () => currentOrgItems.filter((item) => getItemFamily(item) === activeRegulationTab),
     [currentOrgItems, activeRegulationTab],
+  );
+  const deferredActiveFamilyItems = useMemo(
+    () => currentOrgItems.filter((item) => getItemFamily(item) === deferredActiveRegulationTab),
+    [currentOrgItems, deferredActiveRegulationTab],
   );
   const currentFamilyHeaders = useMemo(
     () =>
@@ -1038,7 +1054,7 @@ export default function CoherenceMatrixPage() {
     [activeFamilyItems],
   );
   const activeMatrixView = useMemo(() => {
-    const sortedItems = [...activeFamilyItems].sort((a, b) => naturalSort(a.regulationCode, b.regulationCode));
+    const sortedItems = [...deferredActiveFamilyItems].sort((a, b) => naturalSort(a.regulationCode, b.regulationCode));
     const availableItemCodes = new Set(
       sortedItems
         .map((item) => normalizeRegulationCode(item.regulationCode))
@@ -1159,7 +1175,32 @@ export default function CoherenceMatrixPage() {
       itemMatchesSearch,
       branchMatchesSearch,
     };
-  }, [activeFamilyItems, getManagerLabel, normalizedIndexQuery, normalizedSearchQuery]);
+  }, [deferredActiveFamilyItems, getManagerLabel, normalizedIndexQuery, normalizedSearchQuery]);
+  const matrixClauseRows = useMemo(
+    () => activeMatrixView.matrixTableRows.filter(({ depth, hasChildren }) => depth > 0 && !hasChildren),
+    [activeMatrixView.matrixTableRows],
+  );
+  const gapAnalysisRows = useMemo<MatrixGapRow[]>(
+    () =>
+      deferredActiveRegulationTab === 'sacaa-cats'
+        ? activeMatrixView.matrixTableRows.map((row) => ({
+            ...row,
+            ...getGapSummaryForCode(
+              row.item.regulationCode,
+              auditSummaryMaps.regulationToItemIds,
+              auditSummaryMaps.latestFindingByItemId,
+              auditSummaryMaps.openCapFindingIds,
+            ),
+          }))
+        : [],
+    [
+      activeMatrixView.matrixTableRows,
+      auditSummaryMaps.latestFindingByItemId,
+      auditSummaryMaps.openCapFindingIds,
+      auditSummaryMaps.regulationToItemIds,
+      deferredActiveRegulationTab,
+    ],
+  );
 
   const loadData = useCallback(async () => {
     try {
@@ -1452,7 +1493,7 @@ export default function CoherenceMatrixPage() {
   const renderOrgContext = (orgId: string | 'internal') => {
     const contextOrgId = orgId === 'internal' ? null : orgId;
     const activeRegulationTabValue = regulationTabToUiValue(activeRegulationTab);
-    const showGapAnalysis = activeRegulationTab === 'sacaa-cats';
+    const showGapAnalysis = deferredActiveRegulationTab === 'sacaa-cats';
 
     const renderRequirementMeta = (item: ComplianceRequirement) => {
         const fields = [
@@ -2115,7 +2156,6 @@ export default function CoherenceMatrixPage() {
 
     const renderMatrixTable = () => {
         const enableGapAnalysis = showGapAnalysis;
-        const clauseRows = matrixTableRows.filter(({ depth, hasChildren }) => depth > 0 && !hasChildren);
         const getGapSummary = (row: Pick<MatrixTableRow, 'item' | 'depth' | 'hasChildren'>) => {
             return getGapSummaryForCode(
                 row.item.regulationCode,
@@ -2140,7 +2180,7 @@ export default function CoherenceMatrixPage() {
             }
         };
 
-        if (clauseRows.length === 0) {
+        if (matrixClauseRows.length === 0) {
             return (
                 <div className="flex flex-col items-center justify-center py-24 text-center opacity-30">
                     <Layers className="h-16 w-16 mb-4" />
@@ -2191,7 +2231,7 @@ export default function CoherenceMatrixPage() {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {clauseRows.map(({ item, depth, hasChildren, anchorId }: MatrixTableRow) => {
+                        {matrixClauseRows.map(({ item, depth, hasChildren, anchorId }: MatrixTableRow) => {
                             const isClauseRow = enableGapAnalysis && depth > 0 && !hasChildren;
                             const gapSummary = isClauseRow ? getGapSummary({ item, depth, hasChildren }) : null;
                             const clauseGapStatus: GapStatus | null = isClauseRow
@@ -2358,29 +2398,9 @@ export default function CoherenceMatrixPage() {
     };
 
     const renderGapAnalysisTable = () => {
-        type GapRow = MatrixTableRow & {
-            mappedCount: number;
-            assessedCount: number;
-            openCapCount: number;
-            latestFinding?: AuditFindingSummary;
-            gapStatus: 'Open gap' | 'Partial coverage' | 'Covered' | 'Unassessed' | 'Not applicable';
-        };
+        const rows = gapAnalysisRows;
 
-        const rows = matrixTableRows.map<GapRow>((row) => {
-            const summary = getGapSummaryForCode(
-                row.item.regulationCode,
-                auditSummaryMaps.regulationToItemIds,
-                auditSummaryMaps.latestFindingByItemId,
-                auditSummaryMaps.openCapFindingIds,
-            );
-
-            return {
-                ...row,
-                ...summary,
-            };
-        });
-
-        const statusVariant = (status: GapRow['gapStatus']) => {
+        const statusVariant = (status: MatrixGapRow['gapStatus']) => {
             switch (status) {
                 case 'Covered':
                     return 'default';
@@ -3090,7 +3110,7 @@ export default function CoherenceMatrixPage() {
     };
 
     return (
-        <Tabs value={activeRegulationTabValue} onValueChange={(value) => setActiveRegulationTab(uiValueToRegulationTab(value))} className="flex h-full min-h-0 flex-col overflow-hidden">
+        <Tabs value={activeRegulationTabValue} onValueChange={(value) => startRegulationTabTransition(() => setActiveRegulationTab(uiValueToRegulationTab(value)))} className="flex h-full min-h-0 flex-col overflow-hidden">
             <Card className="h-full min-h-0 flex flex-col overflow-hidden border-0 shadow-none">
                 <CardControlHeader
                     isMobile={isMobile}
@@ -3203,7 +3223,7 @@ export default function CoherenceMatrixPage() {
                     navigation={
                         <ResponsiveTabRow
                             value={activeRegulationTabValue}
-                            onValueChange={(value) => setActiveRegulationTab(uiValueToRegulationTab(value))}
+                            onValueChange={(value) => startRegulationTabTransition(() => setActiveRegulationTab(uiValueToRegulationTab(value)))}
                             placeholder="Select Regulation Family"
                             centerTabs
                             className="border-0 bg-transparent px-0 py-0"
