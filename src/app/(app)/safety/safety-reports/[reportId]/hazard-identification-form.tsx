@@ -355,7 +355,7 @@ const MitigationsArray = ({ hazardIndex, riskIndex, riskMatrixColors }: {
                         residualRiskAssessment: { likelihood: 1, severity: 1, riskScore: 1, riskLevel: 'Low' },
                     })}
                 >
-                    <PlusCircle className="mr-1 h-3 w-3" /> Add Mitigation
+                    <PlusCircle className="mr-1 h-3 w-3" /> Add Corrective Action
                 </Button>
             </div>
             {fields.map((field, mitigationIndex) => (
