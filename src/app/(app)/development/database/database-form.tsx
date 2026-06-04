@@ -17,6 +17,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { useUserProfile } from '@/hooks/use-user-profile';
 import { menuConfig, type MenuItem } from '@/lib/menu-config';
+import { TENANT_OVERRIDE_COOKIE } from '@/lib/tenant-constants';
 import { cn } from '@/lib/utils';
 import { TenantLayoutDisabledState } from '@/components/tenant-layout-disabled-state';
 import { useTenantRouteAccess } from '@/hooks/use-tenant-route-access';
@@ -26,7 +27,6 @@ import { PAGE_FORMAT_PRIMARY_BUTTON_CLASS } from '@/lib/page-format-buttons';
 
 const TENANT_PAGE_BUTTON_CLASS = PAGE_FORMAT_PRIMARY_BUTTON_CLASS;
 const TENANT_OVERRIDE_STORAGE_KEY = 'safeviate:selected-tenant';
-const TENANT_OVERRIDE_COOKIE = 'safeviate-tenant-override';
 const LOCAL_TENANT_CONFIG_KEY = 'safeviate:tenant-config-local-override';
 const MASTER_TENANT_ID = 'safeviate';
 const MASTER_TENANT_NAME = 'Safeviate';

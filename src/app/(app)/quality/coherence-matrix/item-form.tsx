@@ -66,9 +66,9 @@ function normalizeResponsibleManagerId(value?: string | null) {
     return normalized === '__unassigned__' ? '' : normalized;
 }
 
-const formSchema = z.object({
+const itemFormSchema = z.object({
     regulationFamily: z.enum(['sacaa-cars', 'sacaa-cats', 'ohs']).optional(),
-    parentRegulationCode: z.string().optional(),
+    parentRegulationCode: z.string().min(1, 'Parent header or subheader is required.'),
     regulationCode: z.string().min(1, 'Code is required.'),
     documentHeading: z.string().optional(),
     regulationStatement: z.string().min(1, 'Statement is required.'),
@@ -77,6 +77,17 @@ const formSchema = z.object({
     responsibleManagerId: z.string().optional(),
     nextAuditDate: z.date().optional(),
     organizationId: z.string().nullable().optional(),
+}).superRefine((values, ctx) => {
+    const parentCode = normalizeRegulationCode(values.parentRegulationCode);
+    const regulationCode = normalizeRegulationCode(values.regulationCode);
+
+    if (parentCode && regulationCode && parentCode.toLowerCase() === regulationCode.toLowerCase()) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['parentRegulationCode'],
+            message: 'Parent cannot be the same as the regulation code.',
+        });
+    }
 });
 
 const headerFormSchema = z.object({
@@ -92,6 +103,17 @@ const subheaderFormSchema = z.object({
     regulationCode: z.string().min(1, 'Code is required.'),
     regulationStatement: z.string().min(1, 'Title is required.'),
     responsibleManagerId: z.string().min(1, 'Responsible person is required.'),
+}).superRefine((values, ctx) => {
+    const parentCode = normalizeRegulationCode(values.parentRegulationCode);
+    const regulationCode = normalizeRegulationCode(values.regulationCode);
+
+    if (parentCode && regulationCode && parentCode.toLowerCase() === regulationCode.toLowerCase()) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['parentRegulationCode'],
+            message: 'Parent header cannot be the same as the subheader code.',
+        });
+    }
 });
 
 interface ComplianceItemFormProps {
@@ -119,14 +141,13 @@ type ComplianceItemFormValues = {
 
 export function ComplianceItemForm({ personnel, existingItem, onFormSubmit, tenantId, defaultRegulationFamily, availableParentHeaders = [], mode = 'item' }: ComplianceItemFormProps) {
     const { toast } = useToast();
-    const topLevelHeaderValue = '__top_level__';
     const [calendarPortalContainer, setCalendarPortalContainer] = useState<HTMLDivElement | null>(null);
     const activeSchema = (
         mode === 'header'
             ? headerFormSchema
             : mode === 'subheader'
             ? subheaderFormSchema
-            : formSchema
+            : itemFormSchema
     ) as z.ZodTypeAny;
 
     const form = useForm<ComplianceItemFormValues>({
@@ -167,6 +188,27 @@ export function ComplianceItemForm({ personnel, existingItem, onFormSubmit, tena
     const onSubmit = async (values: ComplianceItemFormValues) => {
         const normalizedCode = normalizeRegulationCode(values.regulationCode);
         const splitInput = splitCompositeRegulationInput(values.regulationCode);
+        const normalizedParentCode = normalizeRegulationCode(values.parentRegulationCode);
+
+        if ((mode === 'item' || mode === 'subheader') && !normalizedParentCode) {
+            toast({
+                variant: 'destructive',
+                title: mode === 'subheader' ? 'Select a parent header' : 'Select a parent header or subheader',
+                description: mode === 'subheader'
+                    ? 'Create a top-level Part/Header first, then add the subheader beneath it.'
+                    : 'Create the Part/Header and Subpart first, then add regulation items beneath them.',
+            });
+            return;
+        }
+
+        if ((mode === 'item' || mode === 'subheader') && !availableParentHeaders.some((header) => header.code === normalizedParentCode)) {
+            toast({
+                variant: 'destructive',
+                title: 'Invalid parent selection',
+                description: 'Choose an existing parent from the list before saving.',
+            });
+            return;
+        }
         
         const dataToSave = mode === 'header'
             ? {
@@ -183,7 +225,7 @@ export function ComplianceItemForm({ personnel, existingItem, onFormSubmit, tena
             : mode === 'subheader'
             ? {
                 regulationFamily: values.regulationFamily,
-                parentRegulationCode: normalizeRegulationCode(values.parentRegulationCode),
+                parentRegulationCode: normalizedParentCode,
                 regulationCode: normalizeRegulationCode(values.regulationCode) || splitInput.regulationCode,
                 regulationStatement: values.regulationStatement.trim() || splitInput.regulationStatement,
                 technicalStandard: '',
@@ -195,7 +237,7 @@ export function ComplianceItemForm({ personnel, existingItem, onFormSubmit, tena
             : {
                 ...values,
                 regulationCode: normalizeRegulationCode(values.regulationCode),
-                parentRegulationCode: normalizeRegulationCode(values.parentRegulationCode),
+                parentRegulationCode: normalizedParentCode,
                 documentHeading: values.documentHeading?.trim() || '',
                 regulationStatement: values.regulationStatement.trim(),
                 nextAuditDate: values.nextAuditDate ? toNoonUtcIso(values.nextAuditDate) : null,
@@ -273,23 +315,28 @@ export function ComplianceItemForm({ personnel, existingItem, onFormSubmit, tena
                         )} />
                         <FormField control={form.control} name="parentRegulationCode" render={({ field }) => (
                             <FormItem>
-                                <FormLabel>Parent Header</FormLabel>
+                                <FormLabel>Parent Header / Subheader</FormLabel>
                                 <Select
-                                    onValueChange={(value) => field.onChange(value === topLevelHeaderValue ? '' : value)}
-                                    defaultValue={field.value || topLevelHeaderValue}
+                                    onValueChange={field.onChange}
+                                    defaultValue={field.value || undefined}
                                 >
                                     <FormControl>
                                         <SelectTrigger>
-                                            <SelectValue placeholder="Top-level header" />
+                                            <SelectValue placeholder="Select the header or subheader this regulation belongs under" />
                                         </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                        <SelectItem value={topLevelHeaderValue}>Top-level header</SelectItem>
-                                        {availableParentHeaders.map((header) => (
-                                            <SelectItem key={header.code} value={header.code}>
-                                                {formatParentOptionLabel(header)}
+                                        {availableParentHeaders.length > 0 ? (
+                                            availableParentHeaders.map((header) => (
+                                                <SelectItem key={header.code} value={header.code}>
+                                                    {formatParentOptionLabel(header)}
+                                                </SelectItem>
+                                            ))
+                                        ) : (
+                                            <SelectItem value="__no_parent_options__" disabled>
+                                                Create a header or subheader first
                                             </SelectItem>
-                                        ))}
+                                        )}
                                     </SelectContent>
                                 </Select>
                                 <FormMessage />
@@ -360,11 +407,17 @@ export function ComplianceItemForm({ personnel, existingItem, onFormSubmit, tena
                                         </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                        {availableParentHeaders.map((header) => (
-                                            <SelectItem key={header.code} value={header.code}>
-                                                {formatParentOptionLabel(header)}
+                                        {availableParentHeaders.length > 0 ? (
+                                            availableParentHeaders.map((header) => (
+                                                <SelectItem key={header.code} value={header.code}>
+                                                    {formatParentOptionLabel(header)}
+                                                </SelectItem>
+                                            ))
+                                        ) : (
+                                            <SelectItem value="__no_parent_options__" disabled>
+                                                Create a top-level header first
                                             </SelectItem>
-                                        ))}
+                                        )}
                                     </SelectContent>
                                 </Select>
                                 <FormMessage />

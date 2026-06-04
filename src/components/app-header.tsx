@@ -359,10 +359,10 @@ export function AppHeader() {
                 </DropdownMenuLabel>
                 {technicalReportNotifications.map((item) => (
                   <DropdownMenuItem key={item.id} asChild>
-                    <Link
-                      href={item.aircraftId ? `/assets/aircraft/${item.aircraftId}#technical-report-notifications` : '/dashboard'}
-                      className="flex items-start gap-3"
-                    >
+                      <Link
+                        href={`/quick-reports/technical-report/${item.id}`}
+                        className="flex items-start gap-3"
+                      >
                       <AlertTriangle className="mt-0.5 h-4 w-4 text-sky-500" />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-xs font-semibold text-sidebar-foreground">{item.aircraftLabel}</span>

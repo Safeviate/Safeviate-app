@@ -61,6 +61,7 @@ export default function QuickSafetyReportPage() {
 
   useEffect(() => {
     let cancelled = false;
+    setAircrafts([]);
     const loadAircraft = async () => {
       try {
         const response = await fetch(

@@ -370,8 +370,8 @@ function TechnicalIntake({ reports }: TechnicalIntakeProps) {
                                 ) : null}
                                 <p className="text-sm font-medium text-foreground line-clamp-2">{report.summary}</p>
                                 <Button asChild variant="outline" size="sm" className="h-8 w-full justify-between px-3 text-[10px] font-black uppercase">
-                                    <Link href={report.aircraftId ? `/assets/aircraft/${report.aircraftId}#technical-report-notifications` : '/dashboard'}>
-                                        Open aircraft report
+                                    <Link href={`/quick-reports/technical-report/${report.id}`}>
+                                        Open technical report
                                         <ArrowRight className="ml-2 h-3.5 w-3.5" />
                                     </Link>
                                 </Button>

@@ -13,6 +13,9 @@ interface NewChecklistDialogProps {
   departments: Department[];
   existingTemplate?: QualityAuditChecklistTemplate;
   trigger?: ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  showTrigger?: boolean;
 }
 
 export function NewChecklistDialog({
@@ -20,6 +23,9 @@ export function NewChecklistDialog({
   departments,
   existingTemplate,
   trigger,
+  open,
+  onOpenChange,
+  showTrigger = true,
 }: NewChecklistDialogProps) {
   return (
     <TemplateEditorDialog
@@ -27,6 +33,9 @@ export function NewChecklistDialog({
       departments={departments}
       existingTemplate={existingTemplate}
       trigger={trigger}
+      showTrigger={showTrigger}
+      open={open}
+      onOpenChange={onOpenChange}
       templateLabel="Checklist"
       dialogDescription="Build a reusable checklist with sections and items for conducting quality audits."
       saveEndpoint="/api/quality-audit-templates"

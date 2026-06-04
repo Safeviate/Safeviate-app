@@ -2340,8 +2340,8 @@ function SafetyOverviewCard({ modern, summary }: { modern: boolean; summary: Sum
                         <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Filed</p>
                         <p className="mt-1 text-sm font-black">{format(parseLocalDate(report.eventDate) || new Date(report.eventDate), 'dd MMM yyyy')}</p>
                         <Button asChild variant="link" className="mt-1 h-auto px-0 text-[10px] font-black uppercase tracking-[0.18em] text-primary">
-                          <Link href={report.aircraftId ? `/assets/aircraft/${report.aircraftId}#technical-report-notifications` : '/dashboard'}>
-                            Open aircraft report
+                          <Link href={`/quick-reports/technical-report/${report.id}`}>
+                            Open technical report
                           </Link>
                         </Button>
                       </div>

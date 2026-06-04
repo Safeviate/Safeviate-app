@@ -29,6 +29,7 @@ export default function AuditChecklistsManager() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [organizations, setOrganizations] = useState<ExternalOrganization[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [editingTemplate, setEditingTemplate] = useState<QualityAuditChecklistTemplate | null>(null);
 
   const loadData = async () => {
     try {
@@ -99,6 +100,16 @@ export default function AuditChecklistsManager() {
             />
           }
         />
+        <NewChecklistDialog
+          tenantId={tenantId || ''}
+          departments={departments || []}
+          existingTemplate={editingTemplate || undefined}
+          showTrigger={false}
+          open={Boolean(editingTemplate)}
+          onOpenChange={(open) => {
+            if (!open) setEditingTemplate(null);
+          }}
+        />
         <div className={CARD_HEADER_BAND_CLASS}>
           <div className="flex flex-wrap items-center justify-center gap-2">
             <Button
@@ -131,6 +142,7 @@ export default function AuditChecklistsManager() {
                             personnel={personnel || []}
                             departments={departments || []}
                             organizations={organizations || []}
+                            onEditTemplate={setEditingTemplate}
                         />
                     ))}
                   </Accordion>

@@ -98,6 +98,9 @@ interface TemplateEditorDialogProps {
   departments: DepartmentOption[];
   existingTemplate?: QualityAuditChecklistTemplate;
   trigger?: ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  showTrigger?: boolean;
   templateLabel: string;
   dialogDescription: string;
   saveEndpoint: string;
@@ -120,6 +123,9 @@ export function TemplateEditorDialog({
   departments,
   existingTemplate,
   trigger,
+  open: controlledOpen,
+  onOpenChange: controlledOnOpenChange,
+  showTrigger = true,
   templateLabel,
   dialogDescription,
   saveEndpoint,
@@ -138,7 +144,7 @@ export function TemplateEditorDialog({
 }: TemplateEditorDialogProps) {
   const { toast } = useToast();
   const router = useRouter();
-  const [isOpen, setIsOpen] = useState(false);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const isMobile = useIsMobile();
   const [complianceItems, setComplianceItems] = useState<ComplianceRequirement[]>([]);
   const [availableDepartments, setAvailableDepartments] = useState<DepartmentOption[]>(departments);
@@ -146,6 +152,29 @@ export function TemplateEditorDialog({
   const departmentOptions = availableDepartments.length > 0 ? availableDepartments : [{ id: 'general', name: 'General' }];
   const defaultDepartmentId = availableDepartments[0]?.id ?? 'general';
   const dragSectionNode = useRef<HTMLDivElement | null>(null);
+  const isOpen = controlledOpen ?? uncontrolledOpen;
+  const setIsOpen = controlledOnOpenChange ?? setUncontrolledOpen;
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || isOpen) return;
+
+    const releaseStalePageLock = () => {
+      const hasOpenDialog = document.querySelector('[role="dialog"][data-state="open"]');
+      if (!hasOpenDialog && document.body.style.pointerEvents === 'none') {
+        document.body.style.pointerEvents = '';
+      }
+    };
+
+    const timers = [
+      window.setTimeout(releaseStalePageLock, 0),
+      window.setTimeout(releaseStalePageLock, 250),
+      window.setTimeout(releaseStalePageLock, 600),
+    ];
+
+    return () => {
+      timers.forEach((timer) => window.clearTimeout(timer));
+    };
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen && !renderAsPage) return;
@@ -391,14 +420,19 @@ export function TemplateEditorDialog({
         {fields.map((item, itemIndex) => (
           <div
             key={item.id}
-            draggable
-            onDragStart={(e) => handleItemDragStart(e, itemIndex)}
             onDragOver={(e) => handleItemDragOver(e, itemIndex)}
             onDragLeave={handleItemDragLeave}
             onDrop={(e) => handleItemDrop(e, itemIndex)}
             className="flex items-start gap-2 p-3 border rounded-lg bg-background transition-shadow"
           >
-            <GripVertical className="h-5 w-5 mt-8 text-muted-foreground cursor-grab" />
+            <div
+              draggable
+              onDragStart={(e) => handleItemDragStart(e, itemIndex)}
+              className="mt-8 flex h-5 w-5 shrink-0 cursor-grab items-center justify-center text-muted-foreground"
+              aria-label="Drag checklist item"
+            >
+              <GripVertical className="h-5 w-5" />
+            </div>
             <div className="grid grid-cols-1 gap-4 flex-1">
               <FormField
                 control={form.control}
@@ -546,8 +580,6 @@ export function TemplateEditorDialog({
                 <div
                   key={section.id}
                   data-index={index}
-                  draggable
-                  onDragStart={(e) => handleSectionDragStart(e, index)}
                   onDragOver={handleSectionDragOver}
                   onDragLeave={handleSectionDragLeave}
                   onDrop={handleSectionDrop}
@@ -555,7 +587,14 @@ export function TemplateEditorDialog({
                   <Card className="mb-4 bg-muted/30 transition-shadow">
                     <CardHeader>
                       <div className="flex items-start gap-2">
-                        <GripVertical className="h-5 w-5 mt-2 text-muted-foreground cursor-grab" />
+                        <div
+                          draggable
+                          onDragStart={(e) => handleSectionDragStart(e, index)}
+                          className="mt-2 flex h-5 w-5 shrink-0 cursor-grab items-center justify-center text-muted-foreground"
+                          aria-label="Drag checklist section"
+                        >
+                          <GripVertical className="h-5 w-5" />
+                        </div>
                         <div className="flex-1">
                           <FormField
                             control={form.control}
@@ -629,22 +668,25 @@ export function TemplateEditorDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      {trigger ? (
-        <DialogTrigger asChild>{trigger}</DialogTrigger>
-      ) : (
-        <DialogTrigger asChild>
-          <Button
-            variant={isMobile ? 'outline' : 'default'}
-            className={isMobile ? HEADER_MOBILE_ACTION_BUTTON_CLASS : HEADER_ACTION_BUTTON_CLASS}
-          >
-            <span className="flex items-center gap-2">
-              <PlusCircle className="h-4 w-4" />
-              {`New ${templateLabel} Template`}
-            </span>
-            {isMobile ? <Library className="h-3.5 w-3.5 text-muted-foreground" /> : null}
-          </Button>
-        </DialogTrigger>
-      )}
+      {showTrigger ? (
+        trigger ? (
+          <DialogTrigger asChild>{trigger}</DialogTrigger>
+        ) : (
+          <DialogTrigger asChild>
+            <Button
+              type="button"
+              variant={isMobile ? 'outline' : 'default'}
+              className={isMobile ? HEADER_MOBILE_ACTION_BUTTON_CLASS : HEADER_ACTION_BUTTON_CLASS}
+            >
+              <span className="flex items-center gap-2">
+                <PlusCircle className="h-4 w-4" />
+                {`New ${templateLabel} Template`}
+              </span>
+              {isMobile ? <Library className="h-3.5 w-3.5 text-muted-foreground" /> : null}
+            </Button>
+          </DialogTrigger>
+        )
+      ) : null}
       <DialogContent className="w-full sm:max-w-4xl">
         <DialogHeader>
           <DialogTitle>{existingTemplate ? 'Edit' : 'New'} {templateLabel} Template</DialogTitle>

@@ -51,7 +51,7 @@ function extractJsonPayload(content: string) {
 }
 
 function normalizeCodeFragment(value: string) {
-  return value.trim().replace(/\s+/g, ' ').replace(/[.,;:]+$/g, '');
+  return value.trim().replace(/\s+/g, ' ').replace(/[;:]+$/g, '').replace(/\.$/g, '');
 }
 
 function resolveRegulationCode(rawCode: string, parentCode?: string | null) {
@@ -61,6 +61,11 @@ function resolveRegulationCode(rawCode: string, parentCode?: string | null) {
   if (!code) return code;
   if (!normalizedParent) return code;
   if (code === normalizedParent || code.startsWith(`${normalizedParent}.`)) return code;
+  if (/^(?:Part|Subpart)\s+\d+[A-Z]?/i.test(code)) return code;
+  if (/^\d{2,3}\.\d{2}\.\d+(?:[A-Z]|\-[A-Z][A-Z\s-]*)?$/i.test(code)) return code;
+  if (/^\d{2,3}\.\d{2}\.\d+\.\d+(?:\.\d+)*$/i.test(code)) return code;
+  if (/^(?:SA-)?CATS\s+\d+/i.test(code)) return code;
+  if (/^(?:SA-)?CARS\s+\d+/i.test(code)) return code;
 
   const compoundMatch = code.match(/^(\d+(?:\.\d+)*)(?:\s*\(([a-z])\))$/i);
   if (compoundMatch) {
@@ -87,9 +92,26 @@ function buildUserContent(input: SummarizeDocumentInput) {
     '{ "requirements": [ { "regulationCode": string, "documentHeading": string, "regulationStatement": string, "technicalStandardLines": string[], "companyReference": string, "parentRegulationCode": string } ] }',
     'Only extract items that belong under the selected parent section.',
     'Use exactly the codes that are printed in the document. Do not invent extra decimal levels such as 2.1, 2.2, or 141.01.18.1.1 unless those codes are explicitly visible in the source.',
-    'Create one requirement per visible heading or subheading, not one requirement per clause or paragraph.',
+    'Create one requirement per visible Part, Subpart, regulation heading, or technical-standard heading, not one requirement per clause or paragraph.',
     'Keep each heading together with every clause, subclause, note, bullet, or paragraph that belongs to that heading.',
     'Do not split numbered or lettered clauses into separate requirements.',
+    'Recognize SACAA CAR/CATS layout patterns:',
+    '- A contents page line like "Part 43  General Maintenance Rules" is a top-level heading row only. Use regulationCode "Part 43", regulationStatement "General Maintenance Rules", empty technicalStandardLines, and parentRegulationCode from the selected parent if supplied.',
+    '- A part title page line like "Part 43" followed by "General Maintenance Rules" is the same top-level heading row. Ignore amendment notes such as "[As substituted by ...]" unless the user explicitly asks to extract amendment history.',
+    '- A "LIST OF REGULATIONS" or index page has subpart rows and regulation rows. A line like "SUBPART 1: GENERAL" is a subheader row with regulationCode "SUBPART 1" and regulationStatement "GENERAL".',
+    '- In an index/list page, a line like "43.01.3  Logbooks" is a regulation heading row with regulationCode "43.01.3", regulationStatement "Logbooks", empty technicalStandardLines, and parentRegulationCode set to the visible subpart code when available.',
+    '- A detailed regulation page normally starts with a title line like "Logbooks" and then a printed regulation number like "43.01.3". Use "43.01.3" as regulationCode and "Logbooks" as regulationStatement.',
+    '- On a detailed regulation page, paragraphs marked (1), (2), (3), (a), (b), (c), (i), (ii), (aa), or similar are body text only. Preserve them as technicalStandardLines under the same regulationCode.',
+    '- Do not generate rows with regulationCode "(1)", "(a)", "(b)", "(i)", "(aa)", or similar subordinate markers.',
+    '- If a detailed page contains "Document SA-CATS 43" inside a paragraph, treat it as a cross-reference in technicalStandardLines, not as a new matrix row.',
+    'Recognize SACAA CATS / Technical Standards layout patterns:',
+    '- A technical standards contents page line like "SA-CATS 43 General Maintenance Rules" is a top-level technical-standard document row. Use regulationCode "SA-CATS 43", regulationStatement "General Maintenance Rules", and empty technicalStandardLines.',
+    '- A CATS list page headed "SA-CATS 43 General Maintenance Rules" and "LIST OF TECHNICAL STANDARDS" contains technical-standard section rows such as "43.02.3 CARRYING OUT OF MAINTENANCE". Use regulationCode "43.02.3" and regulationStatement "CARRYING OUT OF MAINTENANCE".',
+    '- Under a CATS section row, numbered lines like "1. Maintenance control manual" and "2. Maintenance programme" are genuine child headings. Create separate requirements for them under parentRegulationCode "43.02.3".',
+    '- For these numbered CATS child headings, if the selected parent is "43.02.3", reconstruct the child code as "43.02.3.1" for "1. Maintenance control manual" and "43.02.3.2" for "2. Maintenance programme".',
+    '- A CATS detailed page often repeats the parent section heading, e.g. "43.02.3 CARRYING OUT OF MAINTENANCE", then shows numbered child headings like "1. Maintenance control manual". The parent section heading should be one row and each numbered child heading should be its own row.',
+    '- Body paragraphs under a numbered CATS child heading marked (1), (2), (a), (b), (i), (ii), etc. are technicalStandardLines for that numbered child heading, not separate rows.',
+    '- Editorial notes and substitution/amendment notes, e.g. "[Section 2 substituted by ...]" or "(Editorial Note: ...)", should be preserved in technicalStandardLines for the relevant child heading, not turned into rows.',
     'For SACAA CARS and similar regulations, treat a printed regulation number like 91.03.1 as the requirement heading unless the document shows a new printed regulation number.',
     'If the source then continues with subordinate levels like (a), (b), (i), (ii), (iii), or double-letter markers such as (aa) and (bb), keep those as subordinate text lines under the same parent requirement unless a new regulation heading is visibly printed.',
     'Do not promote subordinate markers such as (a), (i), or (aa) into standalone regulationCode values unless the document explicitly presents them as a true headed item with its own heading role.',
@@ -106,6 +128,13 @@ function buildUserContent(input: SummarizeDocumentInput) {
     'Example: "2. Quality assurance" followed by clauses (1) to (8) should become one requirement with regulationCode "2", regulationStatement "Quality assurance", and all clauses in technicalStandardLines.',
     'Example: "141.01.18.1.1 Quality policy and strategy" followed by clauses (1) to (4) should become one requirement with regulationCode "141.01.18.1.1", regulationStatement "Quality policy and strategy", and those clauses in technicalStandardLines.',
     'Example: if a clause list under a heading contains sub-bullets like (a) through (g), keep them inside technicalStandardLines for that same heading unless the document explicitly prints a deeper heading code.',
+    'Example: a contents page row "Part 43  General Maintenance Rules" should become { "regulationCode": "Part 43", "regulationStatement": "General Maintenance Rules", "technicalStandardLines": [] }.',
+    'Example: a list page under "Part 43 General Maintenance Rules" with "SUBPART 1: GENERAL" and "43.01.3 Logbooks" should produce a subpart row plus a regulation row. The regulation row parentRegulationCode should be "SUBPART 1" unless the selected parent code should override it.',
+    'Example: a detail page headed "Logbooks" with "43.01.3 (1) The following logbooks shall be kept..." should produce one requirement: regulationCode "43.01.3", regulationStatement "Logbooks", and technicalStandardLines containing "(1) The following logbooks shall be kept...", "(a) an approved aircraft logbook for each aircraft;", "(b) an approved engine logbook for each aircraft engine; and", "(c) an approved propeller logbook for each propeller.", and the remaining paragraphs in order.',
+    'Example: a CATS contents row "SA-CATS 43 General Maintenance Rules" should become { "regulationCode": "SA-CATS 43", "regulationStatement": "General Maintenance Rules", "technicalStandardLines": [] }.',
+    'Example: a CATS list page row "43.02.3 CARRYING OUT OF MAINTENANCE" followed by "1. Maintenance control manual" and "2. Maintenance programme" should produce a parent row "43.02.3" plus child rows "43.02.3.1" and "43.02.3.2".',
+    'Example: a CATS detail page with "43.02.3 CARRYING OUT OF MAINTENANCE" then "1. Maintenance control manual" and clauses "(1)", "(a)", "(i)" should produce child requirement "43.02.3.1" with regulationStatement "Maintenance control manual" and all those clauses in technicalStandardLines.',
+    'Example: under "43.02.5 OVERHAUL, REPAIR AND SUBSTITUTION OF MAJOR COMPONENTS", "1. Overhauls: General" and "2. Overhaul of components and installed equipment" are separate child headings, not merely body paragraphs.',
     'Example: "Documents to be carried on board" followed by regulation "91.03.1" and subordinate text "(a) If an aircraft is engaged...", "(i) a certificate of registration;", and "(xvi) if a flight in RVSM airspace is contemplated..." should remain one extracted requirement with regulationCode "91.03.1", documentHeading "Documents to be carried on board", the regulation lead sentence as regulationStatement, and every subordinate marker preserved in technicalStandardLines in reading order.',
     'Example: subordinate lines "(aa) a valid RVSM licence endorsement..." and "(bb) if applicable, a valid RVSM operational approval..." are still part of the same parent requirement unless a new printed regulation heading appears.',
     `Selected Parent Code: ${input.targetParentCode || ''}`,
@@ -127,6 +156,10 @@ function buildUserContent(input: SummarizeDocumentInput) {
   }
 
   return content;
+}
+
+function isStandaloneSubordinateMarker(code: string) {
+  return /^\((?:\d+|[a-z]{1,2}|[ivxlcdm]+)\)$/i.test(code.trim());
 }
 
 async function runOpenAiSummarizeDocument(input: SummarizeDocumentInput) {
@@ -181,17 +214,23 @@ export async function summarizeDocument(input: SummarizeDocumentInput): Promise<
   const output = await runOpenAiSummarizeDocument(input);
   const targetParentCode = input.targetParentCode?.trim() || '';
 
-  const normalized = output.requirements.map((requirement) => ({
-    regulationCode: resolveRegulationCode(requirement.regulationCode, targetParentCode),
-    documentHeading: requirement.documentHeading?.trim() || '',
-    regulationStatement: requirement.regulationStatement.trim(),
-    technicalStandard: requirement.technicalStandardLines
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .join('\n'),
-    companyReference: requirement.companyReference.trim() || 'Ops Manual, Sec TBD',
-    parentRegulationCode: requirement.parentRegulationCode?.trim() || targetParentCode || '',
-  }));
+  const normalized = output.requirements
+    .map((requirement) => {
+      const parentRegulationCode = requirement.parentRegulationCode?.trim() || targetParentCode || '';
+
+      return {
+        regulationCode: resolveRegulationCode(requirement.regulationCode, parentRegulationCode),
+        documentHeading: requirement.documentHeading?.trim() || '',
+        regulationStatement: requirement.regulationStatement.trim(),
+        technicalStandard: requirement.technicalStandardLines
+          .map((line) => line.trim())
+          .filter(Boolean)
+          .join('\n'),
+        companyReference: requirement.companyReference.trim() || 'Ops Manual, Sec TBD',
+        parentRegulationCode,
+      };
+    })
+    .filter((requirement) => !isStandaloneSubordinateMarker(requirement.regulationCode));
 
   return SummarizeDocumentOutputSchema.parse({ requirements: normalized });
 }

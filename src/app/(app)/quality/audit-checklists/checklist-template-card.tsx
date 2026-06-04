@@ -8,7 +8,6 @@ import {
 import { Card, CardDescription, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { FileText, Pencil, PlayCircle, Trash2, MoreHorizontal, ChevronsUpDown } from 'lucide-react';
-import { NewChecklistDialog } from './new-checklist-dialog';
 import { StartAuditDialog } from './start-audit-dialog';
 import { useToast } from '@/hooks/use-toast';
 import type { QualityAuditChecklistTemplate } from '@/types/quality';
@@ -33,6 +32,7 @@ interface ChecklistTemplateCardProps {
   departments: Department[];
   personnel: Personnel[];
   organizations?: { id: string; name: string }[];
+  onEditTemplate: (template: QualityAuditChecklistTemplate) => void;
 }
 
 export function ChecklistTemplateCard({
@@ -42,6 +42,7 @@ export function ChecklistTemplateCard({
   departments,
   personnel,
   organizations = [],
+  onEditTemplate,
 }: ChecklistTemplateCardProps) {
   const { toast } = useToast();
   const isMobile = useIsMobile();
@@ -98,21 +99,14 @@ export function ChecklistTemplateCard({
                         departments={departments}
                         organizations={organizations}
                         trigger={
-                          <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="cursor-pointer">
+                          <DropdownMenuItem className="cursor-pointer">
                             <PlayCircle className="mr-2 h-3.5 w-3.5" /> Create Audit
                           </DropdownMenuItem>
                         }
                       />
-                      <NewChecklistDialog
-                        existingTemplate={template}
-                        tenantId={tenantId}
-                        departments={departments}
-                        trigger={
-                          <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="cursor-pointer">
-                            <Pencil className="mr-2 h-3.5 w-3.5" /> Edit Template
-                          </DropdownMenuItem>
-                        }
-                      />
+                      <DropdownMenuItem className="cursor-pointer" onSelect={() => onEditTemplate(template)}>
+                        <Pencil className="mr-2 h-3.5 w-3.5" /> Edit Template
+                      </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
                         className="cursor-pointer text-red-600"
@@ -156,16 +150,9 @@ export function ChecklistTemplateCard({
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <NewChecklistDialog
-                          existingTemplate={template}
-                          tenantId={tenantId}
-                          departments={departments}
-                          trigger={
-                            <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="cursor-pointer">
-                              <Pencil className="mr-2 h-3.5 w-3.5" /> Edit Template
-                            </DropdownMenuItem>
-                          }
-                        />
+                        <DropdownMenuItem className="cursor-pointer" onSelect={() => onEditTemplate(template)}>
+                          <Pencil className="mr-2 h-3.5 w-3.5" /> Edit Template
+                        </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                           className="cursor-pointer text-red-600"
@@ -203,21 +190,14 @@ export function ChecklistTemplateCard({
                         departments={departments}
                         organizations={organizations}
                         trigger={
-                          <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="cursor-pointer">
+                          <DropdownMenuItem className="cursor-pointer">
                             <PlayCircle className="mr-2 h-3.5 w-3.5" /> Create Audit
                           </DropdownMenuItem>
                         }
                       />
-                      <NewChecklistDialog
-                        existingTemplate={template}
-                        tenantId={tenantId}
-                        departments={departments}
-                        trigger={
-                          <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="cursor-pointer">
-                            <Pencil className="mr-2 h-3.5 w-3.5" /> Edit Template
-                          </DropdownMenuItem>
-                        }
-                      />
+                      <DropdownMenuItem className="cursor-pointer" onSelect={() => onEditTemplate(template)}>
+                        <Pencil className="mr-2 h-3.5 w-3.5" /> Edit Template
+                      </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
                         className="cursor-pointer text-red-600"

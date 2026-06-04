@@ -61,6 +61,8 @@ const CLAUSE_INSPECTOR_MAX_WIDTH = 640;
 const CLAUSE_INSPECTOR_DEFAULT_WIDTH = 420;
 const CLAUSE_SPLIT_HANDLE_WIDTH = 24;
 const TECHNICAL_STANDARD_MAX_INDENT = 6;
+const MATRIX_INITIAL_RENDER_LIMIT = 160;
+const MATRIX_RENDER_INCREMENT = 160;
 type RegulationFamily = (typeof REGULATION_TABS)[number]['value'];
 type MatrixPreviewRequirement = SummarizeDocumentOutput['requirements'][number] & {
     technicalStandardIndentation?: number[];
@@ -939,6 +941,7 @@ export default function CoherenceMatrixPage() {
   const [activeRegulationTab, setActiveRegulationTab] = useState<RegulationFamily>('sacaa-cars');
   const [, startRegulationTabTransition] = useTransition();
   const [activeMatrixAnchorId, setActiveMatrixAnchorId] = useState<string | null>(null);
+  const [visibleMatrixRowLimit, setVisibleMatrixRowLimit] = useState(MATRIX_INITIAL_RENDER_LIMIT);
   const [clauseInspectorWidth, setClauseInspectorWidth] = useState(CLAUSE_INSPECTOR_DEFAULT_WIDTH);
   const clauseInspectorWidthStyle = { '--clause-inspector-width': `${clauseInspectorWidth}px` } as CSSProperties;
 
@@ -1202,6 +1205,23 @@ export default function CoherenceMatrixPage() {
     ],
   );
 
+  const visibleMatrixClauseRows = useMemo(
+    () => matrixClauseRows.slice(0, visibleMatrixRowLimit),
+    [matrixClauseRows, visibleMatrixRowLimit],
+  );
+  const visibleGapAnalysisRows = useMemo(
+    () => gapAnalysisRows.slice(0, visibleMatrixRowLimit),
+    [gapAnalysisRows, visibleMatrixRowLimit],
+  );
+
+  useEffect(() => {
+    setVisibleMatrixRowLimit(MATRIX_INITIAL_RENDER_LIMIT);
+  }, [deferredActiveRegulationTab, effectiveOrgId, normalizedSearchQuery, normalizedIndexQuery]);
+
+  const showMoreMatrixRows = useCallback(() => {
+    setVisibleMatrixRowLimit((current) => current + MATRIX_RENDER_INCREMENT);
+  }, []);
+
   const loadData = useCallback(async () => {
     try {
         const [matrixResponse, personnelResponse, orgResponse, auditsResponse] = await Promise.all([
@@ -1261,10 +1281,6 @@ export default function CoherenceMatrixPage() {
         });
     }
   }, [resolvedTenantId, toast]);
-
-  if (!isAccessLoading && !isAllowed) {
-    return <TenantLayoutDisabledState />;
-  }
 
   const updateMatrixItemField = useCallback(async (item: ComplianceRequirement, patch: Partial<ComplianceRequirement>) => {
     try {
@@ -2231,7 +2247,7 @@ export default function CoherenceMatrixPage() {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {matrixClauseRows.map(({ item, depth, hasChildren, anchorId }: MatrixTableRow) => {
+                        {visibleMatrixClauseRows.map(({ item, depth, hasChildren, anchorId }: MatrixTableRow) => {
                             const isClauseRow = enableGapAnalysis && depth > 0 && !hasChildren;
                             const gapSummary = isClauseRow ? getGapSummary({ item, depth, hasChildren }) : null;
                             const clauseGapStatus: GapStatus | null = isClauseRow
@@ -2391,6 +2407,19 @@ export default function CoherenceMatrixPage() {
                         })}
                     </TableBody>
                 </Table>
+                    {visibleMatrixClauseRows.length < matrixClauseRows.length ? (
+                        <div className="border-t border-card-border bg-card/90 p-3 text-center">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="compact"
+                                className="border-card-border bg-background/90 text-[10px] font-black uppercase tracking-[0.12em]"
+                                onClick={showMoreMatrixRows}
+                            >
+                                Show more clauses ({visibleMatrixClauseRows.length}/{matrixClauseRows.length})
+                            </Button>
+                        </div>
+                    ) : null}
                     </div>
                 </div>
             </div>
@@ -2398,7 +2427,7 @@ export default function CoherenceMatrixPage() {
     };
 
     const renderGapAnalysisTable = () => {
-        const rows = gapAnalysisRows;
+        const rows = visibleGapAnalysisRows;
 
         const statusVariant = (status: MatrixGapRow['gapStatus']) => {
             switch (status) {
@@ -2722,7 +2751,7 @@ export default function CoherenceMatrixPage() {
             );
         };
 
-        if (rows.length === 0) {
+        if (gapAnalysisRows.length === 0) {
             return (
                 <div className="flex flex-col items-center justify-center py-24 text-center opacity-30">
                     <Layers className="h-16 w-16 mb-4" />
@@ -2874,6 +2903,19 @@ export default function CoherenceMatrixPage() {
                         ))}
                     </TableBody>
                 </Table>
+                    {rows.length < gapAnalysisRows.length ? (
+                        <div className="border-t border-card-border bg-card/90 p-3 text-center">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="compact"
+                                className="border-card-border bg-background/90 text-[10px] font-black uppercase tracking-[0.12em]"
+                                onClick={showMoreMatrixRows}
+                            >
+                                Show more gap rows ({rows.length}/{gapAnalysisRows.length})
+                            </Button>
+                        </div>
+                    ) : null}
                 </div>
                 <div className="hidden xl:flex items-stretch justify-center">
                     <button
@@ -3277,13 +3319,17 @@ export default function CoherenceMatrixPage() {
     );
   };
 
-  if ((!canViewMatrix && isPermissionsLoading) || isProfileLoading || !userProfile || isLoading) {
+  if ((!canViewMatrix && isPermissionsLoading) || isAccessLoading || isProfileLoading || !userProfile || isLoading) {
     return (
         <div className="max-w-[1100px] mx-auto w-full space-y-6 pt-4 px-1">
             <Skeleton className="h-20 w-full" />
             <Skeleton className="h-[600px] w-full" />
         </div>
     );
+  }
+
+  if (!isAllowed) {
+    return <TenantLayoutDisabledState />;
   }
 
   if (!canViewMatrix) {
