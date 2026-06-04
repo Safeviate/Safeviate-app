@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useState, useCallback, useEffect, useRef, type CSSProperties } from 'react';
+import { Fragment, useState, useCallback, useEffect, useMemo, useRef, type CSSProperties } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
@@ -65,6 +65,145 @@ type RegulationFamily = (typeof REGULATION_TABS)[number]['value'];
 type MatrixPreviewRequirement = SummarizeDocumentOutput['requirements'][number] & {
     technicalStandardIndentation?: number[];
 };
+type AuditFindingSummary = {
+    finding: QualityFinding['finding'];
+    auditNumber: string;
+    auditDate: string;
+    auditStatus: QualityAudit['status'];
+    templateTitle: string;
+    checklistItemId: string;
+};
+type GapSummary = {
+    mappedCount: number;
+    assessedCount: number;
+    openCapCount: number;
+    latestFinding?: AuditFindingSummary;
+    gapStatus: 'Open gap' | 'Partial coverage' | 'Covered' | 'Unassessed' | 'Not applicable';
+};
+type MatrixTableRow = {
+    item: ComplianceRequirement;
+    depth: number;
+    hasChildren: boolean;
+    anchorId: string;
+    firstClauseAnchorId: string | null;
+};
+
+function buildAuditSummaryMaps(
+    qualityAudits: QualityAudit[],
+    qualityAuditTemplates: QualityAuditChecklistTemplate[],
+    correctiveActionPlans: CorrectiveActionPlan[],
+) {
+    const auditsSorted = [...qualityAudits].sort((a, b) => {
+        const aDate = new Date(a.auditDate || '').getTime() || 0;
+        const bDate = new Date(b.auditDate || '').getTime() || 0;
+        return bDate - aDate;
+    });
+
+    const templateItemLookup = new Map<string, { regulationReference: string; templateTitle: string }>();
+    qualityAuditTemplates.forEach((template) => {
+        template.sections.forEach((section) => {
+            section.items.forEach((item) => {
+                const regulationReference = normalizeRegulationCode(item.regulationReference);
+                if (!regulationReference) return;
+                templateItemLookup.set(item.id, {
+                    regulationReference,
+                    templateTitle: template.title,
+                });
+            });
+        });
+    });
+
+    const latestFindingByItemId = new Map<string, AuditFindingSummary>();
+
+    auditsSorted.forEach((audit) => {
+        const template = qualityAuditTemplates.find((entry) => entry.id === audit.templateId);
+        if (!template) return;
+
+        const itemIdsForTemplate = new Map<string, { regulationReference: string }>();
+        template.sections.forEach((section) => {
+            section.items.forEach((item) => {
+                const regulationReference = normalizeRegulationCode(item.regulationReference);
+                if (!regulationReference) return;
+                itemIdsForTemplate.set(item.id, { regulationReference });
+            });
+        });
+
+        (audit.findings || []).forEach((finding) => {
+            const templateItem = itemIdsForTemplate.get(finding.checklistItemId);
+            if (!templateItem) return;
+            if (latestFindingByItemId.has(finding.checklistItemId)) return;
+
+            latestFindingByItemId.set(finding.checklistItemId, {
+                finding: finding.finding,
+                auditNumber: audit.auditNumber,
+                auditDate: audit.auditDate,
+                auditStatus: audit.status,
+                templateTitle: template.title,
+                checklistItemId: finding.checklistItemId,
+            });
+        });
+    });
+
+    const regulationToItemIds = new Map<string, string[]>();
+    templateItemLookup.forEach((value, itemId) => {
+        const current = regulationToItemIds.get(value.regulationReference) || [];
+        current.push(itemId);
+        regulationToItemIds.set(value.regulationReference, current);
+    });
+
+    const openCapFindingIds = new Set(
+        correctiveActionPlans
+            .filter((cap) => cap.status !== 'Closed' && cap.status !== 'Cancelled')
+            .map((cap) => cap.findingId),
+    );
+
+    return { regulationToItemIds, latestFindingByItemId, openCapFindingIds };
+}
+
+function getGapSummaryForCode(
+    regulationCode: string,
+    regulationToItemIds: Map<string, string[]>,
+    latestFindingByItemId: Map<string, AuditFindingSummary>,
+    openCapFindingIds: Set<string>,
+): GapSummary {
+    const normalizedCode = normalizeRegulationCode(regulationCode);
+    const mappedItemIds = regulationToItemIds.get(normalizedCode) || [];
+    const latestFindings = mappedItemIds
+        .map((itemId) => latestFindingByItemId.get(itemId))
+        .filter((finding): finding is AuditFindingSummary => Boolean(finding));
+
+    const assessedCount = latestFindings.length;
+    const openCapCount = mappedItemIds.filter((itemId) => openCapFindingIds.has(itemId)).length;
+    const nonCompliantCount = latestFindings.filter((finding) => finding.finding === 'Non Compliant').length;
+    const compliantCount = latestFindings.filter((finding) => finding.finding === 'Compliant').length;
+    const notApplicableCount = latestFindings.filter((finding) => finding.finding === 'Not Applicable').length;
+    const latestFinding = [...latestFindings].sort((a, b) => new Date(b.auditDate).getTime() - new Date(a.auditDate).getTime())[0];
+
+    let gapStatus: GapSummary['gapStatus'] = 'Unassessed';
+    if (mappedItemIds.length === 0) {
+        gapStatus = 'Open gap';
+    } else if (assessedCount === 0) {
+        gapStatus = 'Unassessed';
+    } else if (nonCompliantCount > 0) {
+        gapStatus = 'Open gap';
+    } else if (compliantCount > 0 && compliantCount + notApplicableCount === assessedCount) {
+        gapStatus = notApplicableCount === assessedCount ? 'Not applicable' : 'Covered';
+    } else {
+        gapStatus = 'Partial coverage';
+    }
+
+    if (openCapCount > 0 && gapStatus === 'Covered') {
+        gapStatus = 'Partial coverage';
+    }
+
+    return {
+        mappedCount: mappedItemIds.length,
+        assessedCount,
+        openCapCount,
+        latestFinding,
+        gapStatus,
+    };
+}
 
 function regulationTabToUiValue(value: RegulationFamily) {
     return value.replace(/[^a-z0-9_-]/gi, '_');
@@ -796,6 +935,209 @@ export default function CoherenceMatrixPage() {
   const [correctiveActionPlans, setCorrectiveActionPlans] = useState<CorrectiveActionPlan[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const resolvedTenantId = tenantId || 'safeviate';
+  const auditSummaryMaps = useMemo(
+    () => buildAuditSummaryMaps(qualityAudits, qualityAuditTemplates, correctiveActionPlans),
+    [qualityAudits, qualityAuditTemplates, correctiveActionPlans],
+  );
+  const effectiveOrgId: string | 'internal' = shouldShowOrganizationTabs ? activeOrgTab : (scopedOrganizationId || 'internal');
+  const normalizedSearchQuery = useMemo(() => matrixSearchQuery.trim().toLowerCase(), [matrixSearchQuery]);
+  const normalizedIndexQuery = useMemo(() => matrixIndexQuery.trim().toLowerCase(), [matrixIndexQuery]);
+  const getManagerLabel = useCallback((managerId?: string | null) => {
+    const normalizedManagerId = managerId?.trim() || '';
+    if (!normalizedManagerId) return '';
+    return getPersonnelDisplayName(personnel, normalizedManagerId);
+  }, [personnel]);
+  const technicalLinesByItemId = useMemo(
+    () =>
+      new Map(
+        complianceItems.map((item) => [
+          item.id,
+          getStructuredTechnicalLines(item.technicalStandard, item.technicalStandardIndentation),
+        ]),
+      ),
+    [complianceItems],
+  );
+  const currentOrgItems = useMemo(
+    () =>
+      (complianceItems || []).filter((item) =>
+        effectiveOrgId === 'internal' ? !item.organizationId : item.organizationId === effectiveOrgId,
+      ),
+    [complianceItems, effectiveOrgId],
+  );
+  const activeFamilyItems = useMemo(
+    () => currentOrgItems.filter((item) => getItemFamily(item) === activeRegulationTab),
+    [currentOrgItems, activeRegulationTab],
+  );
+  const currentFamilyHeaders = useMemo(
+    () =>
+      activeFamilyItems
+        .filter((item) => !item.technicalStandard?.trim())
+        .sort((a, b) => naturalSort(a.regulationCode, b.regulationCode))
+        .reduce((acc, item) => {
+          const normalizedCode = normalizeRegulationCode(item.regulationCode);
+          const normalizedLabel = (item.regulationStatement || item.regulationCode).trim();
+          if (!acc.some((existing) => existing.code === normalizedCode)) {
+            acc.push({ code: normalizedCode, label: normalizedLabel });
+          }
+          return acc;
+        }, [] as { code: string; label: string }[]),
+    [activeFamilyItems],
+  );
+  const currentFamilyTopLevelHeaders = useMemo(
+    () =>
+      activeFamilyItems
+        .filter((item) => !item.technicalStandard?.trim())
+        .filter((item) => !normalizeRegulationCode(item.parentRegulationCode))
+        .sort((a, b) => naturalSort(a.regulationCode, b.regulationCode))
+        .reduce((acc, item) => {
+          const normalizedCode = normalizeRegulationCode(item.regulationCode);
+          const normalizedLabel = (item.regulationStatement || item.regulationCode).trim();
+          if (!acc.some((existing) => existing.code === normalizedCode)) {
+            acc.push({ code: normalizedCode, label: normalizedLabel });
+          }
+          return acc;
+        }, [] as { code: string; label: string }[]),
+    [activeFamilyItems],
+  );
+  const currentFamilySubheaders = useMemo(
+    () =>
+      activeFamilyItems
+        .filter((item) => !item.technicalStandard?.trim())
+        .filter((item) => !!normalizeRegulationCode(item.parentRegulationCode))
+        .sort((a, b) => naturalSort(a.regulationCode, b.regulationCode))
+        .reduce((acc, item) => {
+          const normalizedCode = normalizeRegulationCode(item.regulationCode);
+          const normalizedLabel = (item.regulationStatement || item.regulationCode).trim();
+          if (!acc.some((existing) => existing.code === normalizedCode)) {
+            acc.push({ code: normalizedCode, label: normalizedLabel });
+          }
+          return acc;
+        }, [] as { code: string; label: string }[]),
+    [activeFamilyItems],
+  );
+  const activeMatrixView = useMemo(() => {
+    const sortedItems = [...activeFamilyItems].sort((a, b) => naturalSort(a.regulationCode, b.regulationCode));
+    const availableItemCodes = new Set(
+      sortedItems
+        .map((item) => normalizeRegulationCode(item.regulationCode))
+        .filter(Boolean),
+    );
+    const groupedItems = sortedItems.reduce((acc, item) => {
+      const parentCode = normalizeRegulationCode(item.parentRegulationCode);
+      const itemCode = normalizeRegulationCode(item.regulationCode);
+      if (parentCode && parentCode !== itemCode) {
+        if (!acc[parentCode]) acc[parentCode] = [];
+        acc[parentCode].push(item);
+      }
+      return acc;
+    }, {} as Record<string, ComplianceRequirement[]>);
+    const topLevelItems = sortedItems.filter((item) => {
+      const itemCode = normalizeRegulationCode(item.regulationCode);
+      const parentCode = normalizeRegulationCode(item.parentRegulationCode);
+      return !parentCode || parentCode === itemCode || !availableItemCodes.has(parentCode);
+    });
+    const searchCache = new Map<string, boolean>();
+    const getSearchableText = (item: ComplianceRequirement) =>
+      [
+        item.regulationCode,
+        item.regulationStatement,
+        item.technicalStandard,
+        item.companyReference,
+        getManagerLabel(item.responsibleManagerId),
+        item.nextAuditDate ? formatAuditDate(item.nextAuditDate) : '',
+        item.gapStatus,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+    const itemMatchesSearch = (item: ComplianceRequirement) => {
+      if (!normalizedSearchQuery) return true;
+      return getSearchableText(item).includes(normalizedSearchQuery);
+    };
+    const branchMatchesSearch = (item: ComplianceRequirement): boolean => {
+      const normalizedCode = normalizeRegulationCode(item.regulationCode);
+      if (!normalizedSearchQuery) return true;
+      if (searchCache.has(normalizedCode)) {
+        return searchCache.get(normalizedCode) || false;
+      }
+      const childItems = groupedItems[normalizedCode] || [];
+      const matches = itemMatchesSearch(item) || childItems.some((child) => branchMatchesSearch(child));
+      searchCache.set(normalizedCode, matches);
+      return matches;
+    };
+
+    type MatrixTableRow = {
+      item: ComplianceRequirement;
+      depth: number;
+      hasChildren: boolean;
+      anchorId: string;
+      firstClauseAnchorId: string | null;
+    };
+
+    const buildTableRows = (items: ComplianceRequirement[], depth = 0, ancestors: string[] = []): MatrixTableRow[] =>
+      items.flatMap((item) => {
+        const normalizedCode = normalizeRegulationCode(item.regulationCode);
+        if (ancestors.includes(normalizedCode)) return [];
+
+        const childItems = groupedItems[normalizedCode] || [];
+        if (normalizedSearchQuery && !branchMatchesSearch(item)) {
+          return [];
+        }
+
+        const nextChildItems =
+          normalizedSearchQuery && !itemMatchesSearch(item)
+            ? childItems.filter((child) => branchMatchesSearch(child))
+            : childItems;
+        const childRows = buildTableRows(nextChildItems, depth + 1, [...ancestors, normalizedCode]);
+        const firstClauseDescendant = childRows.find((row) => !row.hasChildren);
+        const firstClauseAnchorId = !nextChildItems.length
+          ? `matrix-row-${item.id}`
+          : firstClauseDescendant?.anchorId || null;
+
+        return [
+          {
+            item,
+            depth,
+            hasChildren: nextChildItems.length > 0,
+            anchorId: `matrix-row-${item.id}`,
+            firstClauseAnchorId,
+          },
+          ...childRows,
+        ];
+      });
+
+    const buildTableIndex = (rows: MatrixTableRow[]) =>
+      rows.map((row) => ({
+        ...row,
+        anchorId: row.firstClauseAnchorId || row.anchorId,
+      }));
+
+    const matrixTableRows = buildTableRows(topLevelItems);
+    const matrixIndexEntries = buildTableIndex(matrixTableRows);
+    const matrixClauseEntries = matrixIndexEntries.filter(({ depth, hasChildren }) => depth > 0 && !hasChildren);
+    const matrixIndexEntryByItemId = new Map(matrixIndexEntries.map((entry) => [entry.item.id, entry]));
+    const filteredMatrixIndexEntries = normalizedIndexQuery
+      ? matrixIndexEntries.filter(({ item }) =>
+          [item.regulationCode, item.regulationStatement]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase()
+            .includes(normalizedIndexQuery),
+        )
+      : matrixIndexEntries;
+
+    return {
+      groupedItems,
+      topLevelItems,
+      matrixTableRows,
+      matrixIndexEntries,
+      matrixClauseEntries,
+      matrixIndexEntryByItemId,
+      filteredMatrixIndexEntries,
+      itemMatchesSearch,
+      branchMatchesSearch,
+    };
+  }, [activeFamilyItems, getManagerLabel, normalizedIndexQuery, normalizedSearchQuery]);
 
   const loadData = useCallback(async () => {
     try {
@@ -1096,9 +1438,6 @@ export default function CoherenceMatrixPage() {
         }
   }
 
-    const currentOrgItems = (complianceItems || []).filter(item =>
-    (activeOrgTab === 'internal' ? !item.organizationId : item.organizationId === activeOrgTab)
-  );
   const renderSearchControl = (mobile = false) => (
     <div className={cn(
         mobile ? 'w-full' : 'w-[170px] max-w-full'
@@ -1111,53 +1450,10 @@ export default function CoherenceMatrixPage() {
         />
     </div>
   );
-  const currentFamilyHeaders = currentOrgItems
-    .filter(item => getItemFamily(item) === activeRegulationTab)
-    .filter(item => !item.technicalStandard?.trim())
-    .sort((a, b) => naturalSort(a.regulationCode, b.regulationCode))
-    .reduce((acc, item) => {
-        const normalizedCode = normalizeRegulationCode(item.regulationCode);
-        const normalizedLabel = (item.regulationStatement || item.regulationCode).trim();
-        if (!acc.some(existing => existing.code === normalizedCode)) {
-            acc.push({ code: normalizedCode, label: normalizedLabel });
-        }
-        return acc;
-    }, [] as { code: string; label: string }[]);
-  const currentFamilyTopLevelHeaders = currentOrgItems
-    .filter(item => getItemFamily(item) === activeRegulationTab)
-    .filter(item => !item.technicalStandard?.trim())
-    .filter(item => !normalizeRegulationCode(item.parentRegulationCode))
-    .sort((a, b) => naturalSort(a.regulationCode, b.regulationCode))
-    .reduce((acc, item) => {
-        const normalizedCode = normalizeRegulationCode(item.regulationCode);
-        const normalizedLabel = (item.regulationStatement || item.regulationCode).trim();
-        if (!acc.some(existing => existing.code === normalizedCode)) {
-            acc.push({ code: normalizedCode, label: normalizedLabel });
-        }
-        return acc;
-    }, [] as { code: string; label: string }[]);
-  const currentFamilySubheaders = currentOrgItems
-    .filter(item => getItemFamily(item) === activeRegulationTab)
-    .filter(item => !item.technicalStandard?.trim())
-    .filter(item => !!normalizeRegulationCode(item.parentRegulationCode))
-    .sort((a, b) => naturalSort(a.regulationCode, b.regulationCode))
-    .reduce((acc, item) => {
-        const normalizedCode = normalizeRegulationCode(item.regulationCode);
-        const normalizedLabel = (item.regulationStatement || item.regulationCode).trim();
-        if (!acc.some(existing => existing.code === normalizedCode)) {
-            acc.push({ code: normalizedCode, label: normalizedLabel });
-        }
-        return acc;
-    }, [] as { code: string; label: string }[]);
   const renderOrgContext = (orgId: string | 'internal') => {
     const contextOrgId = orgId === 'internal' ? null : orgId;
     const activeRegulationTabValue = regulationTabToUiValue(activeRegulationTab);
     const showGapAnalysis = activeRegulationTab === 'sacaa-cats';
-    const getManagerLabel = (managerId?: string | null) => {
-        const normalizedManagerId = managerId?.trim() || '';
-        if (!normalizedManagerId) return '';
-        return getPersonnelDisplayName(personnel, normalizedManagerId);
-    };
 
     const renderRequirementMeta = (item: ComplianceRequirement) => {
         const fields = [
@@ -1183,30 +1479,17 @@ export default function CoherenceMatrixPage() {
         );
     };
 
-    const filteredItems = (complianceItems || []).filter(item => 
-        (orgId === 'internal' ? !item.organizationId : item.organizationId === orgId) &&
-        getItemFamily(item) === activeRegulationTab
-    );
-    const sortedItems = [...filteredItems].sort((a, b) => naturalSort(a.regulationCode, b.regulationCode));
-    const availableItemCodes = new Set(
-        sortedItems
-            .map((item) => normalizeRegulationCode(item.regulationCode))
-            .filter(Boolean)
-    );
-    const groupedItems = sortedItems.reduce((acc, item) => {
-        const parentCode = normalizeRegulationCode(item.parentRegulationCode);
-        const itemCode = normalizeRegulationCode(item.regulationCode);
-        if (parentCode && parentCode !== itemCode) {
-            if (!acc[parentCode]) acc[parentCode] = [];
-            acc[parentCode].push(item);
-        }
-        return acc;
-    }, {} as Record<string, ComplianceRequirement[]>);
-    const topLevelItems = sortedItems.filter((item) => {
-        const itemCode = normalizeRegulationCode(item.regulationCode);
-        const parentCode = normalizeRegulationCode(item.parentRegulationCode);
-        return !parentCode || parentCode === itemCode || !availableItemCodes.has(parentCode);
-    });
+    const {
+        groupedItems,
+        topLevelItems,
+        matrixTableRows,
+        matrixIndexEntries,
+        matrixClauseEntries,
+        matrixIndexEntryByItemId,
+        filteredMatrixIndexEntries,
+        itemMatchesSearch,
+        branchMatchesSearch,
+    } = activeMatrixView;
     const renderInlineClauseLines = (parentCode: string, items: ComplianceRequirement[], ancestors: string[]) => {
         return (
             <div className="rounded-md border border-slate-200 bg-background/60">
@@ -1467,92 +1750,11 @@ export default function CoherenceMatrixPage() {
         );
     };
 
-    const normalizedSearchQuery = matrixSearchQuery.trim().toLowerCase();
-    const searchCache = new Map<string, boolean>();
-    const getSearchableText = (item: ComplianceRequirement) => [
-        item.regulationCode,
-        item.regulationStatement,
-        item.technicalStandard,
-        item.companyReference,
-        getManagerLabel(item.responsibleManagerId),
-        item.nextAuditDate ? formatAuditDate(item.nextAuditDate) : '',
-        item.gapStatus,
-    ]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase();
-    const itemMatchesSearch = (item: ComplianceRequirement) => {
-        if (!normalizedSearchQuery) return true;
-        return getSearchableText(item).includes(normalizedSearchQuery);
-    };
-    const branchMatchesSearch = (item: ComplianceRequirement): boolean => {
-        const normalizedCode = normalizeRegulationCode(item.regulationCode);
-        if (!normalizedSearchQuery) return true;
-        if (searchCache.has(normalizedCode)) {
-            return searchCache.get(normalizedCode) || false;
-        }
-        const childItems = groupedItems[normalizedCode] || [];
-        const matches = itemMatchesSearch(item) || childItems.some((child) => branchMatchesSearch(child));
-        searchCache.set(normalizedCode, matches);
-        return matches;
-    };
-
-    type MatrixTableRow = {
-        item: ComplianceRequirement;
-        depth: number;
-        hasChildren: boolean;
-        anchorId: string;
-        firstClauseAnchorId: string | null;
-    };
-
-    const buildTableRows = (items: ComplianceRequirement[], depth = 0, ancestors: string[] = []): MatrixTableRow[] => {
-        return items.flatMap((item) => {
-            const normalizedCode = normalizeRegulationCode(item.regulationCode);
-            if (ancestors.includes(normalizedCode)) return [];
-
-            const childItems = groupedItems[normalizedCode] || [];
-            if (normalizedSearchQuery && !branchMatchesSearch(item)) {
-                return [];
-            }
-
-            const nextChildItems = normalizedSearchQuery && !itemMatchesSearch(item)
-                ? childItems.filter((child) => branchMatchesSearch(child))
-                : childItems;
-            const childRows = buildTableRows(nextChildItems, depth + 1, [...ancestors, normalizedCode]);
-            const firstClauseDescendant = childRows.find((row) => !row.hasChildren);
-            const firstClauseAnchorId = !nextChildItems.length
-                ? `matrix-row-${item.id}`
-                : firstClauseDescendant?.anchorId || null;
-
-            return [
-                {
-                    item,
-                    depth,
-                    hasChildren: nextChildItems.length > 0,
-                    anchorId: `matrix-row-${item.id}`,
-                    firstClauseAnchorId,
-                },
-                ...childRows,
-            ];
-        });
-    };
-
     const scrollToTableRow = () => {
         if (typeof document === 'undefined') return;
         const target = document.getElementById('selected-clause-panel');
         target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
-
-    const buildTableIndex = (rows: MatrixTableRow[]) =>
-        rows.map((row) => ({
-            ...row,
-            anchorId: row.firstClauseAnchorId || row.anchorId,
-        }));
-
-    const normalizedIndexQuery = matrixIndexQuery.trim().toLowerCase();
-    const matrixTableRows = buildTableRows(topLevelItems);
-    const matrixIndexEntries = buildTableIndex(matrixTableRows);
-    const matrixClauseEntries = matrixIndexEntries.filter(({ depth, hasChildren }) => depth > 0 && !hasChildren);
     const selectedMatrixAnchorId = matrixClauseEntries.some(({ anchorId }) => anchorId === activeMatrixAnchorId)
         ? activeMatrixAnchorId
         : matrixClauseEntries[0]?.anchorId || null;
@@ -1570,7 +1772,6 @@ export default function CoherenceMatrixPage() {
             );
         }
     }
-    const matrixIndexEntryByItemId = new Map(matrixIndexEntries.map((entry) => [entry.item.id, entry]));
     const expandableIndexCodes = Array.from(
         new Set(
             matrixIndexEntries
@@ -1581,16 +1782,6 @@ export default function CoherenceMatrixPage() {
     );
     const selectedMatrixItemCode = normalizeRegulationCode(selectedMatrixItem?.regulationCode);
     const selectedMatrixItemExpanded = selectedMatrixItem ? (expandedIndexCodes[selectedMatrixItemCode] ?? true) : true;
-    const filteredMatrixIndexEntries = normalizedIndexQuery
-        ? matrixIndexEntries.filter(({ item }) =>
-            [item.regulationCode, item.regulationStatement]
-                .filter(Boolean)
-                .join(' ')
-                .toLowerCase()
-                .includes(normalizedIndexQuery)
-        )
-        : matrixIndexEntries;
-
     const isIndexNodeExpanded = (code: string) => expandedIndexCodes[code] ?? true;
 
     const areAllIndexBranchesCollapsed =
@@ -1632,7 +1823,7 @@ export default function CoherenceMatrixPage() {
             .includes(normalizedIndexQuery);
         if (directMatch) return true;
 
-        const technicalLineMatch = getStructuredTechnicalLines(item.technicalStandard, item.technicalStandardIndentation).some((line) =>
+        const technicalLineMatch = (technicalLinesByItemId.get(item.id) || []).some((line) =>
             [line.marker, line.content]
                 .filter(Boolean)
                 .join(' ')
@@ -1925,113 +2116,14 @@ export default function CoherenceMatrixPage() {
 
     const renderMatrixTable = () => {
         const enableGapAnalysis = showGapAnalysis;
-        const tableRows = buildTableRows(topLevelItems);
-        const clauseRows = tableRows.filter(({ depth, hasChildren }) => depth > 0 && !hasChildren);
-        const auditsSorted = [...qualityAudits].sort((a, b) => {
-            const aDate = new Date(a.auditDate || '').getTime() || 0;
-            const bDate = new Date(b.auditDate || '').getTime() || 0;
-            return bDate - aDate;
-        });
-
-        const templateItemLookup = new Map<string, { regulationReference: string; templateTitle: string }>();
-        qualityAuditTemplates.forEach((template) => {
-            template.sections.forEach((section) => {
-                section.items.forEach((item) => {
-                    const regulationReference = normalizeRegulationCode(item.regulationReference);
-                    if (!regulationReference) return;
-                    templateItemLookup.set(item.id, {
-                        regulationReference,
-                        templateTitle: template.title,
-                    });
-                });
-            });
-        });
-
-        type AuditFindingSummary = {
-            finding: QualityFinding['finding'];
-            auditNumber: string;
-            auditDate: string;
-            auditStatus: QualityAudit['status'];
-            templateTitle: string;
-            checklistItemId: string;
-        };
-
-        const latestFindingByItemId = new Map<string, AuditFindingSummary>();
-
-        auditsSorted.forEach((audit) => {
-            const template = qualityAuditTemplates.find((entry) => entry.id === audit.templateId);
-            if (!template) return;
-
-            const itemIdsForTemplate = new Map<string, { regulationReference: string }>();
-            template.sections.forEach((section) => {
-                section.items.forEach((item) => {
-                    const regulationReference = normalizeRegulationCode(item.regulationReference);
-                    if (!regulationReference) return;
-                    itemIdsForTemplate.set(item.id, { regulationReference });
-                });
-            });
-
-            (audit.findings || []).forEach((finding) => {
-                const templateItem = itemIdsForTemplate.get(finding.checklistItemId);
-                if (!templateItem) return;
-                if (latestFindingByItemId.has(finding.checklistItemId)) return;
-
-                latestFindingByItemId.set(finding.checklistItemId, {
-                    finding: finding.finding,
-                    auditNumber: audit.auditNumber,
-                    auditDate: audit.auditDate,
-                    auditStatus: audit.status,
-                    templateTitle: template.title,
-                    checklistItemId: finding.checklistItemId,
-                });
-            });
-        });
-
+        const clauseRows = matrixTableRows.filter(({ depth, hasChildren }) => depth > 0 && !hasChildren);
         const getGapSummary = (row: Pick<MatrixTableRow, 'item' | 'depth' | 'hasChildren'>) => {
-            const normalizedCode = normalizeRegulationCode(row.item.regulationCode);
-            const mappedItemIds = Array.from(templateItemLookup.entries())
-                .filter(([, value]) => value.regulationReference === normalizedCode)
-                .map(([itemId]) => itemId);
-
-            const latestFindings = mappedItemIds
-                .map((itemId) => latestFindingByItemId.get(itemId))
-                .filter((finding): finding is AuditFindingSummary => Boolean(finding));
-
-            const assessedCount = latestFindings.length;
-            const openCapCount = correctiveActionPlans.filter((cap) => {
-                const isOpen = cap.status !== 'Closed' && cap.status !== 'Cancelled';
-                return isOpen && mappedItemIds.includes(cap.findingId);
-            }).length;
-
-            const nonCompliantCount = latestFindings.filter((finding) => finding.finding === 'Non Compliant').length;
-            const compliantCount = latestFindings.filter((finding) => finding.finding === 'Compliant').length;
-            const notApplicableCount = latestFindings.filter((finding) => finding.finding === 'Not Applicable').length;
-            const latestFinding = [...latestFindings].sort((a, b) => new Date(b.auditDate).getTime() - new Date(a.auditDate).getTime())[0];
-
-            let gapStatus: 'Open gap' | 'Partial coverage' | 'Covered' | 'Unassessed' | 'Not applicable' = 'Unassessed';
-            if (mappedItemIds.length === 0) {
-                gapStatus = 'Open gap';
-            } else if (assessedCount === 0) {
-                gapStatus = 'Unassessed';
-            } else if (nonCompliantCount > 0) {
-                gapStatus = 'Open gap';
-            } else if (compliantCount > 0 && compliantCount + notApplicableCount === assessedCount) {
-                gapStatus = notApplicableCount === assessedCount ? 'Not applicable' : 'Covered';
-            } else {
-                gapStatus = 'Partial coverage';
-            }
-
-            if (openCapCount > 0 && gapStatus === 'Covered') {
-                gapStatus = 'Partial coverage';
-            }
-
-            return {
-                mappedCount: mappedItemIds.length,
-                assessedCount,
-                openCapCount,
-                latestFinding,
-                gapStatus,
-            };
+            return getGapSummaryForCode(
+                row.item.regulationCode,
+                auditSummaryMaps.regulationToItemIds,
+                auditSummaryMaps.latestFindingByItemId,
+                auditSummaryMaps.openCapFindingIds,
+            );
         };
 
         const gapStatusVariant = (status: 'Open gap' | 'Partial coverage' | 'Covered' | 'Unassessed' | 'Not applicable') => {
@@ -2267,66 +2359,6 @@ export default function CoherenceMatrixPage() {
     };
 
     const renderGapAnalysisTable = () => {
-        const auditsSorted = [...qualityAudits].sort((a, b) => {
-            const aDate = new Date(a.auditDate || '').getTime() || 0;
-            const bDate = new Date(b.auditDate || '').getTime() || 0;
-            return bDate - aDate;
-        });
-
-        const templateItemLookup = new Map<string, { regulationReference: string; templateTitle: string }>();
-        qualityAuditTemplates.forEach((template) => {
-            template.sections.forEach((section) => {
-                section.items.forEach((item) => {
-                    const regulationReference = normalizeRegulationCode(item.regulationReference);
-                    if (!regulationReference) return;
-                    templateItemLookup.set(item.id, {
-                        regulationReference,
-                        templateTitle: template.title,
-                    });
-                });
-            });
-        });
-
-        type AuditFindingSummary = {
-            finding: QualityFinding['finding'];
-            auditNumber: string;
-            auditDate: string;
-            auditStatus: QualityAudit['status'];
-            templateTitle: string;
-            checklistItemId: string;
-        };
-
-        const latestFindingByItemId = new Map<string, AuditFindingSummary>();
-
-        auditsSorted.forEach((audit) => {
-            const template = qualityAuditTemplates.find((entry) => entry.id === audit.templateId);
-            if (!template) return;
-
-            const itemIdsForTemplate = new Map<string, { regulationReference: string }>();
-            template.sections.forEach((section) => {
-                section.items.forEach((item) => {
-                    const regulationReference = normalizeRegulationCode(item.regulationReference);
-                    if (!regulationReference) return;
-                    itemIdsForTemplate.set(item.id, { regulationReference });
-                });
-            });
-
-            (audit.findings || []).forEach((finding) => {
-                const templateItem = itemIdsForTemplate.get(finding.checklistItemId);
-                if (!templateItem) return;
-                if (latestFindingByItemId.has(finding.checklistItemId)) return;
-
-                latestFindingByItemId.set(finding.checklistItemId, {
-                    finding: finding.finding,
-                    auditNumber: audit.auditNumber,
-                    auditDate: audit.auditDate,
-                    auditStatus: audit.status,
-                    templateTitle: template.title,
-                    checklistItemId: finding.checklistItemId,
-                });
-            });
-        });
-
         type GapRow = MatrixTableRow & {
             mappedCount: number;
             assessedCount: number;
@@ -2335,51 +2367,17 @@ export default function CoherenceMatrixPage() {
             gapStatus: 'Open gap' | 'Partial coverage' | 'Covered' | 'Unassessed' | 'Not applicable';
         };
 
-        const rows = buildTableRows(topLevelItems).map<GapRow>((row) => {
-            const normalizedCode = normalizeRegulationCode(row.item.regulationCode);
-            const mappedItemIds = Array.from(templateItemLookup.entries())
-                .filter(([, value]) => value.regulationReference === normalizedCode)
-                .map(([itemId]) => itemId);
-
-            const latestFindings = mappedItemIds
-                .map((itemId) => latestFindingByItemId.get(itemId))
-                .filter((finding): finding is AuditFindingSummary => Boolean(finding));
-
-            const assessedCount = latestFindings.length;
-            const openCapCount = correctiveActionPlans.filter((cap) => {
-                const isOpen = cap.status !== 'Closed' && cap.status !== 'Cancelled';
-                return isOpen && mappedItemIds.includes(cap.findingId);
-            }).length;
-
-            const nonCompliantCount = latestFindings.filter((finding) => finding.finding === 'Non Compliant').length;
-            const compliantCount = latestFindings.filter((finding) => finding.finding === 'Compliant').length;
-            const notApplicableCount = latestFindings.filter((finding) => finding.finding === 'Not Applicable').length;
-            const latestFinding = [...latestFindings].sort((a, b) => new Date(b.auditDate).getTime() - new Date(a.auditDate).getTime())[0];
-
-            let gapStatus: GapRow['gapStatus'] = 'Unassessed';
-            if (mappedItemIds.length === 0) {
-                gapStatus = 'Open gap';
-            } else if (assessedCount === 0) {
-                gapStatus = 'Unassessed';
-            } else if (nonCompliantCount > 0) {
-                gapStatus = 'Open gap';
-            } else if (compliantCount > 0 && compliantCount + notApplicableCount === assessedCount) {
-                gapStatus = notApplicableCount === assessedCount ? 'Not applicable' : 'Covered';
-            } else {
-                gapStatus = 'Partial coverage';
-            }
-
-            if (openCapCount > 0 && gapStatus === 'Covered') {
-                gapStatus = 'Partial coverage';
-            }
+        const rows = matrixTableRows.map<GapRow>((row) => {
+            const summary = getGapSummaryForCode(
+                row.item.regulationCode,
+                auditSummaryMaps.regulationToItemIds,
+                auditSummaryMaps.latestFindingByItemId,
+                auditSummaryMaps.openCapFindingIds,
+            );
 
             return {
                 ...row,
-                mappedCount: mappedItemIds.length,
-                assessedCount,
-                openCapCount,
-                latestFinding,
-                gapStatus,
+                ...summary,
             };
         });
 
@@ -3290,14 +3288,9 @@ export default function CoherenceMatrixPage() {
             ) : (
                 <Tabs value={activeOrgTab} onValueChange={setActiveOrgTab} className="w-full flex-1 min-h-0 flex flex-col overflow-hidden">
                     <div className="flex-1 min-h-0 overflow-hidden">
-                        <TabsContent value="internal" className="m-0 p-0 h-full">
-                            {renderOrgContext('internal')}
-                        </TabsContent>
-                        {(organizations || []).map((org) => (
-                            <TabsContent key={org.id} value={org.id} className="m-0 p-0 h-full">
-                                {renderOrgContext(org.id)}
-                            </TabsContent>
-                        ))}
+                        {activeOrgTab === 'internal'
+                            ? renderOrgContext('internal')
+                            : renderOrgContext(activeOrgTab)}
                     </div>
                 </Tabs>
             )}
