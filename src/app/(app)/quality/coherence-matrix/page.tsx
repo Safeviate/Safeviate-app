@@ -205,6 +205,28 @@ function getGapSummaryForCode(
     };
 }
 
+function naturalSort(a: string, b: string) {
+    const re = /(\d+)/g;
+    const aParts = a.split(re);
+    const bParts = b.split(re);
+    const len = Math.min(aParts.length, bParts.length);
+
+    for (let i = 0; i < len; i++) {
+        const aPart = aParts[i];
+        const bPart = bParts[i];
+
+        if (i % 2 === 1) {
+            const aNum = parseInt(aPart, 10);
+            const bNum = parseInt(bPart, 10);
+            if (aNum !== bNum) return aNum - bNum;
+        } else if (aPart !== bPart) {
+            return aPart.localeCompare(bPart);
+        }
+    }
+
+    return a.length - b.length;
+}
+
 function regulationTabToUiValue(value: RegulationFamily) {
     return value.replace(/[^a-z0-9_-]/gi, '_');
 }
@@ -1369,29 +1391,6 @@ export default function CoherenceMatrixPage() {
         window.removeEventListener('safeviate-quality-updated', loadData);
     }
   }, [loadData]);
-
-
-  const naturalSort = (a: string, b: string) => {
-    const re = /(\d+)/g;
-    const aParts = a.split(re);
-    const bParts = b.split(re);
-    const len = Math.min(aParts.length, bParts.length);
-
-    for (let i = 0; i < len; i++) {
-        const aPart = aParts[i];
-        const bPart = bParts[i];
-
-        if (i % 2 === 1) {
-            const aNum = parseInt(aPart, 10);
-            const bNum = parseInt(bPart, 10);
-            if (aNum !== bNum) return aNum - bNum;
-        } else {
-            if (aPart !== bPart) return aPart.localeCompare(bPart);
-        }
-    }
-    return a.length - b.length;
-  };
-
   const handleOpenForm = (item: ComplianceRequirement | null = null, mode: 'item' | 'header' | 'subheader' = 'item') => {
     setEditingItem(item);
     setFormMode(mode);
