@@ -1,6 +1,10 @@
 name: Build and deploy Next.js app to Azure Web App
 # Azure CI trigger refresh 10
 
+concurrency:
+  group: safeviate-azure-webapp
+  cancel-in-progress: true
+
 on:
   push:
     branches:
