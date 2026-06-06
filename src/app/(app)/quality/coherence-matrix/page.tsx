@@ -63,6 +63,8 @@ const CLAUSE_SPLIT_HANDLE_WIDTH = 24;
 const TECHNICAL_STANDARD_MAX_INDENT = 6;
 const MATRIX_INITIAL_RENDER_LIMIT = 160;
 const MATRIX_RENDER_INCREMENT = 160;
+const AI_TEXT_IMPORT_MAX_REQUIREMENTS = 80;
+const AI_IMPORT_MAX_TECHNICAL_STANDARD_LENGTH = 4000;
 type RegulationFamily = (typeof REGULATION_TABS)[number]['value'];
 type MatrixPreviewRequirement = SummarizeDocumentOutput['requirements'][number] & {
     technicalStandardIndentation?: number[];
@@ -97,6 +99,70 @@ type MatrixGapRow = MatrixTableRow & {
     latestFinding?: AuditFindingSummary;
     gapStatus: 'Open gap' | 'Partial coverage' | 'Covered' | 'Unassessed' | 'Not applicable';
 };
+
+function sanitizeAiPreviewRequirements(
+    requirements: MatrixPreviewRequirement[],
+    targetHeader: string,
+    sourceKind: 'text' | 'image' | 'file',
+) {
+    const normalizedTargetHeader = normalizeRegulationCode(targetHeader);
+    const seenKeys = new Set<string>();
+    const dropped: string[] = [];
+
+    const cleaned = requirements
+        .map((req) => {
+            const regulationCode = normalizeRegulationCode(req.regulationCode);
+            const parentRegulationCode = normalizeRegulationCode(req.parentRegulationCode) || normalizedTargetHeader;
+            const regulationStatement = req.regulationStatement?.trim() || regulationCode;
+            const technicalStandard = (req.technicalStandard || '').trim().slice(0, AI_IMPORT_MAX_TECHNICAL_STANDARD_LENGTH);
+
+            if (!regulationCode) {
+                dropped.push('missing code');
+                return null;
+            }
+
+            if (!parentRegulationCode) {
+                dropped.push(`no parent for ${regulationCode}`);
+                return null;
+            }
+
+            if (regulationCode.toLowerCase() === parentRegulationCode.toLowerCase()) {
+                dropped.push(`self-parent ${regulationCode}`);
+                return null;
+            }
+
+            const dedupeKey = `${parentRegulationCode.toLowerCase()}|${regulationCode.toLowerCase()}`;
+            if (seenKeys.has(dedupeKey)) {
+                dropped.push(`duplicate ${regulationCode}`);
+                return null;
+            }
+            seenKeys.add(dedupeKey);
+
+            return {
+                ...req,
+                regulationCode,
+                parentRegulationCode,
+                regulationStatement,
+                technicalStandard,
+                technicalStandardIndentation: getNormalizedTechnicalIndentation(
+                    technicalStandard,
+                    normalizeIndentationArray(req.technicalStandardIndentation),
+                ),
+            };
+        })
+        .filter(Boolean) as MatrixPreviewRequirement[];
+
+    const limited =
+        sourceKind === 'text' && cleaned.length > AI_TEXT_IMPORT_MAX_REQUIREMENTS
+            ? cleaned.slice(0, AI_TEXT_IMPORT_MAX_REQUIREMENTS)
+            : cleaned;
+
+    return {
+        requirements: limited,
+        droppedCount: requirements.length - limited.length,
+        wasTrimmed: sourceKind === 'text' && cleaned.length > AI_TEXT_IMPORT_MAX_REQUIREMENTS,
+    };
+}
 
 function buildAuditSummaryMaps(
     qualityAudits: QualityAudit[],
@@ -494,19 +560,33 @@ function UploadRegulationsDialog({ tenantId, organizationId, regulationFamily, a
                 return;
             }
 
-            const newItems = requirements.map(req => ({
+            const sourceKind: 'text' | 'image' | 'file' = input.document.images?.length
+                ? 'image'
+                : input.document.text
+                    ? (file ? 'file' : 'text')
+                    : 'text';
+            const normalizedPreview = sanitizeAiPreviewRequirements(requirements, targetHeader, sourceKind);
+
+            if (normalizedPreview.requirements.length === 0) {
+                toast({
+                    variant: 'destructive',
+                    title: 'No Valid Regulations',
+                    description: 'The AI output did not contain any valid child regulations to save under the selected sub-regulation.',
+                });
+                return;
+            }
+
+            const newItems = normalizedPreview.requirements.map(req => ({
                 ...req,
                 id: crypto.randomUUID(),
                 organizationId: organizationId,
                 regulationFamily: targetFamily,
-                regulationCode: normalizeRegulationCode(req.regulationCode),
-                parentRegulationCode: normalizeRegulationCode(req.parentRegulationCode) || normalizeRegulationCode(targetHeader),
+                regulationCode: req.regulationCode,
+                parentRegulationCode: req.parentRegulationCode,
                 documentHeading: req.documentHeading?.trim() || '',
-                regulationStatement: req.regulationStatement?.trim() || normalizeRegulationCode(req.regulationCode),
-                technicalStandardIndentation: getNormalizedTechnicalIndentation(
-                    req.technicalStandard,
-                    normalizeIndentationArray(req.technicalStandardIndentation),
-                ),
+                regulationStatement: req.regulationStatement,
+                technicalStandard: req.technicalStandard,
+                technicalStandardIndentation: req.technicalStandardIndentation,
             })).filter((item) => item.regulationCode);
 
             if (newItems.length === 0) {
@@ -527,7 +607,11 @@ function UploadRegulationsDialog({ tenantId, organizationId, regulationFamily, a
 
             toast({
                 title: 'Matrix Populated',
-                description: `${requirements.length} compliance requirements have been added to the matrix.`,
+                description: normalizedPreview.wasTrimmed
+                    ? `${newItems.length} compliance requirements were added. Text imports are limited to the first ${AI_TEXT_IMPORT_MAX_REQUIREMENTS} valid items.`
+                    : normalizedPreview.droppedCount > 0
+                        ? `${newItems.length} compliance requirements were added after filtering invalid or duplicate rows.`
+                        : `${newItems.length} compliance requirements have been added to the matrix.`,
             });
 
         } catch (error) {
@@ -570,23 +654,32 @@ function UploadRegulationsDialog({ tenantId, organizationId, regulationFamily, a
                 reader.onload = async (e) => {
                     extractedInput.document.text = e.target?.result as string;
                     const preview = await callAiFlow<SummarizeDocumentInput, SummarizeDocumentOutput>('summarizeDocument', extractedInput);
+                    const normalizedPreview = sanitizeAiPreviewRequirements(preview.requirements || [], targetHeader, 'file');
                     setPreviewInput(extractedInput);
-                    setPreviewRequirements(preview.requirements || []);
+                    setPreviewRequirements(normalizedPreview.requirements);
                     setIsProcessing(false);
                 };
                 reader.readAsText(file);
             } else if (pastedText) {
                 extractedInput.document.text = pastedText;
                 const preview = await callAiFlow<SummarizeDocumentInput, SummarizeDocumentOutput>('summarizeDocument', extractedInput);
+                const normalizedPreview = sanitizeAiPreviewRequirements(preview.requirements || [], targetHeader, 'text');
                 setPreviewInput(extractedInput);
-                setPreviewRequirements(preview.requirements || []);
+                setPreviewRequirements(normalizedPreview.requirements);
+                if (normalizedPreview.wasTrimmed) {
+                    toast({
+                        title: 'Preview trimmed',
+                        description: `Pasted-text imports are limited to the first ${AI_TEXT_IMPORT_MAX_REQUIREMENTS} valid child items to keep the matrix responsive.`,
+                    });
+                }
                 setIsProcessing(false);
             } else if (stagedImages.length > 0) {
                 extractedInput.document.images = stagedImages;
                 extractedInput.isMultiPage = isMultiImageMode;
                 const preview = await callAiFlow<SummarizeDocumentInput, SummarizeDocumentOutput>('summarizeDocument', extractedInput);
+                const normalizedPreview = sanitizeAiPreviewRequirements(preview.requirements || [], targetHeader, 'image');
                 setPreviewInput(extractedInput);
-                setPreviewRequirements(preview.requirements || []);
+                setPreviewRequirements(normalizedPreview.requirements);
                 setIsProcessing(false);
             }
         } catch (error) {
