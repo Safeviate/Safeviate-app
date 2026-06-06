@@ -1857,7 +1857,7 @@ export default function CoherenceMatrixPage() {
     );
     const selectedMatrixItemCode = normalizeRegulationCode(selectedMatrixItem?.regulationCode);
     const selectedMatrixItemExpanded = selectedMatrixItem ? (expandedIndexCodes[selectedMatrixItemCode] ?? true) : true;
-    const isIndexNodeExpanded = (code: string) => expandedIndexCodes[code] ?? true;
+    const isIndexNodeExpanded = (code: string) => expandedIndexCodes[code] ?? false;
 
     const areAllIndexBranchesCollapsed =
         expandableIndexCodes.length > 0 && expandableIndexCodes.every((code) => expandedIndexCodes[code] === false);
