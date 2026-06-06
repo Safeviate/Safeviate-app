@@ -953,6 +953,7 @@ export default function CoherenceMatrixPage() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [matrixSearchQuery, setMatrixSearchQuery] = useState('');
   const [matrixIndexQuery, setMatrixIndexQuery] = useState('');
+  const [openMatrixNodeIds, setOpenMatrixNodeIds] = useState<Record<string, boolean>>({});
   const [openGapDateRowId, setOpenGapDateRowId] = useState<string | null>(null);
   const [expandedClauseIds, setExpandedClauseIds] = useState<Record<string, boolean>>({});
   const [expandedIndexCodes, setExpandedIndexCodes] = useState<Record<string, boolean>>({});
@@ -1219,6 +1220,10 @@ export default function CoherenceMatrixPage() {
   useEffect(() => {
     setVisibleMatrixRowLimit(MATRIX_INITIAL_RENDER_LIMIT);
   }, [deferredActiveRegulationTab, effectiveOrgId, normalizedSearchQuery, normalizedIndexQuery]);
+
+  useEffect(() => {
+    setOpenMatrixNodeIds({});
+  }, [deferredActiveRegulationTab, effectiveOrgId]);
 
   const showMoreMatrixRows = useCallback(() => {
     setVisibleMatrixRowLimit((current) => current + MATRIX_RENDER_INCREMENT);
@@ -3027,6 +3032,7 @@ export default function CoherenceMatrixPage() {
         if (normalizedSearchQuery && !branchMatchesSearch(item)) return null;
         const hasChildren = childItems.length > 0;
         const shouldDefaultOpen = !!normalizedSearchQuery;
+        const isNodeOpen = shouldDefaultOpen || !!openMatrixNodeIds[item.id];
         const renderChildrenInline = depth === 1;
         const nodeStyle = depth === 0
             ? {
@@ -3052,7 +3058,23 @@ export default function CoherenceMatrixPage() {
                 className={cn(
                     "border rounded-lg overflow-hidden"
                 )}
-                defaultOpen={shouldDefaultOpen}
+                open={isNodeOpen}
+                onOpenChange={(open) =>
+                    setOpenMatrixNodeIds((current) => {
+                        if (shouldDefaultOpen) {
+                            return current;
+                        }
+                        if (open) {
+                            return { ...current, [item.id]: true };
+                        }
+                        if (!current[item.id]) {
+                            return current;
+                        }
+                        const next = { ...current };
+                        delete next[item.id];
+                        return next;
+                    })
+                }
             >
                 <div
                     className={cn(
@@ -3137,31 +3159,33 @@ export default function CoherenceMatrixPage() {
                         </div>
                     </div>
                 </div>
-                <CollapsibleContent className={cn(
-                    "space-y-4 border-t border-card-border/70 bg-muted/5",
-                    depth === 0 ? "p-4" : "px-6 pb-5 pt-3"
-                )}>
-                    {item.technicalStandard?.trim() ? (
-                        <div className="space-y-2 overflow-hidden">
-                            {renderTechnicalStandardText(item.technicalStandard, item.technicalStandardIndentation)}
-                        </div>
-                    ) : null}
-                    {renderRequirementMeta(item)}
-                    {childItems.length > 0 && (
-                        <div className="space-y-2">
-                            {renderChildrenInline
-                                ? renderInlineParagraphChildren(
-                                    normalizedSearchQuery && !itemMatchesSearch(item)
+                {isNodeOpen ? (
+                    <CollapsibleContent className={cn(
+                        "space-y-4 border-t border-card-border/70 bg-muted/5",
+                        depth === 0 ? "p-4" : "px-6 pb-5 pt-3"
+                    )}>
+                        {item.technicalStandard?.trim() ? (
+                            <div className="space-y-2 overflow-hidden">
+                                {renderTechnicalStandardText(item.technicalStandard, item.technicalStandardIndentation)}
+                            </div>
+                        ) : null}
+                        {renderRequirementMeta(item)}
+                        {childItems.length > 0 && (
+                            <div className="space-y-2">
+                                {renderChildrenInline
+                                    ? renderInlineParagraphChildren(
+                                        normalizedSearchQuery && !itemMatchesSearch(item)
+                                            ? childItems.filter((child) => branchMatchesSearch(child))
+                                            : childItems,
+                                        [...ancestors, normalizedItemCode]
+                                    )
+                                    : (normalizedSearchQuery && !itemMatchesSearch(item)
                                         ? childItems.filter((child) => branchMatchesSearch(child))
-                                        : childItems,
-                                    [...ancestors, normalizedItemCode]
-                                )
-                                : (normalizedSearchQuery && !itemMatchesSearch(item)
-                                    ? childItems.filter((child) => branchMatchesSearch(child))
-                                    : childItems).map((child) => renderMatrixNode(child, depth + 1, [...ancestors, normalizedItemCode]))}
-                        </div>
-                    )}
-                </CollapsibleContent>
+                                        : childItems).map((child) => renderMatrixNode(child, depth + 1, [...ancestors, normalizedItemCode]))}
+                            </div>
+                        )}
+                    </CollapsibleContent>
+                ) : null}
             </Collapsible>
         );
     };
