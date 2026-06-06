@@ -2,7 +2,6 @@ import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
   /* config options here */
-  output: 'standalone',
   allowedDevOrigins: ['127.0.0.1', 'localhost', '192.168.1.58'],
   typescript: {
     // Ignore build errors to allow the project to deploy even with minor type mismatches
