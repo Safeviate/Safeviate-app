@@ -3,7 +3,7 @@ name: Build and deploy Next.js app to Azure Web App
 
 concurrency:
   group: safeviate-azure-webapp
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 on:
   push:
