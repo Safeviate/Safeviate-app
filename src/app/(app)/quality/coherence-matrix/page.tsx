@@ -689,6 +689,7 @@ function UploadRegulationsDialog({ tenantId, organizationId, regulationFamily, a
                     </Button>
                 )}
             </DialogTrigger>
+            {isOpen ? (
             <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
                 <div ref={dialogBodyRef} className="flex-1 min-h-0 space-y-4 overflow-y-auto pr-1">
                     <DialogHeader>
@@ -925,6 +926,7 @@ function UploadRegulationsDialog({ tenantId, organizationId, regulationFamily, a
                     )}
                 </DialogFooter>
             </DialogContent>
+            ) : null}
         </Dialog>
     )
 }
@@ -3362,6 +3364,7 @@ export default function CoherenceMatrixPage() {
         </div>
 
             <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+            {isFormOpen ? (
             <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
                             <DialogTitle className="font-black uppercase tracking-tight">
@@ -3385,6 +3388,7 @@ export default function CoherenceMatrixPage() {
                 mode={formMode}
             />
             </DialogContent>
+            ) : null}
         </Dialog>
     </div>
   );
