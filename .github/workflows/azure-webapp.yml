@@ -19,6 +19,7 @@ jobs:
       contents: read
     env:
       AZURE_RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
+      AZURE_WEBAPP_NAME: safeviate-web-app
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       DATABASE_URL_UNPOOLED: ${{ secrets.DATABASE_URL_UNPOOLED }}
       NEXTAUTH_URL: ${{ secrets.NEXTAUTH_URL }}
@@ -81,11 +82,11 @@ jobs:
         run: |
           az webapp config appsettings delete \
             --resource-group "$AZURE_RESOURCE_GROUP" \
-            --name safeviate \
+            --name "$AZURE_WEBAPP_NAME" \
             --setting-names WEBSITE_RUN_FROM_PACKAGE SCM_DO_BUILD_DURING_DEPLOYMENT || true
           az webapp config set \
             --resource-group "$AZURE_RESOURCE_GROUP" \
-            --name safeviate \
+            --name "$AZURE_WEBAPP_NAME" \
             --startup-file ""
 
       - name: Deploy to Azure Web App (attempt 1)
@@ -93,7 +94,7 @@ jobs:
         uses: azure/webapps-deploy@v3
         continue-on-error: true
         with:
-          app-name: safeviate
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
           package: .
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
 
@@ -107,7 +108,7 @@ jobs:
         uses: azure/webapps-deploy@v3
         continue-on-error: true
         with:
-          app-name: safeviate
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
           package: .
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
 
@@ -121,7 +122,7 @@ jobs:
         uses: azure/webapps-deploy@v3
         continue-on-error: true
         with:
-          app-name: safeviate
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
           package: .
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
 
