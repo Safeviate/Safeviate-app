@@ -14,9 +14,6 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-      contents: read
     env:
       AZURE_RESOURCE_GROUP: ${{ secrets.AZURE_RESOURCE_GROUP }}
       AZURE_WEBAPP_NAME: safeviate-web-app
@@ -40,7 +37,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           cache-dependency-path: package-lock.json
 
@@ -63,31 +60,6 @@ jobs:
 
       - name: Build Next.js app
         run: npm run build
-
-      - name: Login to Azure for app config cleanup
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_A6FA8B7BC76047969579C27B6DA2ED30 }}
-          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_83B5837B1C82421F9C7C19366F95782F }}
-          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_472FC1469C54499492D0E576AB651E32 }}
-
-      - name: Validate Azure deployment settings
-        run: |
-          if [ -z "$AZURE_RESOURCE_GROUP" ]; then
-            echo "Missing AZURE_RESOURCE_GROUP GitHub secret."
-            exit 1
-          fi
-
-      - name: Clear run-from-package override
-        run: |
-          az webapp config appsettings delete \
-            --resource-group "$AZURE_RESOURCE_GROUP" \
-            --name "$AZURE_WEBAPP_NAME" \
-            --setting-names WEBSITE_RUN_FROM_PACKAGE SCM_DO_BUILD_DURING_DEPLOYMENT || true
-          az webapp config set \
-            --resource-group "$AZURE_RESOURCE_GROUP" \
-            --name "$AZURE_WEBAPP_NAME" \
-            --startup-file ""
 
       - name: Deploy to Azure Web App (attempt 1)
         id: deploy_attempt_1
