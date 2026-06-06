@@ -14,6 +14,9 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       DATABASE_URL_UNPOOLED: ${{ secrets.DATABASE_URL_UNPOOLED }}
@@ -59,43 +62,44 @@ jobs:
       - name: Build Next.js app
         run: npm run build
 
-      - name: Deploy to Azure Web App (attempt 1)
-        id: deploy_attempt_1
-        uses: azure/webapps-deploy@v3
-        continue-on-error: true
+      - name: Package standalone web app
+        run: |
+          rm -rf deploy release.zip
+          mkdir -p deploy
+          cp -R .next/standalone/. deploy/
+          mkdir -p deploy/.next
+          cp -R .next/static deploy/.next/
+          if [ -d public ]; then
+            cp -R public deploy/public
+          fi
+          cd deploy
+          zip -r ../release.zip .
+
+      - name: Login to Azure
+        uses: azure/login@v2
         with:
-          app-name: safeviate
-          package: .
-          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_A6FA8B7BC76047969579C27B6DA2ED30 }}
+          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_83B5837B1C82421F9C7C19366F95782F }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_472FC1469C54499492D0E576AB651E32 }}
 
-      - name: Wait before retry 2
-        if: steps.deploy_attempt_1.outcome != 'success'
-        run: sleep 30
+      - name: Resolve Azure resource group
+        run: |
+          echo "AZURE_RESOURCE_GROUP=$(az webapp show --name safeviate --query resourceGroup -o tsv)" >> "$GITHUB_ENV"
 
-      - name: Deploy to Azure Web App (attempt 2)
-        id: deploy_attempt_2
-        if: steps.deploy_attempt_1.outcome != 'success'
-        uses: azure/webapps-deploy@v3
-        continue-on-error: true
-        with:
-          app-name: safeviate
-          package: .
-          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+      - name: Configure App Service for package deployment
+        run: |
+          az webapp config appsettings set \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name safeviate \
+            --settings WEBSITE_RUN_FROM_PACKAGE=1 SCM_DO_BUILD_DURING_DEPLOYMENT=false
+          az webapp config set \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name safeviate \
+            --startup-file "node server.js"
 
-      - name: Wait before retry 3
-        if: steps.deploy_attempt_1.outcome != 'success' && steps.deploy_attempt_2.outcome != 'success'
-        run: sleep 30
-
-      - name: Deploy to Azure Web App (attempt 3)
-        id: deploy_attempt_3
-        if: steps.deploy_attempt_1.outcome != 'success' && steps.deploy_attempt_2.outcome != 'success'
-        uses: azure/webapps-deploy@v3
-        continue-on-error: true
-        with:
-          app-name: safeviate
-          package: .
-          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-
-      - name: Fail if Azure deployment still failed
-        if: steps.deploy_attempt_1.outcome != 'success' && steps.deploy_attempt_2.outcome != 'success' && steps.deploy_attempt_3.outcome != 'success'
-        run: exit 1
+      - name: Deploy ZIP package to Azure Web App
+        run: |
+          az webapp deploy \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name safeviate \
+            --src-path release.zip
