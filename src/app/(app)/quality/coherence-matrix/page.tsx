@@ -1458,7 +1458,13 @@ export default function CoherenceMatrixPage() {
 
   const handleDeleteItem = async (item: ComplianceRequirement) => {
       try {
-          const response = await fetch(`/api/compliance-matrix?id=${encodeURIComponent(item.id)}&code=${encodeURIComponent(item.regulationCode)}`, {
+          const params = new URLSearchParams({
+            id: item.id,
+            code: item.regulationCode,
+            regulationFamily: item.regulationFamily || activeRegulationTab,
+          });
+          params.set('organizationId', item.organizationId || '');
+          const response = await fetch(`/api/compliance-matrix?${params.toString()}`, {
             method: 'DELETE',
           });
           if (!response.ok) {
@@ -1478,7 +1484,13 @@ export default function CoherenceMatrixPage() {
     
   const handleDeleteSection = async (parentItem: ComplianceRequirement) => {
         try {
-            const response = await fetch(`/api/compliance-matrix?id=${encodeURIComponent(parentItem.id)}&code=${encodeURIComponent(parentItem.regulationCode)}`, {
+            const params = new URLSearchParams({
+              id: parentItem.id,
+              code: parentItem.regulationCode,
+              regulationFamily: parentItem.regulationFamily || activeRegulationTab,
+            });
+            params.set('organizationId', parentItem.organizationId || '');
+            const response = await fetch(`/api/compliance-matrix?${params.toString()}`, {
               method: 'DELETE',
             });
             if (!response.ok) {
@@ -3014,6 +3026,7 @@ export default function CoherenceMatrixPage() {
         const childItems = groupedItems[normalizedItemCode] || [];
         if (normalizedSearchQuery && !branchMatchesSearch(item)) return null;
         const hasChildren = childItems.length > 0;
+        const shouldDefaultOpen = !!normalizedSearchQuery;
         const renderChildrenInline = depth === 1;
         const nodeStyle = depth === 0
             ? {
@@ -3039,7 +3052,7 @@ export default function CoherenceMatrixPage() {
                 className={cn(
                     "border rounded-lg overflow-hidden"
                 )}
-                defaultOpen
+                defaultOpen={shouldDefaultOpen}
             >
                 <div
                     className={cn(

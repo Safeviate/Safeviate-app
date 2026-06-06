@@ -11,6 +11,8 @@ type ComplianceMatrixEntry = {
   id: string;
   regulationCode?: string | null;
   parentRegulationCode?: string | null;
+  organizationId?: string | null;
+  regulationFamily?: string | null;
   [key: string]: unknown;
 };
 
@@ -33,6 +35,63 @@ function isWithinDeletionScope(item: ComplianceMatrixEntry, rootCode: string) {
     itemParentCode.startsWith(`${rootCode}.`);
 
   return matchesCodeTree || matchesParentTree;
+}
+
+function normalizeOrganizationScope(value: unknown) {
+  const normalized = typeof value === 'string' ? value.trim() : '';
+  return normalized || null;
+}
+
+function normalizeRegulationFamily(value: unknown) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function isSameMatrixScope(a: ComplianceMatrixEntry, b: ComplianceMatrixEntry) {
+  return (
+    normalizeOrganizationScope(a.organizationId) === normalizeOrganizationScope(b.organizationId) &&
+    normalizeRegulationFamily(a.regulationFamily) === normalizeRegulationFamily(b.regulationFamily)
+  );
+}
+
+function collectDeletionIds(items: ComplianceMatrixEntry[], rootItem: ComplianceMatrixEntry) {
+  const rootCode = normalizeRegulationCode(rootItem.regulationCode);
+  const scopedItems = items.filter((entry) => isSameMatrixScope(entry, rootItem));
+  const idsToDelete = new Set<string>();
+  const codesToVisit = new Set<string>();
+
+  if (rootCode) {
+    codesToVisit.add(rootCode);
+  }
+
+  idsToDelete.add(rootItem.id);
+
+  let changed = true;
+  while (changed) {
+    changed = false;
+
+    for (const entry of scopedItems) {
+      if (idsToDelete.has(entry.id)) {
+        continue;
+      }
+
+      const itemCode = normalizeRegulationCode(entry.regulationCode);
+      const itemParentCode = normalizeRegulationCode(entry.parentRegulationCode);
+      const matchesKnownTree = Array.from(codesToVisit).some((knownCode) => isWithinDeletionScope(entry, knownCode));
+      const matchesKnownParent = itemParentCode ? codesToVisit.has(itemParentCode) : false;
+
+      if (!matchesKnownTree && !matchesKnownParent) {
+        continue;
+      }
+
+      idsToDelete.add(entry.id);
+      if (itemCode) {
+        codesToVisit.add(itemCode);
+      }
+      changed = true;
+    }
+  }
+
+  return idsToDelete;
 }
 
 async function getTenantId(request: Request) {
@@ -173,24 +232,34 @@ export async function DELETE(request: Request) {
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');
   const regulationCode = normalizeRegulationCode(searchParams.get('code'));
+  const organizationId = normalizeOrganizationScope(searchParams.get('organizationId'));
+  const regulationFamily = normalizeRegulationFamily(searchParams.get('regulationFamily'));
   if (!id && !regulationCode) return NextResponse.json({ error: 'Missing id or code' }, { status: 400 });
   const config = await getConfig(tenantId);
   const items = Array.isArray(config['compliance-matrix']) ? (config['compliance-matrix'] as ComplianceMatrixEntry[]) : [];
   const rootItem =
-    (id ? items.find((entry) => entry.id === id) : undefined) ||
-    (regulationCode ? items.find((entry) => normalizeRegulationCode(entry?.regulationCode) === regulationCode) : undefined);
+    (id
+      ? items.find(
+          (entry) =>
+            entry.id === id &&
+            (searchParams.has('organizationId') ? normalizeOrganizationScope(entry.organizationId) === organizationId : true) &&
+            (searchParams.has('regulationFamily') ? normalizeRegulationFamily(entry.regulationFamily) === regulationFamily : true),
+        )
+      : undefined) ||
+    (regulationCode
+      ? items.find(
+          (entry) =>
+            normalizeRegulationCode(entry?.regulationCode) === regulationCode &&
+            (searchParams.has('organizationId') ? normalizeOrganizationScope(entry.organizationId) === organizationId : true) &&
+            (searchParams.has('regulationFamily') ? normalizeRegulationFamily(entry.regulationFamily) === regulationFamily : true),
+        )
+      : undefined);
 
   if (!rootItem) {
     return NextResponse.json({ ok: true, deleted: 0 }, { status: 200 });
   }
 
-  const rootCode = normalizeRegulationCode(rootItem.regulationCode);
-  const idsToDelete = new Set<string>(
-    items
-      .filter((entry) => entry.id === rootItem.id || isWithinDeletionScope(entry, rootCode))
-      .map((entry) => entry.id)
-      .filter((entryId) => typeof entryId === 'string' && entryId.trim())
-  );
+  const idsToDelete = collectDeletionIds(items, rootItem);
 
   const nextItems = items.filter((entry) => !idsToDelete.has(entry.id));
   const nextConfig = { ...config, 'compliance-matrix': nextItems };
