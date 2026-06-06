@@ -1,3462 +1,800 @@
 'use client';
 
-import { Fragment, useState, useCallback, useEffect, useMemo, useRef, useDeferredValue, useTransition, type CSSProperties } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import {
-  CardControlHeader,
-  HEADER_ACTION_BUTTON_CLASS,
-  HEADER_COMPACT_CONTROL_CLASS,
-  HEADER_SECONDARY_BUTTON_CLASS,
-} from "@/components/page-header";
-import { Button } from '@/components/ui/button';
-import { PlusCircle, Edit, Trash2, ChevronDown, ChevronLeft, ChevronRight, WandSparkles, Loader2, ClipboardPaste, Layers, MoreHorizontal, Copy } from 'lucide-react';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose, DialogTrigger } from '@/components/ui/dialog';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { useToast } from '@/hooks/use-toast';
-import { callAiFlow } from '@/lib/ai-client';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { format } from 'date-fns';
-
-import type { ClauseAnalysisEntry, ComplianceRequirement, ExternalOrganization } from '@/types/quality';
-import type { Personnel } from '@/app/(app)/users/personnel/page';
-import { ComplianceItemForm } from './item-form';
-import type { SummarizeDocumentInput, SummarizeDocumentOutput } from '@/ai/flows/summarize-document-flow';
+import Image from 'next/image';
+import { ClipboardPaste, Copy, Edit, Layers, Loader2, PlusCircle, Trash2, WandSparkles, ChevronDown, ChevronRight } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import Image from 'next/image';
-import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { CardControlHeader, HEADER_COMPACT_CONTROL_CLASS, HEADER_SECONDARY_BUTTON_CLASS } from '@/components/page-header';
+import { OrganizationTabsRow, ResponsiveTabRow } from '@/components/responsive-tab-row';
+import { TenantLayoutDisabledState } from '@/components/tenant-layout-disabled-state';
+import { useToast } from '@/hooks/use-toast';
 import { useUserProfile } from '@/hooks/use-user-profile';
 import { usePermissions } from '@/hooks/use-permissions';
 import { useOrganizationScope } from '@/hooks/use-organization-scope';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { useTheme } from '@/components/theme-provider';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { OrganizationTabsRow, ResponsiveTabRow } from '@/components/responsive-tab-row';
-import { cn } from '@/lib/utils';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { CustomCalendar } from '@/components/ui/custom-calendar';
-import { CalendarIcon } from 'lucide-react';
-import { getPersonnelDisplayName } from '@/lib/personnel-label';
-import { extractClipboardText } from '@/lib/clipboard';
-import type { CorrectiveActionPlan, GapStatus, QualityAudit, QualityAuditChecklistTemplate, QualityFinding } from '@/types/quality';
-import { GripVertical, List } from 'lucide-react';
-import { TenantLayoutDisabledState } from '@/components/tenant-layout-disabled-state';
 import { useTenantRouteAccess } from '@/hooks/use-tenant-route-access';
+import { ComplianceItemForm } from './item-form';
+import type { Personnel } from '@/app/(app)/users/personnel/page';
+import type { ComplianceRequirement, ExternalOrganization } from '@/types/quality';
+import type { SummarizeDocumentInput, SummarizeDocumentOutput } from '@/ai/flows/summarize-document-flow';
+import { callAiFlow } from '@/lib/ai-client';
+import { extractClipboardText } from '@/lib/clipboard';
+import { getPersonnelDisplayName } from '@/lib/personnel-label';
+import { cn } from '@/lib/utils';
 import { normalizeIndentationArray, normalizeRegulationCode, sanitizeComplianceMatrixEntry } from '@/lib/regulation-code';
 
 const REGULATION_TABS = [
-    { value: 'sacaa-cars', label: 'SACAA CARs' },
-    { value: 'sacaa-cats', label: 'SACAA CATs' },
-    { value: 'ohs', label: 'OHS' },
+  { value: 'sacaa-cars', label: 'SACAA CARs' },
+  { value: 'sacaa-cats', label: 'SACAA CATs' },
+  { value: 'ohs', label: 'OHS' },
 ] as const;
-const CLAUSE_INSPECTOR_WIDTH_KEY = 'coherence-matrix-clause-inspector-width';
-const CLAUSE_INSPECTOR_MIN_WIDTH = 360;
-const CLAUSE_INSPECTOR_MAX_WIDTH = 640;
-const CLAUSE_INSPECTOR_DEFAULT_WIDTH = 420;
-const CLAUSE_SPLIT_HANDLE_WIDTH = 24;
-const TECHNICAL_STANDARD_MAX_INDENT = 6;
-const MATRIX_INITIAL_RENDER_LIMIT = 160;
-const MATRIX_RENDER_INCREMENT = 160;
+
 const AI_TEXT_IMPORT_MAX_REQUIREMENTS = 80;
 const AI_IMPORT_MAX_TECHNICAL_STANDARD_LENGTH = 4000;
+
 type RegulationFamily = (typeof REGULATION_TABS)[number]['value'];
 type MatrixPreviewRequirement = SummarizeDocumentOutput['requirements'][number] & {
-    technicalStandardIndentation?: number[];
+  technicalStandardIndentation?: number[];
 };
-type AuditFindingSummary = {
-    finding: QualityFinding['finding'];
-    auditNumber: string;
-    auditDate: string;
-    auditStatus: QualityAudit['status'];
-    templateTitle: string;
-    checklistItemId: string;
-};
-type GapSummary = {
-    mappedCount: number;
-    assessedCount: number;
-    openCapCount: number;
-    latestFinding?: AuditFindingSummary;
-    gapStatus: 'Open gap' | 'Partial coverage' | 'Covered' | 'Unassessed' | 'Not applicable';
-};
-type MatrixTableRow = {
-    item: ComplianceRequirement;
-    depth: number;
-    hasChildren: boolean;
-    anchorId: string;
-    firstClauseAnchorId: string | null;
-};
-
-type MatrixGapRow = MatrixTableRow & {
-    mappedCount: number;
-    assessedCount: number;
-    openCapCount: number;
-    latestFinding?: AuditFindingSummary;
-    gapStatus: 'Open gap' | 'Partial coverage' | 'Covered' | 'Unassessed' | 'Not applicable';
-};
-
-function sanitizeAiPreviewRequirements(
-    requirements: MatrixPreviewRequirement[],
-    targetHeader: string,
-    sourceKind: 'text' | 'image' | 'file',
-) {
-    const normalizedTargetHeader = normalizeRegulationCode(targetHeader);
-    const seenKeys = new Set<string>();
-    const dropped: string[] = [];
-
-    const cleaned = requirements
-        .map((req) => {
-            const regulationCode = normalizeRegulationCode(req.regulationCode);
-            const parentRegulationCode = normalizeRegulationCode(req.parentRegulationCode) || normalizedTargetHeader;
-            const regulationStatement = req.regulationStatement?.trim() || regulationCode;
-            const technicalStandard = (req.technicalStandard || '').trim().slice(0, AI_IMPORT_MAX_TECHNICAL_STANDARD_LENGTH);
-
-            if (!regulationCode) {
-                dropped.push('missing code');
-                return null;
-            }
-
-            if (!parentRegulationCode) {
-                dropped.push(`no parent for ${regulationCode}`);
-                return null;
-            }
-
-            if (regulationCode.toLowerCase() === parentRegulationCode.toLowerCase()) {
-                dropped.push(`self-parent ${regulationCode}`);
-                return null;
-            }
-
-            const dedupeKey = `${parentRegulationCode.toLowerCase()}|${regulationCode.toLowerCase()}`;
-            if (seenKeys.has(dedupeKey)) {
-                dropped.push(`duplicate ${regulationCode}`);
-                return null;
-            }
-            seenKeys.add(dedupeKey);
-
-            return {
-                ...req,
-                regulationCode,
-                parentRegulationCode,
-                regulationStatement,
-                technicalStandard,
-                technicalStandardIndentation: getNormalizedTechnicalIndentation(
-                    technicalStandard,
-                    normalizeIndentationArray(req.technicalStandardIndentation),
-                ),
-            };
-        })
-        .filter(Boolean) as MatrixPreviewRequirement[];
-
-    const limited =
-        sourceKind === 'text' && cleaned.length > AI_TEXT_IMPORT_MAX_REQUIREMENTS
-            ? cleaned.slice(0, AI_TEXT_IMPORT_MAX_REQUIREMENTS)
-            : cleaned;
-
-    return {
-        requirements: limited,
-        droppedCount: requirements.length - limited.length,
-        wasTrimmed: sourceKind === 'text' && cleaned.length > AI_TEXT_IMPORT_MAX_REQUIREMENTS,
-    };
-}
-
-function buildAuditSummaryMaps(
-    qualityAudits: QualityAudit[],
-    qualityAuditTemplates: QualityAuditChecklistTemplate[],
-    correctiveActionPlans: CorrectiveActionPlan[],
-) {
-    const auditsSorted = [...qualityAudits].sort((a, b) => {
-        const aDate = new Date(a.auditDate || '').getTime() || 0;
-        const bDate = new Date(b.auditDate || '').getTime() || 0;
-        return bDate - aDate;
-    });
-
-    const templateItemLookup = new Map<string, { regulationReference: string; templateTitle: string }>();
-    qualityAuditTemplates.forEach((template) => {
-        template.sections.forEach((section) => {
-            section.items.forEach((item) => {
-                const regulationReference = normalizeRegulationCode(item.regulationReference);
-                if (!regulationReference) return;
-                templateItemLookup.set(item.id, {
-                    regulationReference,
-                    templateTitle: template.title,
-                });
-            });
-        });
-    });
-
-    const latestFindingByItemId = new Map<string, AuditFindingSummary>();
-
-    auditsSorted.forEach((audit) => {
-        const template = qualityAuditTemplates.find((entry) => entry.id === audit.templateId);
-        if (!template) return;
-
-        const itemIdsForTemplate = new Map<string, { regulationReference: string }>();
-        template.sections.forEach((section) => {
-            section.items.forEach((item) => {
-                const regulationReference = normalizeRegulationCode(item.regulationReference);
-                if (!regulationReference) return;
-                itemIdsForTemplate.set(item.id, { regulationReference });
-            });
-        });
-
-        (audit.findings || []).forEach((finding) => {
-            const templateItem = itemIdsForTemplate.get(finding.checklistItemId);
-            if (!templateItem) return;
-            if (latestFindingByItemId.has(finding.checklistItemId)) return;
-
-            latestFindingByItemId.set(finding.checklistItemId, {
-                finding: finding.finding,
-                auditNumber: audit.auditNumber,
-                auditDate: audit.auditDate,
-                auditStatus: audit.status,
-                templateTitle: template.title,
-                checklistItemId: finding.checklistItemId,
-            });
-        });
-    });
-
-    const regulationToItemIds = new Map<string, string[]>();
-    templateItemLookup.forEach((value, itemId) => {
-        const current = regulationToItemIds.get(value.regulationReference) || [];
-        current.push(itemId);
-        regulationToItemIds.set(value.regulationReference, current);
-    });
-
-    const openCapFindingIds = new Set(
-        correctiveActionPlans
-            .filter((cap) => cap.status !== 'Closed' && cap.status !== 'Cancelled')
-            .map((cap) => cap.findingId),
-    );
-
-    return { regulationToItemIds, latestFindingByItemId, openCapFindingIds };
-}
-
-function getGapSummaryForCode(
-    regulationCode: string,
-    regulationToItemIds: Map<string, string[]>,
-    latestFindingByItemId: Map<string, AuditFindingSummary>,
-    openCapFindingIds: Set<string>,
-): GapSummary {
-    const normalizedCode = normalizeRegulationCode(regulationCode);
-    const mappedItemIds = regulationToItemIds.get(normalizedCode) || [];
-    const latestFindings = mappedItemIds
-        .map((itemId) => latestFindingByItemId.get(itemId))
-        .filter((finding): finding is AuditFindingSummary => Boolean(finding));
-
-    const assessedCount = latestFindings.length;
-    const openCapCount = mappedItemIds.filter((itemId) => openCapFindingIds.has(itemId)).length;
-    const nonCompliantCount = latestFindings.filter((finding) => finding.finding === 'Non Compliant').length;
-    const compliantCount = latestFindings.filter((finding) => finding.finding === 'Compliant').length;
-    const notApplicableCount = latestFindings.filter((finding) => finding.finding === 'Not Applicable').length;
-    const latestFinding = [...latestFindings].sort((a, b) => new Date(b.auditDate).getTime() - new Date(a.auditDate).getTime())[0];
-
-    let gapStatus: GapSummary['gapStatus'] = 'Unassessed';
-    if (mappedItemIds.length === 0) {
-        gapStatus = 'Open gap';
-    } else if (assessedCount === 0) {
-        gapStatus = 'Unassessed';
-    } else if (nonCompliantCount > 0) {
-        gapStatus = 'Open gap';
-    } else if (compliantCount > 0 && compliantCount + notApplicableCount === assessedCount) {
-        gapStatus = notApplicableCount === assessedCount ? 'Not applicable' : 'Covered';
-    } else {
-        gapStatus = 'Partial coverage';
-    }
-
-    if (openCapCount > 0 && gapStatus === 'Covered') {
-        gapStatus = 'Partial coverage';
-    }
-
-    return {
-        mappedCount: mappedItemIds.length,
-        assessedCount,
-        openCapCount,
-        latestFinding,
-        gapStatus,
-    };
-}
 
 function naturalSort(a: string, b: string) {
-    const re = /(\d+)/g;
-    const aParts = a.split(re);
-    const bParts = b.split(re);
-    const len = Math.min(aParts.length, bParts.length);
-
-    for (let i = 0; i < len; i++) {
-        const aPart = aParts[i];
-        const bPart = bParts[i];
-
-        if (i % 2 === 1) {
-            const aNum = parseInt(aPart, 10);
-            const bNum = parseInt(bPart, 10);
-            if (aNum !== bNum) return aNum - bNum;
-        } else if (aPart !== bPart) {
-            return aPart.localeCompare(bPart);
-        }
-    }
-
-    return a.length - b.length;
-}
-
-function regulationTabToUiValue(value: RegulationFamily) {
-    return value.replace(/[^a-z0-9_-]/gi, '_');
-}
-
-function uiValueToRegulationTab(value: string): RegulationFamily {
-    const match = REGULATION_TABS.find((tab) => regulationTabToUiValue(tab.value) === value);
-    return match?.value ?? 'sacaa-cars';
+  return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
 }
 
 function formatParentOptionLabel(option: { code: string; label: string }) {
-    const code = option.code.trim();
-    const label = option.label.trim();
-    return label && label !== code
-        ? `${code} - ${label}`
-        : code;
-}
-
-function shouldShowSingleLineLabel(item: ComplianceRequirement) {
-    return item.regulationStatement?.trim() === item.regulationCode.trim();
-}
-
-function getInlineMarker(parentCode: string, childCode: string) {
-    const normalizedParent = normalizeRegulationCode(parentCode);
-    const normalizedChild = normalizeRegulationCode(childCode);
-
-    if (!normalizedParent || !normalizedChild.startsWith(`${normalizedParent}.`)) {
-        return null;
-    }
-
-    const suffix = normalizedChild.slice(normalizedParent.length + 1);
-    if (!suffix || suffix.includes('.')) return null;
-
-    return `(${suffix})`;
-}
-
-function formatAuditDate(value?: string | null) {
-    if (!value?.trim()) return '';
-
-    const parsed = new Date(value);
-    if (Number.isNaN(parsed.getTime())) return value.trim();
-
-    return format(parsed, 'dd MMM yyyy');
-}
-
-function getTechnicalExcerpt(value?: string | null) {
-    const lines = getStructuredTechnicalLines(value);
-    if (lines.length > 0) {
-        return lines[0].content;
-    }
-
-    return value?.trim() || '';
-}
-
-function getClauseAnalysisRowId(itemId: string, marker: string) {
-    return `${itemId}::analysis::${marker}`;
-}
-
-function getClauseAnalysisEntries(item: ComplianceRequirement): ClauseAnalysisEntry[] {
-    const structuredLines = getStructuredTechnicalLines(item.technicalStandard, item.technicalStandardIndentation).filter((line) => line.marker);
-    const existingEntries = new Map((item.analysisEntries || []).map((entry) => [entry.marker, entry]));
-
-    return structuredLines.map((line, index) => {
-        const existing = existingEntries.get(line.marker);
-        return {
-            id: existing?.id || getClauseAnalysisRowId(item.id, line.marker || `${index}`),
-            marker: line.marker,
-            content: line.content,
-            gapStatus: existing?.gapStatus || 'Unassessed',
-            gapStatusDate: existing?.gapStatusDate,
-            companyReference: existing?.companyReference || '',
-        };
-    });
-}
-
-const GAP_STATUS_OPTIONS: { value: GapStatus; label: string }[] = [
-    { value: 'Open gap', label: 'Open gap' },
-    { value: 'Partial coverage', label: 'Partial coverage' },
-    { value: 'Covered', label: 'Covered' },
-    { value: 'Unassessed', label: 'Unassessed' },
-    { value: 'Not applicable', label: 'Not applicable' },
-];
-
-function formatStructuredTechnicalStandard(value?: string | null) {
-    const text = value?.trim() || '';
-    if (!text) return '';
-
-    const structuredMarkerPattern = '(?:\\(\\d+\\)|\\([a-z]\\)|\\((?:i|ii|iii|iv|vi|vii|viii|ix|x|xi|xii|xiii|xiv|xv|xvi|xvii|xviii|xix|xx)\\)|\\([A-Z]\\)|Note:)';
-
-    return text
-        .replace(new RegExp(`\\s+(${structuredMarkerPattern})\\s+`, 'gi'), '\n$1 ')
-        .replace(/\s+(Note:)\s+/gi, '\n$1 ')
-        .trim();
-}
-
-function getStructuredTechnicalIndent(marker: string) {
-    const baseLevel = /^Note:/i.test(marker)
-        ? 2
-        : /^\(\d+\)$/.test(marker)
-            ? 1
-            : /^\((?:i|ii|iii|iv|vi|vii|viii|ix|x|xi|xii|xiii|xiv|xv|xvi|xvii|xviii|xix|xx)\)$/i.test(marker)
-                ? 3
-                : /^\([a-z]\)$/i.test(marker)
-                    ? 2
-                    : /^\([A-Z]\)$/.test(marker)
-                        ? 3
-                        : 0;
-
-    if (/^Note:/i.test(marker)) {
-        return { indentLevel: baseLevel, markerClassName: 'w-12', extraClassName: 'italic' };
-    }
-
-    if (/^\(\d+\)$/.test(marker)) {
-        return { indentLevel: baseLevel, markerClassName: 'w-8', extraClassName: '' };
-    }
-
-    if (/^\((?:i|ii|iii|iv|vi|vii|viii|ix|x|xi|xii|xiii|xiv|xv|xvi|xvii|xviii|xix|xx)\)$/i.test(marker)) {
-        return { indentLevel: baseLevel, markerClassName: 'w-10', extraClassName: '' };
-    }
-
-    if (/^\([a-z]\)$/i.test(marker)) {
-        return { indentLevel: baseLevel, markerClassName: 'w-8', extraClassName: '' };
-    }
-
-    if (/^\([A-Z]\)$/.test(marker)) {
-        return { indentLevel: baseLevel, markerClassName: 'w-10', extraClassName: '' };
-    }
-
-    return { indentLevel: baseLevel, markerClassName: 'w-0', extraClassName: '' };
-}
-
-function clampTechnicalIndentLevel(level: number) {
-    return Math.min(TECHNICAL_STANDARD_MAX_INDENT, Math.max(0, Math.round(level)));
-}
-
-function getTechnicalIndentClassName(level: number) {
-    switch (clampTechnicalIndentLevel(level)) {
-        case 0:
-            return '';
-        case 1:
-            return 'pl-3';
-        case 2:
-            return 'pl-10';
-        case 3:
-            return 'pl-16';
-        case 4:
-            return 'pl-24';
-        case 5:
-            return 'pl-32';
-        default:
-            return 'pl-40';
-    }
-}
-
-function getStructuredTechnicalLines(value?: string | null, indentationOverrides?: number[]) {
-    return formatStructuredTechnicalStandard(value)
-        .split('\n')
-        .map((line) => line.trim())
-        .filter(Boolean)
-        .map((line, index) => {
-            const markerMatch = line.match(/^((?:\(\d+\)|\([a-z]\)|\((?:i|ii|iii|iv|vi|vii|viii|ix|x|xi|xii|xiii|xiv|xv|xvi|xvii|xviii|xix|xx)\)|\([A-Z]\)|Note:))\s*(.*)$/i);
-            const marker = markerMatch?.[1] || '';
-            const content = markerMatch?.[2] || line;
-            const { indentLevel: defaultIndentLevel, markerClassName, extraClassName } = getStructuredTechnicalIndent(marker);
-            const indentLevel = clampTechnicalIndentLevel(indentationOverrides?.[index] ?? defaultIndentLevel);
-
-            return {
-                marker,
-                content,
-                indentLevel,
-                defaultIndentLevel,
-                className: `${getTechnicalIndentClassName(indentLevel)} ${extraClassName}`.trim(),
-                markerClassName,
-            };
-        });
-}
-
-function getNormalizedTechnicalIndentation(
-    value?: string | null,
-    indentationOverrides?: number[],
-) {
-    const lines = getStructuredTechnicalLines(value, indentationOverrides);
-    if (lines.length === 0) {
-        return [];
-    }
-
-    const normalized = lines.map((line) => clampTechnicalIndentLevel(line.indentLevel));
-    const hasManualOverride = normalized.some((level, index) => level !== clampTechnicalIndentLevel(lines[index]?.defaultIndentLevel ?? 0));
-    return hasManualOverride ? normalized : [];
+  const code = option.code.trim();
+  const label = option.label.trim();
+  return label && label !== code ? `${code} - ${label}` : code;
 }
 
 function getItemFamily(item: ComplianceRequirement): RegulationFamily {
-    return item.regulationFamily || 'sacaa-cars';
+  if (item.regulationFamily === 'sacaa-cats' || item.regulationFamily === 'ohs') {
+    return item.regulationFamily;
+  }
+  return 'sacaa-cars';
 }
 
-function UploadRegulationsDialog({ tenantId, organizationId, regulationFamily, availableParentHeaders, trigger }: { tenantId: string, organizationId: string | null, regulationFamily: RegulationFamily; availableParentHeaders: { code: string; label: string }[]; trigger?: React.ReactNode }) {
-    const { toast } = useToast();
-    const [isOpen, setIsOpen] = useState(false);
-    const [isProcessing, setIsProcessing] = useState(false);
-    const [isSaving, setIsSaving] = useState(false);
-    const isMobile = useIsMobile();
-    const dialogBodyRef = useRef<HTMLDivElement | null>(null);
-    const previewSectionRef = useRef<HTMLDivElement | null>(null);
-    
-    const [file, setFile] = useState<File | null>(null);
-    const [pastedText, setPastedText] = useState('');
-    const [stagedImages, setStagedImages] = useState<string[]>([]);
-    const [isMultiImageMode, setIsMultiImageMode] = useState(false);
-    const [targetFamily, setTargetFamily] = useState<RegulationFamily>(regulationFamily);
-    const [targetHeader, setTargetHeader] = useState('');
-    const [previewRequirements, setPreviewRequirements] = useState<MatrixPreviewRequirement[] | null>(null);
-    const [previewInput, setPreviewInput] = useState<SummarizeDocumentInput | null>(null);
+function formatAuditDate(value?: string | null) {
+  if (!value?.trim()) return '';
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? value : format(parsed, 'dd MMM yyyy');
+}
 
-    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-        if (event.target.files) {
-            setFile(event.target.files[0]);
+function renderTechnicalText(value?: string | null) {
+  if (!value?.trim()) return null;
+  const lines = value
+    .split(/\r?\n/)
+    .map((line) => line.trimEnd())
+    .filter((line) => line.trim().length > 0);
+
+  if (lines.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="space-y-2 rounded-md border border-card-border/70 bg-background/70 px-3 py-3">
+      {lines.map((line, index) => (
+        <p key={`${index}-${line.slice(0, 24)}`} className="whitespace-pre-wrap break-words text-sm leading-6 text-foreground/80">
+          {line}
+        </p>
+      ))}
+    </div>
+  );
+}
+
+function sanitizeAiPreviewRequirements(
+  requirements: MatrixPreviewRequirement[],
+  targetHeader: string,
+  sourceKind: 'text' | 'image' | 'file',
+) {
+  const normalizedTargetHeader = normalizeRegulationCode(targetHeader);
+  const seenKeys = new Set<string>();
+
+  const cleaned = requirements
+    .map((req) => {
+      const regulationCode = normalizeRegulationCode(req.regulationCode);
+      const parentRegulationCode = normalizeRegulationCode(req.parentRegulationCode) || normalizedTargetHeader;
+      const regulationStatement = req.regulationStatement?.trim() || regulationCode;
+      const technicalStandard = (req.technicalStandard || '').trim().slice(0, AI_IMPORT_MAX_TECHNICAL_STANDARD_LENGTH);
+
+      if (!regulationCode || !parentRegulationCode) return null;
+      if (regulationCode.toLowerCase() === parentRegulationCode.toLowerCase()) return null;
+
+      const dedupeKey = `${parentRegulationCode.toLowerCase()}|${regulationCode.toLowerCase()}`;
+      if (seenKeys.has(dedupeKey)) return null;
+      seenKeys.add(dedupeKey);
+
+      return {
+        ...req,
+        regulationCode,
+        parentRegulationCode,
+        regulationStatement,
+        technicalStandard,
+        technicalStandardIndentation: normalizeIndentationArray(req.technicalStandardIndentation),
+      };
+    })
+    .filter(Boolean) as MatrixPreviewRequirement[];
+
+  const limited =
+    sourceKind === 'text' && cleaned.length > AI_TEXT_IMPORT_MAX_REQUIREMENTS
+      ? cleaned.slice(0, AI_TEXT_IMPORT_MAX_REQUIREMENTS)
+      : cleaned;
+
+  return {
+    requirements: limited,
+    droppedCount: requirements.length - limited.length,
+    wasTrimmed: sourceKind === 'text' && cleaned.length > AI_TEXT_IMPORT_MAX_REQUIREMENTS,
+  };
+}
+
+function UploadRegulationsDialog({
+  tenantId,
+  organizationId,
+  regulationFamily,
+  availableParentHeaders,
+  trigger,
+}: {
+  tenantId: string;
+  organizationId: string | null;
+  regulationFamily: RegulationFamily;
+  availableParentHeaders: { code: string; label: string }[];
+  trigger?: React.ReactNode;
+}) {
+  const { toast } = useToast();
+  const isMobile = useIsMobile();
+  const [isOpen, setIsOpen] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
+  const [pastedText, setPastedText] = useState('');
+  const [stagedImages, setStagedImages] = useState<string[]>([]);
+  const [isMultiImageMode, setIsMultiImageMode] = useState(false);
+  const [targetFamily, setTargetFamily] = useState<RegulationFamily>(regulationFamily);
+  const [targetHeader, setTargetHeader] = useState('');
+  const [previewRequirements, setPreviewRequirements] = useState<MatrixPreviewRequirement[] | null>(null);
+  const [previewInput, setPreviewInput] = useState<SummarizeDocumentInput | null>(null);
+  const dialogBodyRef = useRef<HTMLDivElement | null>(null);
+
+  const resetDialog = useCallback(() => {
+    setFile(null);
+    setPastedText('');
+    setStagedImages([]);
+    setIsMultiImageMode(false);
+    setTargetFamily(regulationFamily);
+    setTargetHeader('');
+    setPreviewRequirements(null);
+    setPreviewInput(null);
+  }, [regulationFamily]);
+
+  const handlePaste = useCallback(async (event: React.ClipboardEvent) => {
+    const items = event.clipboardData.items;
+    for (let i = 0; i < items.length; i += 1) {
+      if (items[i].type.indexOf('image') !== -1) {
+        const blob = items[i].getAsFile();
+        if (blob) {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const nextImage = e.target?.result as string;
+            setStagedImages((current) => [...current, nextImage]);
+            toast({ title: 'Image Added', description: 'The image has been staged for processing.' });
+          };
+          reader.readAsDataURL(blob);
         }
-    };
-    
-    const handlePaste = useCallback(async (event: React.ClipboardEvent) => {
-        const items = event.clipboardData.items;
-        for (let i = 0; i < items.length; i++) {
-            if (items[i].type.indexOf('image') !== -1) {
-                const blob = items[i].getAsFile();
-                if (blob) {
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                        const newImage = e.target?.result as string;
-                        setStagedImages(prev => [...prev, newImage]);
-                        toast({ title: 'Image Added', description: 'The image has been staged for processing.' });
-                    };
-                    reader.readAsDataURL(blob);
-                }
-                return;
-            }
-        }
+        return;
+      }
+    }
 
-        const clipboardText = extractClipboardText(event.clipboardData);
-        if (clipboardText) {
-            event.preventDefault();
-            setPastedText(clipboardText);
-            toast({ title: 'Text Pasted', description: 'The text has been loaded and is ready to be processed.' });
-        }
-    }, [toast]);
+    const clipboardText = extractClipboardText(event.clipboardData);
+    if (clipboardText) {
+      event.preventDefault();
+      setPastedText(clipboardText);
+      toast({ title: 'Text Pasted', description: 'The text has been loaded and is ready to be processed.' });
+    }
+  }, [toast]);
 
-    const removeStagedImage = (index: number) => {
-        setStagedImages(prev => prev.filter((_, i) => i !== index));
-    };
+  const canProcess = !!targetHeader.trim() && (Boolean(file) || Boolean(pastedText.trim()) || stagedImages.length > 0);
 
-    const saveRequirements = async (input: SummarizeDocumentInput, requirements: MatrixPreviewRequirement[]) => {
-        setIsSaving(true);
-        setIsProcessing(true);
-        try {
-            if (!requirements || requirements.length === 0) {
-                toast({ variant: 'destructive', title: 'No Regulations Found', description: 'The AI could not identify any regulations in the provided content.' });
-                return;
-            }
+  const handleProcess = async () => {
+    if (!targetHeader.trim()) {
+      toast({
+        variant: 'destructive',
+        title: 'Select a sub-regulation first',
+        description: 'Create the header and sub-regulation manually, then choose the sub-regulation before running AI import.',
+      });
+      return;
+    }
 
-            const sourceKind: 'text' | 'image' | 'file' = input.document.images?.length
-                ? 'image'
-                : input.document.text
-                    ? (file ? 'file' : 'text')
-                    : 'text';
-            const normalizedPreview = sanitizeAiPreviewRequirements(requirements, targetHeader, sourceKind);
+    setIsProcessing(true);
+    try {
+      const input: SummarizeDocumentInput = { targetParentCode: targetHeader, document: {} };
 
-            if (normalizedPreview.requirements.length === 0) {
-                toast({
-                    variant: 'destructive',
-                    title: 'No Valid Regulations',
-                    description: 'The AI output did not contain any valid child regulations to save under the selected sub-regulation.',
-                });
-                return;
-            }
+      let sourceKind: 'text' | 'image' | 'file' = 'text';
+      if (file) {
+        input.document.text = await file.text();
+        sourceKind = 'file';
+      } else if (pastedText.trim()) {
+        input.document.text = pastedText;
+        sourceKind = 'text';
+      } else if (stagedImages.length > 0) {
+        input.document.images = stagedImages;
+        input.isMultiPage = isMultiImageMode;
+        sourceKind = 'image';
+      }
 
-            const newItems = normalizedPreview.requirements.map(req => ({
-                ...req,
-                id: crypto.randomUUID(),
-                organizationId: organizationId,
-                regulationFamily: targetFamily,
-                regulationCode: req.regulationCode,
-                parentRegulationCode: req.parentRegulationCode,
-                documentHeading: req.documentHeading?.trim() || '',
-                regulationStatement: req.regulationStatement,
-                technicalStandard: req.technicalStandard,
-                technicalStandardIndentation: req.technicalStandardIndentation,
-            })).filter((item) => item.regulationCode);
+      const preview = await callAiFlow<SummarizeDocumentInput, SummarizeDocumentOutput>('summarizeDocument', input);
+      const normalizedPreview = sanitizeAiPreviewRequirements(preview.requirements || [], targetHeader, sourceKind);
+      setPreviewInput(input);
+      setPreviewRequirements(normalizedPreview.requirements);
 
-            if (newItems.length === 0) {
-                toast({
-                    variant: 'destructive',
-                    title: 'No Valid Regulations',
-                    description: 'The AI output did not contain any usable regulation codes to save.',
-                });
-                return;
-            }
-
-            await Promise.all(newItems.map((item) => fetch(`/api/compliance-matrix?tenantId=${encodeURIComponent(tenantId)}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ item }),
-            })));
-            window.dispatchEvent(new Event('safeviate-compliance-updated'));
-
-            toast({
-                title: 'Matrix Populated',
-                description: normalizedPreview.wasTrimmed
-                    ? `${newItems.length} compliance requirements were added. Text imports are limited to the first ${AI_TEXT_IMPORT_MAX_REQUIREMENTS} valid items.`
-                    : normalizedPreview.droppedCount > 0
-                        ? `${newItems.length} compliance requirements were added after filtering invalid or duplicate rows.`
-                        : `${newItems.length} compliance requirements have been added to the matrix.`,
-            });
-
-        } catch (error) {
-            console.error('Error processing document:', error);
-            toast({
-                variant: 'destructive',
-                title: 'Processing Failed',
-                description: error instanceof Error ? error.message : 'An unknown error occurred.',
-            });
-        } finally {
-            setIsSaving(false);
-            setIsProcessing(false);
-            setFile(null);
-            setPastedText('');
-            setStagedImages([]);
-            setIsMultiImageMode(false);
-            setIsOpen(false);
-            setTargetFamily(regulationFamily);
-            setTargetHeader('');
-            setPreviewRequirements(null);
-            setPreviewInput(null);
-        }
-    };
-
-    const handleProcess = async () => {
-        if (!targetHeader.trim()) {
-            toast({ variant: 'destructive', title: 'Select a sub-regulation first', description: 'Create the header and sub-regulation manually, then choose the sub-regulation before running AI import.' });
-            return;
-        }
-
-        let input: SummarizeDocumentInput = { targetParentCode: targetHeader, document: {} };
-        
-        setIsProcessing(true);
-
-        try {
-            let extractedInput: SummarizeDocumentInput = input;
-
-            if (file) {
-            const reader = new FileReader();
-                reader.onload = async (e) => {
-                    extractedInput.document.text = e.target?.result as string;
-                    const preview = await callAiFlow<SummarizeDocumentInput, SummarizeDocumentOutput>('summarizeDocument', extractedInput);
-                    const normalizedPreview = sanitizeAiPreviewRequirements(preview.requirements || [], targetHeader, 'file');
-                    setPreviewInput(extractedInput);
-                    setPreviewRequirements(normalizedPreview.requirements);
-                    setIsProcessing(false);
-                };
-                reader.readAsText(file);
-            } else if (pastedText) {
-                extractedInput.document.text = pastedText;
-                const preview = await callAiFlow<SummarizeDocumentInput, SummarizeDocumentOutput>('summarizeDocument', extractedInput);
-                const normalizedPreview = sanitizeAiPreviewRequirements(preview.requirements || [], targetHeader, 'text');
-                setPreviewInput(extractedInput);
-                setPreviewRequirements(normalizedPreview.requirements);
-                if (normalizedPreview.wasTrimmed) {
-                    toast({
-                        title: 'Preview trimmed',
-                        description: `Pasted-text imports are limited to the first ${AI_TEXT_IMPORT_MAX_REQUIREMENTS} valid child items to keep the matrix responsive.`,
-                    });
-                }
-                setIsProcessing(false);
-            } else if (stagedImages.length > 0) {
-                extractedInput.document.images = stagedImages;
-                extractedInput.isMultiPage = isMultiImageMode;
-                const preview = await callAiFlow<SummarizeDocumentInput, SummarizeDocumentOutput>('summarizeDocument', extractedInput);
-                const normalizedPreview = sanitizeAiPreviewRequirements(preview.requirements || [], targetHeader, 'image');
-                setPreviewInput(extractedInput);
-                setPreviewRequirements(normalizedPreview.requirements);
-                setIsProcessing(false);
-            }
-        } catch (error) {
-            setIsProcessing(false);
-            console.error('Error processing document:', error);
-            toast({
-                variant: 'destructive',
-                title: 'Processing Failed',
-                description: error instanceof Error ? error.message : 'An unknown error occurred.',
-            });
-        }
-    };
-
-    const handleSavePreview = async () => {
-        if (!previewInput || !previewRequirements) return;
-        await saveRequirements(previewInput, previewRequirements);
-    };
-
-    const resetPreview = () => {
-        setPreviewRequirements(null);
-        setPreviewInput(null);
-    };
-
-    useEffect(() => {
-        if (!isOpen || !previewRequirements?.length) return;
-
-        dialogBodyRef.current?.scrollTo({
-            top: dialogBodyRef.current.scrollHeight,
-            behavior: 'smooth',
+      if (normalizedPreview.wasTrimmed) {
+        toast({
+          title: 'Preview trimmed',
+          description: `Pasted-text imports are limited to the first ${AI_TEXT_IMPORT_MAX_REQUIREMENTS} valid child items to keep the matrix responsive.`,
         });
-        previewSectionRef.current?.scrollIntoView({
-            behavior: 'smooth',
-            block: 'start',
-        });
-    }, [isOpen, previewRequirements]);
+      }
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Processing Failed',
+        description: error instanceof Error ? error.message : 'An unknown error occurred.',
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
-    const copyPreviewJson = async () => {
-        if (!previewRequirements) return;
-        const payload = JSON.stringify({ requirements: previewRequirements }, null, 2);
-        try {
-            await navigator.clipboard.writeText(payload);
-            toast({ title: 'Copied', description: 'The raw AI preview JSON was copied to the clipboard.' });
-        } catch (error) {
-            console.error('Failed to copy preview JSON', error);
-            toast({ variant: 'destructive', title: 'Copy Failed', description: 'Could not copy the preview JSON.' });
+  const handleSavePreview = async () => {
+    if (!previewInput || !previewRequirements?.length) return;
+
+    setIsSaving(true);
+    setIsProcessing(true);
+    try {
+      const sourceKind: 'text' | 'image' | 'file' = previewInput.document.images?.length
+        ? 'image'
+        : previewInput.document.text
+          ? (file ? 'file' : 'text')
+          : 'text';
+
+      const normalizedPreview = sanitizeAiPreviewRequirements(previewRequirements, targetHeader, sourceKind);
+      if (normalizedPreview.requirements.length === 0) {
+        toast({
+          variant: 'destructive',
+          title: 'No Valid Regulations',
+          description: 'The AI output did not contain any valid child regulations to save under the selected sub-regulation.',
+        });
+        return;
+      }
+
+      const newItems = normalizedPreview.requirements.map((req) => ({
+        ...req,
+        id: crypto.randomUUID(),
+        organizationId,
+        regulationFamily: targetFamily,
+        regulationCode: req.regulationCode,
+        parentRegulationCode: req.parentRegulationCode,
+        documentHeading: req.documentHeading?.trim() || '',
+        regulationStatement: req.regulationStatement,
+        technicalStandard: req.technicalStandard,
+        technicalStandardIndentation: req.technicalStandardIndentation,
+      }));
+
+      await Promise.all(newItems.map((item) =>
+        fetch(`/api/compliance-matrix?tenantId=${encodeURIComponent(tenantId)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ item }),
+        }),
+      ));
+
+      window.dispatchEvent(new Event('safeviate-compliance-updated'));
+      toast({
+        title: 'Matrix Populated',
+        description: normalizedPreview.wasTrimmed
+          ? `${newItems.length} compliance requirements were added. Text imports are limited to the first ${AI_TEXT_IMPORT_MAX_REQUIREMENTS} valid items.`
+          : normalizedPreview.droppedCount > 0
+            ? `${newItems.length} compliance requirements were added after filtering invalid or duplicate rows.`
+            : `${newItems.length} compliance requirements have been added to the matrix.`,
+      });
+      setIsOpen(false);
+      resetDialog();
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Processing Failed',
+        description: error instanceof Error ? error.message : 'An unknown error occurred.',
+      });
+    } finally {
+      setIsSaving(false);
+      setIsProcessing(false);
+    }
+  };
+
+  return (
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open) => {
+        setIsOpen(open);
+        if (!open) {
+          resetDialog();
         }
-    };
+      }}
+    >
+      <DialogTrigger asChild>
+        {trigger || (
+          <Button variant="outline" size="compact" className={cn(HEADER_COMPACT_CONTROL_CLASS, 'text-foreground hover:bg-accent/40')}>
+            <WandSparkles className="h-3.5 w-3.5 text-primary" />
+            {isMobile ? 'AI Populate' : 'AI Populate'}
+          </Button>
+        )}
+      </DialogTrigger>
+      {isOpen ? (
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+          <div ref={dialogBodyRef} className="flex-1 min-h-0 space-y-4 overflow-y-auto pr-1">
+            <DialogHeader>
+              <DialogTitle>Populate Matrix with AI</DialogTitle>
+              <DialogDescription>
+                Create the header and sub-regulation manually first, then choose the sub-regulation below so AI only adds the paragraph cards beneath it.
+              </DialogDescription>
+            </DialogHeader>
 
-    const updatePreviewRequirementIndentation = useCallback((requirementIndex: number, lineIndex: number, nextIndentLevel: number) => {
-        setPreviewRequirements((current) => {
-            if (!current) return current;
+            <div className="space-y-2">
+              <Label htmlFor="target-family">Target category</Label>
+              <Select value={targetFamily} onValueChange={(value) => setTargetFamily(value as RegulationFamily)}>
+                <SelectTrigger id="target-family">
+                  <SelectValue placeholder="Select category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {REGULATION_TABS.map((tab) => (
+                    <SelectItem key={tab.value} value={tab.value}>
+                      {tab.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-            return current.map((requirement, index) => {
-                if (index !== requirementIndex) {
-                    return requirement;
-                }
+            <div className="space-y-2">
+              <Label htmlFor="target-header">Target sub-regulation</Label>
+              <Select value={targetHeader} onValueChange={setTargetHeader}>
+                <SelectTrigger id="target-header">
+                  <SelectValue placeholder="Select a sub-regulation" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableParentHeaders.map((header) => (
+                    <SelectItem key={header.code} value={header.code}>
+                      {formatParentOptionLabel(header)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-                const nextIndentation = [...normalizeIndentationArray(requirement.technicalStandardIndentation)];
-                nextIndentation[lineIndex] = clampTechnicalIndentLevel(nextIndentLevel);
-
-                return {
-                    ...requirement,
-                    technicalStandardIndentation: getNormalizedTechnicalIndentation(requirement.technicalStandard, nextIndentation),
-                };
-            });
-        });
-    }, []);
-
-    const resetPreviewRequirementIndentation = useCallback((requirementIndex: number) => {
-        setPreviewRequirements((current) => {
-            if (!current) return current;
-
-            return current.map((requirement, index) =>
-                index === requirementIndex
-                    ? { ...requirement, technicalStandardIndentation: [] }
-                    : requirement
-            );
-        });
-    }, []);
-
-    const canProcess = !!targetHeader.trim() && (file || pastedText.trim() || stagedImages.length > 0);
-
-    return (
-        <Dialog open={isOpen} onOpenChange={(open) => {
-            setIsOpen(open);
-            if (open) setTargetFamily(regulationFamily);
-            if (!open) {
-                resetPreview();
-            }
-        }}>
-            <DialogTrigger asChild>
-                {trigger || (
-                    <Button 
-                        variant="outline" 
-                        size="compact"
-                        className={cn(HEADER_COMPACT_CONTROL_CLASS, 'text-foreground hover:bg-accent/40')}
-                    >
-                        <WandSparkles className="h-3.5 w-3.5 text-primary" /> 
-                        {isMobile ? "AI Populate" : "AI Populate"}
-                    </Button>
-                )}
-            </DialogTrigger>
-            {isOpen ? (
-            <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
-                <div ref={dialogBodyRef} className="flex-1 min-h-0 space-y-4 overflow-y-auto pr-1">
-                    <DialogHeader>
-                        <DialogTitle>Populate Matrix with AI</DialogTitle>
-                        <DialogDescription>
-                            Upload a file, paste text, or paste one or more images of regulations. Create the header and sub-regulation manually first, then choose the sub-regulation below so AI only adds the paragraph cards beneath it.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-2">
-                        <Label htmlFor="target-family">Target category</Label>
-                        <Select value={targetFamily} onValueChange={(value) => setTargetFamily(value as RegulationFamily)}>
-                            <SelectTrigger id="target-family">
-                                <SelectValue placeholder="Select category" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {REGULATION_TABS.map((tab) => (
-                                    <SelectItem key={tab.value} value={tab.value}>
-                                        {tab.label}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="target-header">Target sub-regulation</Label>
-                        <Select value={targetHeader} onValueChange={setTargetHeader}>
-                            <SelectTrigger id="target-header">
-                                <SelectValue placeholder="Select a sub-regulation" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {availableParentHeaders.map((header) => (
-                                    <SelectItem key={header.code} value={header.code}>
-                                        {formatParentOptionLabel(header)}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <Tabs defaultValue="image">
-                        <TabsList className="grid w-full grid-cols-3">
-                            <TabsTrigger value="image">Paste Images</TabsTrigger>
-                            <TabsTrigger value="text">Paste Text</TabsTrigger>
-                            <TabsTrigger value="file">Upload File</TabsTrigger>
-                        </TabsList>
-                        <TabsContent value="image" className="pt-4">
-                            <div
-                                onPaste={handlePaste}
-                                className="h-48 border-2 border-dashed rounded-lg flex items-center justify-center text-muted-foreground mb-4"
-                            >
-                                <div className="text-center">
-                                    <ClipboardPaste className="mx-auto h-8 w-8" />
-                                    <p className="text-foreground/90">Click here and paste image(s) (Ctrl+V)</p>
-                                </div>
-                            </div>
-                            <div className="flex items-center space-x-2 my-4">
-                                <Switch id="multi-image-mode" checked={isMultiImageMode} onCheckedChange={setIsMultiImageMode} />
-                                <Label htmlFor="multi-image-mode">Treat images as a single document</Label>
-                            </div>
-                            {isMultiImageMode && (
-                                <p className="text-xs text-foreground/80 p-2 bg-muted rounded-md">
-                                    Instruction to AI: &quot;You will be given a sequence of images. Treat them as pages of a single document, in the order they are provided. Text may flow from one image to the next.&quot;
-                                </p>
-                            )}
-                            <ScrollArea className="h-48 mt-4">
-                                <div className="grid grid-cols-3 gap-4">
-                                    {stagedImages.map((imageSrc, index) => (
-                                        <div key={index} className="relative group">
-                                            <Image src={imageSrc} alt={`Staged image ${index + 1}`} width={150} height={150} className="rounded-md object-cover aspect-square" />
-                                            <Button
-                                                variant="destructive"
-                                                size="icon"
-                                                className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100"
-                                                onClick={() => removeStagedImage(index)}
-                                            >
-                                                <Trash2 className="h-4 w-4" />
-                                            </Button>
-                                        </div>
-                                    ))}
-                                </div>
-                            </ScrollArea>
-                        </TabsContent>
-                        <TabsContent value="text" className="pt-4">
-                            <ScrollArea className="h-96 rounded-md border">
-                                <Textarea
-                                    placeholder="Paste the raw text of the regulations here..."
-                                    className="h-full min-h-[24rem] border-none focus-visible:ring-0"
-                                    value={pastedText}
-                                    onChange={(e) => setPastedText(e.target.value)}
-                                    onPaste={handlePaste}
-                                />
-                            </ScrollArea>
-                        </TabsContent>
-                        <TabsContent value="file" className="pt-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="reg-file">Regulation File (.txt)</Label>
-                                <Input id="reg-file" type="file" onChange={handleFileChange} accept=".txt" />
-                                {file && <p className="text-sm text-muted-foreground">Selected: {file.name}</p>}
-                            </div>
-                        </TabsContent>
-                    </Tabs>
-                    {previewRequirements && previewRequirements.length > 0 ? (
-                        <div ref={previewSectionRef} className="space-y-3 rounded-lg border border-slate-200 bg-slate-50/60 p-3 scroll-mt-4">
-                            <div className="flex items-center justify-between gap-3">
-                                <div>
-                                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">AI Preview</p>
-                                    <p className="text-xs text-muted-foreground">Review the extracted requirements and correct indentation before saving them to the matrix.</p>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <Button type="button" variant="ghost" size="sm" onClick={copyPreviewJson}>
-                                        <Copy className="mr-2 h-3.5 w-3.5" />
-                                        Copy JSON
-                                    </Button>
-                                    <Button type="button" variant="ghost" size="sm" onClick={resetPreview}>
-                                        Clear Preview
-                                    </Button>
-                                </div>
-                            </div>
-                            <div className="rounded-md border border-card-border/70 bg-background/70 px-3 py-2 text-[11px] leading-5 text-foreground/70">
-                                <span className="font-semibold text-foreground">Indentation help:</span> use the left arrow to promote a line up one level and the right arrow to demote it deeper under its parent clause. Reset indents returns that requirement to automatic marker-based formatting.
-                            </div>
-                            <ScrollArea className="max-h-[28rem] rounded-md border bg-white">
-                                <div className="space-y-3 p-3">
-                                    {previewRequirements.map((requirement, requirementIndex) => {
-                                        const previewLines = getStructuredTechnicalLines(
-                                            requirement.technicalStandard,
-                                            normalizeIndentationArray(requirement.technicalStandardIndentation),
-                                        );
-                                        const hasManualIndentation = normalizeIndentationArray(requirement.technicalStandardIndentation).length > 0;
-
-                                        return (
-                                            <div key={`${requirement.regulationCode}-${requirementIndex}`} className="space-y-3 rounded-md border border-card-border/70 bg-card/40 p-3">
-                                                <div className="flex flex-wrap items-start justify-between gap-3">
-                                                    <div className="min-w-0 space-y-1">
-                                                        {requirement.documentHeading?.trim() ? (
-                                                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-primary/80">
-                                                                {requirement.documentHeading}
-                                                            </p>
-                                                        ) : null}
-                                                        <p className="text-[11px] font-black tracking-wide text-foreground/65">
-                                                            {requirement.regulationCode}
-                                                        </p>
-                                                        <p className="text-sm font-semibold leading-5 text-foreground">
-                                                            {requirement.regulationStatement}
-                                                        </p>
-                                                    </div>
-                                                    <div className="flex items-center gap-2">
-                                                        {hasManualIndentation ? (
-                                                            <Badge variant="outline" className="border-primary/30 bg-primary/5 text-[10px] font-black uppercase tracking-[0.12em] text-primary">
-                                                                Manual indentation
-                                                            </Badge>
-                                                        ) : null}
-                                                        <Button
-                                                            type="button"
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            onClick={() => resetPreviewRequirementIndentation(requirementIndex)}
-                                                            disabled={!hasManualIndentation}
-                                                        >
-                                                            Reset indents
-                                                        </Button>
-                                                    </div>
-                                                </div>
-                                                {previewLines.length > 0 ? (
-                                                    <div className="space-y-1.5">
-                                                        {previewLines.map((line, lineIndex) => (
-                                                            <div key={`${line.marker}-${line.content}-${lineIndex}`} className="flex items-start gap-2">
-                                                                <div className="flex shrink-0 items-center gap-1 pt-1">
-                                                                    <Button
-                                                                        type="button"
-                                                                        variant="outline"
-                                                                        size="icon"
-                                                                        className="h-7 w-7 border-card-border/80"
-                                                                        onClick={() => updatePreviewRequirementIndentation(requirementIndex, lineIndex, line.indentLevel - 1)}
-                                                                        disabled={line.indentLevel <= 0}
-                                                                        aria-label={`Promote preview line ${lineIndex + 1}`}
-                                                                    >
-                                                                        <ChevronLeft className="h-3.5 w-3.5" />
-                                                                    </Button>
-                                                                    <Button
-                                                                        type="button"
-                                                                        variant="outline"
-                                                                        size="icon"
-                                                                        className="h-7 w-7 border-card-border/80"
-                                                                        onClick={() => updatePreviewRequirementIndentation(requirementIndex, lineIndex, line.indentLevel + 1)}
-                                                                        disabled={line.indentLevel >= TECHNICAL_STANDARD_MAX_INDENT}
-                                                                        aria-label={`Demote preview line ${lineIndex + 1}`}
-                                                                    >
-                                                                        <ChevronRight className="h-3.5 w-3.5" />
-                                                                    </Button>
-                                                                </div>
-                                                                <div className="min-w-0 flex-1 rounded-md border border-card-border/70 bg-background/80 px-3 py-2">
-                                                                    <div
-                                                                        className={cn(
-                                                                            'flex items-start text-sm font-medium leading-6 text-foreground/80',
-                                                                            line.className
-                                                                        )}
-                                                                    >
-                                                                        {line.marker ? (
-                                                                            <span className={cn('shrink-0 font-semibold text-foreground/55', line.markerClassName)}>
-                                                                                {line.marker}
-                                                                            </span>
-                                                                        ) : null}
-                                                                        <span className="min-w-0 flex-1 break-words">
-                                                                            {line.content}
-                                                                        </span>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                ) : requirement.technicalStandard?.trim() ? (
-                                                    <p className="text-sm leading-6 text-foreground/80">{requirement.technicalStandard}</p>
-                                                ) : (
-                                                    <p className="text-sm text-muted-foreground">No subordinate clause text detected for this preview item.</p>
-                                                )}
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </ScrollArea>
-                        </div>
-                    ) : null}
+            <Tabs defaultValue="image">
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="image">Paste Images</TabsTrigger>
+                <TabsTrigger value="text">Paste Text</TabsTrigger>
+                <TabsTrigger value="file">Upload File</TabsTrigger>
+              </TabsList>
+              <TabsContent value="image" className="pt-4">
+                <div onPaste={handlePaste} className="h-44 border-2 border-dashed rounded-lg flex items-center justify-center text-muted-foreground mb-4">
+                  <div className="text-center">
+                    <ClipboardPaste className="mx-auto h-8 w-8" />
+                    <p className="text-foreground/90">Click here and paste image(s) (Ctrl+V)</p>
+                  </div>
                 </div>
-                <DialogFooter>
-                    <DialogClose asChild><Button variant="outline" size="compact" disabled={isProcessing || isSaving}>Cancel</Button></DialogClose>
-                    {!previewRequirements ? (
-                        <Button onClick={handleProcess} size="compact" disabled={isProcessing || !canProcess}>
-                            {isProcessing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing...</> : 'Preview Extraction'}
+                <div className="flex items-center space-x-2 my-4">
+                  <Switch id="multi-image-mode" checked={isMultiImageMode} onCheckedChange={setIsMultiImageMode} />
+                  <Label htmlFor="multi-image-mode">Treat images as a single document</Label>
+                </div>
+                {isMultiImageMode ? (
+                  <p className="text-xs text-foreground/80 p-2 bg-muted rounded-md">
+                    Instruction to AI: treat the supplied images as pages of a single document in the order provided.
+                  </p>
+                ) : null}
+                <ScrollArea className="h-40 mt-4">
+                  <div className="grid grid-cols-3 gap-4">
+                    {stagedImages.map((imageSrc, index) => (
+                      <div key={imageSrc + index} className="relative group">
+                        <Image src={imageSrc} alt={`Staged image ${index + 1}`} width={150} height={150} className="rounded-md object-cover aspect-square" />
+                        <Button variant="destructive" size="icon" className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100" onClick={() => setStagedImages((current) => current.filter((_, imageIndex) => imageIndex !== index))}>
+                          <Trash2 className="h-4 w-4" />
                         </Button>
-                    ) : (
-                        <Button onClick={handleSavePreview} size="compact" disabled={isSaving}>
-                            {isSaving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</> : 'Save to Matrix'}
-                        </Button>
-                    )}
-                </DialogFooter>
-            </DialogContent>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </TabsContent>
+              <TabsContent value="text" className="pt-4">
+                <ScrollArea className="h-96 rounded-md border">
+                  <Textarea
+                    placeholder="Paste the raw text of the regulations here..."
+                    className="h-full min-h-[24rem] border-none focus-visible:ring-0"
+                    value={pastedText}
+                    onChange={(event) => setPastedText(event.target.value)}
+                    onPaste={handlePaste}
+                  />
+                </ScrollArea>
+              </TabsContent>
+              <TabsContent value="file" className="pt-4">
+                <div className="space-y-2">
+                  <Label htmlFor="reg-file">Regulation File (.txt)</Label>
+                  <Input id="reg-file" type="file" accept=".txt" onChange={(event) => setFile(event.target.files?.[0] || null)} />
+                  {file ? <p className="text-sm text-muted-foreground">Selected: {file.name}</p> : null}
+                </div>
+              </TabsContent>
+            </Tabs>
+
+            {previewRequirements?.length ? (
+              <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50/60 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">AI Preview</p>
+                    <p className="text-xs text-muted-foreground">Review the extracted requirements before saving them to the matrix.</p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={async () => {
+                      const payload = JSON.stringify({ requirements: previewRequirements }, null, 2);
+                      await navigator.clipboard.writeText(payload);
+                      toast({ title: 'Copied', description: 'The raw AI preview JSON was copied to the clipboard.' });
+                    }}
+                  >
+                    <Copy className="mr-2 h-3.5 w-3.5" />
+                    Copy JSON
+                  </Button>
+                </div>
+                <ScrollArea className="max-h-[24rem] rounded-md border bg-white">
+                  <div className="space-y-3 p-3">
+                    {previewRequirements.map((requirement, index) => (
+                      <div key={`${requirement.regulationCode}-${index}`} className="space-y-2 rounded-md border border-card-border/70 bg-card/40 p-3">
+                        {requirement.documentHeading?.trim() ? (
+                          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-primary/80">
+                            {requirement.documentHeading}
+                          </p>
+                        ) : null}
+                        <p className="text-[11px] font-black tracking-wide text-foreground/65">{requirement.regulationCode}</p>
+                        <p className="text-sm font-semibold leading-5 text-foreground">{requirement.regulationStatement}</p>
+                        {requirement.technicalStandard?.trim() ? (
+                          <p className="whitespace-pre-wrap break-words text-sm leading-6 text-foreground/80">{requirement.technicalStandard}</p>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </div>
             ) : null}
-        </Dialog>
-    )
+          </div>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline" size="compact" disabled={isProcessing || isSaving}>Cancel</Button>
+            </DialogClose>
+            {!previewRequirements ? (
+              <Button onClick={handleProcess} size="compact" disabled={isProcessing || !canProcess}>
+                {isProcessing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing...</> : 'Preview Extraction'}
+              </Button>
+            ) : (
+              <Button onClick={handleSavePreview} size="compact" disabled={isSaving}>
+                {isSaving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</> : 'Save to Matrix'}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      ) : null}
+    </Dialog>
+  );
 }
 
 export default function CoherenceMatrixPage() {
-  const { isLoading: isAccessLoading, isAllowed } = useTenantRouteAccess({ href: '/quality/coherence-matrix' });
   const { toast } = useToast();
-  const { tenantId, userProfile, isLoading: isProfileLoading } = useUserProfile();
-  const { matrixTheme } = useTheme();
-  const { hasPermission, isLoading: isPermissionsLoading } = usePermissions();
-  const { scopedOrganizationId, shouldShowOrganizationTabs } = useOrganizationScope({ viewAllPermissionId: 'quality-matrix-manage' });
   const isMobile = useIsMobile();
-  const [activeOrgTab, setActiveOrgTab] = useState('internal');
-  const [activeRegulationTab, setActiveRegulationTab] = useState<RegulationFamily>('sacaa-cars');
-  const [, startRegulationTabTransition] = useTransition();
-  const [activeMatrixAnchorId, setActiveMatrixAnchorId] = useState<string | null>(null);
-  const [visibleMatrixRowLimit, setVisibleMatrixRowLimit] = useState(MATRIX_INITIAL_RENDER_LIMIT);
-  const [clauseInspectorWidth, setClauseInspectorWidth] = useState(CLAUSE_INSPECTOR_DEFAULT_WIDTH);
-  const clauseInspectorWidthStyle = { '--clause-inspector-width': `${clauseInspectorWidth}px` } as CSSProperties;
+  const { userProfile, isLoading: isProfileLoading, tenantId: profileTenantId } = useUserProfile();
+  const { hasPermission, isLoading: isPermissionsLoading } = usePermissions();
+  const { shouldShowOrganizationTabs, scopedOrganizationId } = useOrganizationScope({ viewAllPermissionId: 'quality-matrix-view-all' });
+  const { isAllowed, isLoading: isAccessLoading } = useTenantRouteAccess({ href: '/quality/coherence-matrix' });
 
+  const tenantId = profileTenantId || 'safeviate';
+  const resolvedTenantId = tenantId || 'safeviate';
   const canViewMatrix = hasPermission('quality-matrix-view') || hasPermission('quality-matrix-manage');
   const canManageMatrix = hasPermission('quality-matrix-manage');
 
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [matrixSearchQuery, setMatrixSearchQuery] = useState('');
-  const [matrixIndexQuery, setMatrixIndexQuery] = useState('');
-  const [openMatrixNodeIds, setOpenMatrixNodeIds] = useState<Record<string, boolean>>({});
-  const [openGapDateRowId, setOpenGapDateRowId] = useState<string | null>(null);
-  const [expandedClauseIds, setExpandedClauseIds] = useState<Record<string, boolean>>({});
-  const [expandedIndexCodes, setExpandedIndexCodes] = useState<Record<string, boolean>>({});
-  const [editingClauseTextId, setEditingClauseTextId] = useState<string | null>(null);
-  const [clauseTextDraft, setClauseTextDraft] = useState('');
-  const [clauseIndentDraft, setClauseIndentDraft] = useState<number[]>([]);
-  const [isClauseTextSaving, setIsClauseTextSaving] = useState(false);
-  const [editingItem, setEditingItem] = useState<ComplianceRequirement | null>(null);
-  const [formMode, setFormMode] = useState<'item' | 'header' | 'subheader'>('item');
-
-  const [complianceItems, setComplianceItems] = useState<ComplianceRequirement[]>([]);
   const [personnel, setPersonnel] = useState<Personnel[]>([]);
   const [organizations, setOrganizations] = useState<ExternalOrganization[]>([]);
-  const [qualityAudits, setQualityAudits] = useState<QualityAudit[]>([]);
-  const [qualityAuditTemplates, setQualityAuditTemplates] = useState<QualityAuditChecklistTemplate[]>([]);
-  const [correctiveActionPlans, setCorrectiveActionPlans] = useState<CorrectiveActionPlan[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const resolvedTenantId = tenantId || 'safeviate';
-  const auditSummaryMaps = useMemo(
-    () => buildAuditSummaryMaps(qualityAudits, qualityAuditTemplates, correctiveActionPlans),
-    [qualityAudits, qualityAuditTemplates, correctiveActionPlans],
-  );
-  const effectiveOrgId: string | 'internal' = shouldShowOrganizationTabs ? activeOrgTab : (scopedOrganizationId || 'internal');
-  const deferredActiveRegulationTab = useDeferredValue(activeRegulationTab);
-  const deferredMatrixSearchQuery = useDeferredValue(matrixSearchQuery);
-  const deferredMatrixIndexQuery = useDeferredValue(matrixIndexQuery);
-  const normalizedSearchQuery = useMemo(() => deferredMatrixSearchQuery.trim().toLowerCase(), [deferredMatrixSearchQuery]);
-  const normalizedIndexQuery = useMemo(() => deferredMatrixIndexQuery.trim().toLowerCase(), [deferredMatrixIndexQuery]);
-  const getManagerLabel = useCallback((managerId?: string | null) => {
-    const normalizedManagerId = managerId?.trim() || '';
-    if (!normalizedManagerId) return '';
-    return getPersonnelDisplayName(personnel, normalizedManagerId);
-  }, [personnel]);
-  const technicalLinesByItemId = useMemo(
-    () =>
-      new Map(
-        complianceItems.map((item) => [
-          item.id,
-          getStructuredTechnicalLines(item.technicalStandard, item.technicalStandardIndentation),
-        ]),
-      ),
-    [complianceItems],
-  );
-  const currentOrgItems = useMemo(
-    () =>
-      (complianceItems || []).filter((item) =>
-        effectiveOrgId === 'internal' ? !item.organizationId : item.organizationId === effectiveOrgId,
-      ),
-    [complianceItems, effectiveOrgId],
-  );
-  const activeFamilyItems = useMemo(
-    () => currentOrgItems.filter((item) => getItemFamily(item) === activeRegulationTab),
-    [currentOrgItems, activeRegulationTab],
-  );
-  const deferredActiveFamilyItems = useMemo(
-    () => currentOrgItems.filter((item) => getItemFamily(item) === deferredActiveRegulationTab),
-    [currentOrgItems, deferredActiveRegulationTab],
-  );
-  const currentFamilyHeaders = useMemo(
-    () =>
-      activeFamilyItems
-        .filter((item) => !item.technicalStandard?.trim())
-        .sort((a, b) => naturalSort(a.regulationCode, b.regulationCode))
-        .reduce((acc, item) => {
-          const normalizedCode = normalizeRegulationCode(item.regulationCode);
-          const normalizedLabel = (item.regulationStatement || item.regulationCode).trim();
-          if (!acc.some((existing) => existing.code === normalizedCode)) {
-            acc.push({ code: normalizedCode, label: normalizedLabel });
-          }
-          return acc;
-        }, [] as { code: string; label: string }[]),
-    [activeFamilyItems],
-  );
-  const currentFamilyTopLevelHeaders = useMemo(
-    () =>
-      activeFamilyItems
-        .filter((item) => !item.technicalStandard?.trim())
-        .filter((item) => !normalizeRegulationCode(item.parentRegulationCode))
-        .sort((a, b) => naturalSort(a.regulationCode, b.regulationCode))
-        .reduce((acc, item) => {
-          const normalizedCode = normalizeRegulationCode(item.regulationCode);
-          const normalizedLabel = (item.regulationStatement || item.regulationCode).trim();
-          if (!acc.some((existing) => existing.code === normalizedCode)) {
-            acc.push({ code: normalizedCode, label: normalizedLabel });
-          }
-          return acc;
-        }, [] as { code: string; label: string }[]),
-    [activeFamilyItems],
-  );
-  const currentFamilySubheaders = useMemo(
-    () =>
-      activeFamilyItems
-        .filter((item) => !item.technicalStandard?.trim())
-        .filter((item) => !!normalizeRegulationCode(item.parentRegulationCode))
-        .sort((a, b) => naturalSort(a.regulationCode, b.regulationCode))
-        .reduce((acc, item) => {
-          const normalizedCode = normalizeRegulationCode(item.regulationCode);
-          const normalizedLabel = (item.regulationStatement || item.regulationCode).trim();
-          if (!acc.some((existing) => existing.code === normalizedCode)) {
-            acc.push({ code: normalizedCode, label: normalizedLabel });
-          }
-          return acc;
-        }, [] as { code: string; label: string }[]),
-    [activeFamilyItems],
-  );
-  const activeMatrixView = useMemo(() => {
-    const sortedItems = [...deferredActiveFamilyItems].sort((a, b) => naturalSort(a.regulationCode, b.regulationCode));
-    const availableItemCodes = new Set(
-      sortedItems
-        .map((item) => normalizeRegulationCode(item.regulationCode))
-        .filter(Boolean),
-    );
-    const groupedItems = sortedItems.reduce((acc, item) => {
-      const parentCode = normalizeRegulationCode(item.parentRegulationCode);
-      const itemCode = normalizeRegulationCode(item.regulationCode);
-      if (parentCode && parentCode !== itemCode) {
-        if (!acc[parentCode]) acc[parentCode] = [];
-        acc[parentCode].push(item);
-      }
-      return acc;
-    }, {} as Record<string, ComplianceRequirement[]>);
-    const topLevelItems = sortedItems.filter((item) => {
-      const itemCode = normalizeRegulationCode(item.regulationCode);
-      const parentCode = normalizeRegulationCode(item.parentRegulationCode);
-      return !parentCode || parentCode === itemCode || !availableItemCodes.has(parentCode);
-    });
-    const searchCache = new Map<string, boolean>();
-    const getSearchableText = (item: ComplianceRequirement) =>
-      [
-        item.regulationCode,
-        item.regulationStatement,
-        item.technicalStandard,
-        item.companyReference,
-        getManagerLabel(item.responsibleManagerId),
-        item.nextAuditDate ? formatAuditDate(item.nextAuditDate) : '',
-        item.gapStatus,
-      ]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase();
-    const itemMatchesSearch = (item: ComplianceRequirement) => {
-      if (!normalizedSearchQuery) return true;
-      return getSearchableText(item).includes(normalizedSearchQuery);
-    };
-    const branchMatchesSearch = (item: ComplianceRequirement): boolean => {
-      const normalizedCode = normalizeRegulationCode(item.regulationCode);
-      if (!normalizedSearchQuery) return true;
-      if (searchCache.has(normalizedCode)) {
-        return searchCache.get(normalizedCode) || false;
-      }
-      const childItems = groupedItems[normalizedCode] || [];
-      const matches = itemMatchesSearch(item) || childItems.some((child) => branchMatchesSearch(child));
-      searchCache.set(normalizedCode, matches);
-      return matches;
-    };
-
-    type MatrixTableRow = {
-      item: ComplianceRequirement;
-      depth: number;
-      hasChildren: boolean;
-      anchorId: string;
-      firstClauseAnchorId: string | null;
-    };
-
-    const buildTableRows = (items: ComplianceRequirement[], depth = 0, ancestors: string[] = []): MatrixTableRow[] =>
-      items.flatMap((item) => {
-        const normalizedCode = normalizeRegulationCode(item.regulationCode);
-        if (ancestors.includes(normalizedCode)) return [];
-
-        const childItems = groupedItems[normalizedCode] || [];
-        if (normalizedSearchQuery && !branchMatchesSearch(item)) {
-          return [];
-        }
-
-        const nextChildItems =
-          normalizedSearchQuery && !itemMatchesSearch(item)
-            ? childItems.filter((child) => branchMatchesSearch(child))
-            : childItems;
-        const childRows = buildTableRows(nextChildItems, depth + 1, [...ancestors, normalizedCode]);
-        const firstClauseDescendant = childRows.find((row) => !row.hasChildren);
-        const firstClauseAnchorId = !nextChildItems.length
-          ? `matrix-row-${item.id}`
-          : firstClauseDescendant?.anchorId || null;
-
-        return [
-          {
-            item,
-            depth,
-            hasChildren: nextChildItems.length > 0,
-            anchorId: `matrix-row-${item.id}`,
-            firstClauseAnchorId,
-          },
-          ...childRows,
-        ];
-      });
-
-    const buildTableIndex = (rows: MatrixTableRow[]) =>
-      rows.map((row) => ({
-        ...row,
-        anchorId: row.firstClauseAnchorId || row.anchorId,
-      }));
-
-    const matrixTableRows = buildTableRows(topLevelItems);
-    const matrixIndexEntries = buildTableIndex(matrixTableRows);
-    const matrixClauseEntries = matrixIndexEntries.filter(({ depth, hasChildren }) => depth > 0 && !hasChildren);
-    const matrixIndexEntryByItemId = new Map(matrixIndexEntries.map((entry) => [entry.item.id, entry]));
-    const filteredMatrixIndexEntries = normalizedIndexQuery
-      ? matrixIndexEntries.filter(({ item }) =>
-          [item.regulationCode, item.regulationStatement]
-            .filter(Boolean)
-            .join(' ')
-            .toLowerCase()
-            .includes(normalizedIndexQuery),
-        )
-      : matrixIndexEntries;
-
-    return {
-      groupedItems,
-      topLevelItems,
-      matrixTableRows,
-      matrixIndexEntries,
-      matrixClauseEntries,
-      matrixIndexEntryByItemId,
-      filteredMatrixIndexEntries,
-      itemMatchesSearch,
-      branchMatchesSearch,
-    };
-  }, [deferredActiveFamilyItems, getManagerLabel, normalizedIndexQuery, normalizedSearchQuery]);
-  const matrixClauseRows = useMemo(
-    () => activeMatrixView.matrixTableRows.filter(({ depth, hasChildren }) => depth > 0 && !hasChildren),
-    [activeMatrixView.matrixTableRows],
-  );
-  const gapAnalysisRows = useMemo<MatrixGapRow[]>(
-    () =>
-      deferredActiveRegulationTab === 'sacaa-cats'
-        ? activeMatrixView.matrixTableRows.map((row) => ({
-            ...row,
-            ...getGapSummaryForCode(
-              row.item.regulationCode,
-              auditSummaryMaps.regulationToItemIds,
-              auditSummaryMaps.latestFindingByItemId,
-              auditSummaryMaps.openCapFindingIds,
-            ),
-          }))
-        : [],
-    [
-      activeMatrixView.matrixTableRows,
-      auditSummaryMaps.latestFindingByItemId,
-      auditSummaryMaps.openCapFindingIds,
-      auditSummaryMaps.regulationToItemIds,
-      deferredActiveRegulationTab,
-    ],
-  );
-
-  const visibleMatrixClauseRows = useMemo(
-    () => matrixClauseRows.slice(0, visibleMatrixRowLimit),
-    [matrixClauseRows, visibleMatrixRowLimit],
-  );
-  const visibleGapAnalysisRows = useMemo(
-    () => gapAnalysisRows.slice(0, visibleMatrixRowLimit),
-    [gapAnalysisRows, visibleMatrixRowLimit],
-  );
-
-  useEffect(() => {
-    setVisibleMatrixRowLimit(MATRIX_INITIAL_RENDER_LIMIT);
-  }, [deferredActiveRegulationTab, effectiveOrgId, normalizedSearchQuery, normalizedIndexQuery]);
-
-  useEffect(() => {
-    setOpenMatrixNodeIds({});
-  }, [deferredActiveRegulationTab, effectiveOrgId]);
-
-  const showMoreMatrixRows = useCallback(() => {
-    setVisibleMatrixRowLimit((current) => current + MATRIX_RENDER_INCREMENT);
-  }, []);
+  const [complianceItems, setComplianceItems] = useState<ComplianceRequirement[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [activeOrgTab, setActiveOrgTab] = useState<string>('internal');
+  const [activeRegulationTab, setActiveRegulationTab] = useState<RegulationFamily>('sacaa-cars');
+  const [matrixSearchQuery, setMatrixSearchQuery] = useState('');
+  const [editingItem, setEditingItem] = useState<ComplianceRequirement | null>(null);
+  const [formMode, setFormMode] = useState<'item' | 'header' | 'subheader'>('item');
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [openNodeIds, setOpenNodeIds] = useState<Record<string, boolean>>({});
 
   const loadData = useCallback(async () => {
     try {
-        const [matrixResponse, personnelResponse, orgResponse, auditsResponse] = await Promise.all([
-          fetch(`/api/compliance-matrix?tenantId=${encodeURIComponent(resolvedTenantId)}`, { cache: 'no-store' }),
-          fetch('/api/personnel', { cache: 'no-store' }),
-          fetch('/api/external-organizations', { cache: 'no-store' }),
-          fetch('/api/quality-audits', { cache: 'no-store' }),
-        ]);
-        const [matrixPayload, personnelPayload, orgPayload, auditsPayload] = await Promise.all([
-          matrixResponse.json().catch(() => ({ items: [] })),
-          personnelResponse.json().catch(() => ({ personnel: [] })),
-          orgResponse.json().catch(() => ({ organizations: [] })),
-          auditsResponse.json().catch(() => ({ audits: [], templates: [], caps: [] })),
-        ]);
-        setComplianceItems(Array.isArray(matrixPayload.items) ? matrixPayload.items.map((item: ComplianceRequirement) => sanitizeComplianceMatrixEntry(item)) : []);
-        setPersonnel(Array.isArray(personnelPayload.personnel) ? personnelPayload.personnel : []);
-        setOrganizations(Array.isArray(orgPayload.organizations) ? orgPayload.organizations : []);
-        setQualityAudits(Array.isArray(auditsPayload.audits) ? auditsPayload.audits : []);
-        setQualityAuditTemplates(Array.isArray(auditsPayload.templates) ? auditsPayload.templates : []);
-        setCorrectiveActionPlans(Array.isArray(auditsPayload.caps) ? auditsPayload.caps : []);
-    } catch (e) {
-        console.error("Failed to load matrix data", e);
+      const [matrixResponse, personnelResponse, orgResponse] = await Promise.all([
+        fetch(`/api/compliance-matrix?tenantId=${encodeURIComponent(resolvedTenantId)}`, { cache: 'no-store' }),
+        fetch('/api/personnel', { cache: 'no-store' }),
+        fetch('/api/external-organizations', { cache: 'no-store' }),
+      ]);
+
+      const [matrixPayload, personnelPayload, orgPayload] = await Promise.all([
+        matrixResponse.json().catch(() => ({ items: [] })),
+        personnelResponse.json().catch(() => ({ personnel: [] })),
+        orgResponse.json().catch(() => ({ organizations: [] })),
+      ]);
+
+      setComplianceItems(
+        Array.isArray(matrixPayload.items)
+          ? matrixPayload.items.map((item: ComplianceRequirement) => sanitizeComplianceMatrixEntry(item))
+          : [],
+      );
+      setPersonnel(Array.isArray(personnelPayload.personnel) ? personnelPayload.personnel : []);
+      setOrganizations(Array.isArray(orgPayload.organizations) ? orgPayload.organizations : []);
+    } catch (error) {
+      console.error('Failed to load matrix data', error);
     } finally {
-        setIsLoading(false);
+      setIsLoading(false);
     }
   }, [resolvedTenantId]);
-
-  const updateGapStatus = useCallback(async (item: ComplianceRequirement, gapStatus: GapStatus) => {
-    try {
-        const response = await fetch(`/api/compliance-matrix?tenantId=${encodeURIComponent(resolvedTenantId)}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                item: {
-                    ...item,
-                    gapStatus,
-                    gapStatusDate: new Date().toISOString(),
-                },
-            }),
-        });
-
-        if (!response.ok) {
-            const payload = await response.json().catch(() => null);
-            throw new Error(payload?.error || 'Failed to update gap status.');
-        }
-
-        window.dispatchEvent(new Event('safeviate-compliance-updated'));
-        toast({
-            title: 'Gap status updated',
-            description: `${item.regulationCode} marked as ${gapStatus}.`,
-        });
-    } catch (error) {
-        toast({
-            variant: 'destructive',
-            title: 'Update Failed',
-            description: error instanceof Error ? error.message : 'Failed to update gap status.',
-        });
-    }
-  }, [resolvedTenantId, toast]);
-
-  const updateMatrixItemField = useCallback(async (item: ComplianceRequirement, patch: Partial<ComplianceRequirement>) => {
-    try {
-        const response = await fetch(`/api/compliance-matrix?tenantId=${encodeURIComponent(resolvedTenantId)}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                item: {
-                    ...item,
-                    ...patch,
-                },
-            }),
-        });
-
-        if (!response.ok) {
-            const payload = await response.json().catch(() => null);
-            throw new Error(payload?.error || 'Failed to update matrix item.');
-        }
-
-        window.dispatchEvent(new Event('safeviate-compliance-updated'));
-        return true;
-    } catch (error) {
-        toast({
-            variant: 'destructive',
-            title: 'Update Failed',
-            description: error instanceof Error ? error.message : 'Failed to update matrix item.',
-        });
-        return false;
-    }
-  }, [resolvedTenantId, toast]);
-
-  const parseLocalDate = (value?: string | null) => {
-    if (!value?.trim()) return undefined;
-    const parsed = new Date(value);
-    return Number.isNaN(parsed.getTime()) ? undefined : parsed;
-  };
-
-  const toNoonUtcIso = (date: Date) =>
-    new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), 12)).toISOString();
-
-  const toggleClauseDetails = useCallback((itemId: string) => {
-    setExpandedClauseIds((prev) => ({
-        ...prev,
-        [itemId]: !prev[itemId],
-    }));
-  }, []);
-
-  const beginClauseTextEdit = useCallback((item: ComplianceRequirement) => {
-    setEditingClauseTextId(item.id);
-    setClauseTextDraft(item.technicalStandard || '');
-    setClauseIndentDraft(normalizeIndentationArray(item.technicalStandardIndentation));
-  }, []);
-
-  const cancelClauseTextEdit = useCallback(() => {
-    setEditingClauseTextId(null);
-    setClauseTextDraft('');
-    setClauseIndentDraft([]);
-  }, []);
-
-  const updateClauseIndentDraft = useCallback((lineIndex: number, nextIndentLevel: number) => {
-    setClauseIndentDraft((current) => {
-        const next = [...current];
-        next[lineIndex] = clampTechnicalIndentLevel(nextIndentLevel);
-        return next;
-    });
-  }, []);
-
-  const resetClauseIndentDraft = useCallback(() => {
-    setClauseIndentDraft([]);
-  }, []);
-
-  const clearClauseIndentation = useCallback(async (item: ComplianceRequirement) => {
-    const saved = await updateMatrixItemField(item, { technicalStandardIndentation: [] });
-    if (saved) {
-        toast({
-            title: 'Indentation reset',
-            description: `${item.regulationCode} is back on automatic indentation.`,
-        });
-    }
-  }, [toast, updateMatrixItemField]);
-
-  const saveClauseTextEdit = useCallback(async (item: ComplianceRequirement) => {
-    setIsClauseTextSaving(true);
-    try {
-        const saved = await updateMatrixItemField(item, {
-            technicalStandard: clauseTextDraft,
-            technicalStandardIndentation: getNormalizedTechnicalIndentation(clauseTextDraft, clauseIndentDraft),
-        });
-        if (saved) {
-            setEditingClauseTextId(null);
-            setClauseTextDraft('');
-            setClauseIndentDraft([]);
-            toast({
-                title: 'Clause text updated',
-                description: `${item.regulationCode} text saved.`,
-            });
-        }
-    } finally {
-        setIsClauseTextSaving(false);
-    }
-  }, [clauseIndentDraft, clauseTextDraft, toast, updateMatrixItemField]);
-
-  const clampClauseInspectorWidth = useCallback((value: number) => {
-    return Math.min(CLAUSE_INSPECTOR_MAX_WIDTH, Math.max(CLAUSE_INSPECTOR_MIN_WIDTH, Math.round(value)));
-  }, []);
-
-  const handleClauseResizePointerDown = useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
-    if (isMobile) return;
-
-    event.preventDefault();
-
-    const startX = event.clientX;
-    const startWidth = clauseInspectorWidth;
-    const previousCursor = document.body.style.cursor;
-    const previousUserSelect = document.body.style.userSelect;
-
-    document.body.style.cursor = 'col-resize';
-    document.body.style.userSelect = 'none';
-
-    const cleanup = () => {
-      window.removeEventListener('pointermove', handlePointerMove);
-      window.removeEventListener('pointerup', cleanup);
-      window.removeEventListener('pointercancel', cleanup);
-      document.body.style.cursor = previousCursor;
-      document.body.style.userSelect = previousUserSelect;
-    };
-
-    const handlePointerMove = (moveEvent: PointerEvent) => {
-      setClauseInspectorWidth(clampClauseInspectorWidth(startWidth + (startX - moveEvent.clientX)));
-    };
-
-    window.addEventListener('pointermove', handlePointerMove);
-    window.addEventListener('pointerup', cleanup, { once: true });
-    window.addEventListener('pointercancel', cleanup, { once: true });
-  }, [clauseInspectorWidth, clampClauseInspectorWidth, isMobile]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const storedWidth = window.localStorage.getItem(CLAUSE_INSPECTOR_WIDTH_KEY);
-    if (!storedWidth) return;
-
-    const parsedWidth = Number(storedWidth);
-    if (!Number.isFinite(parsedWidth)) return;
-
-    setClauseInspectorWidth(clampClauseInspectorWidth(parsedWidth));
-  }, [clampClauseInspectorWidth]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    window.localStorage.setItem(CLAUSE_INSPECTOR_WIDTH_KEY, String(clauseInspectorWidth));
-  }, [clauseInspectorWidth]);
 
   useEffect(() => {
     void loadData();
     window.addEventListener('safeviate-compliance-updated', loadData);
     window.addEventListener('safeviate-personnel-updated', loadData);
     window.addEventListener('safeviate-external-organizations-updated', loadData);
-    window.addEventListener('safeviate-quality-updated', loadData);
     return () => {
-        window.removeEventListener('safeviate-compliance-updated', loadData);
-        window.removeEventListener('safeviate-personnel-updated', loadData);
-        window.removeEventListener('safeviate-external-organizations-updated', loadData);
-        window.removeEventListener('safeviate-quality-updated', loadData);
-    }
+      window.removeEventListener('safeviate-compliance-updated', loadData);
+      window.removeEventListener('safeviate-personnel-updated', loadData);
+      window.removeEventListener('safeviate-external-organizations-updated', loadData);
+    };
   }, [loadData]);
+
+  useEffect(() => {
+    setOpenNodeIds({});
+  }, [activeOrgTab, activeRegulationTab]);
+
+  const currentOrgId = shouldShowOrganizationTabs
+    ? activeOrgTab === 'internal'
+      ? null
+      : activeOrgTab
+    : scopedOrganizationId === 'internal'
+      ? null
+      : scopedOrganizationId;
+
+  const currentOrgItems = useMemo(
+    () =>
+      complianceItems.filter((item) =>
+        currentOrgId ? item.organizationId === currentOrgId : !item.organizationId,
+      ),
+    [complianceItems, currentOrgId],
+  );
+
+  const activeFamilyItems = useMemo(
+    () => currentOrgItems.filter((item) => getItemFamily(item) === activeRegulationTab),
+    [activeRegulationTab, currentOrgItems],
+  );
+
+  const groupedItems = useMemo(() => {
+    const map = new Map<string, ComplianceRequirement[]>();
+    for (const item of activeFamilyItems) {
+      const parentCode = normalizeRegulationCode(item.parentRegulationCode);
+      const itemCode = normalizeRegulationCode(item.regulationCode);
+      if (parentCode && parentCode !== itemCode) {
+        const current = map.get(parentCode) || [];
+        current.push(item);
+        map.set(parentCode, current);
+      }
+    }
+    for (const [key, list] of map.entries()) {
+      list.sort((a, b) => naturalSort(a.regulationCode, b.regulationCode));
+      map.set(key, list);
+    }
+    return map;
+  }, [activeFamilyItems]);
+
+  const availableItemCodes = useMemo(
+    () => new Set(activeFamilyItems.map((item) => normalizeRegulationCode(item.regulationCode)).filter(Boolean)),
+    [activeFamilyItems],
+  );
+
+  const topLevelItems = useMemo(
+    () =>
+      activeFamilyItems
+        .filter((item) => {
+          const itemCode = normalizeRegulationCode(item.regulationCode);
+          const parentCode = normalizeRegulationCode(item.parentRegulationCode);
+          return !parentCode || parentCode === itemCode || !availableItemCodes.has(parentCode);
+        })
+        .sort((a, b) => naturalSort(a.regulationCode, b.regulationCode)),
+    [activeFamilyItems, availableItemCodes],
+  );
+
+  const searchableTextForItem = useCallback(
+    (item: ComplianceRequirement) =>
+      [
+        item.regulationCode,
+        item.regulationStatement,
+        item.documentHeading,
+        item.technicalStandard,
+        item.companyReference,
+        item.responsibleManagerId,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase(),
+    [],
+  );
+
+  const normalizedSearchQuery = matrixSearchQuery.trim().toLowerCase();
+
+  const branchMatchesSearch = useCallback((item: ComplianceRequirement, visited = new Set<string>()): boolean => {
+    if (!normalizedSearchQuery) return true;
+    const normalizedCode = normalizeRegulationCode(item.regulationCode);
+    if (normalizedCode && visited.has(normalizedCode)) return false;
+    const nextVisited = new Set(visited);
+    if (normalizedCode) nextVisited.add(normalizedCode);
+    if (searchableTextForItem(item).includes(normalizedSearchQuery)) return true;
+    const children = groupedItems.get(normalizedCode) || [];
+    return children.some((child) => branchMatchesSearch(child, nextVisited));
+  }, [groupedItems, normalizedSearchQuery, searchableTextForItem]);
+
+  const availableParentHeaders = useMemo(
+    () =>
+      activeFamilyItems
+        .filter((item) => !item.technicalStandard?.trim())
+        .filter((item) => !!normalizeRegulationCode(item.parentRegulationCode))
+        .sort((a, b) => naturalSort(a.regulationCode, b.regulationCode))
+        .reduce((acc, item) => {
+          const code = normalizeRegulationCode(item.regulationCode);
+          if (!code || acc.some((entry) => entry.code === code)) return acc;
+          acc.push({ code, label: (item.regulationStatement || item.regulationCode).trim() });
+          return acc;
+        }, [] as { code: string; label: string }[]),
+    [activeFamilyItems],
+  );
+
   const handleOpenForm = (item: ComplianceRequirement | null = null, mode: 'item' | 'header' | 'subheader' = 'item') => {
     setEditingItem(item);
     setFormMode(mode);
     setIsFormOpen(true);
   };
 
-  const handleDeleteItem = async (item: ComplianceRequirement) => {
-      try {
-          const params = new URLSearchParams({
-            id: item.id,
-            code: item.regulationCode,
-            regulationFamily: item.regulationFamily || activeRegulationTab,
-          });
-          params.set('organizationId', item.organizationId || '');
-          const response = await fetch(`/api/compliance-matrix?${params.toString()}`, {
-            method: 'DELETE',
-          });
-          if (!response.ok) {
-            const payload = await response.json().catch(() => null);
-            throw new Error(payload?.error || 'Failed to delete compliance item.');
-          }
-          window.dispatchEvent(new Event('safeviate-compliance-updated'));
-          toast({ title: "Success", description: "Compliance item has been deleted." });
-      } catch (error) {
-          toast({
-              variant: 'destructive',
-              title: 'Delete Failed',
-              description: error instanceof Error ? error.message : 'Failed to delete compliance item.',
-          });
+  const handleDelete = async (item: ComplianceRequirement) => {
+    try {
+      const params = new URLSearchParams({
+        id: item.id,
+        code: item.regulationCode,
+        regulationFamily: item.regulationFamily || activeRegulationTab,
+      });
+      params.set('organizationId', item.organizationId || '');
+      const response = await fetch(`/api/compliance-matrix?${params.toString()}`, { method: 'DELETE' });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw new Error(payload?.error || 'Failed to delete coherence matrix item.');
       }
-    };
-    
-  const handleDeleteSection = async (parentItem: ComplianceRequirement) => {
-        try {
-            const params = new URLSearchParams({
-              id: parentItem.id,
-              code: parentItem.regulationCode,
-              regulationFamily: parentItem.regulationFamily || activeRegulationTab,
-            });
-            params.set('organizationId', parentItem.organizationId || '');
-            const response = await fetch(`/api/compliance-matrix?${params.toString()}`, {
-              method: 'DELETE',
-            });
-            if (!response.ok) {
-              const payload = await response.json().catch(() => null);
-              throw new Error(payload?.error || 'Failed to delete compliance section.');
-            }
-            window.dispatchEvent(new Event('safeviate-compliance-updated'));
-            toast({ title: "Section Deleted" });
-        } catch (error) {
-            toast({
-                variant: 'destructive',
-                title: 'Delete Failed',
-                description: error instanceof Error ? error.message : 'Failed to delete compliance section.',
-            });
-        }
-  }
-
-  const renderSearchControl = (mobile = false) => (
-    <div className={cn(
-        mobile ? 'w-full' : 'w-[170px] max-w-full'
-    )}>
-        <Input
-            value={matrixSearchQuery}
-            onChange={(event) => setMatrixSearchQuery(event.target.value)}
-            placeholder="Search regulations..."
-            className="h-8 w-full border-input bg-background text-sm"
-        />
-    </div>
-  );
-  const renderOrgContext = (orgId: string | 'internal') => {
-    const contextOrgId = orgId === 'internal' ? null : orgId;
-    const activeRegulationTabValue = regulationTabToUiValue(activeRegulationTab);
-    const showGapAnalysis = deferredActiveRegulationTab === 'sacaa-cats';
-
-    const renderRequirementMeta = (item: ComplianceRequirement) => {
-        const fields = [
-            item.companyReference?.trim()
-                ? { label: 'Manual ref', value: item.companyReference.trim() }
-                : null,
-            item.nextAuditDate?.trim()
-                ? { label: 'Next audit date', value: formatAuditDate(item.nextAuditDate) }
-                : null,
-        ].filter(Boolean) as { label: string; value: string }[];
-
-        if (fields.length === 0) return null;
-
-        return (
-            <div className="mt-3 flex flex-wrap gap-2 text-[10px] font-black uppercase tracking-[0.14em] text-foreground/55">
-                {fields.map((field) => (
-                    <div key={`${item.id}-${field.label}`} className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-card-border/70 bg-background/70 px-2.5 py-1">
-                        <span className="shrink-0 text-foreground/45">{field.label}</span>
-                        <span className="truncate text-foreground/80 normal-case tracking-normal">{field.value}</span>
-                    </div>
-                ))}
-            </div>
-        );
-    };
-
-    const {
-        groupedItems,
-        topLevelItems,
-        matrixTableRows,
-        matrixIndexEntries,
-        matrixClauseEntries,
-        matrixIndexEntryByItemId,
-        filteredMatrixIndexEntries,
-        itemMatchesSearch,
-        branchMatchesSearch,
-    } = activeMatrixView;
-    const renderInlineClauseLines = (parentCode: string, items: ComplianceRequirement[], ancestors: string[]) => {
-        return (
-            <div className="rounded-md border border-slate-200 bg-background/60">
-                {items.map((child) => {
-                    const normalizedChildCode = normalizeRegulationCode(child.regulationCode);
-                    if (ancestors.includes(normalizedChildCode)) return null;
-
-                    const grandChildren = groupedItems[normalizedChildCode] || [];
-                    const marker = getInlineMarker(parentCode, normalizedChildCode);
-                    const lineText = child.technicalStandard?.trim() || child.regulationStatement?.trim();
-
-                    return (
-                        <div key={child.id} className="border-b border-card-border/70 px-4 py-3 last:border-b-0">
-                            <p className="text-sm leading-6 text-foreground">
-                                {marker ? <span className="mr-2 font-semibold">{marker}</span> : null}
-                                <span>{lineText}</span>
-                            </p>
-                            {grandChildren.length > 0 ? (
-                                <div className="mt-3 space-y-2 border-t pt-3">
-                                    {renderInlineClauseLines(normalizedChildCode, grandChildren, [...ancestors, normalizedChildCode])}
-                                </div>
-                            ) : null}
-                        </div>
-                    );
-                })}
-            </div>
-        );
-    };
-
-    const renderTechnicalStandardText = (value?: string | null, indentationOverrides?: number[]) => {
-        const lines = getStructuredTechnicalLines(value, indentationOverrides);
-        const rawValue = value?.trim() || '';
-        if (lines.length === 0) {
-            return rawValue ? (
-                <p className="whitespace-pre-wrap break-words text-sm font-medium leading-6 text-foreground/80">
-                    {rawValue}
-                </p>
-            ) : null;
-        }
-
-        return (
-            <div className="space-y-1.5">
-                {lines.map((line, index) => (
-                    <div
-                        key={`${line.marker}-${line.content}-${index}`}
-                        className={cn(
-                            'flex items-start text-sm font-medium leading-6 text-foreground/80',
-                            line.className
-                        )}
-                    >
-                        {line.marker ? (
-                            <span className={cn('shrink-0 font-semibold text-foreground/55', line.markerClassName)}>
-                                {line.marker}
-                            </span>
-                        ) : null}
-                        <span className="min-w-0 flex-1 break-words">
-                            {line.content}
-                        </span>
-                    </div>
-                ))}
-            </div>
-        );
-    };
-
-    const renderClauseTextCard = (item: ComplianceRequirement, isExpanded: boolean, onToggleExpanded: () => void, canEditClause: boolean) => {
-        const hasTechnicalText = Boolean(item.technicalStandard?.trim());
-        const isEditingClauseText = editingClauseTextId === item.id;
-        const hasManualIndentation = normalizeIndentationArray(item.technicalStandardIndentation).length > 0;
-        const draftLines = isEditingClauseText
-            ? getStructuredTechnicalLines(clauseTextDraft, clauseIndentDraft)
-            : [];
-
-        return (
-            <div className="space-y-2 rounded-md border border-card-border/70 bg-background/60 px-3 py-2">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                        {hasTechnicalText ? (
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="compact"
-                                className="-ml-1 h-7 whitespace-nowrap px-1.5 text-[9px] font-black uppercase tracking-[0.08em] text-foreground/70 hover:bg-accent/30"
-                                onClick={onToggleExpanded}
-                                disabled={isEditingClauseText}
-                            >
-                                <ChevronDown className={cn('mr-1 h-3.5 w-3.5 transition-transform', isExpanded && 'rotate-180')} />
-                                {isExpanded ? 'Hide text' : 'Show text'}
-                            </Button>
-                        ) : (
-                            <span className="text-[9px] font-black uppercase tracking-[0.12em] text-foreground/45">No clause text</span>
-                        )}
-                        {hasManualIndentation ? (
-                            <Badge variant="outline" className="border-primary/30 bg-primary/5 text-[9px] font-black uppercase tracking-[0.12em] text-primary">
-                                Manual indentation
-                            </Badge>
-                        ) : null}
-                    </div>
-                    {canEditClause ? (
-                        isEditingClauseText ? (
-                            <div className="flex items-center gap-2">
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="compact"
-                                    className="h-7 px-2 text-[9px] font-black uppercase tracking-[0.08em] text-foreground/70 hover:bg-accent/30"
-                                    onClick={() => setClauseTextDraft((current) => formatStructuredTechnicalStandard(current))}
-                                    disabled={isClauseTextSaving}
-                                >
-                                    <WandSparkles className="mr-1 h-3.5 w-3.5" />
-                                    Auto format
-                                </Button>
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="compact"
-                                    className="h-7 px-2 text-[9px] font-black uppercase tracking-[0.08em] text-foreground/70 hover:bg-accent/30"
-                                    onClick={resetClauseIndentDraft}
-                                    disabled={isClauseTextSaving || clauseIndentDraft.length === 0}
-                                >
-                                    Reset indents
-                                </Button>
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="compact"
-                                    className="h-7 px-2 text-[9px] font-black uppercase tracking-[0.08em]"
-                                    onClick={() => void saveClauseTextEdit(item)}
-                                    disabled={isClauseTextSaving}
-                                >
-                                    {isClauseTextSaving ? 'Saving...' : 'Save text'}
-                                </Button>
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="compact"
-                                    className="h-7 px-2 text-[9px] font-black uppercase tracking-[0.08em] text-foreground/70 hover:bg-accent/30"
-                                    onClick={cancelClauseTextEdit}
-                                    disabled={isClauseTextSaving}
-                                >
-                                    Cancel
-                                </Button>
-                            </div>
-                        ) : (
-                            <div className="flex items-center gap-2">
-                                {hasManualIndentation ? (
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="compact"
-                                        className="h-7 px-2 text-[9px] font-black uppercase tracking-[0.08em] text-foreground/70 hover:bg-accent/30"
-                                        onClick={() => void clearClauseIndentation(item)}
-                                    >
-                                        Reset indents
-                                    </Button>
-                                ) : null}
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="compact"
-                                    className="h-7 px-2 text-[9px] font-black uppercase tracking-[0.08em] text-foreground/70 hover:bg-accent/30"
-                                    onClick={() => beginClauseTextEdit(item)}
-                                >
-                                    <Edit className="mr-1 h-3.5 w-3.5" />
-                                    Edit text
-                                </Button>
-                            </div>
-                        )
-                    ) : null}
-                </div>
-
-                {canEditClause && isEditingClauseText ? (
-                    <div className="space-y-2">
-                        <Textarea
-                            value={clauseTextDraft}
-                            onChange={(event) => setClauseTextDraft(event.target.value)}
-                            onKeyDown={(event) => {
-                                if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === 'f') {
-                                    event.preventDefault();
-                                    setClauseTextDraft((current) => formatStructuredTechnicalStandard(current));
-                                }
-                            }}
-                            className="min-h-[220px] whitespace-pre-wrap font-mono text-[12px] leading-6"
-                            spellCheck={false}
-                        />
-                        <p className="text-[10px] leading-4 text-foreground/55">
-                            Use line breaks and spacing here to correct clause indentation. Press Ctrl+Shift+F to auto format.
-                        </p>
-                        {draftLines.length > 0 ? (
-                            <div className="space-y-2 rounded-md border border-card-border/70 bg-card/40 p-2">
-                                <div className="flex flex-wrap items-center justify-between gap-2">
-                                    <p className="text-[10px] font-black uppercase tracking-[0.12em] text-foreground/60">
-                                        Indentation preview
-                                    </p>
-                                    <p className="text-[10px] leading-4 text-foreground/50">
-                                        Use the arrows to promote or demote each detected clause line.
-                                    </p>
-                                </div>
-                                <div className="space-y-1.5">
-                                    {draftLines.map((line, index) => (
-                                        <div key={`${line.marker}-${line.content}-${index}`} className="flex items-start gap-2">
-                                            <div className="flex shrink-0 items-center gap-1 pt-1">
-                                                <Button
-                                                    type="button"
-                                                    variant="outline"
-                                                    size="icon"
-                                                    className="h-7 w-7 border-card-border/80"
-                                                    onClick={() => updateClauseIndentDraft(index, line.indentLevel - 1)}
-                                                    disabled={isClauseTextSaving || line.indentLevel <= 0}
-                                                    aria-label={`Promote line ${index + 1}`}
-                                                >
-                                                    <ChevronLeft className="h-3.5 w-3.5" />
-                                                </Button>
-                                                <Button
-                                                    type="button"
-                                                    variant="outline"
-                                                    size="icon"
-                                                    className="h-7 w-7 border-card-border/80"
-                                                    onClick={() => updateClauseIndentDraft(index, line.indentLevel + 1)}
-                                                    disabled={isClauseTextSaving || line.indentLevel >= TECHNICAL_STANDARD_MAX_INDENT}
-                                                    aria-label={`Demote line ${index + 1}`}
-                                                >
-                                                    <ChevronRight className="h-3.5 w-3.5" />
-                                                </Button>
-                                            </div>
-                                            <div className="min-w-0 flex-1 rounded-md border border-card-border/70 bg-background/80 px-3 py-2">
-                                                <div
-                                                    className={cn(
-                                                        'flex items-start text-sm font-medium leading-6 text-foreground/80',
-                                                        line.className
-                                                    )}
-                                                >
-                                                    {line.marker ? (
-                                                        <span className={cn('shrink-0 font-semibold text-foreground/55', line.markerClassName)}>
-                                                            {line.marker}
-                                                        </span>
-                                                    ) : null}
-                                                    <span className="min-w-0 flex-1 break-words">
-                                                        {line.content}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        ) : null}
-                    </div>
-                ) : hasTechnicalText ? (
-                    isExpanded ? (
-                        <div className="space-y-1">{renderTechnicalStandardText(item.technicalStandard, item.technicalStandardIndentation)}</div>
-                    ) : (
-                        <p className="text-[12px] leading-5 text-foreground/70">{getTechnicalExcerpt(item.technicalStandard)}</p>
-                    )
-                ) : (
-                    <p className="text-[12px] leading-5 text-muted-foreground">No clause text available for this item.</p>
-                )}
-            </div>
-        );
-    };
-
-    const scrollToTableRow = () => {
-        if (typeof document === 'undefined') return;
-        const target = document.getElementById('selected-clause-panel');
-        target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    };
-    const selectedMatrixAnchorId = matrixClauseEntries.some(({ anchorId }) => anchorId === activeMatrixAnchorId)
-        ? activeMatrixAnchorId
-        : matrixClauseEntries[0]?.anchorId || null;
-    const selectedMatrixRow = matrixTableRows.find(
-        (row) => row.anchorId === selectedMatrixAnchorId && row.depth > 0 && !row.hasChildren
-    ) || matrixTableRows.find((row) => row.anchorId === selectedMatrixAnchorId) || null;
-    const selectedMatrixItem = selectedMatrixRow?.item || null;
-    const selectedMatrixAncestorCodes = new Set<string>();
-    if (selectedMatrixItem) {
-        let currentParentCode = normalizeRegulationCode(selectedMatrixItem.parentRegulationCode);
-        while (currentParentCode) {
-            selectedMatrixAncestorCodes.add(currentParentCode);
-            currentParentCode = normalizeRegulationCode(
-                matrixIndexEntries.find((entry) => normalizeRegulationCode(entry.item.regulationCode) === currentParentCode)?.item.parentRegulationCode
-            );
-        }
+      window.dispatchEvent(new Event('safeviate-compliance-updated'));
+      toast({ title: 'Deleted', description: `${item.regulationCode} was removed.` });
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Delete Failed',
+        description: error instanceof Error ? error.message : 'Failed to delete coherence matrix item.',
+      });
     }
-    const expandableIndexCodes = Array.from(
-        new Set(
-            matrixIndexEntries
-                .filter(({ hasChildren }) => hasChildren)
-                .map(({ item }) => normalizeRegulationCode(item.regulationCode))
-                .filter(Boolean)
-        )
-    );
-    const selectedMatrixItemCode = normalizeRegulationCode(selectedMatrixItem?.regulationCode);
-    const selectedMatrixItemExpanded = selectedMatrixItem ? (expandedIndexCodes[selectedMatrixItemCode] ?? true) : true;
-    const isIndexNodeExpanded = (code: string) => expandedIndexCodes[code] ?? false;
+  };
 
-    const areAllIndexBranchesCollapsed =
-        expandableIndexCodes.length > 0 && expandableIndexCodes.every((code) => expandedIndexCodes[code] === false);
+  const renderNode = useCallback((item: ComplianceRequirement, depth = 0, ancestors: string[] = []): React.ReactNode => {
+    const itemCode = normalizeRegulationCode(item.regulationCode);
+    if (ancestors.includes(itemCode)) return null;
+    if (normalizedSearchQuery && !branchMatchesSearch(item)) return null;
 
-    const toggleAllIndexBranches = () => {
-        setExpandedIndexCodes((prev) => {
-            const next = { ...prev };
-            const shouldCollapseAll = expandableIndexCodes.some((code) => next[code] !== false);
-
-            if (shouldCollapseAll) {
-                expandableIndexCodes.forEach((code) => {
-                    next[code] = false;
-                });
-                return next;
-            }
-
-            expandableIndexCodes.forEach((code) => {
-                delete next[code];
-            });
-            return next;
-        });
-    };
-
-    const branchMatchesIndexQuery = (item: ComplianceRequirement, visitedCodes = new Set<string>()): boolean => {
-        if (!normalizedIndexQuery) return true;
-        const normalizedCode = normalizeRegulationCode(item.regulationCode);
-        if (normalizedCode && visitedCodes.has(normalizedCode)) {
-            return false;
-        }
-        const nextVisitedCodes = new Set(visitedCodes);
-        if (normalizedCode) {
-            nextVisitedCodes.add(normalizedCode);
-        }
-        const directMatch = [item.regulationCode, item.regulationStatement]
-            .filter(Boolean)
-            .join(' ')
-            .toLowerCase()
-            .includes(normalizedIndexQuery);
-        if (directMatch) return true;
-
-        const technicalLineMatch = (technicalLinesByItemId.get(item.id) || []).some((line) =>
-            [line.marker, line.content]
-                .filter(Boolean)
-                .join(' ')
-                .toLowerCase()
-                .includes(normalizedIndexQuery)
-        );
-        if (technicalLineMatch) return true;
-
-        const childItems = groupedItems[normalizedCode] || [];
-        return childItems.some((child) => branchMatchesIndexQuery(child, nextVisitedCodes));
-    };
-
-    const renderIndexBranch = (items: ComplianceRequirement[], depth = 0, ancestorCodes = new Set<string>()): React.ReactNode[] => {
-        return items.flatMap((item) => {
-            const normalizedCode = normalizeRegulationCode(item.regulationCode);
-            if (normalizedCode && ancestorCodes.has(normalizedCode)) {
-                return [];
-            }
-            const nextAncestorCodes = new Set(ancestorCodes);
-            if (normalizedCode) {
-                nextAncestorCodes.add(normalizedCode);
-            }
-            if (normalizedIndexQuery && !branchMatchesIndexQuery(item)) {
-                return [];
-            }
-            const childItems = groupedItems[normalizedCode] || [];
-            const hasIndexChildren = childItems.length > 0;
-            const isClauseNode = depth > 0 && !hasIndexChildren;
-            const entryAnchorId = matrixIndexEntryByItemId.get(item.id)?.anchorId || `matrix-row-${item.id}`;
-            const isSelected = isClauseNode && selectedMatrixAnchorId === entryAnchorId;
-            const isExplicitlyCollapsed = expandedIndexCodes[normalizedCode] === false;
-            const shouldForceOpen = normalizedIndexQuery.length > 0 || (selectedMatrixAncestorCodes.has(normalizedCode) && !isExplicitlyCollapsed);
-            const isExpanded = hasIndexChildren ? (shouldForceOpen || isIndexNodeExpanded(normalizedCode)) : false;
-            const isClauseExpanded = isClauseNode ? (normalizedIndexQuery.length > 0 || isSelected || isIndexNodeExpanded(normalizedCode)) : false;
-            return [
-                <div
-                    key={item.id}
-                    id={`matrix-index-node-${item.id}`}
-                    className={cn(
-                        'min-w-0 space-y-0.5',
-                        depth > 0 && 'ml-3'
-                    )}
-                >
-                    <div className={cn('grid w-full min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-1.5 rounded-md border px-2 py-0.5 text-left transition', isSelected ? 'border-primary/30 bg-primary/10 shadow-sm' : 'border-transparent hover:border-border hover:bg-muted/40')}>
-                        {hasIndexChildren ? (
-                            <button
-                                type="button"
-                                aria-label={isExpanded ? `Collapse ${item.regulationCode}` : `Expand ${item.regulationCode}`}
-                                className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-card-border bg-background/90 text-foreground/60 transition hover:bg-muted/60"
-                                onClick={(event) => {
-                                    event.stopPropagation();
-                                    setExpandedIndexCodes((prev) => ({
-                                        ...prev,
-                                        [normalizedCode]: !isExpanded,
-                                    }));
-                                }}
-                            >
-                                <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', isExpanded && 'rotate-180')} />
-                            </button>
-                        ) : (
-                            <span className="h-5 w-5 shrink-0" />
-                        )}
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setActiveMatrixAnchorId(entryAnchorId);
-                                scrollToTableRow();
-                            }}
-                            className="min-w-0 text-left"
-                        >
-                            <span className={cn(
-                                'block text-[9px] font-black tracking-wide',
-                                isSelected ? 'text-foreground/80' : 'text-foreground/60'
-                            )}>
-                                {item.regulationCode}
-                            </span>
-                            <span className={cn(
-                                'block whitespace-normal break-words text-[13px]',
-                                isSelected ? 'font-semibold text-foreground' : 'font-medium text-foreground'
-                            )}>
-                                {item.regulationStatement}
-                            </span>
-                        </button>
-                        {canManageMatrix ? (
-                            <div className="flex shrink-0 items-center gap-1">
-                                {isClauseNode ? (
-                                    <button
-                                        type="button"
-                                        aria-label={isClauseExpanded ? `Collapse ${item.regulationCode}` : `Expand ${item.regulationCode}`}
-                                        className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-card-border bg-background/90 text-foreground/60 transition hover:bg-muted/60"
-                                        onClick={(event) => {
-                                            event.stopPropagation();
-                                            setExpandedIndexCodes((prev) => {
-                                                const nextExpanded = !isClauseExpanded;
-                                                const nextState = {
-                                                    ...prev,
-                                                    [normalizedCode]: nextExpanded,
-                                                };
-                                                return nextState;
-                                            });
-                                        }}
-                                    >
-                                        <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', isClauseExpanded && 'rotate-180')} />
-                                    </button>
-                                ) : null}
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-6 w-6 shrink-0 text-foreground/45 hover:bg-background/80 hover:text-foreground"
-                                    onClick={(event) => {
-                                        event.stopPropagation();
-                                        handleOpenForm(item, isClauseNode ? 'item' : depth === 0 ? 'header' : 'subheader');
-                                    }}
-                                    aria-label={`Edit ${item.regulationCode}`}
-                                >
-                                    <Edit className="h-3.5 w-3.5" />
-                                </Button>
-                                <Button
-                                    type="button"
-                                    variant="destructive"
-                                    size="icon"
-                                    className="h-6 w-6 border border-destructive/25 bg-destructive/8 px-0 text-destructive shadow-none hover:bg-destructive/12 hover:text-destructive"
-                                    onClick={(event) => {
-                                        event.stopPropagation();
-                                        handleDeleteItem(item);
-                                    }}
-                                    aria-label={`Delete ${item.regulationCode}`}
-                                >
-                                    <Trash2 className="h-3.5 w-3.5 text-current" />
-                                </Button>
-                            </div>
-                        ) : null}
-                    </div>
-                    {hasIndexChildren && isExpanded ? (
-                        <div className="space-y-0.5">
-                            {renderIndexBranch(childItems, depth + 1, nextAncestorCodes)}
-                        </div>
-                    ) : null}
-                </div>
-            ];
-        });
-    };
-
-    const renderSelectedClauseInspector = () => {
-        if (!selectedMatrixItem) {
-            return (
-                <div className="rounded-lg border border-card-border bg-background p-4 shadow-none">
-                    <p className="text-[10px] font-black uppercase tracking-[0.14em] text-foreground/50">Clause inspector</p>
-                    <p className="mt-2 text-sm text-foreground/70">Select a clause in the tree to view its full text and related analysis here.</p>
-                </div>
-            );
-        }
-
-        return (
-            <div id="selected-clause-panel" className="rounded-lg border border-card-border bg-background shadow-none">
-                <div className="border-b border-card-border/70 p-4">
-                    <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-foreground/50">Selected clause</p>
-                            {selectedMatrixItem.documentHeading?.trim() ? (
-                                <p className="mt-1 text-[10px] font-black uppercase tracking-[0.16em] text-foreground/65">
-                                    {selectedMatrixItem.documentHeading}
-                                </p>
-                            ) : null}
-                            <p className="mt-1 text-[11px] font-black tracking-wide text-foreground/65">{selectedMatrixItem.regulationCode}</p>
-                            <h3 className="mt-1 text-sm font-semibold leading-5 text-foreground break-words">
-                                {selectedMatrixItem.regulationStatement}
-                            </h3>
-                            {selectedMatrixItem.responsibleManagerId?.trim() || normalizeIndentationArray(selectedMatrixItem.technicalStandardIndentation).length > 0 ? (
-                                <div className="mt-2 flex flex-wrap items-center gap-2">
-                                    {normalizeIndentationArray(selectedMatrixItem.technicalStandardIndentation).length > 0 ? (
-                                        <Badge variant="outline" className="h-5 border-primary/30 bg-primary/5 px-2 text-[9px] font-black uppercase tracking-[0.08em] text-primary">
-                                            Manual indentation
-                                        </Badge>
-                                    ) : null}
-                                    <Badge variant="outline" className="h-5 border-card-border bg-background/70 px-2 text-[9px] font-black uppercase tracking-[0.08em] text-foreground">
-                                        Responsible {getManagerLabel(selectedMatrixItem.responsibleManagerId) || '-'}
-                                    </Badge>
-                                </div>
-                            ) : null}
-                        </div>
-                        <div className="flex shrink-0 items-center gap-1">
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6 text-foreground/45 hover:bg-background/80 hover:text-foreground"
-                                onClick={() => handleOpenForm(selectedMatrixItem, 'item')}
-                                aria-label={`Edit ${selectedMatrixItem.regulationCode}`}
-                            >
-                                <Edit className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button
-                                type="button"
-                                variant="destructive"
-                                size="icon"
-                                className="h-6 w-6 border border-destructive/25 bg-destructive/8 px-0 text-destructive shadow-none hover:bg-destructive/12 hover:text-destructive"
-                                onClick={() => handleDeleteItem(selectedMatrixItem)}
-                                aria-label={`Delete ${selectedMatrixItem.regulationCode}`}
-                            >
-                                <Trash2 className="h-3.5 w-3.5 text-current" />
-                            </Button>
-                        </div>
-                    </div>
-                    {selectedMatrixItem.technicalStandard?.trim() ? (
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            size="compact"
-                            className="-ml-1 mt-3 h-7 whitespace-nowrap px-1.5 text-[9px] font-black uppercase tracking-[0.08em] text-foreground/70 hover:bg-accent/30"
-                            onClick={() => {
-                                setExpandedIndexCodes((prev) => ({
-                                    ...prev,
-                                    [selectedMatrixItemCode]: !selectedMatrixItemExpanded,
-                                }));
-                            }}
-                        >
-                            <ChevronDown className={cn('mr-1 h-3.5 w-3.5 transition-transform', selectedMatrixItemExpanded && 'rotate-180')} />
-                            {selectedMatrixItemExpanded ? 'Hide text' : 'Show text'}
-                        </Button>
-                    ) : null}
-                </div>
-                <div className="p-4">
-                    {renderClauseTextCard(
-                        selectedMatrixItem,
-                        selectedMatrixItemExpanded,
-                        () => {
-                            setExpandedIndexCodes((prev) => ({
-                                ...prev,
-                                [selectedMatrixItemCode]: !selectedMatrixItemExpanded,
-                            }));
-                        },
-                        canManageMatrix
-                    )}
-                    {renderRequirementMeta(selectedMatrixItem)}
-                </div>
-            </div>
-        );
-    };
-
-    const renderMatrixIndexContent = () => (
-        <div className="min-w-0 overflow-hidden pr-1">
-            <div className="mb-3">
-                <Input
-                    value={matrixIndexQuery}
-                    onChange={(event) => setMatrixIndexQuery(event.target.value)}
-                    placeholder="Filter index..."
-                    className="h-8 w-full border-input bg-background text-sm"
-                />
-            </div>
-            <ScrollArea className="max-h-[calc(100vh-300px)] w-full min-w-0 pr-4">
-                {filteredMatrixIndexEntries.length > 0 ? (
-                    <div className="space-y-0.5">
-                        {renderIndexBranch(topLevelItems)}
-                    </div>
-                ) : (
-                    <div className="rounded-md border border-dashed border-card-border/70 px-3 py-4 text-xs text-foreground/60">
-                        No matching regulations in the current view.
-                    </div>
-                )}
-            </ScrollArea>
-        </div>
-    );
-
-    const renderMatrixIndexPanel = () => (
-        <div className="sticky top-0 h-full min-w-0 bg-card/90 p-1 shadow-none backdrop-blur-sm">
-            <div className="group flex w-full items-center justify-between gap-2 rounded-md border border-transparent px-1 py-0.5 text-left transition hover:border-border hover:bg-muted/30 hover:shadow-sm">
-                <div className="min-w-0">
-                    <p className="text-[9px] font-black uppercase tracking-[0.14em] text-foreground/50">Regulation index</p>
-                    <p className="text-[11px] text-foreground/70">
-                        Jump to a section, subheader, or clause in the current table. {filteredMatrixIndexEntries.length} entries.
-                    </p>
-                </div>
-                <button
-                    type="button"
-                    onClick={toggleAllIndexBranches}
-                    className="inline-flex shrink-0 items-center gap-1 rounded-full border border-card-border bg-background/90 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.08em] text-foreground/70 shadow-none"
-                    aria-label={areAllIndexBranchesCollapsed ? 'Expand all regulation sections' : 'Collapse all regulation sections'}
-                >
-                    <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', areAllIndexBranchesCollapsed && 'rotate-180')} />
-                    {areAllIndexBranchesCollapsed ? 'Expand all' : 'Collapse all'}
-                </button>
-            </div>
-            <div className="min-w-0 pt-2">
-                {renderMatrixIndexContent()}
-            </div>
-        </div>
-    );
-
-    const renderMatrixTable = () => {
-        const enableGapAnalysis = showGapAnalysis;
-        const getGapSummary = (row: Pick<MatrixTableRow, 'item' | 'depth' | 'hasChildren'>) => {
-            return getGapSummaryForCode(
-                row.item.regulationCode,
-                auditSummaryMaps.regulationToItemIds,
-                auditSummaryMaps.latestFindingByItemId,
-                auditSummaryMaps.openCapFindingIds,
-            );
-        };
-
-        const gapStatusVariant = (status: 'Open gap' | 'Partial coverage' | 'Covered' | 'Unassessed' | 'Not applicable') => {
-            switch (status) {
-                case 'Covered':
-                    return 'default';
-                case 'Not applicable':
-                    return 'secondary';
-                case 'Partial coverage':
-                    return 'outline';
-                case 'Open gap':
-                    return 'destructive';
-                default:
-                    return 'secondary';
-            }
-        };
-
-        if (matrixClauseRows.length === 0) {
-            return (
-                <div className="flex flex-col items-center justify-center py-24 text-center opacity-30">
-                    <Layers className="h-16 w-16 mb-4" />
-                    <p className="text-sm font-black uppercase tracking-widest text-foreground/90">Coherence Matrix Empty</p>
-                    <p className="text-xs font-medium text-foreground/80 max-w-xs mt-2">Populate your matrix using the AI upload tool or by seeding standard Part 141 regulations.</p>
-                </div>
-            );
-        }
-
-        return (
-            <div className="overflow-hidden rounded-lg border border-card-border bg-card shadow-none">
-                <div className="xl:hidden">
-                    <details className="rounded-lg border border-card-border bg-card/90 p-3 shadow-none">
-                        <summary className="cursor-pointer list-none text-[10px] font-black uppercase tracking-[0.14em] text-foreground/50">
-                            Regulation index
-                        </summary>
-                        <div className="mt-3">
-                            {renderMatrixIndexContent()}
-                        </div>
-                    </details>
-                </div>
-                <div className="hidden xl:block border-b border-card-border bg-card/90">
-                    {renderMatrixIndexPanel()}
-                </div>
-                <div className="min-w-0 bg-background">
-                    <div className="border-t border-card-border xl:border-t-0 xl:border-l border-card-border">
-                <Table className="w-full table-fixed">
-                    <colgroup>
-                        <col className="w-[67%]" />
-                        <col className="w-[18%]" />
-                        <col className="w-[15%]" />
-                    </colgroup>
-                    <TableHeader className="sticky top-0 z-10 bg-muted/30">
-                        <TableRow className="hover:bg-transparent">
-                            <TableHead className="px-2 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-foreground/70">Clause</TableHead>
-                            <TableHead className="px-2 py-2">
-                                <div className="flex flex-col gap-0.5">
-                                    <span className="text-[10px] font-black uppercase tracking-[0.12em] text-foreground/70">Gap status</span>
-                                    <span className="text-[9px] font-black uppercase tracking-[0.12em] text-foreground/45">Date / reference / reason</span>
-                                </div>
-                            </TableHead>
-                            <TableHead className="px-2 py-2">
-                                <div className="flex flex-col gap-0.5">
-                                    <span className="text-[10px] font-black uppercase tracking-[0.12em] text-foreground/70">Actions</span>
-                                    <span className="text-[9px] font-black uppercase tracking-[0.12em] text-foreground/45">Edit / delete</span>
-                                </div>
-                            </TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {visibleMatrixClauseRows.map(({ item, depth, hasChildren, anchorId }: MatrixTableRow) => {
-                            const isClauseRow = enableGapAnalysis && depth > 0 && !hasChildren;
-                            const gapSummary = isClauseRow ? getGapSummary({ item, depth, hasChildren }) : null;
-                            const clauseGapStatus: GapStatus | null = isClauseRow
-                                ? item.gapStatus || gapSummary?.gapStatus || 'Unassessed'
-                                : null;
-                            const isExpanded = Boolean(expandedClauseIds[item.id]);
-                            const isSelected = selectedMatrixAnchorId === anchorId;
-                            return (
-                                <Fragment key={item.id}>
-                                    <TableRow
-                                        id={anchorId}
-                                        key={item.id}
-                                        className={cn(
-                                            'scroll-mt-24 transition-colors',
-                                            depth === 0 && 'bg-muted/15',
-                                            isSelected && 'bg-primary/5 ring-1 ring-inset ring-primary/20'
-                                        )}
-                                    >
-                                        <TableCell className="align-top px-0.5 py-2">
-                                            <div
-                                                className="space-y-1.5 rounded-md border border-card-border/70 bg-background px-3 py-2"
-                                                style={{ paddingLeft: `${Math.max(depth - 1, 0) * 0.35 + 0.75}rem` }}
-                                            >
-                                        <div className="space-y-0.5">
-                                            <div className="flex flex-wrap items-center gap-1">
-                                                <span className="text-[10px] font-black tracking-wide text-foreground/65">
-                                                    {item.regulationCode}
-                                                </span>
-                                                {item.responsibleManagerId?.trim() ? (
-                                                    <Badge variant="outline" className="h-5 border-card-border bg-background/70 px-1.5 text-[9px] font-black uppercase tracking-[0.08em] text-foreground">
-                                                        {getManagerLabel(item.responsibleManagerId) || 'Unassigned'}
-                                                    </Badge>
-                                                ) : null}
-                                            </div>
-                                            <p className="text-[13px] font-semibold leading-5 text-foreground break-words">
-                                                {item.regulationStatement}
-                                            </p>
-                                        </div>
-                                        {renderClauseTextCard(item, isExpanded, () => toggleClauseDetails(item.id), canManageMatrix && depth > 0 && !hasChildren)}
-                                    </div>
-                                </TableCell>
-                                        <TableCell className="align-top px-0.5 py-2">
-                                            <div className="ml-auto w-full max-w-[170px] space-y-1">
-                                                {isClauseRow ? (
-                                                    canManageMatrix ? (
-                                                        <>
-                                                            <Popover
-                                                                open={openGapDateRowId === item.id}
-                                                                onOpenChange={(open) => setOpenGapDateRowId(open ? item.id : null)}
-                                                            >
-                                                                <PopoverTrigger asChild>
-                                                                    <Button type="button" variant="outline" size="compact" className="h-7 w-full justify-between border-slate-200 bg-background/90 px-2 text-[10px] shadow-none">
-                                                                        <span className={cn('truncate', !item.gapStatusDate?.trim() && 'text-muted-foreground')}>
-                                                                            {item.gapStatusDate?.trim() ? formatAuditDate(item.gapStatusDate) : 'Set date'}
-                                                                        </span>
-                                                                        <CalendarIcon className="h-3.5 w-3.5 shrink-0 opacity-60" />
-                                                                    </Button>
-                                                                </PopoverTrigger>
-                                                                <PopoverContent className="w-auto p-0" align="start">
-                                                                    <CustomCalendar
-                                                                        selectedDate={parseLocalDate(item.gapStatusDate)}
-                                                                        onDateSelect={(date) => {
-                                                                            void updateMatrixItemField(item, { gapStatusDate: toNoonUtcIso(date) });
-                                                                            setOpenGapDateRowId(null);
-                                                                        }}
-                                                                    />
-                                                                </PopoverContent>
-                                                            </Popover>
-                                                            <Select
-                                                                value={clauseGapStatus || 'Unassessed'}
-                                                                onValueChange={(value) => void updateGapStatus(item, value as GapStatus)}
-                                                            >
-                                                                <SelectTrigger className="h-7 w-full border-slate-200 bg-background/90 text-[10.5px] shadow-none">
-                                                                    <SelectValue placeholder="Select status" />
-                                                                </SelectTrigger>
-                                                                <SelectContent>
-                                                                    {GAP_STATUS_OPTIONS.map((option) => (
-                                                                        <SelectItem key={option.value} value={option.value}>
-                                                                            {option.label}
-                                                                        </SelectItem>
-                                                                    ))}
-                                                                </SelectContent>
-                                                            </Select>
-                                                        </>
-                                                    ) : (
-                                                        <Badge variant={gapStatusVariant(clauseGapStatus || 'Unassessed')} className="text-[9px] font-black uppercase tracking-[0.08em]">
-                                                            {clauseGapStatus}
-                                                        </Badge>
-                                                    )
-                                                ) : (
-                                                    <span className="text-[12px] text-muted-foreground">-</span>
-                                                )}
-                                                {isClauseRow ? (
-                                                    canManageMatrix ? (
-                                                        <Textarea
-                                                            key={`${item.id}-${item.companyReference || ''}`}
-                                                            defaultValue={item.companyReference || ''}
-                                                            placeholder="Reference or reason"
-                                                            rows={1}
-                                                            className="min-h-[40px] w-full resize-none overflow-hidden border-slate-200 bg-background/90 py-2 text-[11px] leading-5 text-foreground/90 shadow-none"
-                                                            ref={(element) => {
-                                                                if (!element) return;
-                                                                element.style.height = 'auto';
-                                                                element.style.height = `${element.scrollHeight}px`;
-                                                            }}
-                                                            onInput={(event) => {
-                                                                const target = event.currentTarget;
-                                                                target.style.height = 'auto';
-                                                                target.style.height = `${target.scrollHeight}px`;
-                                                            }}
-                                                            onFocus={(event) => {
-                                                                const target = event.currentTarget;
-                                                                target.style.height = 'auto';
-                                                                target.style.height = `${target.scrollHeight}px`;
-                                                            }}
-                                                            onBlur={(event) => {
-                                                                const nextValue = event.target.value.trim();
-                                                                if ((item.companyReference || '').trim() === nextValue) return;
-                                                                void updateMatrixItemField(item, { companyReference: nextValue });
-                                                            }}
-                                                        />
-                                                    ) : (
-                                                        <span className="block truncate text-[12px] text-foreground/80">
-                                                            {item.companyReference?.trim() || '-'}
-                                                        </span>
-                                                    )
-                                                ) : (
-                                                    <span className="text-[12px] text-muted-foreground">-</span>
-                                                )}
-                                            </div>
-                                        </TableCell>
-                                        <TableCell className="align-top px-0.5 py-2">
-                                            <div className="ml-auto w-full max-w-[180px] space-y-1 overflow-hidden">
-                                                {isClauseRow ? (
-                                                    canManageMatrix ? (
-                                                        <>
-                                                            <div className="grid w-full grid-cols-2 gap-0.5">
-                                                                <Button variant="outline" size="icon" className="h-7 w-full border-slate-200 bg-background/90 px-0 shadow-none hover:bg-accent/40" onClick={() => handleOpenForm(item)}>
-                                                                    <Edit className="h-3.5 w-3.5 text-foreground/80" />
-                                                                </Button>
-                                                                <Button variant="destructive" size="icon" className="h-7 w-full border border-destructive/25 bg-destructive/8 px-0 text-destructive shadow-none hover:bg-destructive/12 hover:text-destructive" onClick={() => handleDeleteItem(item)}>
-                                                                    <Trash2 className="h-3.5 w-3.5 text-current" />
-                                                                </Button>
-                                                            </div>
-                                                        </>
-                                                    ) : (
-                                                        null
-                                                    )
-                                                ) : (
-                                                    null
-                                                )}
-                                            </div>
-                                        </TableCell>
-                                    </TableRow>
-                                </Fragment>
-                            );
-                        })}
-                    </TableBody>
-                </Table>
-                    {visibleMatrixClauseRows.length < matrixClauseRows.length ? (
-                        <div className="border-t border-card-border bg-card/90 p-3 text-center">
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="compact"
-                                className="border-card-border bg-background/90 text-[10px] font-black uppercase tracking-[0.12em]"
-                                onClick={showMoreMatrixRows}
-                            >
-                                Show more clauses ({visibleMatrixClauseRows.length}/{matrixClauseRows.length})
-                            </Button>
-                        </div>
-                    ) : null}
-                    </div>
-                </div>
-            </div>
-        );
-    };
-
-    const renderGapAnalysisTable = () => {
-        const rows = visibleGapAnalysisRows;
-
-        const statusVariant = (status: MatrixGapRow['gapStatus']) => {
-            switch (status) {
-                case 'Covered':
-                    return 'default';
-                case 'Not applicable':
-                    return 'secondary';
-                case 'Partial coverage':
-                    return 'outline';
-                case 'Open gap':
-                    return 'destructive';
-                default:
-                    return 'secondary';
-            }
-        };
-
-        const selectedGapRow = rows.find(({ anchorId }) => anchorId === selectedMatrixAnchorId)
-            || rows.find(({ depth, hasChildren }) => depth > 0 && !hasChildren)
-            || rows[0]
-            || null;
-
-        const renderClauseInspector = () => {
-            if (!selectedGapRow) {
-            return (
-                <div className="sticky top-0 rounded-lg border border-card-border bg-background p-4 shadow-none">
-                    <p className="text-[10px] font-black uppercase tracking-[0.14em] text-foreground/50">Inspector</p>
-                    <p className="mt-2 text-sm text-foreground/70">Select a clause to review its gap status, reference, date, and actions.</p>
-                </div>
-                );
-            }
-
-            const { item, gapStatus, mappedCount, assessedCount, openCapCount, latestFinding } = selectedGapRow;
-            const isExpanded = Boolean(expandedClauseIds[item.id]);
-            const canEditClause = canManageMatrix && selectedGapRow.depth > 0;
-            const analysisEntries = getClauseAnalysisEntries(item);
-            const assessedAnalysisCount = analysisEntries.filter((entry) => entry.gapStatus && entry.gapStatus !== 'Unassessed').length;
-
-            const updateAnalysisEntry = async (marker: string, patch: Partial<ClauseAnalysisEntry>) => {
-                const nextEntries = analysisEntries.map((entry) =>
-                    entry.marker === marker
-                        ? { ...entry, ...patch }
-                        : entry
-                );
-                await updateMatrixItemField(item, { analysisEntries: nextEntries });
-            };
-
-            return (
-                <div className="sticky top-0 rounded-lg border border-card-border bg-card/95 p-3 shadow-none">
-                    <div className="space-y-3">
-                        <div className="space-y-1">
-                            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-foreground/50">Selected clause</p>
-                            <div className="flex flex-wrap items-center gap-1">
-                                <span className="text-[10px] font-black tracking-wide text-foreground/65">{item.regulationCode}</span>
-                            </div>
-                            <p className="text-sm font-semibold leading-5 text-foreground">{item.regulationStatement}</p>
-                        </div>
-
-                        {renderClauseTextCard(item, isExpanded, () => toggleClauseDetails(item.id), canEditClause)}
-
-                        {analysisEntries.length > 0 ? (
-                            <div className="space-y-2 rounded-md border border-card-border/70 bg-background/60 px-3 py-2">
-                                <div className="flex flex-wrap items-center justify-between gap-2">
-                                    <p className="text-[9px] font-black uppercase tracking-[0.12em] text-foreground/50">Requirement analyses</p>
-                                    <p className="text-[9px] font-black uppercase tracking-[0.12em] text-foreground/45">
-                                        {assessedAnalysisCount}/{analysisEntries.length} assessed
-                                    </p>
-                                </div>
-                                <div className="space-y-2">
-                                    {analysisEntries.map((entry) => (
-                                        <div key={entry.id} className="rounded-md border border-card-border/70 bg-card/80 p-2.5">
-                                            <div className="flex items-start justify-between gap-2">
-                                                <div className="min-w-0">
-                                                    <p className="text-[9px] font-black uppercase tracking-[0.12em] text-foreground/50">{entry.marker}</p>
-                                                    <p className="text-[12px] font-semibold leading-5 text-foreground">{entry.content}</p>
-                                                </div>
-                                                <Badge variant={statusVariant(entry.gapStatus || 'Unassessed')} className="text-[8px] font-black uppercase tracking-[0.08em]">
-                                                    {entry.gapStatus || 'Unassessed'}
-                                                </Badge>
-                                            </div>
-                                            <div className="mt-2 space-y-2">
-                                                <div className="space-y-1">
-                                                    <p className="text-[9px] font-black uppercase tracking-[0.12em] text-foreground/50">Date</p>
-                                                    {canEditClause ? (
-                                                        <Popover
-                                                            open={openGapDateRowId === entry.id}
-                                                            onOpenChange={(open) => setOpenGapDateRowId(open ? entry.id : null)}
-                                                        >
-                                                            <PopoverTrigger asChild>
-                                                                <Button type="button" variant="outline" size="compact" className="h-7 w-full justify-between border-slate-200 bg-background/90 px-2 text-[10px] shadow-none">
-                                                                    <span className={cn('truncate', !entry.gapStatusDate?.trim() && 'text-muted-foreground')}>
-                                                                        {entry.gapStatusDate?.trim() ? formatAuditDate(entry.gapStatusDate) : 'Set date'}
-                                                                    </span>
-                                                                    <CalendarIcon className="h-3.5 w-3.5 shrink-0 opacity-60" />
-                                                                </Button>
-                                                            </PopoverTrigger>
-                                                            <PopoverContent className="w-auto p-0" align="start">
-                                                                <CustomCalendar
-                                                                    selectedDate={parseLocalDate(entry.gapStatusDate)}
-                                                                    onDateSelect={(date) => {
-                                                                        void updateAnalysisEntry(entry.marker, {
-                                                                            gapStatusDate: toNoonUtcIso(date),
-                                                                        });
-                                                                        setOpenGapDateRowId(null);
-                                                                    }}
-                                                                />
-                                                            </PopoverContent>
-                                                        </Popover>
-                                                    ) : (
-                                                        <span className="block rounded-md border border-card-border/70 bg-background/70 px-2 py-2 text-[12px] text-foreground/80">
-                                                            {entry.gapStatusDate?.trim() ? formatAuditDate(entry.gapStatusDate) : '-'}
-                                                        </span>
-                                                    )}
-                                                </div>
-
-                                                <div className="space-y-1">
-                                                    <p className="text-[9px] font-black uppercase tracking-[0.12em] text-foreground/50">Gap status</p>
-                                                    {canEditClause ? (
-                                                        <Select
-                                                            value={entry.gapStatus || 'Unassessed'}
-                                                            onValueChange={(value) => {
-                                                                void updateAnalysisEntry(entry.marker, {
-                                                                    gapStatus: value as GapStatus,
-                                                                    gapStatusDate: new Date().toISOString(),
-                                                                });
-                                                            }}
-                                                        >
-                                                            <SelectTrigger className="h-7 w-full border-slate-200 bg-background/90 text-[10.5px] shadow-none">
-                                                                <SelectValue placeholder="Select status" />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                                {GAP_STATUS_OPTIONS.map((option) => (
-                                                                    <SelectItem key={option.value} value={option.value}>
-                                                                        {option.label}
-                                                                    </SelectItem>
-                                                                ))}
-                                                            </SelectContent>
-                                                        </Select>
-                                                    ) : (
-                                                        <Badge variant={statusVariant(entry.gapStatus || 'Unassessed')} className="text-[9px] font-black uppercase tracking-[0.08em]">
-                                                            {entry.gapStatus || 'Unassessed'}
-                                                        </Badge>
-                                                    )}
-                                                </div>
-
-                                                <div className="space-y-1">
-                                                    <p className="text-[9px] font-black uppercase tracking-[0.12em] text-foreground/50">Reference / reason</p>
-                                                    {canEditClause ? (
-                                                        <Textarea
-                                                            key={`${item.id}-${entry.id}-${entry.companyReference || ''}`}
-                                                            defaultValue={entry.companyReference || ''}
-                                                            placeholder="Reference or reason"
-                                                            rows={1}
-                                                            className="min-h-[40px] w-full resize-none overflow-hidden border-slate-200 bg-background/90 py-2 text-[11px] leading-5 text-foreground/90 shadow-none"
-                                                            ref={(element) => {
-                                                                if (!element) return;
-                                                                element.style.height = 'auto';
-                                                                element.style.height = `${element.scrollHeight}px`;
-                                                            }}
-                                                            onInput={(event) => {
-                                                                const target = event.currentTarget;
-                                                                target.style.height = 'auto';
-                                                                target.style.height = `${target.scrollHeight}px`;
-                                                            }}
-                                                            onFocus={(event) => {
-                                                                const target = event.currentTarget;
-                                                                target.style.height = 'auto';
-                                                                target.style.height = `${target.scrollHeight}px`;
-                                                            }}
-                                                            onBlur={(event) => {
-                                                                const nextValue = event.target.value.trim();
-                                                                if ((entry.companyReference || '').trim() === nextValue) return;
-                                                                void updateAnalysisEntry(entry.marker, { companyReference: nextValue });
-                                                            }}
-                                                        />
-                                                    ) : (
-                                                        <span className="block rounded-md border border-card-border/70 bg-background/70 px-2 py-2 text-[12px] text-foreground/80">
-                                                            {entry.companyReference?.trim() || '-'}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        ) : null}
-
-                        <div className="space-y-3">
-                            <div className="space-y-1">
-                                <p className="text-[9px] font-black uppercase tracking-[0.12em] text-foreground/50">Status date</p>
-                                {canEditClause ? (
-                                    <Popover
-                                        open={openGapDateRowId === item.id}
-                                        onOpenChange={(open) => setOpenGapDateRowId(open ? item.id : null)}
-                                    >
-                                        <PopoverTrigger asChild>
-                                            <Button type="button" variant="outline" size="compact" className="h-8 w-full justify-between border-slate-200 bg-background/90 px-2 text-[10px] shadow-none">
-                                                <span className={cn('truncate', !item.gapStatusDate?.trim() && 'text-muted-foreground')}>
-                                                    {item.gapStatusDate?.trim() ? formatAuditDate(item.gapStatusDate) : 'Set date'}
-                                                </span>
-                                                <CalendarIcon className="h-3.5 w-3.5 shrink-0 opacity-60" />
-                                            </Button>
-                                        </PopoverTrigger>
-                                        <PopoverContent className="w-auto p-0" align="start">
-                                            <CustomCalendar
-                                                selectedDate={parseLocalDate(item.gapStatusDate)}
-                                                onDateSelect={(date) => {
-                                                    void updateMatrixItemField(item, { gapStatusDate: toNoonUtcIso(date) });
-                                                    setOpenGapDateRowId(null);
-                                                }}
-                                            />
-                                        </PopoverContent>
-                                    </Popover>
-                                ) : (
-                                    <span className="block rounded-md border border-card-border/70 bg-background/70 px-2 py-2 text-[12px] text-foreground/80">
-                                        {item.gapStatusDate?.trim() ? formatAuditDate(item.gapStatusDate) : '-'}
-                                    </span>
-                                )}
-                            </div>
-
-                            <div className="space-y-1">
-                                <p className="text-[9px] font-black uppercase tracking-[0.12em] text-foreground/50">Gap status</p>
-                                {canEditClause ? (
-                                    <Select
-                                        value={gapStatus || 'Unassessed'}
-                                        onValueChange={(value) => void updateGapStatus(item, value as GapStatus)}
-                                    >
-                                        <SelectTrigger className="h-8 w-full border-slate-200 bg-background/90 text-[10.5px] shadow-none">
-                                            <SelectValue placeholder="Select status" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {GAP_STATUS_OPTIONS.map((option) => (
-                                                <SelectItem key={option.value} value={option.value}>
-                                                    {option.label}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                ) : (
-                                    <Badge variant={statusVariant(gapStatus)} className="text-[9px] font-black uppercase tracking-[0.08em]">
-                                        {gapStatus}
-                                    </Badge>
-                                )}
-                            </div>
-
-                            <div className="space-y-1">
-                                <p className="text-[9px] font-black uppercase tracking-[0.12em] text-foreground/50">Reference / reason</p>
-                                {canEditClause ? (
-                                    <Textarea
-                                        key={`${item.id}-${item.companyReference || ''}`}
-                                        defaultValue={item.companyReference || ''}
-                                        placeholder="Reference or reason"
-                                        rows={1}
-                                        className="min-h-[40px] w-full resize-none overflow-hidden border-slate-200 bg-background/90 py-2 text-[11px] leading-5 text-foreground/90 shadow-none"
-                                        ref={(element) => {
-                                            if (!element) return;
-                                            element.style.height = 'auto';
-                                            element.style.height = `${element.scrollHeight}px`;
-                                        }}
-                                        onInput={(event) => {
-                                            const target = event.currentTarget;
-                                            target.style.height = 'auto';
-                                            target.style.height = `${target.scrollHeight}px`;
-                                        }}
-                                        onFocus={(event) => {
-                                            const target = event.currentTarget;
-                                            target.style.height = 'auto';
-                                            target.style.height = `${target.scrollHeight}px`;
-                                        }}
-                                        onBlur={(event) => {
-                                            const nextValue = event.target.value.trim();
-                                            if ((item.companyReference || '').trim() === nextValue) return;
-                                            void updateMatrixItemField(item, { companyReference: nextValue });
-                                        }}
-                                    />
-                                ) : (
-                                    <span className="block rounded-md border border-card-border/70 bg-background/70 px-2 py-2 text-[12px] text-foreground/80">
-                                        {item.companyReference?.trim() || '-'}
-                                    </span>
-                                )}
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-2">
-                                {canManageMatrix ? (
-                                    <>
-                                        <Button variant="outline" size="icon" className="h-8 w-full border-slate-200 bg-background/90 px-0 shadow-none hover:bg-accent/40" onClick={() => handleOpenForm(item)}>
-                                            <Edit className="h-3.5 w-3.5 text-foreground/80" />
-                                        </Button>
-                                        <Button variant="destructive" size="icon" className="h-8 w-full border border-destructive/25 bg-destructive/8 px-0 text-destructive shadow-none hover:bg-destructive/12 hover:text-destructive" onClick={() => handleDeleteItem(item)}>
-                                            <Trash2 className="h-3.5 w-3.5 text-current" />
-                                        </Button>
-                                    </>
-                                ) : null}
-                            </div>
-
-                            <div className="space-y-1 rounded-md border border-card-border/70 bg-muted/20 px-3 py-2">
-                                <div className="flex flex-wrap gap-1.5">
-                                    <Badge variant={statusVariant(gapStatus)} className="text-[9px] font-black uppercase tracking-[0.08em]">
-                                        {gapStatus}
-                                    </Badge>
-                                    <Badge variant="outline" className="text-[9px] font-black uppercase tracking-[0.08em]">
-                                        {mappedCount === 0 ? 'No mapping' : `${assessedCount}/${mappedCount} assessed`}
-                                    </Badge>
-                                    {openCapCount > 0 ? (
-                                        <Badge variant="destructive" className="text-[9px] font-black uppercase tracking-[0.08em]">
-                                            {openCapCount} open CAP{openCapCount === 1 ? '' : 's'}
-                                        </Badge>
-                                    ) : null}
-                                </div>
-                                {latestFinding ? (
-                                    <p className="text-[11px] leading-5 text-foreground/75">
-                                        Latest: <span className="font-semibold uppercase">{latestFinding.finding}</span> · {latestFinding.auditNumber} · {formatAuditDate(latestFinding.auditDate)}
-                                    </p>
-                                ) : (
-                                    <p className="text-[11px] leading-5 text-muted-foreground italic">No audit finding linked yet.</p>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            );
-        };
-
-        if (gapAnalysisRows.length === 0) {
-            return (
-                <div className="flex flex-col items-center justify-center py-24 text-center opacity-30">
-                    <Layers className="h-16 w-16 mb-4" />
-                    <p className="text-sm font-black uppercase tracking-widest text-foreground/90">Coherence Matrix Empty</p>
-                    <p className="text-xs font-medium text-foreground/80 max-w-xs mt-2">Populate your matrix using the AI upload tool or by seeding standard Part 141 regulations.</p>
-                </div>
-            );
-        }
-
-        return (
-            <div
-                className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_24px_var(--clause-inspector-width)]"
-                style={clauseInspectorWidthStyle}
-            >
-                <div className="rounded-lg border border-card-border bg-background">
-                <Table className="min-w-[1350px] table-fixed">
-                    <colgroup>
-                        <col className="w-[17%]" />
-                        <col className="w-[40%]" />
-                        <col className="w-[13%]" />
-                        <col className="w-[12%]" />
-                        <col className="w-[10%]" />
-                        <col className="w-[8%]" />
-                    </colgroup>
-                    <TableHeader className="sticky top-0 z-10 bg-muted/30">
-                        <TableRow className="hover:bg-transparent">
-                            <TableHead className="px-2 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-foreground/70">Regulation / Clause</TableHead>
-                            <TableHead className="px-2 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-foreground/70">Gap summary</TableHead>
-                            <TableHead className="px-2 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-foreground/70">Manual ref</TableHead>
-                            <TableHead className="px-2 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-foreground/70">Responsible</TableHead>
-                            <TableHead className="px-2 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-foreground/70">Next audit date</TableHead>
-                            <TableHead className="px-2 py-2 text-right text-[10px] font-black uppercase tracking-[0.12em] text-foreground/70">Actions</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {rows.map(({ item, depth, hasChildren, mappedCount, assessedCount, openCapCount, latestFinding, gapStatus }) => (
-                            <TableRow key={item.id} className={cn(depth === 0 && 'bg-muted/15')}>
-                                <TableCell className="align-top px-2 py-2">
-                                    <div className="space-y-1" style={{ paddingLeft: `${depth * 0.5}rem` }}>
-                                        <div className="flex flex-wrap items-center gap-1">
-                                            <Badge variant="outline" className="h-5 border-primary/20 bg-primary/5 px-1.5 text-[9px] font-black uppercase tracking-[0.12em] text-primary">
-                                                {depth === 0 ? 'Header' : hasChildren ? 'Subheader' : 'Clause'}
-                                            </Badge>
-                                            <span className="text-[10px] font-black tracking-wide text-foreground/65">{item.regulationCode}</span>
-                                            {item.responsibleManagerId?.trim() ? (
-                                                <Badge variant="outline" className="h-5 border-card-border bg-background/70 px-1.5 text-[9px] font-black uppercase tracking-[0.08em] text-foreground">
-                                                    Responsible {getManagerLabel(item.responsibleManagerId) || '-'}
-                                                </Badge>
-                                            ) : null}
-                                        </div>
-                                        <p className="line-clamp-2 text-[12.5px] font-semibold leading-[1.35] text-foreground break-words">
-                                            {item.regulationStatement}
-                                        </p>
-                                    </div>
-                                </TableCell>
-                                <TableCell className="align-top px-2 py-2">
-                                    <div className="space-y-1.5">
-                                        {depth > 0 && !hasChildren ? (
-                                            canManageMatrix ? (
-                                                <Popover
-                                                    open={openGapDateRowId === item.id}
-                                                    onOpenChange={(open) => setOpenGapDateRowId(open ? item.id : null)}
-                                                >
-                                                    <PopoverTrigger asChild>
-                                                        <Button type="button" variant="outline" size="compact" className="h-7 w-full justify-between border-slate-200 bg-background/90 px-2 text-[10px] shadow-none">
-                                                            <span className={cn('truncate', !item.gapStatusDate?.trim() && 'text-muted-foreground')}>
-                                                                {item.gapStatusDate?.trim() ? formatAuditDate(item.gapStatusDate) : 'Set date'}
-                                                            </span>
-                                                            <CalendarIcon className="h-3.5 w-3.5 shrink-0 opacity-60" />
-                                                        </Button>
-                                                    </PopoverTrigger>
-                                                    <PopoverContent className="w-auto p-0" align="start">
-                                                        <CustomCalendar
-                                                            selectedDate={parseLocalDate(item.gapStatusDate)}
-                                                            onDateSelect={(date) => {
-                                                                void updateMatrixItemField(item, { gapStatusDate: toNoonUtcIso(date) });
-                                                                setOpenGapDateRowId(null);
-                                                            }}
-                                                        />
-                                                    </PopoverContent>
-                                                </Popover>
-                                            ) : (
-                                                <span className="text-[12px] text-muted-foreground">
-                                                    {item.gapStatusDate?.trim() ? formatAuditDate(item.gapStatusDate) : '-'}
-                                                </span>
-                                            )
-                                        ) : null}
-                                        <div className="flex flex-wrap gap-1.5">
-                                            <Badge variant={statusVariant(gapStatus)} className="text-[9px] font-black uppercase tracking-[0.08em]">
-                                                {gapStatus}
-                                            </Badge>
-                                            <Badge variant="outline" className="text-[9px] font-black uppercase tracking-[0.08em]">
-                                                {mappedCount === 0 ? 'No mapping' : `${assessedCount}/${mappedCount} assessed`}
-                                            </Badge>
-                                            {openCapCount > 0 ? (
-                                                <Badge variant="destructive" className="text-[9px] font-black uppercase tracking-[0.08em]">
-                                                    {openCapCount} open CAP{openCapCount === 1 ? '' : 's'}
-                                                </Badge>
-                                            ) : null}
-                                        </div>
-                                        {latestFinding ? (
-                                            <p className="text-[11px] leading-5 text-foreground/75">
-                                                Latest: <span className="font-semibold uppercase">{latestFinding.finding}</span> · {latestFinding.auditNumber} · {formatAuditDate(latestFinding.auditDate)}
-                                            </p>
-                                        ) : (
-                                            <p className="text-[11px] leading-5 text-muted-foreground italic">No audit finding linked yet.</p>
-                                        )}
-                                    </div>
-                                </TableCell>
-                                <TableCell className="align-top px-2 py-2 text-[12px] text-foreground/80 break-words">
-                                    {item.companyReference?.trim() ? (
-                                        <Badge variant="outline" className="max-w-full border-card-border bg-background/70 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-foreground">
-                                            <span className="truncate">{item.companyReference.trim()}</span>
-                                        </Badge>
-                                    ) : '-'}
-                                </TableCell>
-                                <TableCell className="align-top px-2 py-2 text-[12px] text-foreground/80 break-words">
-                                    {item.responsibleManagerId?.trim() ? (
-                                        <span className="block truncate">{getManagerLabel(item.responsibleManagerId) || '-'}</span>
-                                    ) : '-'}
-                                </TableCell>
-                                <TableCell className="align-top px-2 py-2 text-[12px] text-foreground/80 whitespace-nowrap">
-                                    {item.nextAuditDate?.trim() ? formatAuditDate(item.nextAuditDate) : '-'}
-                                </TableCell>
-                                <TableCell className="align-top px-2 py-2">
-                                    <div className="flex justify-end gap-1">
-                                        {depth === 0 && canManageMatrix ? (
-                                            <>
-                                                <Button variant="outline" size="icon" className="h-7 w-7 border-slate-300" onClick={() => handleOpenForm(item, 'header')}>
-                                                    <Edit className="h-3.5 w-3.5" />
-                                                </Button>
-                                                <Button variant="destructive" size="icon" className="h-7 w-7" onClick={() => handleDeleteSection(item)}>
-                                                    <Trash2 className="h-3.5 w-3.5" />
-                                                </Button>
-                                            </>
-                                        ) : depth !== 0 && canManageMatrix ? (
-                                            <>
-                                                <Button variant="outline" size="icon" className="h-7 w-7 border-slate-300" onClick={() => handleOpenForm(item)}>
-                                                    <Edit className="h-3.5 w-3.5" />
-                                                </Button>
-                                                <Button variant="destructive" size="icon" className="h-7 w-7" onClick={() => handleDeleteItem(item)}>
-                                                    <Trash2 className="h-3.5 w-3.5" />
-                                                </Button>
-                                            </>
-                                        ) : null}
-                                    </div>
-                                </TableCell>
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-                    {rows.length < gapAnalysisRows.length ? (
-                        <div className="border-t border-card-border bg-card/90 p-3 text-center">
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="compact"
-                                className="border-card-border bg-background/90 text-[10px] font-black uppercase tracking-[0.12em]"
-                                onClick={showMoreMatrixRows}
-                            >
-                                Show more gap rows ({rows.length}/{gapAnalysisRows.length})
-                            </Button>
-                        </div>
-                    ) : null}
-                </div>
-                <div className="hidden xl:flex items-stretch justify-center">
-                    <button
-                        type="button"
-                        className="flex h-full w-full cursor-col-resize items-center justify-center rounded-full border border-transparent text-foreground/35 transition hover:border-border hover:bg-muted/40 hover:text-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 touch-none select-none"
-                        onPointerDown={handleClauseResizePointerDown}
-                        aria-label="Resize clause inspector"
-                        aria-orientation="vertical"
-                        title="Drag to resize"
-                    >
-                        <GripVertical className="h-5 w-5" />
-                    </button>
-                </div>
-                <div className="xl:sticky xl:top-4">
-                    {renderClauseInspector()}
-                </div>
-            </div>
-        );
-    };
-
-    const renderInlineParagraphChildren = (items: ComplianceRequirement[], ancestors: string[]) => {
-        return (
-            <div className="space-y-3">
-                {items.map((child) => {
-                    const normalizedChildCode = normalizeRegulationCode(child.regulationCode);
-                    if (ancestors.includes(normalizedChildCode)) return null;
-                    const grandChildren = groupedItems[normalizedChildCode] || [];
-                    const hasNestedChildren = grandChildren.length > 0;
-
-                    return (
-                        <Collapsible key={child.id} className="overflow-hidden rounded-md border bg-background/70" defaultOpen>
-                            <div className="p-4">
-                                <div className="flex items-start justify-between gap-3">
-                                    <CollapsibleTrigger className="flex min-w-0 flex-1 items-start gap-3 text-left">
-                                        <div className="min-w-0 flex-1">
-                                            {shouldShowSingleLineLabel(child) ? (
-                                                <p className="text-sm font-semibold leading-5 text-foreground">
-                                                    {child.regulationCode}
-                                                </p>
-                                            ) : (
-                                                <>
-                                                    <p className="text-[11px] font-bold tracking-wide text-foreground/80">
-                                                        {child.regulationCode}
-                                                    </p>
-                                                    <p className="mt-1 text-sm font-medium leading-5 text-foreground">
-                                                        {child.regulationStatement}
-                                                    </p>
-                                                </>
-                                            )}
-                                        </div>
-                                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-background text-muted-foreground">
-                                            <ChevronDown className="h-4 w-4 transition-transform duration-200" />
-                                        </div>
-                                    </CollapsibleTrigger>
-                                    <div className="flex shrink-0 items-center gap-2 pt-1">
-                                        {canManageMatrix ? (
-                                            <>
-                                                <Button variant="outline" size="icon" className="h-8 w-8 border-slate-300" onClick={() => handleOpenForm(child)}>
-                                                    <Edit className="h-3.5 w-3.5" />
-                                                </Button>
-                                                <Button variant="destructive" size="icon" className="h-8 w-8" onClick={() => handleDeleteItem(child)}>
-                                                    <Trash2 className="h-3.5 w-3.5" />
-                                                </Button>
-                                            </>
-                                        ) : null}
-                                    </div>
-                                </div>
-                            </div>
-                            <CollapsibleContent className="space-y-4 border-t border-card-border/70 bg-muted/5 px-4 pb-4 pt-3">
-                                {child.technicalStandard?.trim() ? (
-                                    <div className="space-y-2 overflow-hidden">
-                                        <div className="rounded-md border border-card-border/70 bg-background/60 px-4 py-3">
-                                            {renderTechnicalStandardText(child.technicalStandard, child.technicalStandardIndentation)}
-                                        </div>
-                                    </div>
-                                ) : null}
-                                {renderRequirementMeta(child)}
-                                {hasNestedChildren ? (
-                                    <div className="space-y-2 border-t pt-4">
-                                        {renderInlineClauseLines(normalizedChildCode, grandChildren, [...ancestors, normalizedChildCode])}
-                                    </div>
-                                ) : null}
-                            </CollapsibleContent>
-                        </Collapsible>
-                    );
-                })}
-            </div>
-        );
-    };
-
-    const renderMatrixNode = (item: ComplianceRequirement, depth = 0, ancestors: string[] = []) => {
-        const normalizedItemCode = normalizeRegulationCode(item.regulationCode);
-        if (ancestors.includes(normalizedItemCode)) return null;
-        const childItems = groupedItems[normalizedItemCode] || [];
-        if (normalizedSearchQuery && !branchMatchesSearch(item)) return null;
-        const hasChildren = childItems.length > 0;
-        const shouldDefaultOpen = !!normalizedSearchQuery;
-        const isNodeOpen = shouldDefaultOpen || !!openMatrixNodeIds[item.id];
-        const renderChildrenInline = depth === 1;
-        const nodeStyle = depth === 0
-            ? {
-                backgroundColor: matrixTheme['matrix-header-background'],
-                color: matrixTheme['matrix-header-foreground'],
-            }
-            : depth === 1 && hasChildren
-                ? {
-                    backgroundColor: matrixTheme['matrix-subheader-background'],
-                    color: matrixTheme['matrix-subheader-foreground'],
-                }
-                : undefined;
-        const nodeTextClassName = depth === 0 || (depth === 1 && hasChildren) ? 'text-inherit' : 'text-foreground';
-        const nodeMutedTextStyle = depth === 0
-            ? { color: matrixTheme['matrix-header-foreground'] }
-            : depth === 1 && hasChildren
-                ? { color: matrixTheme['matrix-subheader-foreground'] }
-                : undefined;
-
-        return (
-            <Collapsible
-                key={item.id}
-                className={cn(
-                    "border rounded-lg overflow-hidden"
-                )}
-                open={isNodeOpen}
-                onOpenChange={(open) =>
-                    setOpenMatrixNodeIds((current) => {
-                        if (shouldDefaultOpen) {
-                            return current;
-                        }
-                        if (open) {
-                            return { ...current, [item.id]: true };
-                        }
-                        if (!current[item.id]) {
-                            return current;
-                        }
-                        const next = { ...current };
-                        delete next[item.id];
-                        return next;
-                    })
-                }
-            >
-                <div
-                    className={cn(
-                        "p-4",
-                        hasChildren && "border-b border-card-border/70"
-                    )}
-                    style={nodeStyle}
-                >
-                    <div className="flex items-center justify-between gap-3">
-                        <CollapsibleTrigger className="flex min-w-0 flex-1 items-center gap-3 text-left">
-                            <div className="min-w-0 flex-1">
-                                {depth === 0 ? (
-                                    shouldShowSingleLineLabel(item) ? (
-                                        <div className="space-y-1">
-                                            {item.documentHeading?.trim() ? (
-                                                <p className={cn("text-[10px] font-black uppercase tracking-[0.16em]", nodeTextClassName)}>
-                                                    {item.documentHeading}
-                                                </p>
-                                            ) : null}
-                                            <p className={cn("text-[11px] font-black tracking-wide", nodeTextClassName)} style={nodeMutedTextStyle}>
-                                                {item.regulationCode}
-                                            </p>
-                                        </div>
-                                    ) : (
-                                        <div className="space-y-1">
-                                            {item.documentHeading?.trim() ? (
-                                                <p className={cn("text-[10px] font-black uppercase tracking-[0.16em]", nodeTextClassName)}>
-                                                    {item.documentHeading}
-                                                </p>
-                                            ) : null}
-                                            <p className={cn("flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm font-semibold leading-5", nodeTextClassName)}>
-                                                <span className="text-[11px] font-black tracking-wide" style={nodeMutedTextStyle}>
-                                                    {item.regulationCode}
-                                                </span>
-                                                <span>{item.regulationStatement}</span>
-                                            </p>
-                                        </div>
-                                    )
-                                ) : (
-                                    <>
-                                        {shouldShowSingleLineLabel(item) ? (
-                                            <p className={cn("text-sm font-semibold leading-5", nodeTextClassName)}>
-                                                {item.regulationCode}
-                                            </p>
-                                        ) : (
-                                            <>
-                                                <p className={cn("text-[11px] font-bold tracking-wide", nodeTextClassName)} style={nodeMutedTextStyle}>
-                                                    {item.regulationCode}
-                                                </p>
-                                                <p className={cn("mt-1 line-clamp-2 text-sm font-medium leading-5", nodeTextClassName)}>
-                                                    {item.regulationStatement}
-                                                </p>
-                                            </>
-                                        )}
-                                    </>
-                                )}
-                            </div>
-                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-background text-muted-foreground">
-                                <ChevronDown className="h-4 w-4 transition-transform duration-200" />
-                            </div>
-                        </CollapsibleTrigger>
-                        <div className="flex shrink-0 items-center gap-2">
-                            {depth === 0 && canManageMatrix ? (
-                                <>
-                                    <Button variant="outline" size="icon" className="h-8 w-8 border-slate-300" onClick={() => handleOpenForm(item, 'header')}>
-                                        <Edit className="h-3.5 w-3.5" />
-                                    </Button>
-                                    <Button variant="destructive" size="icon" className="h-8 w-8" onClick={() => handleDeleteSection(item)}>
-                                        <Trash2 className="h-3.5 w-3.5" />
-                                    </Button>
-                                </>
-                            ) : depth !== 0 && canManageMatrix ? (
-                                <>
-                                    <Button variant="outline" size="icon" className="h-8 w-8 border-slate-300" onClick={() => handleOpenForm(item)}>
-                                        <Edit className="h-3.5 w-3.5" />
-                                    </Button>
-                                    <Button variant="destructive" size="icon" className="h-8 w-8" onClick={() => handleDeleteItem(item)}>
-                                        <Trash2 className="h-3.5 w-3.5" />
-                                    </Button>
-                                </>
-                            ) : null}
-                        </div>
-                    </div>
-                </div>
-                {isNodeOpen ? (
-                    <CollapsibleContent className={cn(
-                        "space-y-4 border-t border-card-border/70 bg-muted/5",
-                        depth === 0 ? "p-4" : "px-6 pb-5 pt-3"
-                    )}>
-                        {item.technicalStandard?.trim() ? (
-                            <div className="space-y-2 overflow-hidden">
-                                {renderTechnicalStandardText(item.technicalStandard, item.technicalStandardIndentation)}
-                            </div>
-                        ) : null}
-                        {renderRequirementMeta(item)}
-                        {childItems.length > 0 && (
-                            <div className="space-y-2">
-                                {renderChildrenInline
-                                    ? renderInlineParagraphChildren(
-                                        normalizedSearchQuery && !itemMatchesSearch(item)
-                                            ? childItems.filter((child) => branchMatchesSearch(child))
-                                            : childItems,
-                                        [...ancestors, normalizedItemCode]
-                                    )
-                                    : (normalizedSearchQuery && !itemMatchesSearch(item)
-                                        ? childItems.filter((child) => branchMatchesSearch(child))
-                                        : childItems).map((child) => renderMatrixNode(child, depth + 1, [...ancestors, normalizedItemCode]))}
-                            </div>
-                        )}
-                    </CollapsibleContent>
-                ) : null}
-            </Collapsible>
-        );
-    };
+    const children = groupedItems.get(itemCode) || [];
+    const isOpen = !!openNodeIds[item.id] || !!normalizedSearchQuery;
+    const hasChildren = children.length > 0;
 
     return (
-        <Tabs value={activeRegulationTabValue} onValueChange={(value) => startRegulationTabTransition(() => setActiveRegulationTab(uiValueToRegulationTab(value)))} className="flex h-full min-h-0 flex-col overflow-hidden">
-            <Card className="h-full min-h-0 flex flex-col overflow-hidden border-0 shadow-none">
-                <CardControlHeader
-                    isMobile={isMobile}
-                    context={shouldShowOrganizationTabs ? (
-                        <OrganizationTabsRow
-                            organizations={organizations || []}
-                            activeTab={activeOrgTab}
-                            onTabChange={setActiveOrgTab}
-                            className="border-0 bg-transparent px-0 py-0"
-                        />
-                    ) : undefined}
-                    mobileContext={shouldShowOrganizationTabs ? (
-                        <OrganizationTabsRow
-                            organizations={organizations || []}
-                            activeTab={activeOrgTab}
-                            onTabChange={setActiveOrgTab}
-                            className="border-0 bg-transparent px-0 py-0"
-                        />
-                    ) : undefined}
-                    actions={canViewMatrix ? (
-                        canManageMatrix ? (
-                            <div className="flex flex-wrap items-center gap-2">
-                                {renderSearchControl()}
-                                <UploadRegulationsDialog tenantId={tenantId!} organizationId={contextOrgId} regulationFamily={activeRegulationTab} availableParentHeaders={currentFamilySubheaders} />
-                                <Button
-                                    variant="outline"
-                                    className={cn(HEADER_COMPACT_CONTROL_CLASS, 'text-foreground hover:bg-accent/40')}
-                                    onClick={() => handleOpenForm(null, 'header')}
-                                >
-                                    <Layers className="h-4 w-4" />
-                                    Add Header
-                                </Button>
-                                <Button
-                                    variant="outline"
-                                    className={cn(HEADER_COMPACT_CONTROL_CLASS, 'text-foreground hover:bg-accent/40')}
-                                    onClick={() => handleOpenForm(null, 'subheader')}
-                                >
-                                    <Layers className="h-4 w-4" />
-                                    Add Subheader
-                                </Button>
-                                <Button
-                                    className={cn(
-                                        HEADER_COMPACT_CONTROL_CLASS,
-                                        'border-[hsl(var(--button-primary-border))] bg-[hsl(var(--button-primary-background))] text-[hsl(var(--button-primary-foreground))] hover:bg-[hsl(var(--button-primary-accent))] hover:text-[hsl(var(--button-primary-accent-foreground))]'
-                                    )}
-                                    onClick={() => handleOpenForm()}
-                                >
-                                    <PlusCircle className="h-4 w-4" /> 
-                                    Add Item
-                                </Button>
-                            </div>
-                        ) : (
-                            <div className="flex flex-wrap items-center gap-2">
-                                {renderSearchControl()}
-                            </div>
-                        )
-                    ) : undefined}
-                    mobileActions={canViewMatrix ? (
-                        canManageMatrix ? (
-                            <div className="space-y-2">
-                                {renderSearchControl(true)}
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                        <Button
-                                            variant="outline"
-                                            aria-label="Open coherence matrix actions"
-                                            className={cn(
-                                                HEADER_SECONDARY_BUTTON_CLASS,
-                                                HEADER_COMPACT_CONTROL_CLASS,
-                                                'w-full justify-between text-foreground hover:bg-accent/40',
-                                            )}
-                                        >
-                                            <span className="flex items-center gap-2">
-                                                <MoreHorizontal className="h-3.5 w-3.5" />
-                                                Actions
-                                            </span>
-                                            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-                                        </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end" className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-[var(--radix-dropdown-menu-trigger-width)]">
-                                        <UploadRegulationsDialog 
-                                            tenantId={tenantId!} 
-                                            organizationId={contextOrgId} 
-                                            regulationFamily={activeRegulationTab}
-                                            availableParentHeaders={currentFamilySubheaders}
-                                            trigger={
-                                                <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                                                    <WandSparkles className="mr-2 h-4 w-4" /> AI Populate
-                                                </DropdownMenuItem>
-                                            }
-                                        />
-                                        <DropdownMenuItem onClick={() => handleOpenForm()}>
-                                            <PlusCircle className="mr-2 h-4 w-4" /> Add Item
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => handleOpenForm(null, 'header')}>
-                                            <Layers className="mr-2 h-4 w-4" /> Add Header
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem onClick={() => handleOpenForm(null, 'subheader')}>
-                                            <Layers className="mr-2 h-4 w-4" /> Add Subheader
-                                        </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
-                            </div>
-                        ) : (
-                            <div className="space-y-2">
-                                {renderSearchControl(true)}
-                            </div>
-                        )
-                    ) : undefined}
-                    navigation={
-                        <ResponsiveTabRow
-                            value={activeRegulationTabValue}
-                            onValueChange={(value) => startRegulationTabTransition(() => setActiveRegulationTab(uiValueToRegulationTab(value)))}
-                            placeholder="Select Regulation Family"
-                            centerTabs
-                            className="border-0 bg-transparent px-0 py-0"
-                            options={REGULATION_TABS.map((tab) => ({
-                                value: regulationTabToUiValue(tab.value),
-                                label: tab.label,
-                            }))}
-                        />
-                    }
-                />
-                
-                <CardContent className="flex-1 min-h-0 overflow-auto p-6 pt-4">
-            <div
-                className={cn('grid gap-4', `xl:grid-cols-[minmax(0,1fr)_${CLAUSE_SPLIT_HANDLE_WIDTH}px_var(--clause-inspector-width)]`)}
-                style={clauseInspectorWidthStyle}
+      <div key={item.id} className="space-y-2">
+        <div
+          className={cn(
+            'rounded-lg border border-card-border bg-card/90 p-4 shadow-none',
+            depth === 0 && 'bg-muted/20',
+          )}
+          style={{ marginLeft: depth === 0 ? 0 : `${Math.min(depth * 0.75, 2.25)}rem` }}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <button
+              type="button"
+              className="flex min-w-0 flex-1 items-start gap-3 text-left"
+              onClick={() => {
+                if (!hasChildren) return;
+                setOpenNodeIds((current) => ({ ...current, [item.id]: !isOpen }));
+              }}
             >
-                <div className="space-y-4">
-                    <div className="xl:hidden">
-                        <details className="rounded-lg border border-card-border bg-card/90 p-3 shadow-none">
-                                    <summary className="cursor-pointer list-none text-[10px] font-black uppercase tracking-[0.14em] text-foreground/50">
-                                        Regulation index
-                                    </summary>
-                                    <div className="mt-3">
-                                        {renderMatrixIndexContent()}
-                                    </div>
-                                </details>
-                            </div>
-                    <div className="hidden xl:block">
-                        {renderMatrixIndexPanel()}
-                    </div>
-                </div>
-                <div className="hidden xl:flex items-stretch justify-center">
-                    <button
-                        type="button"
-                        className="flex h-full w-full cursor-col-resize items-center justify-center rounded-full border border-transparent text-foreground/35 transition hover:border-border hover:bg-muted/40 hover:text-foreground/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 touch-none select-none"
-                        onPointerDown={handleClauseResizePointerDown}
-                        aria-label="Resize clause inspector"
-                        aria-orientation="vertical"
-                        title="Drag to resize"
-                    >
-                        <GripVertical className="h-5 w-5" />
-                    </button>
-                </div>
-                <div className="xl:sticky xl:top-4">
-                    {renderSelectedClauseInspector()}
-                </div>
+              {hasChildren ? (
+                <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-card-border bg-background/80 text-foreground/55">
+                  {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                </span>
+              ) : (
+                <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-card-border bg-background/80 text-[10px] font-black text-foreground/55">
+                  •
+                </span>
+              )}
+              <div className="min-w-0 flex-1 space-y-1">
+                {item.documentHeading?.trim() ? (
+                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-foreground/55">{item.documentHeading}</p>
+                ) : null}
+                <p className="text-[11px] font-black tracking-wide text-foreground/65">{item.regulationCode}</p>
+                <p className="break-words text-sm font-semibold leading-5 text-foreground">{item.regulationStatement}</p>
+              </div>
+            </button>
+            {canManageMatrix ? (
+              <div className="flex shrink-0 items-center gap-2">
+                <Button variant="outline" size="icon" className="h-8 w-8 border-slate-300" onClick={() => handleOpenForm(item, depth === 0 ? 'header' : children.length > 0 ? 'subheader' : 'item')}>
+                  <Edit className="h-3.5 w-3.5" />
+                </Button>
+                <Button variant="destructive" size="icon" className="h-8 w-8" onClick={() => handleDelete(item)}>
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            ) : null}
+          </div>
+
+          {item.companyReference?.trim() || item.nextAuditDate?.trim() || item.responsibleManagerId?.trim() ? (
+            <div className="mt-3 flex flex-wrap gap-2 text-[10px] font-black uppercase tracking-[0.12em] text-foreground/55">
+              {item.companyReference?.trim() ? (
+                <Badge variant="outline" className="border-card-border bg-background/70 text-[10px] font-black uppercase tracking-[0.08em] text-foreground">
+                  {item.companyReference.trim()}
+                </Badge>
+              ) : null}
+              {item.responsibleManagerId?.trim() ? (
+                <Badge variant="outline" className="border-card-border bg-background/70 text-[10px] font-black uppercase tracking-[0.08em] text-foreground">
+                  Responsible {getPersonnelDisplayName(personnel, item.responsibleManagerId) || item.responsibleManagerId}
+                </Badge>
+              ) : null}
+              {item.nextAuditDate?.trim() ? (
+                <Badge variant="outline" className="border-card-border bg-background/70 text-[10px] font-black uppercase tracking-[0.08em] text-foreground">
+                  Next audit {formatAuditDate(item.nextAuditDate)}
+                </Badge>
+              ) : null}
             </div>
-        </CardContent>
-    </Card>
-        </Tabs>
+          ) : null}
+
+          {isOpen ? (
+            <div className="mt-4 space-y-3">
+              {renderTechnicalText(item.technicalStandard)}
+              {children.length > 0 ? (
+                <div className="space-y-2 border-t border-card-border/70 pt-3">
+                  {children.map((child) => renderNode(child, depth + 1, [...ancestors, itemCode]))}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      </div>
     );
-  };
+  }, [branchMatchesSearch, canManageMatrix, groupedItems, normalizedSearchQuery, openNodeIds, personnel]);
 
   if ((!canViewMatrix && isPermissionsLoading) || isAccessLoading || isProfileLoading || !userProfile || isLoading) {
     return (
-        <div className="max-w-[1100px] mx-auto w-full space-y-6 pt-4 px-1">
-            <Skeleton className="h-20 w-full" />
-            <Skeleton className="h-[600px] w-full" />
-        </div>
+      <div className="max-w-[1100px] mx-auto w-full space-y-6 pt-4 px-1">
+        <Skeleton className="h-20 w-full" />
+        <Skeleton className="h-[600px] w-full" />
+      </div>
     );
   }
 
@@ -3466,61 +804,182 @@ export default function CoherenceMatrixPage() {
 
   if (!canViewMatrix) {
     return (
-        <div className="max-w-[1100px] mx-auto w-full space-y-6 pt-4 px-1">
-            <Card className="border shadow-none">
-                <CardContent className="py-16 text-center">
-                    <p className="text-sm font-black uppercase tracking-widest text-foreground/90">No Access</p>
-                    <p className="mt-2 text-sm text-foreground/80">You do not have permission to view the coherence matrix.</p>
-                </CardContent>
-            </Card>
-        </div>
+      <div className="max-w-[1100px] mx-auto w-full space-y-6 pt-4 px-1">
+        <Card className="border shadow-none">
+          <CardContent className="py-16 text-center">
+            <p className="text-sm font-black uppercase tracking-widest text-foreground/90">No Access</p>
+            <p className="mt-2 text-sm text-foreground/80">You do not have permission to view the coherence matrix.</p>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
-  return (
-    <div className={cn("max-w-[1100px] mx-auto w-full flex flex-col pt-4 px-1", isMobile ? "min-h-0 overflow-y-auto" : "h-full overflow-hidden")}>
-        <div className="flex-1 min-h-0 flex flex-col overflow-hidden rounded-xl border border-card-border bg-card shadow-none">
-            {!shouldShowOrganizationTabs ? (
-                renderOrgContext(scopedOrganizationId)
-            ) : (
-                <Tabs value={activeOrgTab} onValueChange={setActiveOrgTab} className="w-full flex-1 min-h-0 flex flex-col overflow-hidden">
-                    <div className="flex-1 min-h-0 overflow-hidden">
-                        {activeOrgTab === 'internal'
-                            ? renderOrgContext('internal')
-                            : renderOrgContext(activeOrgTab)}
-                    </div>
-                </Tabs>
-            )}
-        </div>
+  const regulationTabValue = activeRegulationTab;
+  const actions = canManageMatrix ? (
+    <div className="flex flex-wrap items-center gap-2">
+      <div className={cn(isMobile ? 'w-full' : 'w-[170px] max-w-full')}>
+        <Input
+          value={matrixSearchQuery}
+          onChange={(event) => setMatrixSearchQuery(event.target.value)}
+          placeholder="Search regulations..."
+          className="h-8 w-full border-input bg-background text-sm"
+        />
+      </div>
+      <UploadRegulationsDialog tenantId={tenantId} organizationId={currentOrgId} regulationFamily={activeRegulationTab} availableParentHeaders={availableParentHeaders} />
+      <Button variant="outline" className={cn(HEADER_COMPACT_CONTROL_CLASS, 'text-foreground hover:bg-accent/40')} onClick={() => handleOpenForm(null, 'header')}>
+        <Layers className="h-4 w-4" />
+        Add Header
+      </Button>
+      <Button variant="outline" className={cn(HEADER_COMPACT_CONTROL_CLASS, 'text-foreground hover:bg-accent/40')} onClick={() => handleOpenForm(null, 'subheader')}>
+        <Layers className="h-4 w-4" />
+        Add Subheader
+      </Button>
+      <Button className={cn(HEADER_COMPACT_CONTROL_CLASS, 'border-[hsl(var(--button-primary-border))] bg-[hsl(var(--button-primary-background))] text-[hsl(var(--button-primary-foreground))] hover:bg-[hsl(var(--button-primary-accent))] hover:text-[hsl(var(--button-primary-accent-foreground))]')} onClick={() => handleOpenForm()}>
+        <PlusCircle className="h-4 w-4" />
+        Add Item
+      </Button>
+    </div>
+  ) : (
+    <div className={cn(isMobile ? 'w-full' : 'w-[170px] max-w-full')}>
+      <Input
+        value={matrixSearchQuery}
+        onChange={(event) => setMatrixSearchQuery(event.target.value)}
+        placeholder="Search regulations..."
+        className="h-8 w-full border-input bg-background text-sm"
+      />
+    </div>
+  );
 
-            <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-            {isFormOpen ? (
-            <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+  return (
+    <div className={cn('max-w-[1100px] mx-auto w-full flex flex-col pt-4 px-1', isMobile ? 'min-h-0 overflow-y-auto' : 'h-full overflow-hidden')}>
+      <div className="flex-1 min-h-0 flex flex-col overflow-hidden rounded-xl border border-card-border bg-card shadow-none">
+        <Card className="h-full min-h-0 flex flex-col overflow-hidden border-0 shadow-none">
+          <CardControlHeader
+            isMobile={isMobile}
+            context={shouldShowOrganizationTabs ? (
+              <OrganizationTabsRow organizations={organizations || []} activeTab={activeOrgTab} onTabChange={setActiveOrgTab} className="border-0 bg-transparent px-0 py-0" />
+            ) : undefined}
+            mobileContext={shouldShowOrganizationTabs ? (
+              <OrganizationTabsRow organizations={organizations || []} activeTab={activeOrgTab} onTabChange={setActiveOrgTab} className="border-0 bg-transparent px-0 py-0" />
+            ) : undefined}
+            actions={actions}
+            mobileActions={canManageMatrix ? (
+              <div className="space-y-2">
+                <div className="w-full">
+                  <Input
+                    value={matrixSearchQuery}
+                    onChange={(event) => setMatrixSearchQuery(event.target.value)}
+                    placeholder="Search regulations..."
+                    className="h-8 w-full border-input bg-background text-sm"
+                  />
+                </div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      aria-label="Open coherence matrix actions"
+                      className={cn(
+                        HEADER_SECONDARY_BUTTON_CLASS,
+                        HEADER_COMPACT_CONTROL_CLASS,
+                        'w-full justify-between text-foreground hover:bg-accent/40',
+                      )}
+                    >
+                      <span className="flex items-center gap-2">
+                        <WandSparkles className="h-3.5 w-3.5" />
+                        Actions
+                      </span>
+                      <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-[var(--radix-dropdown-menu-trigger-width)]">
+                    <UploadRegulationsDialog
+                      tenantId={tenantId}
+                      organizationId={currentOrgId}
+                      regulationFamily={activeRegulationTab}
+                      availableParentHeaders={availableParentHeaders}
+                      trigger={
+                        <DropdownMenuItem onSelect={(event) => event.preventDefault()}>
+                          <WandSparkles className="mr-2 h-4 w-4" /> AI Populate
+                        </DropdownMenuItem>
+                      }
+                    />
+                    <DropdownMenuItem onClick={() => handleOpenForm()}>
+                      <PlusCircle className="mr-2 h-4 w-4" /> Add Item
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleOpenForm(null, 'header')}>
+                      <Layers className="mr-2 h-4 w-4" /> Add Header
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleOpenForm(null, 'subheader')}>
+                      <Layers className="mr-2 h-4 w-4" /> Add Subheader
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            ) : (
+              <div className="w-full">
+                <Input
+                  value={matrixSearchQuery}
+                  onChange={(event) => setMatrixSearchQuery(event.target.value)}
+                  placeholder="Search regulations..."
+                  className="h-8 w-full border-input bg-background text-sm"
+                />
+              </div>
+            )}
+            navigation={
+              <ResponsiveTabRow
+                value={regulationTabValue}
+                onValueChange={(value) => setActiveRegulationTab(value as RegulationFamily)}
+                placeholder="Select Regulation Family"
+                centerTabs
+                className="border-0 bg-transparent px-0 py-0"
+                options={REGULATION_TABS.map((tab) => ({ value: tab.value, label: tab.label }))}
+              />
+            }
+          />
+          <CardContent className="flex-1 min-h-0 overflow-auto p-6 pt-4">
+            <div className="space-y-4">
+              {topLevelItems.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-24 text-center opacity-40">
+                  <Layers className="h-16 w-16 mb-4" />
+                  <p className="text-sm font-black uppercase tracking-widest text-foreground/90">Coherence Matrix Empty</p>
+                  <p className="text-xs font-medium text-foreground/80 max-w-xs mt-2">Populate your matrix using the AI upload tool or add headers and clauses manually.</p>
+                </div>
+              ) : (
+                topLevelItems.map((item) => renderNode(item))
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+        {isFormOpen ? (
+          <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-                            <DialogTitle className="font-black uppercase tracking-tight">
-                                {formMode === 'header' ? 'Add Header' : formMode === 'subheader' ? 'Add Subheader' : 'Compliance Requirement'}
-                            </DialogTitle>
-                            <DialogDescription>
-                                {formMode === 'header'
-                                    ? 'Create the top-level regulation header for the selected category.'
-                                    : formMode === 'subheader'
-                                    ? 'Create a child row under a selected header.'
-                                    : 'Add a manual regulation item under an existing header.'}
-                            </DialogDescription>
+              <DialogTitle className="font-black uppercase tracking-tight">
+                {formMode === 'header' ? 'Add Header' : formMode === 'subheader' ? 'Add Subheader' : 'Compliance Requirement'}
+              </DialogTitle>
+              <DialogDescription>
+                {formMode === 'header'
+                  ? 'Create a top-level regulation header.'
+                  : formMode === 'subheader'
+                    ? 'Create a subheader beneath an existing top-level header.'
+                    : 'Add or update a clause beneath an existing header or subheader.'}
+              </DialogDescription>
             </DialogHeader>
-            <ComplianceItemForm 
-                personnel={personnel || []}
-                existingItem={editingItem}
-                onFormSubmit={() => setIsFormOpen(false)}
-                tenantId={tenantId!}
-                defaultRegulationFamily={activeRegulationTab}
-                availableParentHeaders={formMode === 'subheader' ? currentFamilyTopLevelHeaders : currentFamilyHeaders}
-                mode={formMode}
+            <ComplianceItemForm
+              personnel={personnel}
+              existingItem={editingItem}
+              onFormSubmit={() => setIsFormOpen(false)}
+              tenantId={tenantId}
+              defaultRegulationFamily={activeRegulationTab}
+              availableParentHeaders={availableParentHeaders}
+              mode={formMode}
             />
-            </DialogContent>
-            ) : null}
-        </Dialog>
+          </DialogContent>
+        ) : null}
+      </Dialog>
     </div>
   );
 }
-
