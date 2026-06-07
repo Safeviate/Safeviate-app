@@ -95,6 +95,96 @@ function renderTechnicalText(value?: string | null) {
   );
 }
 
+function looksLikeRegulationBodyText(value?: string | null) {
+  const text = value?.trim() || '';
+  if (!text) return false;
+
+  return (
+    text.length > 90 ||
+    /\(\d+\)/.test(text) ||
+    /\([a-z]{1,2}\)/i.test(text) ||
+    text.includes('\n') ||
+    /(?:shall|must|may|applies to|provided that)/i.test(text)
+  );
+}
+
+function getBrowserRegulationTitle(item: ComplianceRequirement) {
+  const heading = item.documentHeading?.trim();
+  if (heading) return heading;
+
+  const statement = item.regulationStatement?.trim() || '';
+  if (!statement || looksLikeRegulationBodyText(statement)) {
+    return 'Missing regulation title';
+  }
+
+  return statement;
+}
+
+function buildComplianceItemIdentityKey(item: ComplianceRequirement) {
+  return [
+    item.regulationFamily || '',
+    item.organizationId || '',
+    item.structureType || '',
+    normalizeRegulationCode(item.parentRegulationCode) || '',
+    normalizeRegulationCode(item.regulationCode) || '',
+  ].join('|');
+}
+
+function scoreComplianceItem(item: ComplianceRequirement) {
+  let score = 0;
+  if (normalizeRegulationCode(item.regulationCode)) score += 2;
+  if (item.regulationStatement?.trim()) score += 4;
+  if (item.documentHeading?.trim()) score += 2;
+  if (item.technicalStandard?.trim()) score += 5;
+  if (item.companyReference?.trim()) score += 1;
+  if (item.responsibleManagerId?.trim()) score += 1;
+  return score;
+}
+
+function mergeComplianceItems(base: ComplianceRequirement, incoming: ComplianceRequirement) {
+  const merged = { ...base, ...incoming };
+  for (const [key, value] of Object.entries(base) as [keyof ComplianceRequirement, ComplianceRequirement[keyof ComplianceRequirement]][]) {
+    const incomingValue = merged[key];
+    if (
+      (incomingValue === null || incomingValue === undefined || incomingValue === '') &&
+      value !== null &&
+      value !== undefined &&
+      value !== ''
+    ) {
+      merged[key] = value as never;
+    }
+  }
+  merged.id = incoming.id || base.id;
+  return merged;
+}
+
+function dedupeComplianceItems(items: ComplianceRequirement[]) {
+  const deduped = new Map<string, ComplianceRequirement>();
+  for (const item of items) {
+    const key = buildComplianceItemIdentityKey(item);
+    const existing = deduped.get(key);
+    if (!existing) {
+      deduped.set(key, item);
+      continue;
+    }
+
+    const preferredBase = scoreComplianceItem(existing) >= scoreComplianceItem(item) ? existing : item;
+    const preferredIncoming = preferredBase === existing ? item : existing;
+    deduped.set(key, mergeComplianceItems(preferredBase, preferredIncoming));
+  }
+  return Array.from(deduped.values());
+}
+
+function isStructuralBrowserNode(item: ComplianceRequirement) {
+  if (item.structureType === 'header' || item.structureType === 'subheader') {
+    return true;
+  }
+  if (item.structureType === 'item') {
+    return false;
+  }
+  return !item.technicalStandard?.trim() && !item.companyReference?.trim() && !item.nextAuditDate?.trim();
+}
+
 function sanitizeAiPreviewRequirements(
   requirements: MatrixPreviewRequirement[],
   targetHeader: string,
@@ -107,8 +197,21 @@ function sanitizeAiPreviewRequirements(
     .map((req) => {
       const regulationCode = normalizeRegulationCode(req.regulationCode);
       const parentRegulationCode = normalizeRegulationCode(req.parentRegulationCode) || normalizedTargetHeader;
-      const regulationStatement = req.regulationStatement?.trim() || regulationCode;
-      const technicalStandard = (req.technicalStandard || '').trim().slice(0, AI_IMPORT_MAX_TECHNICAL_STANDARD_LENGTH);
+      const rawHeading = req.documentHeading?.trim() || '';
+      const rawStatement = req.regulationStatement?.trim() || '';
+      let regulationStatement = rawStatement || regulationCode;
+      let technicalStandard = (req.technicalStandard || '').trim();
+      let documentHeading = rawHeading;
+
+      if (looksLikeRegulationBodyText(regulationStatement) && rawHeading) {
+        regulationStatement = rawHeading;
+        documentHeading = '';
+        technicalStandard = technicalStandard
+          ? `${rawStatement}\n${technicalStandard}`.trim()
+          : rawStatement;
+      }
+
+      technicalStandard = technicalStandard.slice(0, AI_IMPORT_MAX_TECHNICAL_STANDARD_LENGTH);
 
       if (!regulationCode || !parentRegulationCode) return null;
       if (regulationCode.toLowerCase() === parentRegulationCode.toLowerCase()) return null;
@@ -121,6 +224,7 @@ function sanitizeAiPreviewRequirements(
         ...req,
         regulationCode,
         parentRegulationCode,
+        documentHeading,
         regulationStatement,
         technicalStandard,
         technicalStandardIndentation: normalizeIndentationArray(req.technicalStandardIndentation),
@@ -158,6 +262,7 @@ function UploadRegulationsDialog({
   const [isOpen, setIsOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [sourceTab, setSourceTab] = useState<'image' | 'text' | 'file'>('image');
   const [file, setFile] = useState<File | null>(null);
   const [pastedText, setPastedText] = useState('');
   const [stagedImages, setStagedImages] = useState<string[]>([]);
@@ -169,6 +274,7 @@ function UploadRegulationsDialog({
   const dialogBodyRef = useRef<HTMLDivElement | null>(null);
 
   const resetDialog = useCallback(() => {
+    setSourceTab('image');
     setFile(null);
     setPastedText('');
     setStagedImages([]);
@@ -186,11 +292,12 @@ function UploadRegulationsDialog({
         const blob = items[i].getAsFile();
         if (blob) {
           const reader = new FileReader();
-          reader.onload = (e) => {
-            const nextImage = e.target?.result as string;
-            setStagedImages((current) => [...current, nextImage]);
-            toast({ title: 'Image Added', description: 'The image has been staged for processing.' });
-          };
+            reader.onload = (e) => {
+              const nextImage = e.target?.result as string;
+              setSourceTab('image');
+              setStagedImages((current) => [...current, nextImage]);
+              toast({ title: 'Image Added', description: 'The image has been staged for processing.' });
+            };
           reader.readAsDataURL(blob);
         }
         return;
@@ -200,12 +307,14 @@ function UploadRegulationsDialog({
     const clipboardText = extractClipboardText(event.clipboardData);
     if (clipboardText) {
       event.preventDefault();
+      setSourceTab('text');
       setPastedText(clipboardText);
       toast({ title: 'Text Pasted', description: 'The text has been loaded and is ready to be processed.' });
     }
   }, [toast]);
 
   const canProcess = !!targetHeader.trim() && (Boolean(file) || Boolean(pastedText.trim()) || stagedImages.length > 0);
+  const hasPreviewRows = (previewRequirements?.length || 0) > 0;
 
   const handleProcess = async () => {
     if (!targetHeader.trim()) {
@@ -239,6 +348,15 @@ function UploadRegulationsDialog({
       setPreviewInput(input);
       setPreviewRequirements(normalizedPreview.requirements);
 
+      if (normalizedPreview.requirements.length === 0) {
+        toast({
+          variant: 'destructive',
+          title: 'No Valid Regulations Found',
+          description: 'The extraction finished, but it did not produce any valid child regulations for the selected sub-regulation. Check the source text or choose a different target.',
+        });
+        return;
+      }
+
       if (normalizedPreview.wasTrimmed) {
         toast({
           title: 'Preview trimmed',
@@ -257,7 +375,14 @@ function UploadRegulationsDialog({
   };
 
   const handleSavePreview = async () => {
-    if (!previewInput || !previewRequirements?.length) return;
+    if (!previewInput || !previewRequirements?.length) {
+      toast({
+        variant: 'destructive',
+        title: 'No Preview To Save',
+        description: 'Run Preview Extraction first and confirm that at least one valid regulation was extracted.',
+      });
+      return;
+    }
 
     setIsSaving(true);
     setIsProcessing(true);
@@ -281,6 +406,7 @@ function UploadRegulationsDialog({
       const newItems = normalizedPreview.requirements.map((req) => ({
         ...req,
         id: crypto.randomUUID(),
+        structureType: 'item' as const,
         organizationId,
         regulationFamily: targetFamily,
         regulationCode: req.regulationCode,
@@ -291,13 +417,21 @@ function UploadRegulationsDialog({
         technicalStandardIndentation: req.technicalStandardIndentation,
       }));
 
-      await Promise.all(newItems.map((item) =>
-        fetch(`/api/compliance-matrix?tenantId=${encodeURIComponent(tenantId)}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ item }),
-        }),
-      ));
+      const responses = await Promise.all(
+        newItems.map((item) =>
+          fetch(`/api/compliance-matrix?tenantId=${encodeURIComponent(tenantId)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ item }),
+          }),
+        ),
+      );
+
+      const failedResponse = responses.find((response) => !response.ok);
+      if (failedResponse) {
+        const payload = await failedResponse.json().catch(() => null) as { error?: string } | null;
+        throw new Error(payload?.error || 'Failed to save AI-generated compliance items.');
+      }
 
       window.dispatchEvent(new Event('safeviate-compliance-updated'));
       toast({
@@ -382,7 +516,7 @@ function UploadRegulationsDialog({
               </Select>
             </div>
 
-            <Tabs defaultValue="image">
+            <Tabs value={sourceTab} onValueChange={(value) => setSourceTab(value as 'image' | 'text' | 'file')}>
               <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="image">Paste Images</TabsTrigger>
                 <TabsTrigger value="text">Paste Text</TabsTrigger>
@@ -423,7 +557,10 @@ function UploadRegulationsDialog({
                     placeholder="Paste the raw text of the regulations here..."
                     className="h-full min-h-[24rem] border-none focus-visible:ring-0"
                     value={pastedText}
-                    onChange={(event) => setPastedText(event.target.value)}
+                    onChange={(event) => {
+                      setSourceTab('text');
+                      setPastedText(event.target.value);
+                    }}
                     onPaste={handlePaste}
                   />
                 </ScrollArea>
@@ -431,14 +568,22 @@ function UploadRegulationsDialog({
               <TabsContent value="file" className="pt-4">
                 <div className="space-y-2">
                   <Label htmlFor="reg-file">Regulation File (.txt)</Label>
-                  <Input id="reg-file" type="file" accept=".txt" onChange={(event) => setFile(event.target.files?.[0] || null)} />
+                  <Input
+                    id="reg-file"
+                    type="file"
+                    accept=".txt"
+                    onChange={(event) => {
+                      setSourceTab('file');
+                      setFile(event.target.files?.[0] || null);
+                    }}
+                  />
                   {file ? <p className="text-sm text-muted-foreground">Selected: {file.name}</p> : null}
                 </div>
               </TabsContent>
             </Tabs>
 
-            {previewRequirements?.length ? (
-              <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50/60 p-3">
+            {hasPreviewRows ? (
+                <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50/60 p-3">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">AI Preview</p>
@@ -460,7 +605,7 @@ function UploadRegulationsDialog({
                 </div>
                 <ScrollArea className="max-h-[24rem] rounded-md border bg-white">
                   <div className="space-y-3 p-3">
-                    {previewRequirements.map((requirement, index) => (
+                    {previewRequirements!.map((requirement, index) => (
                       <div key={`${requirement.regulationCode}-${index}`} className="space-y-2 rounded-md border border-card-border/70 bg-card/40 p-3">
                         {requirement.documentHeading?.trim() ? (
                           <p className="text-[10px] font-black uppercase tracking-[0.16em] text-primary/80">
@@ -483,11 +628,11 @@ function UploadRegulationsDialog({
             <DialogClose asChild>
               <Button variant="outline" size="compact" disabled={isProcessing || isSaving}>Cancel</Button>
             </DialogClose>
-            {!previewRequirements ? (
-              <Button onClick={handleProcess} size="compact" disabled={isProcessing || !canProcess}>
-                {isProcessing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing...</> : 'Preview Extraction'}
-              </Button>
-            ) : (
+                    {!hasPreviewRows ? (
+                      <Button onClick={handleProcess} size="compact" disabled={isProcessing || !canProcess}>
+                        {isProcessing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing...</> : 'Preview Extraction'}
+                      </Button>
+                    ) : (
               <Button onClick={handleSavePreview} size="compact" disabled={isSaving}>
                 {isSaving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</> : 'Save to Matrix'}
               </Button>
@@ -523,6 +668,7 @@ export default function CoherenceMatrixPage() {
   const [formMode, setFormMode] = useState<'item' | 'header' | 'subheader'>('item');
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [openNodeIds, setOpenNodeIds] = useState<Record<string, boolean>>({});
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -540,7 +686,7 @@ export default function CoherenceMatrixPage() {
 
       setComplianceItems(
         Array.isArray(matrixPayload.items)
-          ? matrixPayload.items.map((item: ComplianceRequirement) => sanitizeComplianceMatrixEntry(item))
+          ? dedupeComplianceItems(matrixPayload.items.map((item: ComplianceRequirement) => sanitizeComplianceMatrixEntry(item)))
           : [],
       );
       setPersonnel(Array.isArray(personnelPayload.personnel) ? personnelPayload.personnel : []);
@@ -566,6 +712,7 @@ export default function CoherenceMatrixPage() {
 
   useEffect(() => {
     setOpenNodeIds({});
+    setSelectedItemId(null);
   }, [activeOrgTab, activeRegulationTab]);
 
   const currentOrgId = shouldShowOrganizationTabs
@@ -624,6 +771,17 @@ export default function CoherenceMatrixPage() {
     [activeFamilyItems, availableItemCodes],
   );
 
+  const availablePartHeaders = useMemo(
+    () =>
+      topLevelItems.reduce((acc, item) => {
+        const code = normalizeRegulationCode(item.regulationCode);
+        if (!code || acc.some((entry) => entry.code === code)) return acc;
+        acc.push({ code, label: (item.regulationStatement || item.regulationCode).trim() });
+        return acc;
+      }, [] as { code: string; label: string }[]),
+    [topLevelItems],
+  );
+
   const searchableTextForItem = useCallback(
     (item: ComplianceRequirement) =>
       [
@@ -657,6 +815,20 @@ export default function CoherenceMatrixPage() {
     () =>
       activeFamilyItems
         .filter((item) => !item.technicalStandard?.trim())
+        .sort((a, b) => naturalSort(a.regulationCode, b.regulationCode))
+        .reduce((acc, item) => {
+          const code = normalizeRegulationCode(item.regulationCode);
+          if (!code || acc.some((entry) => entry.code === code)) return acc;
+          acc.push({ code, label: (item.regulationStatement || item.regulationCode).trim() });
+          return acc;
+        }, [] as { code: string; label: string }[]),
+    [activeFamilyItems],
+  );
+
+  const availableSubRegulationHeaders = useMemo(
+    () =>
+      activeFamilyItems
+        .filter((item) => !item.technicalStandard?.trim())
         .filter((item) => !!normalizeRegulationCode(item.parentRegulationCode))
         .sort((a, b) => naturalSort(a.regulationCode, b.regulationCode))
         .reduce((acc, item) => {
@@ -667,6 +839,87 @@ export default function CoherenceMatrixPage() {
         }, [] as { code: string; label: string }[]),
     [activeFamilyItems],
   );
+
+  const browserItems = useMemo(() => {
+    const rows: ComplianceRequirement[] = [];
+
+    const walk = (items: ComplianceRequirement[], ancestors: string[] = []) => {
+      for (const item of items) {
+        const code = normalizeRegulationCode(item.regulationCode);
+        if (ancestors.includes(code)) continue;
+        if (normalizedSearchQuery && !branchMatchesSearch(item)) continue;
+        rows.push(item);
+        const children = groupedItems.get(code) || [];
+        const childSubheaders = children.filter((child) => isStructuralBrowserNode(child));
+        const childRegulations = children.filter((child) => !isStructuralBrowserNode(child));
+        if (childSubheaders.length > 0) {
+          walk(childSubheaders, [...ancestors, code]);
+        }
+        for (const regulation of childRegulations) {
+          if (ancestors.includes(normalizeRegulationCode(regulation.regulationCode))) continue;
+          if (normalizedSearchQuery && !branchMatchesSearch(regulation)) continue;
+          rows.push(regulation);
+        }
+      }
+    };
+
+    walk(topLevelItems);
+    return rows;
+  }, [branchMatchesSearch, groupedItems, normalizedSearchQuery, topLevelItems]);
+
+  useEffect(() => {
+    if (!browserItems.length) {
+      setSelectedItemId(null);
+      return;
+    }
+
+    setSelectedItemId((current) => {
+      if (current && browserItems.some((item) => item.id === current)) {
+        return current;
+      }
+
+      const firstSubheader = browserItems.find((item) => normalizeRegulationCode(item.parentRegulationCode));
+      return firstSubheader?.id || browserItems[0]?.id || null;
+    });
+  }, [browserItems]);
+
+  const selectedItem = useMemo(
+    () => browserItems.find((item) => item.id === selectedItemId) || null,
+    [browserItems, selectedItemId],
+  );
+
+  const selectedItemChildren = useMemo(
+    () => (selectedItem ? groupedItems.get(normalizeRegulationCode(selectedItem.regulationCode)) || [] : []),
+    [groupedItems, selectedItem],
+  );
+
+  const selectedItemRole: 'header' | 'subheader' | 'item' | null = useMemo(() => {
+    if (!selectedItem) return null;
+    if (selectedItem.structureType) return selectedItem.structureType;
+    if (selectedItemChildren.length > 0) {
+      return normalizeRegulationCode(selectedItem.parentRegulationCode) ? 'subheader' : 'header';
+    }
+    return 'item';
+  }, [selectedItem, selectedItemChildren.length]);
+
+  const selectedSubheaderRegulations = useMemo(() => {
+    if (!selectedItem || selectedItemRole !== 'subheader') return [] as ComplianceRequirement[];
+    return (groupedItems.get(normalizeRegulationCode(selectedItem.regulationCode)) || [])
+      .filter((item) => !isStructuralBrowserNode(item))
+      .filter((item) => {
+        const childCode = normalizeRegulationCode(item.regulationCode);
+        return !normalizedSearchQuery || branchMatchesSearch(item) || childCode.includes(normalizedSearchQuery);
+      })
+      .sort((a, b) => naturalSort(a.regulationCode, b.regulationCode));
+  }, [branchMatchesSearch, groupedItems, normalizedSearchQuery, selectedItem, selectedItemRole]);
+
+  const activeRegulationItem = useMemo(() => {
+    if (selectedItemRole === 'item') return selectedItem;
+    if (selectedItemRole === 'subheader' && selectedSubheaderRegulations.length > 0) {
+      return selectedSubheaderRegulations[0];
+    }
+    return null;
+  }, [selectedItem, selectedItemRole, selectedSubheaderRegulations]);
 
   const handleOpenForm = (item: ComplianceRequirement | null = null, mode: 'item' | 'header' | 'subheader' = 'item') => {
     setEditingItem(item);
@@ -704,15 +957,20 @@ export default function CoherenceMatrixPage() {
     if (normalizedSearchQuery && !branchMatchesSearch(item)) return null;
 
     const children = groupedItems.get(itemCode) || [];
+    const childSubheaders = children.filter((child) => isStructuralBrowserNode(child));
+    const childRegulations = children.filter((child) => !isStructuralBrowserNode(child));
     const isOpen = !!openNodeIds[item.id] || !!normalizedSearchQuery;
-    const hasChildren = children.length > 0;
+    const hasChildren = childSubheaders.length > 0 || childRegulations.length > 0;
+    const isSelected = selectedItemId === item.id;
+    const roleMode = item.structureType || (depth === 0 ? 'header' : childSubheaders.length > 0 ? 'subheader' : 'item');
 
     return (
       <div key={item.id} className="space-y-2">
         <div
           className={cn(
-            'rounded-lg border border-card-border bg-card/90 p-4 shadow-none',
-            depth === 0 && 'bg-muted/20',
+            'rounded-lg border p-4 shadow-none transition-colors',
+            depth === 0 ? 'bg-muted/20' : 'bg-card/90',
+            isSelected ? 'border-primary/40 bg-primary/5' : 'border-card-border',
           )}
           style={{ marginLeft: depth === 0 ? 0 : `${Math.min(depth * 0.75, 2.25)}rem` }}
         >
@@ -721,7 +979,7 @@ export default function CoherenceMatrixPage() {
               type="button"
               className="flex min-w-0 flex-1 items-start gap-3 text-left"
               onClick={() => {
-                if (!hasChildren) return;
+                setSelectedItemId(item.id);
                 setOpenNodeIds((current) => ({ ...current, [item.id]: !isOpen }));
               }}
             >
@@ -738,13 +996,25 @@ export default function CoherenceMatrixPage() {
                 {item.documentHeading?.trim() ? (
                   <p className="text-[10px] font-black uppercase tracking-[0.16em] text-foreground/55">{item.documentHeading}</p>
                 ) : null}
-                <p className="text-[11px] font-black tracking-wide text-foreground/65">{item.regulationCode}</p>
-                <p className="break-words text-sm font-semibold leading-5 text-foreground">{item.regulationStatement}</p>
-              </div>
-            </button>
+                  {depth === 0 ? (
+                    <>
+                      <p className="text-[11px] font-black tracking-wide text-foreground/65">{item.regulationCode}</p>
+                      <p className="break-words text-sm font-semibold leading-5 text-foreground">{item.regulationStatement}</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-primary/75">SUBPART</p>
+                      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                        <span className="text-[11px] font-black tracking-wide text-primary/85">{item.regulationCode}</span>
+                        <span className="text-sm font-semibold leading-5 text-foreground">{item.regulationStatement}</span>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </button>
             {canManageMatrix ? (
               <div className="flex shrink-0 items-center gap-2">
-                <Button variant="outline" size="icon" className="h-8 w-8 border-slate-300" onClick={() => handleOpenForm(item, depth === 0 ? 'header' : children.length > 0 ? 'subheader' : 'item')}>
+                <Button variant="outline" size="icon" className="h-8 w-8 border-slate-300" onClick={() => handleOpenForm(item, roleMode)}>
                   <Edit className="h-3.5 w-3.5" />
                 </Button>
                 <Button variant="destructive" size="icon" className="h-8 w-8" onClick={() => handleDelete(item)}>
@@ -774,12 +1044,39 @@ export default function CoherenceMatrixPage() {
             </div>
           ) : null}
 
-          {isOpen ? (
-            <div className="mt-4 space-y-3">
-              {renderTechnicalText(item.technicalStandard)}
-              {children.length > 0 ? (
-                <div className="space-y-2 border-t border-card-border/70 pt-3">
-                  {children.map((child) => renderNode(child, depth + 1, [...ancestors, itemCode]))}
+          {isOpen && (childSubheaders.length > 0 || childRegulations.length > 0) ? (
+            <div className="mt-4 space-y-2 border-t border-card-border/70 pt-3">
+              {childSubheaders.map((child) => renderNode(child, depth + 1, [...ancestors, itemCode]))}
+              {depth > 0 && childRegulations.length > 0 ? (
+                <div className="space-y-1">
+                  {childRegulations
+                    .filter((child) => {
+                      const childCode = normalizeRegulationCode(child.regulationCode);
+                      return !normalizedSearchQuery || branchMatchesSearch(child) || childCode.includes(normalizedSearchQuery);
+                    })
+                    .sort((a, b) => naturalSort(a.regulationCode, b.regulationCode))
+                    .map((child) => {
+                      const childSelected = selectedItemId === child.id;
+                      const childTitle = getBrowserRegulationTitle(child);
+                      return (
+                        <button
+                          key={child.id}
+                          type="button"
+                          className={cn(
+                            'w-full rounded-md border px-3 py-2 text-left transition-colors',
+                            childSelected ? 'border-primary/40 bg-primary/5' : 'border-card-border/70 bg-background/70 hover:bg-accent/30',
+                          )}
+                          onClick={() => setSelectedItemId(child.id)}
+                        >
+                          <div className="space-y-0.5">
+                            <p className="text-[11px] font-black tracking-wide text-primary/85">{child.regulationCode}</p>
+                            {childTitle ? (
+                              <p className="text-sm font-medium leading-5 text-foreground">{childTitle}</p>
+                            ) : null}
+                          </div>
+                        </button>
+                      );
+                    })}
                 </div>
               ) : null}
             </div>
@@ -787,7 +1084,7 @@ export default function CoherenceMatrixPage() {
         </div>
       </div>
     );
-  }, [branchMatchesSearch, canManageMatrix, groupedItems, normalizedSearchQuery, openNodeIds, personnel]);
+  }, [branchMatchesSearch, canManageMatrix, groupedItems, normalizedSearchQuery, openNodeIds, personnel, selectedItemId]);
 
   if ((!canViewMatrix && isPermissionsLoading) || isAccessLoading || isProfileLoading || !userProfile || isLoading) {
     return (
@@ -826,7 +1123,7 @@ export default function CoherenceMatrixPage() {
           className="h-8 w-full border-input bg-background text-sm"
         />
       </div>
-      <UploadRegulationsDialog tenantId={tenantId} organizationId={currentOrgId} regulationFamily={activeRegulationTab} availableParentHeaders={availableParentHeaders} />
+      <UploadRegulationsDialog tenantId={tenantId} organizationId={currentOrgId} regulationFamily={activeRegulationTab} availableParentHeaders={availableSubRegulationHeaders} />
       <Button variant="outline" className={cn(HEADER_COMPACT_CONTROL_CLASS, 'text-foreground hover:bg-accent/40')} onClick={() => handleOpenForm(null, 'header')}>
         <Layers className="h-4 w-4" />
         Add Header
@@ -897,7 +1194,7 @@ export default function CoherenceMatrixPage() {
                       tenantId={tenantId}
                       organizationId={currentOrgId}
                       regulationFamily={activeRegulationTab}
-                      availableParentHeaders={availableParentHeaders}
+                      availableParentHeaders={availableSubRegulationHeaders}
                       trigger={
                         <DropdownMenuItem onSelect={(event) => event.preventDefault()}>
                           <WandSparkles className="mr-2 h-4 w-4" /> AI Populate
@@ -938,16 +1235,98 @@ export default function CoherenceMatrixPage() {
             }
           />
           <CardContent className="flex-1 min-h-0 overflow-auto p-6 pt-4">
-            <div className="space-y-4">
-              {topLevelItems.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-24 text-center opacity-40">
-                  <Layers className="h-16 w-16 mb-4" />
-                  <p className="text-sm font-black uppercase tracking-widest text-foreground/90">Coherence Matrix Empty</p>
-                  <p className="text-xs font-medium text-foreground/80 max-w-xs mt-2">Populate your matrix using the AI upload tool or add headers and clauses manually.</p>
-                </div>
-              ) : (
-                topLevelItems.map((item) => renderNode(item))
-              )}
+            <div className="grid gap-4 lg:grid-cols-[minmax(360px,0.95fr)_minmax(0,1.25fr)]">
+              <Card className="border border-card-border shadow-none">
+                <CardContent className="p-4">
+                  <div className="mb-3">
+                    <p className="text-[10px] font-black uppercase tracking-[0.14em] text-foreground/50">Regulation Browser</p>
+                      <p className="mt-1 text-sm text-foreground/70">Select a Part, Subheader, or Regulation on the left. Choosing a regulation reveals the full regulation text on the right.</p>
+                  </div>
+                  <div className="space-y-4">
+                    {topLevelItems.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-24 text-center opacity-40">
+                        <Layers className="h-16 w-16 mb-4" />
+                        <p className="text-sm font-black uppercase tracking-widest text-foreground/90">Coherence Matrix Empty</p>
+                        <p className="text-xs font-medium text-foreground/80 max-w-xs mt-2">Add a header, then a subheader, then regulation items to start building the regulation browser.</p>
+                      </div>
+                    ) : (
+                      topLevelItems.map((item) => renderNode(item))
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border border-card-border shadow-none">
+                <CardContent className="p-4">
+                  {activeRegulationItem ? (
+                    <div className="space-y-4">
+                      <div className="rounded-lg border border-card-border bg-card/60 p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            {activeRegulationItem.documentHeading?.trim() ? (
+                              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-foreground/55">{activeRegulationItem.documentHeading}</p>
+                            ) : null}
+                            <p className="mt-1 text-[11px] font-black tracking-wide text-primary/85">{activeRegulationItem.regulationCode}</p>
+                            <h4 className="mt-1 break-words text-base font-semibold leading-6 text-foreground">{activeRegulationItem.regulationStatement}</h4>
+                          </div>
+                          {canManageMatrix ? (
+                            <div className="flex shrink-0 items-center gap-2">
+                              <Button variant="outline" size="icon" className="h-8 w-8 border-slate-300" onClick={() => handleOpenForm(activeRegulationItem, 'item')}>
+                                <Edit className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button variant="destructive" size="icon" className="h-8 w-8" onClick={() => handleDelete(activeRegulationItem)}>
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          ) : null}
+                        </div>
+
+                        {activeRegulationItem.companyReference?.trim() || activeRegulationItem.nextAuditDate?.trim() || activeRegulationItem.responsibleManagerId?.trim() ? (
+                          <div className="mt-3 flex flex-wrap gap-2 text-[10px] font-black uppercase tracking-[0.12em] text-foreground/55">
+                            {activeRegulationItem.companyReference?.trim() ? (
+                              <Badge variant="outline" className="border-card-border bg-background/70 text-[10px] font-black uppercase tracking-[0.08em] text-foreground">
+                                {activeRegulationItem.companyReference.trim()}
+                              </Badge>
+                            ) : null}
+                            {activeRegulationItem.responsibleManagerId?.trim() ? (
+                              <Badge variant="outline" className="border-card-border bg-background/70 text-[10px] font-black uppercase tracking-[0.08em] text-foreground">
+                                Responsible {getPersonnelDisplayName(personnel, activeRegulationItem.responsibleManagerId) || activeRegulationItem.responsibleManagerId}
+                              </Badge>
+                            ) : null}
+                            {activeRegulationItem.nextAuditDate?.trim() ? (
+                              <Badge variant="outline" className="border-card-border bg-background/70 text-[10px] font-black uppercase tracking-[0.08em] text-foreground">
+                                Next audit {formatAuditDate(activeRegulationItem.nextAuditDate)}
+                              </Badge>
+                            ) : null}
+                          </div>
+                        ) : null}
+
+                        <div className="mt-3 rounded-lg border border-card-border bg-background/70 p-4">
+                          {renderTechnicalText(activeRegulationItem.technicalStandard) || (
+                            <p className="whitespace-pre-wrap break-words text-sm leading-6 text-foreground/80">
+                              {activeRegulationItem.regulationStatement}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex min-h-[360px] flex-col items-center justify-center text-center opacity-45">
+                      <Layers className="mb-4 h-14 w-14" />
+                      <p className="text-sm font-black uppercase tracking-widest text-foreground/90">
+                        {selectedItemRole === 'header' ? 'Select a Subheader' : selectedItemRole === 'subheader' ? 'Select a Regulation' : 'Select a Regulation'}
+                      </p>
+                      <p className="mt-2 max-w-sm text-sm text-foreground/75">
+                        {selectedItemRole === 'header'
+                          ? 'Choose a subheader from the left browser, then select a regulation beneath it to reveal the full regulation text here.'
+                          : selectedItemRole === 'subheader'
+                            ? 'Choose a regulation from the selected subheader in the left browser to reveal the full regulation text here.'
+                            : 'Choose a regulation from the left browser to reveal the full regulation text here.'}
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </div>
           </CardContent>
         </Card>
@@ -962,21 +1341,22 @@ export default function CoherenceMatrixPage() {
               </DialogTitle>
               <DialogDescription>
                 {formMode === 'header'
-                  ? 'Create a top-level regulation header.'
+                  ? 'Create the header first, for example Part 43.'
                   : formMode === 'subheader'
-                    ? 'Create a subheader beneath an existing top-level header.'
-                    : 'Add or update a clause beneath an existing header or subheader.'}
+                    ? 'Create the subheader beneath an existing header, for example SUBPART 1.'
+                    : 'Add or update the regulation clause beneath the selected subheader, for example 43.01.1 Applicability.'}
               </DialogDescription>
             </DialogHeader>
-            <ComplianceItemForm
-              personnel={personnel}
-              existingItem={editingItem}
-              onFormSubmit={() => setIsFormOpen(false)}
-              tenantId={tenantId}
-              defaultRegulationFamily={activeRegulationTab}
-              availableParentHeaders={availableParentHeaders}
-              mode={formMode}
-            />
+              <ComplianceItemForm
+                personnel={personnel}
+                existingItem={editingItem}
+                onFormSubmit={() => setIsFormOpen(false)}
+                tenantId={tenantId}
+                defaultRegulationFamily={activeRegulationTab}
+                availableParentHeaders={availableSubRegulationHeaders}
+                availablePartHeaders={availablePartHeaders}
+                mode={formMode}
+              />
           </DialogContent>
         ) : null}
       </Dialog>

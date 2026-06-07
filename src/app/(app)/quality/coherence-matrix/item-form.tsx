@@ -123,6 +123,7 @@ interface ComplianceItemFormProps {
     tenantId: string;
     defaultRegulationFamily?: 'sacaa-cars' | 'sacaa-cats' | 'ohs';
     availableParentHeaders?: { code: string; label: string }[];
+    availablePartHeaders?: { code: string; label: string }[];
     mode?: 'item' | 'header' | 'subheader';
 }
 
@@ -139,7 +140,16 @@ type ComplianceItemFormValues = {
     organizationId?: string | null;
 };
 
-export function ComplianceItemForm({ personnel, existingItem, onFormSubmit, tenantId, defaultRegulationFamily, availableParentHeaders = [], mode = 'item' }: ComplianceItemFormProps) {
+export function ComplianceItemForm({
+    personnel,
+    existingItem,
+    onFormSubmit,
+    tenantId,
+    defaultRegulationFamily,
+    availableParentHeaders = [],
+    availablePartHeaders = [],
+    mode = 'item',
+}: ComplianceItemFormProps) {
     const { toast } = useToast();
     const [calendarPortalContainer, setCalendarPortalContainer] = useState<HTMLDivElement | null>(null);
     const activeSchema = (
@@ -201,7 +211,9 @@ export function ComplianceItemForm({ personnel, existingItem, onFormSubmit, tena
             return;
         }
 
-        if ((mode === 'item' || mode === 'subheader') && !availableParentHeaders.some((header) => header.code === normalizedParentCode)) {
+        const validParentOptions = mode === 'subheader' ? availablePartHeaders : availableParentHeaders;
+
+        if ((mode === 'item' || mode === 'subheader') && !validParentOptions.some((header) => header.code === normalizedParentCode)) {
             toast({
                 variant: 'destructive',
                 title: 'Invalid parent selection',
@@ -212,6 +224,7 @@ export function ComplianceItemForm({ personnel, existingItem, onFormSubmit, tena
         
         const dataToSave = mode === 'header'
             ? {
+                structureType: 'header' as const,
                 regulationFamily: values.regulationFamily,
                 parentRegulationCode: '',
                 regulationCode: normalizedCode,
@@ -224,6 +237,7 @@ export function ComplianceItemForm({ personnel, existingItem, onFormSubmit, tena
             }
             : mode === 'subheader'
             ? {
+                structureType: 'subheader' as const,
                 regulationFamily: values.regulationFamily,
                 parentRegulationCode: normalizedParentCode,
                 regulationCode: normalizeRegulationCode(values.regulationCode) || splitInput.regulationCode,
@@ -236,6 +250,7 @@ export function ComplianceItemForm({ personnel, existingItem, onFormSubmit, tena
             }
             : {
                 ...values,
+                structureType: 'item' as const,
                 regulationCode: normalizeRegulationCode(values.regulationCode),
                 parentRegulationCode: normalizedParentCode,
                 documentHeading: values.documentHeading?.trim() || '',
@@ -251,7 +266,10 @@ export function ComplianceItemForm({ personnel, existingItem, onFormSubmit, tena
                     item: existingItem ? { ...existingItem, ...dataToSave } : { ...dataToSave, id: crypto.randomUUID() },
                 }),
             });
-            if (!response.ok) throw new Error('Failed to save compliance item');
+            if (!response.ok) {
+                const payload = await response.json().catch(() => null) as { error?: string } | null;
+                throw new Error(payload?.error || 'Failed to save compliance item');
+            }
             toast({ title: "Success", description: existingItem ? "Compliance item updated." : "New compliance item added." });
             window.dispatchEvent(new Event('safeviate-compliance-updated'));
             onFormSubmit();
@@ -264,9 +282,22 @@ export function ComplianceItemForm({ personnel, existingItem, onFormSubmit, tena
         }
     };
 
+    const onInvalidSubmit = () => {
+        toast({
+            variant: 'destructive',
+            title: 'Complete Required Fields',
+            description:
+                mode === 'header'
+                    ? 'Add the regulation code, regulation title, and responsible person before saving.'
+                    : mode === 'subheader'
+                        ? 'Add the sub-regulation code, select the parent regulation, add the sub-regulation title, and choose the responsible person before saving.'
+                        : 'Complete the regulation code, parent regulation or sub-regulation, title, company reference, and any other required fields before saving.',
+        });
+    };
+
     return (
         <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <form onSubmit={form.handleSubmit(onSubmit, onInvalidSubmit)} className="space-y-4">
                 {mode === 'item' && existingItem ? (
                     <div className="rounded-lg border border-slate-200 bg-muted/30 px-3 py-2">
                         <p className="text-[10px] font-black uppercase tracking-[0.2em] text-foreground/55">Current Matrix Metadata</p>
@@ -292,7 +323,7 @@ export function ComplianceItemForm({ personnel, existingItem, onFormSubmit, tena
                         </div>
                     </div>
                 ) : null}
-                <FormField control={form.control} name="regulationCode" render={({ field }) => ( <FormItem><FormLabel>Regulation Code</FormLabel><FormControl><Input placeholder="e.g., 141.02.2" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                <FormField control={form.control} name="regulationCode" render={({ field }) => ( <FormItem><FormLabel>{mode === 'header' ? 'Header Code' : mode === 'subheader' ? 'Subheader Code' : 'Regulation Number'}</FormLabel><FormControl><Input placeholder={mode === 'header' ? 'e.g., Part 43' : mode === 'subheader' ? 'e.g., SUBPART 1' : 'e.g., 43.01.1'} {...field} /></FormControl><FormMessage /></FormItem> )} />
                 {mode === 'item' ? (
                     <>
                         <FormField control={form.control} name="regulationFamily" render={({ field }) => (
@@ -315,14 +346,14 @@ export function ComplianceItemForm({ personnel, existingItem, onFormSubmit, tena
                         )} />
                         <FormField control={form.control} name="parentRegulationCode" render={({ field }) => (
                             <FormItem>
-                                <FormLabel>Parent Header / Subheader</FormLabel>
+                                <FormLabel>Parent Subheader</FormLabel>
                                 <Select
                                     onValueChange={field.onChange}
                                     defaultValue={field.value || undefined}
                                 >
                                     <FormControl>
                                         <SelectTrigger>
-                                            <SelectValue placeholder="Select the header or subheader this regulation belongs under" />
+                                            <SelectValue placeholder="Select the subheader this regulation belongs under" />
                                         </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
@@ -334,7 +365,7 @@ export function ComplianceItemForm({ personnel, existingItem, onFormSubmit, tena
                                             ))
                                         ) : (
                                             <SelectItem value="__no_parent_options__" disabled>
-                                                Create a header or subheader first
+                                                Create a header and subheader first
                                             </SelectItem>
                                         )}
                                     </SelectContent>
@@ -342,9 +373,9 @@ export function ComplianceItemForm({ personnel, existingItem, onFormSubmit, tena
                                 <FormMessage />
                             </FormItem>
                         )} />
-                        <FormField control={form.control} name="documentHeading" render={({ field }) => ( <FormItem><FormLabel>Document Heading</FormLabel><FormControl><Input placeholder="e.g., Documents to be carried on board" {...field} /></FormControl><FormMessage /></FormItem> )} />
-                        <FormField control={form.control} name="regulationStatement" render={({ field }) => ( <FormItem><FormLabel>Regulation Statement</FormLabel><FormControl><Input placeholder="The short title of the regulation..." {...field} /></FormControl><FormMessage /></FormItem> )} />
-                        <FormField control={form.control} name="technicalStandard" render={({ field }) => ( <FormItem><FormLabel>Full Regulation Text</FormLabel><FormControl><Textarea placeholder="The full, detailed text of the regulation..." {...field} className="min-h-32" /></FormControl><FormMessage /></FormItem> )} />
+                        <FormField control={form.control} name="documentHeading" render={({ field }) => ( <FormItem><FormLabel>Printed Heading Above Regulation</FormLabel><FormControl><Input placeholder="Optional, only if the document prints a heading above the regulation" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                        <FormField control={form.control} name="regulationStatement" render={({ field }) => ( <FormItem><FormLabel>Regulation Title</FormLabel><FormControl><Input placeholder="e.g., Applicability" {...field} /></FormControl><FormMessage /></FormItem> )} />
+                        <FormField control={form.control} name="technicalStandard" render={({ field }) => ( <FormItem><FormLabel>Regulation Body Text</FormLabel><FormControl><Textarea placeholder="Paste the full clause body, e.g. (1) This Part applies..." {...field} className="min-h-32" /></FormControl><FormMessage /></FormItem> )} />
                         <FormField control={form.control} name="companyReference" render={({ field }) => ( <FormItem><FormLabel>Company Reference</FormLabel><FormControl><Input placeholder="e.g., Ops Manual, Sec 4.2.1" {...field} /></FormControl><FormMessage /></FormItem> )} />
                         <FormField control={form.control} name="responsibleManagerId" render={({ field }) => ( <FormItem><FormLabel>Responsible Manager</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a manager" /></SelectTrigger></FormControl><SelectContent>{personnel.map(p => (<SelectItem key={p.id} value={p.id}>{p.firstName} {p.lastName}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem> )} />
                         <div ref={setCalendarPortalContainerRef}>
@@ -403,19 +434,19 @@ export function ComplianceItemForm({ personnel, existingItem, onFormSubmit, tena
                                 <Select onValueChange={field.onChange} defaultValue={field.value || undefined}>
                                     <FormControl>
                                         <SelectTrigger>
-                                            <SelectValue placeholder="Select a header" />
+                                            <SelectValue placeholder="Select the header this subheader belongs under" />
                                         </SelectTrigger>
                                     </FormControl>
                                     <SelectContent>
-                                        {availableParentHeaders.length > 0 ? (
-                                            availableParentHeaders.map((header) => (
+                                        {availablePartHeaders.length > 0 ? (
+                                            availablePartHeaders.map((header) => (
                                                 <SelectItem key={header.code} value={header.code}>
                                                     {formatParentOptionLabel(header)}
                                                 </SelectItem>
                                             ))
                                         ) : (
                                             <SelectItem value="__no_parent_options__" disabled>
-                                                Create a top-level header first
+                                                Create a header first
                                             </SelectItem>
                                         )}
                                     </SelectContent>
@@ -427,7 +458,7 @@ export function ComplianceItemForm({ personnel, existingItem, onFormSubmit, tena
                             <FormItem>
                                 <FormLabel>Subheader Title</FormLabel>
                                 <FormControl>
-                                    <Input placeholder="e.g., QUALITY ASSURANCE AND QUALITY SYSTEM" {...field} />
+                                    <Input placeholder="e.g., GENERAL" {...field} />
                                 </FormControl>
                                 <FormMessage />
                             </FormItem>
@@ -478,7 +509,7 @@ export function ComplianceItemForm({ personnel, existingItem, onFormSubmit, tena
                             <FormItem>
                                 <FormLabel>Header Title</FormLabel>
                                 <FormControl>
-                                    <Input placeholder="e.g., SA-CATS 141 Aviation Training Organisations" {...field} />
+                                    <Input placeholder="e.g., General Maintenance Rules" {...field} />
                                 </FormControl>
                                 <FormMessage />
                             </FormItem>

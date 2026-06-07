@@ -32,6 +32,7 @@ export interface ClauseAnalysisEntry {
 
 export interface ComplianceRequirement {
     id: string;
+    structureType?: 'header' | 'subheader' | 'item';
     regulationFamily?: 'sacaa-cars' | 'sacaa-cats' | 'ohs';
     regulationCode: string;
     parentRegulationCode?: string;

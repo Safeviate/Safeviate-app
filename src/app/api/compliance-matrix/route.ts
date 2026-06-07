@@ -18,6 +18,70 @@ type ComplianceMatrixEntry = {
 
 type PermissionSet = Set<string>;
 
+function buildMatrixIdentityKey(item: ComplianceMatrixEntry) {
+  return [
+    normalizeRegulationFamily(item.regulationFamily),
+    normalizeOrganizationScope(item.organizationId) || '',
+    (typeof item.structureType === 'string' ? item.structureType.trim() : '') || '',
+    normalizeRegulationCode(item.parentRegulationCode) || '',
+    normalizeRegulationCode(item.regulationCode) || '',
+  ].join('|');
+}
+
+function scoreMatrixEntry(item: ComplianceMatrixEntry) {
+  let score = 0;
+  if (normalizeRegulationCode(item.regulationCode)) score += 2;
+  if (typeof item.regulationStatement === 'string' && item.regulationStatement.trim()) score += 4;
+  if (typeof item.documentHeading === 'string' && item.documentHeading.trim()) score += 2;
+  if (typeof item.technicalStandard === 'string' && item.technicalStandard.trim()) score += 5;
+  if (typeof item.companyReference === 'string' && item.companyReference.trim()) score += 1;
+  if (typeof item.responsibleManagerId === 'string' && item.responsibleManagerId.trim()) score += 1;
+  return score;
+}
+
+function mergeMatrixEntries(base: ComplianceMatrixEntry, incoming: ComplianceMatrixEntry) {
+  const merged: ComplianceMatrixEntry = { ...base, ...incoming };
+
+  for (const [key, value] of Object.entries(base)) {
+    if (!(key in merged)) {
+      merged[key] = value;
+      continue;
+    }
+
+    const incomingValue = merged[key];
+    if (
+      (incomingValue === null || incomingValue === undefined || incomingValue === '') &&
+      value !== null &&
+      value !== undefined &&
+      value !== ''
+    ) {
+      merged[key] = value;
+    }
+  }
+
+  merged.id = incoming.id || base.id || randomUUID();
+  return merged;
+}
+
+function dedupeMatrixEntries(items: ComplianceMatrixEntry[]) {
+  const deduped = new Map<string, ComplianceMatrixEntry>();
+
+  for (const item of items) {
+    const key = buildMatrixIdentityKey(item);
+    const existing = deduped.get(key);
+    if (!existing) {
+      deduped.set(key, item);
+      continue;
+    }
+
+    const preferredBase = scoreMatrixEntry(existing) >= scoreMatrixEntry(item) ? existing : item;
+    const preferredIncoming = preferredBase === existing ? item : existing;
+    deduped.set(key, mergeMatrixEntries(preferredBase, preferredIncoming));
+  }
+
+  return Array.from(deduped.values());
+}
+
 function isWithinDeletionScope(item: ComplianceMatrixEntry, rootCode: string) {
   const itemCode = normalizeRegulationCode(item?.regulationCode);
   const itemParentCode = normalizeRegulationCode(item?.parentRegulationCode);
@@ -140,7 +204,7 @@ async function resolveMatrixAccess(request: Request) {
     return { tenantId: null as string | null, permissions: new Set<string>() };
   }
 
-  if (role === 'dev' || role === 'developer' || (isMasterTenantEmail(email) && tenantId === MASTER_TENANT_ID)) {
+  if (role === 'dev' || role === 'developer' || isMasterTenantEmail(email)) {
     return { tenantId, permissions: new Set<string>(['*']) };
   }
 
@@ -184,7 +248,11 @@ export async function GET(request: Request) {
     const tenantId = await getTenantId(request);
     if (!tenantId) return NextResponse.json({ items: [] }, { status: 200 });
     const config = await getConfig(tenantId);
-    const items = Array.isArray(config['compliance-matrix']) ? config['compliance-matrix'].map((item) => sanitizeComplianceMatrixEntry(item as Record<string, unknown>)) : [];
+    const items = Array.isArray(config['compliance-matrix'])
+      ? dedupeMatrixEntries(
+          config['compliance-matrix'].map((item) => sanitizeComplianceMatrixEntry(item as Record<string, unknown>) as ComplianceMatrixEntry),
+        )
+      : [];
     return NextResponse.json({ items }, { status: 200 });
   } catch (error) {
     console.error('[compliance-matrix] fallback to empty list:', error);
@@ -210,16 +278,21 @@ export async function POST(request: Request) {
   } as ComplianceMatrixEntry;
   const config = await getConfig(tenantId);
   const items = Array.isArray(config['compliance-matrix']) ? (config['compliance-matrix'] as ComplianceMatrixEntry[]) : [];
-  const nextItems = items.some((entry) => entry.id === incoming.id)
-    ? items.map((entry) => (entry.id === incoming.id ? incoming : entry))
-    : [...items, incoming];
+  const identityKey = buildMatrixIdentityKey(incoming);
+  const matchingEntry = items.find((entry) => entry.id === incoming.id) || items.find((entry) => buildMatrixIdentityKey(entry) === identityKey);
+  const mergedIncoming = matchingEntry ? mergeMatrixEntries(matchingEntry, incoming) : incoming;
+  const nextItems = dedupeMatrixEntries(
+    items.some((entry) => entry.id === mergedIncoming.id)
+      ? items.map((entry) => (entry.id === mergedIncoming.id ? mergedIncoming : entry))
+      : [...items, mergedIncoming],
+  );
   const nextConfig = { ...config, 'compliance-matrix': nextItems };
   await prisma.$executeRawUnsafe(
     `INSERT INTO tenant_configs (tenant_id, data, created_at, updated_at) VALUES ($1, $2::jsonb, NOW(), NOW()) ON CONFLICT (tenant_id) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
     tenantId,
     JSON.stringify(nextConfig)
   );
-  return NextResponse.json({ item: incoming }, { status: 200 });
+  return NextResponse.json({ item: mergedIncoming }, { status: 200 });
 }
 
 export async function DELETE(request: Request) {
@@ -236,7 +309,7 @@ export async function DELETE(request: Request) {
   const regulationFamily = normalizeRegulationFamily(searchParams.get('regulationFamily'));
   if (!id && !regulationCode) return NextResponse.json({ error: 'Missing id or code' }, { status: 400 });
   const config = await getConfig(tenantId);
-  const items = Array.isArray(config['compliance-matrix']) ? (config['compliance-matrix'] as ComplianceMatrixEntry[]) : [];
+  const items = Array.isArray(config['compliance-matrix']) ? dedupeMatrixEntries(config['compliance-matrix'] as ComplianceMatrixEntry[]) : [];
   const rootItem =
     (id
       ? items.find(
