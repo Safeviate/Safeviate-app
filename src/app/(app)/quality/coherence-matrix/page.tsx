@@ -73,21 +73,26 @@ function formatAuditDate(value?: string | null) {
   return Number.isNaN(parsed.getTime()) ? value : format(parsed, 'dd MMM yyyy');
 }
 
-function renderTechnicalText(value?: string | null) {
+function renderTechnicalText(value?: string | null, indentation?: number[]) {
   if (!value?.trim()) return null;
   const lines = value
     .split(/\r?\n/)
     .map((line) => line.trimEnd())
     .filter((line) => line.trim().length > 0);
+  const normalizedIndentation = normalizeIndentationArray(indentation);
 
   if (lines.length === 0) {
     return null;
   }
 
   return (
-    <div className="space-y-2 rounded-md border border-card-border/70 bg-background/70 px-3 py-3">
+    <div className="space-y-2 px-1 py-1">
       {lines.map((line, index) => (
-        <p key={`${index}-${line.slice(0, 24)}`} className="whitespace-pre-wrap break-words text-sm leading-6 text-foreground/80">
+        <p
+          key={`${index}-${line.slice(0, 24)}`}
+          className="whitespace-pre-wrap break-words text-sm leading-6 text-foreground/80"
+          style={{ marginLeft: `${(normalizedIndentation[index] || 0) * 1.5}rem` }}
+        >
           {line}
         </p>
       ))}
@@ -1260,7 +1265,7 @@ export default function CoherenceMatrixPage() {
                 <CardContent className="p-4">
                   {activeRegulationItem ? (
                     <div className="space-y-4">
-                      <div className="rounded-lg border border-card-border bg-card/60 p-4">
+                      <div className="rounded-lg bg-card/20 p-4">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0 flex-1">
                             {activeRegulationItem.documentHeading?.trim() ? (
@@ -1301,8 +1306,8 @@ export default function CoherenceMatrixPage() {
                           </div>
                         ) : null}
 
-                        <div className="mt-3 rounded-lg border border-card-border bg-background/70 p-4">
-                          {renderTechnicalText(activeRegulationItem.technicalStandard) || (
+                        <div className="mt-3 rounded-lg bg-background/20 p-2">
+                          {renderTechnicalText(activeRegulationItem.technicalStandard, activeRegulationItem.technicalStandardIndentation) || (
                             <p className="whitespace-pre-wrap break-words text-sm leading-6 text-foreground/80">
                               {activeRegulationItem.regulationStatement}
                             </p>

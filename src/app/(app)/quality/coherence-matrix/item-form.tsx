@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useForm, useWatch, type Resolver } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { CustomCalendar } from '@/components/ui/custom-calendar';
-import { CalendarIcon } from 'lucide-react';
+import { CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { getPersonnelDisplayName } from '@/lib/personnel-label';
@@ -64,6 +64,19 @@ function splitCompositeRegulationInput(value?: string | null) {
 function normalizeResponsibleManagerId(value?: string | null) {
     const normalized = value?.trim() || '';
     return normalized === '__unassigned__' ? '' : normalized;
+}
+
+function splitRegulationBodyLines(value?: string | null) {
+    return (value || '')
+        .split(/\r?\n/)
+        .map((line) => line.replace(/\s+$/g, ''));
+}
+
+function normalizeLineIndentation(lineCount: number, indentation: number[] = []) {
+    return Array.from({ length: lineCount }, (_, index) => {
+        const value = indentation[index];
+        return Number.isFinite(value) && value >= 0 ? Math.min(Math.floor(value), 6) : 0;
+    });
 }
 
 const itemFormSchema = z.object({
@@ -152,6 +165,12 @@ export function ComplianceItemForm({
 }: ComplianceItemFormProps) {
     const { toast } = useToast();
     const [calendarPortalContainer, setCalendarPortalContainer] = useState<HTMLDivElement | null>(null);
+    const [technicalStandardIndentation, setTechnicalStandardIndentation] = useState<number[]>(
+        normalizeLineIndentation(
+            splitRegulationBodyLines(existingItem?.technicalStandard).length,
+            existingItem?.technicalStandardIndentation || [],
+        ),
+    );
     const activeSchema = (
         mode === 'header'
             ? headerFormSchema
@@ -179,6 +198,12 @@ export function ComplianceItemForm({
     const watchedCompanyReference = useWatch({ control: form.control, name: 'companyReference' });
     const watchedResponsibleManagerId = useWatch({ control: form.control, name: 'responsibleManagerId' });
     const watchedNextAuditDate = useWatch({ control: form.control, name: 'nextAuditDate' });
+    const watchedTechnicalStandard = useWatch({ control: form.control, name: 'technicalStandard' }) || '';
+    const technicalStandardLines = useMemo(() => splitRegulationBodyLines(watchedTechnicalStandard), [watchedTechnicalStandard]);
+
+    useEffect(() => {
+        setTechnicalStandardIndentation((current) => normalizeLineIndentation(technicalStandardLines.length, current));
+    }, [technicalStandardLines.length]);
 
     const getManagerLabel = (managerId?: string | null) => {
         const normalizedManagerId = managerId?.trim() || '';
@@ -255,6 +280,7 @@ export function ComplianceItemForm({
                 parentRegulationCode: normalizedParentCode,
                 documentHeading: values.documentHeading?.trim() || '',
                 regulationStatement: values.regulationStatement.trim(),
+                technicalStandardIndentation: normalizeLineIndentation(technicalStandardLines.length, technicalStandardIndentation),
                 nextAuditDate: values.nextAuditDate ? toNoonUtcIso(values.nextAuditDate) : null,
             };
 
@@ -375,7 +401,83 @@ export function ComplianceItemForm({
                         )} />
                         <FormField control={form.control} name="documentHeading" render={({ field }) => ( <FormItem><FormLabel>Printed Heading Above Regulation</FormLabel><FormControl><Input placeholder="Optional, only if the document prints a heading above the regulation" {...field} /></FormControl><FormMessage /></FormItem> )} />
                         <FormField control={form.control} name="regulationStatement" render={({ field }) => ( <FormItem><FormLabel>Regulation Title</FormLabel><FormControl><Input placeholder="e.g., Applicability" {...field} /></FormControl><FormMessage /></FormItem> )} />
-                        <FormField control={form.control} name="technicalStandard" render={({ field }) => ( <FormItem><FormLabel>Regulation Body Text</FormLabel><FormControl><Textarea placeholder="Paste the full clause body, e.g. (1) This Part applies..." {...field} className="min-h-32" /></FormControl><FormMessage /></FormItem> )} />
+                        <FormField control={form.control} name="technicalStandard" render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Regulation Body Text</FormLabel>
+                                <FormControl>
+                                    <Textarea
+                                        placeholder="Paste the full clause body, e.g. (1) This Part applies..."
+                                        {...field}
+                                        className="min-h-32"
+                                    />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )} />
+                        <div className="space-y-2 rounded-lg border border-dashed border-slate-300 bg-muted/20 px-3 py-3">
+                            <div className="space-y-1">
+                                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-foreground/55">Clause indentation</p>
+                                <p className="text-xs text-muted-foreground">
+                                    Use the buttons to move nested clauses like <span className="font-semibold">(a)</span> and <span className="font-semibold">(b)</span> to the right.
+                                </p>
+                            </div>
+                            {technicalStandardLines.length > 0 ? (
+                                <div className="space-y-2">
+                                    {technicalStandardLines.map((line, index) => {
+                                        const indentLevel = technicalStandardIndentation[index] ?? 0;
+                                        const label = line.trim() || 'Blank line';
+                                        return (
+                                            <div key={`${index}-${line.slice(0, 24)}`} className="flex items-start gap-2 rounded-md border border-card-border/70 bg-background px-2 py-2">
+                                                <div className="flex w-16 shrink-0 items-center gap-1">
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        size="icon"
+                                                        className="h-7 w-7"
+                                                        onClick={() => {
+                                                            setTechnicalStandardIndentation((current) => {
+                                                                const next = normalizeLineIndentation(technicalStandardLines.length, current);
+                                                                next[index] = Math.max(0, (next[index] || 0) - 1);
+                                                                return next;
+                                                            });
+                                                        }}
+                                                        aria-label={`Decrease indentation for line ${index + 1}`}
+                                                    >
+                                                        <ChevronLeft className="h-4 w-4" />
+                                                    </Button>
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        size="icon"
+                                                        className="h-7 w-7"
+                                                        onClick={() => {
+                                                            setTechnicalStandardIndentation((current) => {
+                                                                const next = normalizeLineIndentation(technicalStandardLines.length, current);
+                                                                next[index] = Math.min(6, (next[index] || 0) + 1);
+                                                                return next;
+                                                            });
+                                                        }}
+                                                        aria-label={`Increase indentation for line ${index + 1}`}
+                                                    >
+                                                        <ChevronRight className="h-4 w-4" />
+                                                    </Button>
+                                                </div>
+                                                <div className="min-w-0 flex-1">
+                                                    <p
+                                                        className="whitespace-pre-wrap break-words text-sm leading-6 text-foreground/80"
+                                                        style={{ marginLeft: `${indentLevel * 1.5}rem` }}
+                                                    >
+                                                        {label}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            ) : (
+                                <p className="text-sm text-muted-foreground">Paste the regulation body above to reveal individual lines here.</p>
+                            )}
+                        </div>
                         <FormField control={form.control} name="companyReference" render={({ field }) => ( <FormItem><FormLabel>Company Reference</FormLabel><FormControl><Input placeholder="e.g., Ops Manual, Sec 4.2.1" {...field} /></FormControl><FormMessage /></FormItem> )} />
                         <FormField control={form.control} name="responsibleManagerId" render={({ field }) => ( <FormItem><FormLabel>Responsible Manager</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a manager" /></SelectTrigger></FormControl><SelectContent>{personnel.map(p => (<SelectItem key={p.id} value={p.id}>{p.firstName} {p.lastName}</SelectItem>))}</SelectContent></Select><FormMessage /></FormItem> )} />
                         <div ref={setCalendarPortalContainerRef}>
