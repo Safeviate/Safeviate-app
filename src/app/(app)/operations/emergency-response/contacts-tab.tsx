@@ -187,7 +187,7 @@ export function ContactsTab({ tenantId }: ContactsTabProps) {
           <h4 className="font-headline text-lg font-semibold">Emergency Call List</h4>
         </div>
         <div className="p-0">
-          <Table>
+          <Table className="table-fixed">
             <TableHeader>
               <TableRow>
                 <TableHead className="w-10">#</TableHead>
@@ -203,17 +203,27 @@ export function ContactsTab({ tenantId }: ContactsTabProps) {
                 <TableRow key={contact.id}>
                   <TableCell className="font-bold text-muted-foreground">{contact.priority}</TableCell>
                   <TableCell><Badge variant="outline">{contact.category}</Badge></TableCell>
-                  <TableCell>
-                    <div>
-                      <p className="font-bold text-sm">{contact.name}</p>
-                      <p className="text-[10px] text-muted-foreground uppercase font-medium">{contact.role}</p>
+                  <TableCell className="min-w-0">
+                    <div className="min-w-0">
+                      <p className="truncate font-bold text-sm" title={contact.name}>{contact.name}</p>
+                      <p className="truncate text-[10px] text-muted-foreground uppercase font-medium" title={contact.role}>{contact.role}</p>
                     </div>
                   </TableCell>
-                  <TableCell className="text-sm">{contact.organization}</TableCell>
-                  <TableCell>
-                    <div className="flex flex-col gap-1">
-                      <a href={`tel:${contact.phone}`} className="text-[11px] flex items-center gap-1 hover:text-primary font-medium"><Phone className="h-2.5 w-2.5" /> {contact.phone}</a>
-                      {contact.email && <a href={`mailto:${contact.email}`} className="text-[11px] flex items-center gap-1 hover:text-primary font-medium"><Mail className="h-2.5 w-2.5" /> {contact.email}</a>}
+                  <TableCell className="min-w-0 text-sm">
+                    <p className="truncate" title={contact.organization}>{contact.organization}</p>
+                  </TableCell>
+                  <TableCell className="min-w-0">
+                    <div className="flex min-w-0 flex-col gap-1">
+                      <a href={`tel:${contact.phone}`} className="flex min-w-0 items-center gap-1 text-[11px] font-medium hover:text-primary">
+                        <Phone className="h-2.5 w-2.5 shrink-0" />
+                        <span className="min-w-0 truncate" title={contact.phone}>{contact.phone}</span>
+                      </a>
+                      {contact.email && (
+                        <a href={`mailto:${contact.email}`} className="flex min-w-0 items-center gap-1 text-[11px] font-medium hover:text-primary">
+                          <Mail className="h-2.5 w-2.5 shrink-0" />
+                          <span className="min-w-0 truncate" title={contact.email}>{contact.email}</span>
+                        </a>
+                      )}
                     </div>
                   </TableCell>
                   {canAdmin && (

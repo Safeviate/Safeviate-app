@@ -448,14 +448,16 @@ export function DiaryTab({ tenantId, startOpen, onStartOpenChange }: DiaryTabPro
                     </div>
                   )}
                   {currentActiveOrViewing.log.map((entry) => (
-                    <div key={entry.id} className={cn("flex gap-4 p-3 rounded-lg border transition-colors", entry.isMilestone ? "bg-primary/5 border-primary/20" : "bg-muted/5")}>
+                    <div key={entry.id} className={cn("flex min-w-0 gap-4 p-3 rounded-lg border transition-colors", entry.isMilestone ? "bg-primary/5 border-primary/20" : "bg-muted/5")}>
                       <div className="shrink-0 flex flex-col items-center gap-1 pt-1">
                         <Clock className="h-3 w-3 text-muted-foreground" />
                         <span className="text-[10px] font-bold font-mono">{format(new Date(entry.timestamp), 'HH:mm:ss')}</span>
                       </div>
-                      <div className="flex-1 space-y-1">
-                        <p className={cn("text-sm", entry.isMilestone && "font-bold text-primary")}>{entry.description}</p>
-                        <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-medium uppercase tracking-tight">
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <p className={cn("truncate text-sm", entry.isMilestone && "font-bold text-primary")} title={entry.description}>
+                          {entry.description}
+                        </p>
+                        <div className="flex min-w-0 items-center gap-2 text-[10px] font-medium uppercase tracking-tight text-muted-foreground">
                           <User className="h-2.5 w-2.5" /> {entry.userName}
                           {entry.isMilestone && <Badge variant="secondary" className="h-4 text-[8px] bg-primary/10 text-primary border-none"><Flag className="h-2 w-2 mr-1" /> Milestone</Badge>}
                         </div>

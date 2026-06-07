@@ -17,8 +17,8 @@ export function PhasesTab() {
       <div className="grid grid-cols-1 gap-6">
         <section className="border border-card-border border-l-4 border-l-blue-500 px-6 py-6">
           <div className="pb-2">
-            <div className="flex justify-between items-center">
-              <h4 className="flex items-center gap-2 text-2xl font-semibold text-blue-700">
+            <div className="flex items-start gap-3">
+              <h4 className="flex min-w-0 flex-1 items-center gap-2 text-2xl font-semibold text-blue-700">
                 <Info className="h-5 w-5" /> INCERFA (Uncertainty Phase)
               </h4>
               <Badge variant="outline" className="border-blue-200 text-blue-700 bg-blue-50">Phase 1</Badge>
@@ -46,8 +46,8 @@ export function PhasesTab() {
 
         <section className="border border-card-border border-l-4 border-l-amber-500 px-6 py-6">
           <div className="pb-2">
-            <div className="flex justify-between items-center">
-              <h4 className="flex items-center gap-2 text-2xl font-semibold text-amber-700">
+            <div className="flex items-start gap-3">
+              <h4 className="flex min-w-0 flex-1 items-center gap-2 text-2xl font-semibold text-amber-700">
                 <Clock className="h-5 w-5" /> ALERFA (Alert Phase)
               </h4>
               <Badge variant="outline" className="border-amber-200 text-amber-700 bg-amber-50">Phase 2</Badge>
@@ -76,8 +76,8 @@ export function PhasesTab() {
 
         <section className="border border-card-border border-l-4 border-l-red-500 px-6 py-6">
           <div className="pb-2">
-            <div className="flex justify-between items-center">
-              <h4 className="flex items-center gap-2 text-2xl font-semibold text-red-700">
+            <div className="flex items-start gap-3">
+              <h4 className="flex min-w-0 flex-1 items-center gap-2 text-2xl font-semibold text-red-700">
                 <ShieldAlert className="h-5 w-5" /> DETRESFA (Distress Phase)
               </h4>
               <Badge variant="outline" className="border-red-200 text-red-700 bg-red-50">Phase 3</Badge>

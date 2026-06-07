@@ -125,7 +125,7 @@ export function DocumentsTab({ tenantId }: DocumentsTabProps) {
           <h4 className="font-headline text-lg font-semibold">Required Evidence & Documentation</h4>
         </div>
         <div className="p-0">
-          <Table>
+          <Table className="table-fixed">
             <TableHeader>
               <TableRow>
                 <TableHead>Document Name</TableHead>
@@ -142,7 +142,9 @@ export function DocumentsTab({ tenantId }: DocumentsTabProps) {
 
                 return (
                   <TableRow key={doc.id} className={cn(isSecured && "bg-emerald-50/30")}>
-                    <TableCell className="font-medium">{doc.name}</TableCell>
+                    <TableCell className="min-w-0 font-medium">
+                      <span className="block truncate" title={doc.name}>{doc.name}</span>
+                    </TableCell>
                     <TableCell>
                       {isSecured ? (
                         <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 gap-1 h-5 px-2">
@@ -154,14 +156,15 @@ export function DocumentsTab({ tenantId }: DocumentsTabProps) {
                         </Badge>
                       )}
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
+                    <TableCell className="min-w-0 text-xs text-muted-foreground">
                       {isSecured ? (
-                        <div className="flex items-center gap-1">
-                          <User className="h-3 w-3" /> {securedInfo.securedBy}
+                        <div className="flex min-w-0 items-center gap-1">
+                          <User className="h-3 w-3 shrink-0" />
+                          <span className="min-w-0 truncate" title={securedInfo.securedBy}>{securedInfo.securedBy}</span>
                         </div>
                       ) : '-'}
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground font-mono">
+                    <TableCell className="text-xs font-mono text-muted-foreground">
                       {isSecured && securedInfo.securedAt ? format(new Date(securedInfo.securedAt), 'HH:mm:ss') : '-'}
                     </TableCell>
                     <TableCell className="text-right">

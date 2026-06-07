@@ -76,14 +76,16 @@ export function PersonnelTable({ data, rolesMap, departmentsMap, tenantId }: Per
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="rounded-lg border bg-background px-3 py-3">
                     <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Email</p>
-                    <p className="mt-1 flex items-center gap-2 text-sm font-semibold text-foreground">
+                    <p className="mt-1 flex min-w-0 items-center gap-2 text-sm font-semibold text-foreground">
                       <Mail className="h-3.5 w-3.5 text-muted-foreground" />
-                      {person.email}
+                      <span className="min-w-0 truncate" title={person.email}>
+                        {person.email}
+                      </span>
                     </p>
                   </div>
                   <div className="rounded-lg border bg-background px-3 py-3">
                     <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Department</p>
-                    <p className="mt-1 text-sm font-semibold text-foreground">
+                    <p className="mt-1 truncate text-sm font-semibold text-foreground" title={departmentsMap.get(person.department || '') || 'N/A'}>
                       {departmentsMap.get(person.department || '') || 'N/A'}
                     </p>
                   </div>
@@ -91,15 +93,17 @@ export function PersonnelTable({ data, rolesMap, departmentsMap, tenantId }: Per
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="rounded-lg border bg-background px-3 py-3">
                     <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Role</p>
-                    <p className="mt-1 text-sm font-semibold text-foreground">
+                    <p className="mt-1 truncate text-sm font-semibold text-foreground" title={rolesMap.get(person.role) || person.role}>
                       {rolesMap.get(person.role) || person.role}
                     </p>
                   </div>
                   <div className="rounded-lg border bg-background px-3 py-3">
                     <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Organization</p>
-                    <p className="mt-1 flex items-center gap-2 text-sm font-semibold text-foreground">
+                    <p className="mt-1 flex min-w-0 items-center gap-2 text-sm font-semibold text-foreground">
                       <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
-                      {person.organizationId || 'Internal'}
+                      <span className="min-w-0 truncate" title={person.organizationId || 'Internal'}>
+                        {person.organizationId || 'Internal'}
+                      </span>
                     </p>
                   </div>
                 </div>

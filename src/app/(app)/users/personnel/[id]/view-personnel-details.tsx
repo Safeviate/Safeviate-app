@@ -62,9 +62,9 @@ interface ViewPersonnelDetailsProps {
 type Document = NonNullable<UserProfile['documents']>[0];
 
 const DetailItem = ({ label, value, children }: { label: string; value?: string | null, children?: React.ReactNode }) => (
-    <div>
+    <div className="min-w-0">
       <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1">{label}</p>
-      {children ? children : <p className="text-sm font-bold text-foreground">{value || 'N/A'}</p>}
+      {children ? children : <p className="truncate text-sm font-bold text-foreground" title={value || 'N/A'}>{value || 'N/A'}</p>}
     </div>
 );
 
