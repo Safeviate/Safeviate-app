@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AircraftList } from './aircraft-list';
 import type { Aircraft } from '@/types/aircraft';
@@ -53,7 +55,14 @@ export default function AircraftFleetPage() {
         <MainPageHeader
           title="Aircraft Fleet"
           description="Manage all aircraft in your organization's inventory."
-          actions={canManageAssets ? <AddAircraftDialog tenantId={tenantId || ''} /> : undefined}
+          actions={canManageAssets ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button asChild variant="outline" size="compact" className="h-8 border-slate-300 text-[9px] font-black uppercase tracking-[0.08em]">
+                <Link href="/assets/inspections/new?assetType=aircraft">New Inspection</Link>
+              </Button>
+              <AddAircraftDialog tenantId={tenantId || ''} />
+            </div>
+          ) : undefined}
         />
         <CardContent className="flex-1 p-0 overflow-hidden bg-background">
           <AircraftList data={aircrafts || []} tenantId={tenantId || ''} canEdit={canManageAssets} />

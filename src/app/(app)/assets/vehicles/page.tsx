@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { MainPageHeader } from '@/components/page-header';
 import { usePermissions } from '@/hooks/use-permissions';
@@ -56,7 +58,14 @@ export default function VehiclesPage() {
         <MainPageHeader
           title="Vehicle Fleet"
           description="Manage company vehicles and supporting ground assets."
-          actions={canManageAssets ? <AddVehicleDialog tenantId={tenantId || ''} /> : undefined}
+          actions={canManageAssets ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button asChild variant="outline" size="compact" className="h-8 border-slate-300 text-[9px] font-black uppercase tracking-[0.08em]">
+                <Link href="/assets/inspections/new?assetType=vehicle">New Inspection</Link>
+              </Button>
+              <AddVehicleDialog tenantId={tenantId || ''} />
+            </div>
+          ) : undefined}
         />
         <CardContent className="flex-1 p-0 overflow-hidden bg-background">
           <VehicleList data={vehicles || []} />

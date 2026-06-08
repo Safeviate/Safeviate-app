@@ -45,6 +45,9 @@ export function DocumentUploader({ trigger, defaultFileName = '', onDocumentUplo
   const [file, setFile] = useState<File | null>(null);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const fileAccept = '.pdf,.csv,.txt,image/*';
+  const CAMERA_MAX_WIDTH = 1024;
+  const CAMERA_MAX_HEIGHT = 576;
+  const CAMERA_JPEG_QUALITY = 0.7;
 
   useEffect(() => {
     let active = true;
@@ -122,8 +125,8 @@ export function DocumentUploader({ trigger, defaultFileName = '', onDocumentUplo
           const constraints = {
             video: {
               facingMode: { ideal: cameraFacingMode },
-              width: { ideal: 1280 },
-              height: { ideal: 720 }
+              width: { ideal: CAMERA_MAX_WIDTH },
+              height: { ideal: CAMERA_MAX_HEIGHT }
             }
           };
           try {
@@ -131,8 +134,8 @@ export function DocumentUploader({ trigger, defaultFileName = '', onDocumentUplo
           } catch {
             stream = await navigator.mediaDevices.getUserMedia({
               video: {
-                width: { ideal: 1280 },
-                height: { ideal: 720 }
+                width: { ideal: CAMERA_MAX_WIDTH },
+                height: { ideal: CAMERA_MAX_HEIGHT }
               }
             });
           }
@@ -181,12 +184,15 @@ export function DocumentUploader({ trigger, defaultFileName = '', onDocumentUplo
     if (videoRef.current && canvasRef.current) {
         const video = videoRef.current;
         const canvas = canvasRef.current;
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
+        const sourceWidth = video.videoWidth || CAMERA_MAX_WIDTH;
+        const sourceHeight = video.videoHeight || CAMERA_MAX_HEIGHT;
+        const scale = Math.min(1, CAMERA_MAX_WIDTH / sourceWidth, CAMERA_MAX_HEIGHT / sourceHeight);
+        canvas.width = Math.max(1, Math.round(sourceWidth * scale));
+        canvas.height = Math.max(1, Math.round(sourceHeight * scale));
         const context = canvas.getContext('2d');
         if (context) {
-            context.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
-            const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const dataUrl = canvas.toDataURL('image/jpeg', CAMERA_JPEG_QUALITY);
             setCapturedImage(dataUrl);
             cleanupCamera();
         }
