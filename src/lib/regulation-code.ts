@@ -86,6 +86,7 @@ export function sanitizeComplianceMatrixEntry<T>(item: T): T {
   const record = item as Record<string, unknown>;
   return {
     ...item,
+    structureType: typeof record.structureType === 'string' ? record.structureType.trim() : undefined,
     regulationCode: normalizeRegulationCode(record.regulationCode),
     parentRegulationCode: normalizeRegulationCode(record.parentRegulationCode),
     documentHeading: normalizeTextValue(record.documentHeading),

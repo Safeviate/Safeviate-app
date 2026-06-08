@@ -110,6 +110,7 @@ function buildUserContent(input: SummarizeDocumentInput) {
     '- Under a CATS section row, numbered lines like "1. Maintenance control manual" and "2. Maintenance programme" are genuine child headings. Create separate requirements for them under parentRegulationCode "43.02.3".',
     '- For these numbered CATS child headings, if the selected parent is "43.02.3", reconstruct the child code as "43.02.3.1" for "1. Maintenance control manual" and "43.02.3.2" for "2. Maintenance programme".',
     '- A CATS detailed page often repeats the parent section heading, e.g. "43.02.3 CARRYING OUT OF MAINTENANCE", then shows numbered child headings like "1. Maintenance control manual". The parent section heading should be one row and each numbered child heading should be its own row.',
+    '- If a pasted CATS detailed page only shows a numbered child heading like "1. Emergency and survival list" beneath a selected parent code, reconstruct it as the first child requirement under that parent (for example, "91.01.5.1"). Keep any printed parent heading line as documentHeading and the numbered heading text as regulationStatement.',
     '- Body paragraphs under a numbered CATS child heading marked (1), (2), (a), (b), (i), (ii), etc. are technicalStandardLines for that numbered child heading, not separate rows.',
     '- Editorial notes and substitution/amendment notes, e.g. "[Section 2 substituted by ...]" or "(Editorial Note: ...)", should be preserved in technicalStandardLines for the relevant child heading, not turned into rows.',
     'For SACAA CARS and similar regulations, treat a printed regulation number like 91.03.1 as the requirement heading unless the document shows a new printed regulation number.',
@@ -160,6 +161,72 @@ function buildUserContent(input: SummarizeDocumentInput) {
 
 function isStandaloneSubordinateMarker(code: string) {
   return /^\((?:\d+|[a-z]{1,2}|[ivxlcdm]+)\)$/i.test(code.trim());
+}
+
+function parseFallbackTextRequirements(input: SummarizeDocumentInput) {
+  const parentCode = input.targetParentCode?.trim() || '';
+  const rawText = input.document.text?.trim() || '';
+  if (!parentCode || !rawText) return [];
+
+  const lines = rawText
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (!lines.length) return [];
+
+  const documentHeading = lines[0].match(/^(\d+(?:\.\d+)+)\s+(.+)$/)?.[2]?.trim() || '';
+  const sectionPattern = /^(\d+)\.\s+(.+)$/;
+  const requirements: Array<{
+    regulationCode: string;
+    documentHeading: string;
+    regulationStatement: string;
+    technicalStandard: string;
+    companyReference: string;
+    parentRegulationCode: string;
+  }> = [];
+
+  let currentSection: { number: string; title: string; body: string[] } | null = null;
+
+  for (const line of lines) {
+    const sectionMatch = line.match(sectionPattern);
+    if (sectionMatch) {
+      if (currentSection) {
+        requirements.push({
+          regulationCode: `${parentCode}.${currentSection.number}`,
+          documentHeading,
+          regulationStatement: currentSection.title,
+          technicalStandard: currentSection.body.join('\n'),
+          companyReference: 'Ops Manual, Sec TBD',
+          parentRegulationCode: parentCode,
+        });
+      }
+
+      currentSection = {
+        number: sectionMatch[1],
+        title: sectionMatch[2].trim(),
+        body: [],
+      };
+      continue;
+    }
+
+    if (currentSection) {
+      currentSection.body.push(line);
+    }
+  }
+
+  if (currentSection) {
+    requirements.push({
+      regulationCode: `${parentCode}.${currentSection.number}`,
+      documentHeading,
+      regulationStatement: currentSection.title,
+      technicalStandard: currentSection.body.join('\n'),
+      companyReference: 'Ops Manual, Sec TBD',
+      parentRegulationCode: parentCode,
+    });
+  }
+
+  return requirements;
 }
 
 async function runOpenAiSummarizeDocument(input: SummarizeDocumentInput) {
@@ -214,7 +281,7 @@ export async function summarizeDocument(input: SummarizeDocumentInput): Promise<
   const output = await runOpenAiSummarizeDocument(input);
   const targetParentCode = input.targetParentCode?.trim() || '';
 
-  const normalized = output.requirements
+  let normalized = output.requirements
     .map((requirement) => {
       const parentRegulationCode = requirement.parentRegulationCode?.trim() || targetParentCode || '';
 
@@ -231,6 +298,18 @@ export async function summarizeDocument(input: SummarizeDocumentInput): Promise<
       };
     })
     .filter((requirement) => !isStandaloneSubordinateMarker(requirement.regulationCode));
+
+  if (input.document.text?.trim() && targetParentCode) {
+    const parentPrefix = `${targetParentCode.toLowerCase()}.`;
+    const hasChildRequirement = normalized.some((requirement) => resolveRegulationCode(requirement.regulationCode, targetParentCode).toLowerCase().startsWith(parentPrefix));
+
+    if (!hasChildRequirement) {
+      const fallbackRequirements = parseFallbackTextRequirements(input);
+      if (fallbackRequirements.length > 0) {
+        normalized = fallbackRequirements;
+      }
+    }
+  }
 
   return SummarizeDocumentOutputSchema.parse({ requirements: normalized });
 }
