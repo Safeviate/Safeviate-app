@@ -58,7 +58,19 @@ export default function AircraftFleetPage() {
           actions={canManageAssets ? (
             <div className="flex flex-wrap items-center gap-2">
               <Button asChild variant="outline" size="compact" className="h-8 border-slate-300 text-[9px] font-black uppercase tracking-[0.08em]">
+                <Link href="/assets/inspections/templates">Inspection Templates</Link>
+              </Button>
+              <Button asChild variant="outline" size="compact" className="h-8 border-slate-300 text-[9px] font-black uppercase tracking-[0.08em]">
                 <Link href="/assets/inspections/new?assetType=aircraft">New Inspection</Link>
+              </Button>
+              <Button asChild variant="outline" size="compact" className="h-8 border-slate-300 text-[9px] font-black uppercase tracking-[0.08em]">
+                <Link href="/assets/inspections/new?assetType=aircraft&template=aircraft-exterior-template">Exterior</Link>
+              </Button>
+              <Button asChild variant="outline" size="compact" className="h-8 border-slate-300 text-[9px] font-black uppercase tracking-[0.08em]">
+                <Link href="/assets/inspections/new?assetType=aircraft&template=aircraft-interior-template">Interior</Link>
+              </Button>
+              <Button asChild variant="outline" size="compact" className="h-8 border-slate-300 text-[9px] font-black uppercase tracking-[0.08em]">
+                <Link href="/assets/inspections/new?assetType=aircraft&template=aircraft-full-template">Full</Link>
               </Button>
               <AddAircraftDialog tenantId={tenantId || ''} />
             </div>

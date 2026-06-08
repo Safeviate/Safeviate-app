@@ -9,6 +9,9 @@ type AssetInspectionRecord = {
   assetType?: string | null;
   assetId?: string | null;
   assetLabel?: string | null;
+  templateId?: string | null;
+  templateTitle?: string | null;
+  inspectionScope?: string | null;
   inspectionType?: string | null;
   inspectionDate?: string | null;
   inspectorId?: string | null;
@@ -41,6 +44,10 @@ function normalizeChecklistItems(value: unknown) {
       const outcomeRaw = normalizeTextValue(record.outcome).toLowerCase();
       const outcome = outcomeRaw === 'fail' ? 'Fail' : outcomeRaw === 'n/a' || outcomeRaw === 'na' ? 'N/A' : 'Pass';
       const notes = normalizeTextValue(record.notes);
+      const scopeRaw = normalizeTextValue(record.scope);
+      const scope = scopeRaw === 'interior' ? 'Interior' : scopeRaw === 'both' ? 'Both' : scopeRaw === 'exterior' ? 'Exterior' : undefined;
+      const minPhotosRaw = Number(record.minPhotos);
+      const minPhotos = Number.isFinite(minPhotosRaw) && minPhotosRaw > 0 ? Math.min(12, Math.floor(minPhotosRaw)) : undefined;
       const photos = Array.isArray(record.photos)
         ? record.photos
             .map((photo) => {
@@ -64,6 +71,8 @@ function normalizeChecklistItems(value: unknown) {
         label,
         outcome,
         notes: notes || undefined,
+        scope,
+        minPhotos,
         photos,
       };
     })
@@ -89,6 +98,9 @@ function sanitizeInspection(item: AssetInspectionRecord) {
     assetType: normalizeAssetType(item.assetType),
     assetId: normalizeTextValue(item.assetId),
     assetLabel: normalizeTextValue(item.assetLabel),
+    templateId: normalizeTextValue(item.templateId),
+    templateTitle: normalizeTextValue(item.templateTitle),
+    inspectionScope: normalizeTextValue(item.inspectionScope) || 'Both',
     inspectionType: normalizeTextValue(item.inspectionType),
     inspectionDate: normalizeTextValue(item.inspectionDate),
     inspectorId: normalizeTextValue(item.inspectorId),

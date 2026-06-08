@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { format } from 'date-fns';
-import { ArrowLeft, CheckCircle2, CircleAlert, Loader2, Plus, Trash2, Wrench } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, ChevronDown, CircleAlert, Loader2, Plus, Trash2, Wrench } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -27,6 +28,8 @@ import type {
   AssetInspectionAssetType,
   AssetInspectionChecklistItem,
   AssetInspectionRecord,
+  AssetInspectionTemplate,
+  AssetInspectionScope,
   AssetInspectionStatus,
 } from '@/types/inspection';
 
@@ -51,6 +54,11 @@ const INSPECTION_TYPE_OPTIONS = [
 ];
 
 const STATUS_OPTIONS: AssetInspectionStatus[] = ['Serviceable', 'Attention Required', 'Grounded'];
+const SCOPE_OPTIONS: { value: AssetInspectionScope; label: string }[] = [
+  { value: 'Exterior', label: 'Exterior' },
+  { value: 'Interior', label: 'Interior' },
+  { value: 'Both', label: 'Both' },
+];
 
 function getDefaultChecklist(assetType: AssetInspectionAssetType): AssetInspectionChecklistItem[] {
   return assetType === 'vehicle'
@@ -68,6 +76,22 @@ function getDefaultChecklist(assetType: AssetInspectionAssetType): AssetInspecti
         { id: crypto.randomUUID(), label: 'Fuel, oil, and visible leaks', outcome: 'Pass' },
         { id: crypto.randomUUID(), label: 'Serviceability and defects check', outcome: 'Pass' },
       ];
+}
+
+function flattenTemplateChecklist(template?: AssetInspectionTemplate | null): AssetInspectionChecklistItem[] {
+  if (!template) return [];
+  return template.sections.flatMap((section) =>
+    section.items.map((item) => ({
+      id: item.id || crypto.randomUUID(),
+      label: item.label,
+      outcome: item.outcome,
+      notes: item.notes,
+      photos: [],
+      scope: item.scope,
+      minPhotos: item.minPhotos,
+      sectionTitle: section.title,
+    })),
+  );
 }
 
 function formatInspectionDate(value?: string | null) {
@@ -102,6 +126,7 @@ function checklistOutcomeClass(outcome: string) {
 
 export default function AssetInspectionNewPage() {
   const { toast } = useToast();
+  const searchParams = useSearchParams();
   const { tenantId } = useUserProfile();
   const { hasPermission } = usePermissions();
   const canManageAssets = hasPermission('assets-edit') || hasPermission('assets-manage') || hasPermission('assets-create');
@@ -110,10 +135,14 @@ export default function AssetInspectionNewPage() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [personnel, setPersonnel] = useState<Personnel[]>([]);
   const [inspections, setInspections] = useState<AssetInspectionRecord[]>([]);
+  const [templates, setTemplates] = useState<AssetInspectionTemplate[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [assetType, setAssetType] = useState<AssetInspectionAssetType>('aircraft');
+  const [templateId, setTemplateId] = useState('');
+  const [inspectionScope, setInspectionScope] = useState<AssetInspectionScope>('Both');
   const [assetId, setAssetId] = useState('');
+  const [showTemplateSummary, setShowTemplateSummary] = useState(true);
   const [inspectionType, setInspectionType] = useState(INSPECTION_TYPE_OPTIONS[0]);
   const [inspectionDate, setInspectionDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [inspectorId, setInspectorId] = useState('');
@@ -126,30 +155,34 @@ export default function AssetInspectionNewPage() {
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [aircraftRes, vehicleRes, personnelRes, inspectionsRes] = await Promise.all([
+      const [aircraftRes, vehicleRes, personnelRes, inspectionsRes, templatesRes] = await Promise.all([
         fetch('/api/aircraft', { cache: 'no-store' }),
         fetch('/api/vehicles', { cache: 'no-store' }),
         fetch('/api/personnel', { cache: 'no-store' }),
         fetch('/api/asset-inspections', { cache: 'no-store' }),
+        fetch('/api/asset-inspection-templates', { cache: 'no-store' }),
       ]);
 
-      const [aircraftPayload, vehiclePayload, personnelPayload, inspectionPayload] = await Promise.all([
+      const [aircraftPayload, vehiclePayload, personnelPayload, inspectionPayload, templatePayload] = await Promise.all([
         aircraftRes.json().catch(() => ({ aircraft: [] })),
         vehicleRes.json().catch(() => ({ vehicles: [] })),
         personnelRes.json().catch(() => ({ personnel: [] })),
         inspectionsRes.json().catch(() => ({ inspections: [] })),
+        templatesRes.json().catch(() => ({ templates: [] })),
       ]);
 
       setAircraft(Array.isArray(aircraftPayload.aircraft) ? aircraftPayload.aircraft : []);
       setVehicles(Array.isArray(vehiclePayload.vehicles) ? vehiclePayload.vehicles : []);
       setPersonnel(Array.isArray(personnelPayload.personnel) ? personnelPayload.personnel : []);
       setInspections(Array.isArray(inspectionPayload.inspections) ? inspectionPayload.inspections : []);
+      setTemplates(Array.isArray(templatePayload.templates) ? templatePayload.templates : []);
     } catch (error) {
       console.error('Failed to load asset inspection data', error);
       setAircraft([]);
       setVehicles([]);
       setPersonnel([]);
       setInspections([]);
+      setTemplates([]);
     } finally {
       setIsLoading(false);
     }
@@ -163,9 +196,12 @@ export default function AssetInspectionNewPage() {
   }, [loadData]);
 
   useEffect(() => {
-    setChecklistItems(getDefaultChecklist(assetType));
+    const nextTemplate = templates.find((template) => template.assetType === assetType || template.assetType === 'all') || null;
+    setTemplateId(nextTemplate?.id || '');
+    setChecklistItems(flattenTemplateChecklist(nextTemplate));
+    setInspectionScope('Both');
     setAssetId('');
-  }, [assetType]);
+  }, [assetType, templates]);
 
   const assetOptions = useMemo<AssetOption[]>(() => {
     const source = assetType === 'vehicle' ? vehicles : aircraft;
@@ -182,6 +218,12 @@ export default function AssetInspectionNewPage() {
     }
   }, [assetId, assetOptions]);
 
+  useEffect(() => {
+    const nextTemplate = templates.find((template) => template.id === templateId) || null;
+    if (!templateId || !nextTemplate) return;
+    setChecklistItems(flattenTemplateChecklist(nextTemplate));
+  }, [templateId, templates]);
+
   const selectedAsset = useMemo(
     () => (assetType === 'vehicle' ? vehicles.find((vehicle) => vehicle.id === assetId) || null : aircraft.find((item) => item.id === assetId) || null),
     [aircraft, assetId, assetType, vehicles],
@@ -189,6 +231,38 @@ export default function AssetInspectionNewPage() {
 
   const selectedAssetLabel = selectedAsset ? getAssetLabel(selectedAsset, assetType) : '';
   const inspectorLabel = inspectorId ? getPersonnelDisplayName(personnel, inspectorId) || inspectorId : '';
+  const availableTemplates = useMemo(
+    () => templates.filter((template) => template.assetType === assetType || template.assetType === 'all'),
+    [assetType, templates],
+  );
+  const selectedTemplate = availableTemplates.find((template) => template.id === templateId) || null;
+  const visibleChecklistItems = useMemo(
+    () =>
+      checklistItems.filter((item) => {
+        if (!item.scope || inspectionScope === 'Both') return true;
+        return item.scope === inspectionScope || item.scope === 'Both';
+      }),
+    [checklistItems, inspectionScope],
+  );
+
+  useEffect(() => {
+    const requestedTemplateId = searchParams?.get('template')?.trim() || '';
+    if (!requestedTemplateId || !availableTemplates.some((template) => template.id === requestedTemplateId)) return;
+    setTemplateId(requestedTemplateId);
+    setChecklistItems(flattenTemplateChecklist(availableTemplates.find((template) => template.id === requestedTemplateId) || null));
+  }, [availableTemplates, searchParams]);
+  const checklistSections = useMemo(() => {
+    return visibleChecklistItems.reduce<{ title: string; items: AssetInspectionChecklistItem[] }[]>((sections, item) => {
+      const sectionTitle = item.sectionTitle || 'Questions';
+      const currentSection = sections[sections.length - 1];
+      if (!currentSection || currentSection.title !== sectionTitle) {
+        sections.push({ title: sectionTitle, items: [item] });
+      } else {
+        currentSection.items.push(item);
+      }
+      return sections;
+    }, []);
+  }, [visibleChecklistItems]);
 
   const recentInspections = useMemo(
     () =>
@@ -202,6 +276,12 @@ export default function AssetInspectionNewPage() {
     setChecklistItems((current) =>
       current.map((item, itemIndex) => (itemIndex === index ? { ...item, [field]: value } : item)),
     );
+  };
+
+  const handleTemplateChange = (value: string) => {
+    setTemplateId(value);
+    const nextTemplate = availableTemplates.find((template) => template.id === value) || null;
+    setChecklistItems(flattenTemplateChecklist(nextTemplate));
   };
 
   const handleChecklistPhotoUploaded = (
@@ -261,6 +341,23 @@ export default function AssetInspectionNewPage() {
       return;
     }
 
+    const minimumPhotoViolation = checklistItems.find((item) => {
+      if (inspectionScope !== 'Both' && item.scope && item.scope !== inspectionScope && item.scope !== 'Both') {
+        return false;
+      }
+      const minPhotos = Math.max(0, Number(item.minPhotos || 0));
+      return minPhotos > 0 && (item.photos || []).length < minPhotos;
+    });
+
+    if (minimumPhotoViolation) {
+      toast({
+        variant: 'destructive',
+        title: 'More photos required',
+        description: `${minimumPhotoViolation.label} needs at least ${minimumPhotoViolation.minPhotos || 0} photos before saving.`,
+      });
+      return;
+    }
+
     setIsSaving(true);
     try {
       const payload = {
@@ -277,7 +374,11 @@ export default function AssetInspectionNewPage() {
           findings: findings.trim(),
           notes: notes.trim(),
           nextInspectionDate: nextInspectionDate || '',
+          templateId: templateId || '',
+          templateTitle: selectedTemplate?.title || '',
+          inspectionScope,
           checklistItems: checklistItems
+            .filter((item) => inspectionScope === 'Both' || !item.scope || item.scope === inspectionScope || item.scope === 'Both')
             .filter((item) => item.label.trim())
             .map((item) => ({
               ...item,
@@ -308,7 +409,10 @@ export default function AssetInspectionNewPage() {
       setFindings('');
       setNotes('');
       setNextInspectionDate('');
-      setChecklistItems(getDefaultChecklist(assetType));
+      setInspectionScope('Both');
+      const nextTemplate = availableTemplates[0] || null;
+      setTemplateId(nextTemplate?.id || '');
+      setChecklistItems(flattenTemplateChecklist(nextTemplate));
     } catch (error) {
       toast({
         variant: 'destructive',
@@ -341,9 +445,9 @@ export default function AssetInspectionNewPage() {
           actions={(
             <div className="flex flex-wrap items-center gap-2">
               <Button asChild variant="outline" size="compact" className="h-8 border-slate-300 text-[9px] font-black uppercase tracking-[0.08em]">
-                <Link href="/assets/aircraft">
+                <Link href="/assets/inspections/templates">
                   <ArrowLeft className="h-3.5 w-3.5" />
-                  Back to Aircraft
+                  Manage Templates
                 </Link>
               </Button>
             </div>
@@ -398,6 +502,66 @@ export default function AssetInspectionNewPage() {
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto]">
+                <div className="space-y-2">
+                  <Label>Inspection Template</Label>
+                  <Select value={templateId} onValueChange={handleTemplateChange}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select template" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableTemplates.length > 0 ? (
+                        availableTemplates.map((template) => (
+                          <SelectItem key={template.id} value={template.id}>
+                            {template.title}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value="__none__" disabled>
+                          No templates available
+                        </SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[10px] font-medium text-muted-foreground">Each question in the default templates requires at least 4 photos.</p>
+                </div>
+                <div className="space-y-2">
+                  <Label className="opacity-0">Manage</Label>
+                  <div className="flex flex-wrap gap-2">
+                    <Button asChild variant="outline" className="h-10 border-slate-300">
+                      <Link href="/assets/inspections/templates">Manage Templates</Link>
+                    </Button>
+                    <Button
+                      asChild
+                      variant="outline"
+                      className="h-10 border-slate-300"
+                      disabled={!templateId}
+                    >
+                      <Link href={`/assets/inspections/templates?copyFrom=${encodeURIComponent(templateId)}`}>
+                        Copy Template
+                      </Link>
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Inspection Scope</Label>
+                <Select value={inspectionScope} onValueChange={(value) => setInspectionScope(value as AssetInspectionScope)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select scope" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SCOPE_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[10px] font-medium text-muted-foreground">Exterior and Interior templates can be filtered independently, or combined with Both.</p>
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
@@ -471,9 +635,23 @@ export default function AssetInspectionNewPage() {
                     Add Item
                   </Button>
                 </div>
-                <div className="space-y-3">
-                  {checklistItems.map((item, index) => (
-                    <div key={item.id} className="rounded-lg border border-card-border bg-muted/15 p-3">
+                <div className="space-y-4">
+                  {checklistSections.map((section) => (
+                    <div key={section.title} className="rounded-lg border border-card-border bg-muted/10 p-3">
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">{section.title}</p>
+                          <p className="mt-1 text-[11px] text-muted-foreground">{selectedTemplate?.title || 'Template checklist'}</p>
+                        </div>
+                        <Badge variant="outline" className="border-card-border bg-background/70 text-[10px] font-black uppercase tracking-[0.08em] text-foreground">
+                          {section.items.length} item{section.items.length === 1 ? '' : 's'}
+                        </Badge>
+                      </div>
+                      <div className="space-y-3">
+                        {section.items.map((item) => {
+                          const index = checklistItems.findIndex((entry) => entry.id === item.id);
+                          return (
+                            <div key={item.id} className="rounded-lg border border-card-border bg-muted/15 p-3">
                       <div className="grid gap-3 md:grid-cols-[minmax(0,1.6fr)_170px_1fr_auto]">
                         <div className="space-y-2">
                           <Label className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Checklist Item</Label>
@@ -497,6 +675,12 @@ export default function AssetInspectionNewPage() {
                           <Input value={item.notes || ''} onChange={(event) => handleChecklistChange(index, 'notes', event.target.value)} placeholder="Optional notes" />
                         </div>
                         <div className="flex items-end gap-2">
+                          <div className="flex min-w-[112px] flex-col items-end gap-1">
+                            <p className="text-[9px] font-black uppercase tracking-[0.16em] text-muted-foreground">
+                              Photos: {Array.isArray(item.photos) ? item.photos.length : 0}
+                            </p>
+                            <p className="text-[9px] font-medium text-muted-foreground">Min {Math.max(0, Number(item.minPhotos || 0))}</p>
+                          </div>
                           <DocumentUploader
                             restrictedMode="camera"
                             onDocumentUploaded={(docDetails) => handleChecklistPhotoUploaded(index, docDetails)}
@@ -539,6 +723,10 @@ export default function AssetInspectionNewPage() {
                           </div>
                         </div>
                       ) : null}
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -592,6 +780,67 @@ export default function AssetInspectionNewPage() {
               </Badge>
             </div>
 
+            <div className="space-y-3 rounded-lg border border-card-border bg-muted/10 p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Template Summary</p>
+                  <p className="mt-1 text-sm font-semibold text-foreground">{selectedTemplate?.title || 'No template selected'}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="border-card-border bg-background/70 text-[10px] font-black uppercase tracking-[0.08em] text-foreground">
+                    {inspectionScope}
+                  </Badge>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 border border-card-border bg-background/70"
+                    onClick={() => setShowTemplateSummary((current) => !current)}
+                  >
+                    <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', showTemplateSummary && 'rotate-180')} />
+                  </Button>
+                </div>
+              </div>
+              {showTemplateSummary ? (
+                <>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <div className="rounded-md border bg-background/70 px-2.5 py-2">
+                      <p className="text-[9px] font-black uppercase tracking-[0.16em] text-muted-foreground">Sections</p>
+                      <p className="mt-1 text-sm font-semibold text-foreground">{selectedTemplate?.sections.length || 0}</p>
+                    </div>
+                    <div className="rounded-md border bg-background/70 px-2.5 py-2">
+                      <p className="text-[9px] font-black uppercase tracking-[0.16em] text-muted-foreground">Questions</p>
+                      <p className="mt-1 text-sm font-semibold text-foreground">{visibleChecklistItems.length}</p>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-[9px] font-black uppercase tracking-[0.16em] text-muted-foreground">Question Requirements</p>
+                    <div className="max-h-44 space-y-2 overflow-auto pr-1">
+                      {visibleChecklistItems.length > 0 ? (
+                        visibleChecklistItems.map((item) => (
+                          <div key={`summary-${item.id}`} className="rounded-md border bg-background/70 px-2.5 py-2 text-[11px]">
+                            <div className="flex items-start justify-between gap-2">
+                              <p className="font-semibold text-foreground">{item.label}</p>
+                              <Badge variant="outline" className="border-card-border bg-background/80 text-[9px] font-black uppercase tracking-[0.08em] text-foreground">
+                                {item.scope || 'Both'}
+                              </Badge>
+                            </div>
+                            <p className="mt-1 text-muted-foreground">
+                              Min photos: {Math.max(0, Number(item.minPhotos || 0))}
+                            </p>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="rounded-md border border-dashed bg-background/50 px-3 py-3 text-[11px] text-muted-foreground">
+                          Select a template and scope to preview the checklist summary.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </>
+              ) : null}
+            </div>
+
             <ScrollArea className="h-[760px]">
               <div className="space-y-3 pr-1">
                 {recentInspections.length > 0 ? (
@@ -615,6 +864,15 @@ export default function AssetInspectionNewPage() {
                           )}
                         >
                           {inspection.status}
+                        </Badge>
+                      </div>
+
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <Badge variant="outline" className="border-card-border bg-background/70 text-[10px] font-black uppercase tracking-[0.08em] text-foreground">
+                          {inspection.templateTitle || 'Template'}
+                        </Badge>
+                        <Badge variant="outline" className="border-card-border bg-background/70 text-[10px] font-black uppercase tracking-[0.08em] text-foreground">
+                          {inspection.inspectionScope || 'Both'}
                         </Badge>
                       </div>
 

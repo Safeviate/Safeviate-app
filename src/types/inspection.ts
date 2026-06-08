@@ -14,6 +14,7 @@ export interface AircraftInspectionWarningSettings {
 export type AssetInspectionAssetType = 'aircraft' | 'vehicle';
 export type AssetInspectionOutcome = 'Pass' | 'Fail' | 'N/A';
 export type AssetInspectionStatus = 'Serviceable' | 'Attention Required' | 'Grounded';
+export type AssetInspectionScope = 'Exterior' | 'Interior' | 'Both';
 
 export interface AssetInspectionChecklistPhoto {
   url: string;
@@ -26,6 +27,34 @@ export interface AssetInspectionChecklistItem {
   outcome: AssetInspectionOutcome;
   notes?: string;
   photos?: AssetInspectionChecklistPhoto[];
+  scope?: AssetInspectionScope;
+  minPhotos?: number;
+  sectionTitle?: string;
+}
+
+export interface AssetInspectionTemplateItem {
+  id: string;
+  label: string;
+  outcome: AssetInspectionOutcome;
+  notes?: string;
+  scope?: AssetInspectionScope;
+  minPhotos?: number;
+}
+
+export interface AssetInspectionTemplateSection {
+  id: string;
+  title: string;
+  items: AssetInspectionTemplateItem[];
+}
+
+export interface AssetInspectionTemplate {
+  id: string;
+  title: string;
+  assetType: AssetInspectionAssetType | 'all';
+  organizationId?: string | null;
+  sections: AssetInspectionTemplateSection[];
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface AssetInspectionRecord {
@@ -33,6 +62,9 @@ export interface AssetInspectionRecord {
   assetType: AssetInspectionAssetType;
   assetId: string;
   assetLabel?: string;
+  templateId?: string;
+  templateTitle?: string;
+  inspectionScope?: AssetInspectionScope;
   inspectionType: string;
   inspectionDate: string;
   inspectorId?: string;

@@ -59,7 +59,11 @@ export type {
   AssetInspectionRecord,
   AssetInspectionChecklistItem,
   AssetInspectionChecklistPhoto,
+  AssetInspectionTemplate,
+  AssetInspectionTemplateItem,
+  AssetInspectionTemplateSection,
   AssetInspectionAssetType,
+  AssetInspectionScope,
   AssetInspectionOutcome,
   AssetInspectionStatus,
 } from './inspection';

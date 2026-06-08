@@ -61,7 +61,19 @@ export default function VehiclesPage() {
           actions={canManageAssets ? (
             <div className="flex flex-wrap items-center gap-2">
               <Button asChild variant="outline" size="compact" className="h-8 border-slate-300 text-[9px] font-black uppercase tracking-[0.08em]">
+                <Link href="/assets/inspections/templates">Inspection Templates</Link>
+              </Button>
+              <Button asChild variant="outline" size="compact" className="h-8 border-slate-300 text-[9px] font-black uppercase tracking-[0.08em]">
                 <Link href="/assets/inspections/new?assetType=vehicle">New Inspection</Link>
+              </Button>
+              <Button asChild variant="outline" size="compact" className="h-8 border-slate-300 text-[9px] font-black uppercase tracking-[0.08em]">
+                <Link href="/assets/inspections/new?assetType=vehicle&template=vehicle-exterior-template">Exterior</Link>
+              </Button>
+              <Button asChild variant="outline" size="compact" className="h-8 border-slate-300 text-[9px] font-black uppercase tracking-[0.08em]">
+                <Link href="/assets/inspections/new?assetType=vehicle&template=vehicle-interior-template">Interior</Link>
+              </Button>
+              <Button asChild variant="outline" size="compact" className="h-8 border-slate-300 text-[9px] font-black uppercase tracking-[0.08em]">
+                <Link href="/assets/inspections/new?assetType=vehicle&template=vehicle-full-template">Full</Link>
               </Button>
               <AddVehicleDialog tenantId={tenantId || ''} />
             </div>
