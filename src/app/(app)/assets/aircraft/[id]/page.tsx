@@ -1049,7 +1049,7 @@ export default function AircraftDetailPage({ params }: AircraftDetailPageProps) 
             <div className={cn(CARD_HEADER_BAND_CLASS, 'bg-transparent')}>
               <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className={cn('rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em]', serviceabilityTone)}>
+                  <span className={cn('rounded-lg border px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em]', serviceabilityTone)}>
                     {serviceabilityState}
                   </span>
                   <span className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">
@@ -2305,7 +2305,7 @@ function MaintenanceTab({
                         {format(parseLocalDate(window.fromDate) || new Date(window.fromDate), 'dd MMM yyyy')} to {format(parseLocalDate(window.toDate) || new Date(window.toDate), 'dd MMM yyyy')}
                       </div>
                     </div>
-                    <Badge variant="outline" className="rounded-full text-[10px] font-black uppercase border-amber-300 bg-amber-50 text-amber-700">
+                    <Badge variant="outline" className="rounded-lg text-[10px] font-black uppercase border-amber-300 bg-amber-50 text-amber-700">
                       {window.status || 'Scheduled'}
                     </Badge>
                   </div>
@@ -2350,7 +2350,7 @@ function MaintenanceTab({
                       {log.reference || 'No reference recorded'}
                     </CardDescription>
                   </div>
-                  <Badge variant="outline" className="rounded-full text-[10px] font-black uppercase border-slate-300 bg-background">
+                  <Badge variant="outline" className="rounded-lg text-[10px] font-black uppercase border-slate-300 bg-background">
                     {log.maintenanceType}
                   </Badge>
                 </CardHeader>
@@ -2459,7 +2459,7 @@ function ComponentsTab({
                       {comp.ataChapter || 'ATA Other'}
                     </CardDescription>
                   </div>
-                  <Badge variant={remaining < 50 ? "destructive" : "outline"} className="rounded-full font-mono font-black text-[10px] h-8 px-3 border-2 shadow-sm uppercase">
+                  <Badge variant={remaining < 50 ? "destructive" : "outline"} className="rounded-lg font-mono font-black text-[10px] h-8 px-3 border-2 shadow-sm uppercase">
                     {remaining.toFixed(1)}h left
                   </Badge>
                 </CardHeader>
@@ -2670,7 +2670,7 @@ function DocumentsTab({ aircraft, tenantId }: { aircraft: Aircraft; tenantId: st
                       Uploaded {format(new Date(doc.uploadDate), 'dd MMM yyyy')}
                     </CardDescription>
                   </div>
-                  <div className="rounded-full border bg-background px-2 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-primary">
+                  <div className="rounded-lg border bg-background px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-primary">
                     Document
                   </div>
                 </CardHeader>

@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation';
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
-export default function AssetInspectionTemplatesRedirectPage({
+export default function AssetInspectionChecklistsRedirectPage({
   searchParams,
 }: {
   searchParams?: SearchParams;

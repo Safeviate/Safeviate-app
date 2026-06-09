@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ChevronsUpDown, PlusCircle, Plane, Box, Timer, Gauge, ShieldCheck } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
+import { HEADER_COMPACT_CONTROL_CLASS } from '@/components/page-header';
 import {
   PAGE_FORMAT_PRIMARY_BUTTON_CLASS,
   PAGE_FORMAT_SECONDARY_BUTTON_CLASS,
@@ -80,9 +81,14 @@ export function AddAircraftDialog({ tenantId }: { tenantId: string }) {
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
         <Button
-          variant="default"
-          size="default"
-          className={cn(PAGE_FORMAT_PRIMARY_BUTTON_CLASS, isMobile && 'w-full justify-between')}
+          size="compact"
+          variant="outline"
+          className={cn(
+            isMobile
+              ? 'w-full justify-between'
+              : HEADER_COMPACT_CONTROL_CLASS,
+            !isMobile && 'border-card-border bg-background text-foreground shadow-none hover:bg-muted/40'
+          )}
         >
           <PlusCircle className="h-4 w-4" />
           <span>Register Asset</span>

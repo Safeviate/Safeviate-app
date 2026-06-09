@@ -133,8 +133,8 @@ export default function VehicleDetailPage({ params }: VehicleDetailPageProps) {
 
             <div className="border-b bg-muted/5 px-6 py-2 shrink-0 overflow-hidden">
                 <TabsList className="bg-transparent h-auto p-0 gap-2 border-b-0 justify-start overflow-x-auto no-scrollbar w-full flex items-center">
-                  <TabsTrigger value="overview" className="rounded-full px-8 py-2.5 border data-[state=active]:bg-primary data-[state=active]:text-primary-foreground font-black text-[10px] uppercase transition-all shrink-0 shadow-sm">Overview</TabsTrigger>
-                  <TabsTrigger value="documents" className="rounded-full px-8 py-2.5 border data-[state=active]:bg-primary data-[state=active]:text-primary-foreground font-black text-[10px] uppercase transition-all shrink-0 shadow-sm">Technical Docs</TabsTrigger>
+                  <TabsTrigger value="overview" className="rounded-md px-8 py-2 border data-[state=active]:bg-primary data-[state=active]:text-primary-foreground font-black text-[10px] uppercase transition-all shrink-0 shadow-sm">Overview</TabsTrigger>
+                  <TabsTrigger value="documents" className="rounded-md px-8 py-2 border data-[state=active]:bg-primary data-[state=active]:text-primary-foreground font-black text-[10px] uppercase transition-all shrink-0 shadow-sm">Technical Docs</TabsTrigger>
                 </TabsList>
             </div>
 
@@ -304,7 +304,7 @@ function VehicleDocumentsTab({ vehicle, tenantId, expirySettings }: { vehicle: V
                       Uploaded {format(new Date(docItem.uploadDate), 'dd MMM yyyy')}
                     </CardDescription>
                   </div>
-                  <div className="rounded-full border bg-background px-2 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-primary">
+                  <div className="rounded-lg border bg-background px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-primary">
                     Document
                   </div>
                 </CardHeader>

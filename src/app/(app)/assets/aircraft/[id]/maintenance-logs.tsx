@@ -75,7 +75,7 @@ export function MaintenanceLogs({ aircraftId }: MaintenanceLogsProps) {
                   {format(parseLocalDate(log.date), 'dd MMM yyyy')}
                 </TableCell>
                 <TableCell className="text-center font-black uppercase text-[10px] text-primary tracking-tight">
-                  <span className="bg-primary/5 px-3 py-1 rounded-full border border-primary/10">{log.maintenanceType}</span>
+                  <span className="rounded-lg border border-primary/10 bg-primary/5 px-3 py-1">{log.maintenanceType}</span>
                 </TableCell>
                 <TableCell className="max-w-md">
                   <div className="flex flex-col gap-1 py-3 group-hover:px-2 transition-all">

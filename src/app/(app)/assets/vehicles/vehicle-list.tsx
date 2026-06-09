@@ -85,7 +85,7 @@ export function VehicleList({ data }: { data: Vehicle[] }) {
                   {vehicle.make} {vehicle.model}
                 </p>
               </div>
-              <span className="rounded-full border bg-background px-2 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-emerald-700">
+              <span className="rounded-lg border bg-background px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-emerald-700">
                 Active
               </span>
             </CardHeader>

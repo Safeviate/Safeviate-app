@@ -43,13 +43,29 @@ export default function AssetsPage() {
         ))}
       </div>
 
-      {canAccessMenuItem({ href: '/assets/inspections/templates', label: 'Inspection Templates', description: 'Build reusable inspection checklists for aircraft, vehicles, or any other asset.' } as never, assetsMenu) ? (
-        <Link href="/assets/inspections/templates">
+      {canAccessMenuItem({ href: '/assets/checklists', label: 'Checklists', description: 'Build reusable inspection checklists for aircraft, vehicles, or any other asset.' } as never, assetsMenu) ? (
+        <Link href="/assets/checklists">
           <Card className="hover:bg-muted/50 transition-colors shadow-none border">
             <CardHeader className="flex flex-row items-center justify-between gap-4">
               <div>
-                <CardTitle>Inspection Templates</CardTitle>
+                <CardTitle>Checklists</CardTitle>
                 <CardDescription>Build reusable inspection checklists for aircraft, vehicles, or any other asset.</CardDescription>
+              </div>
+              <Button variant="outline" size="sm" className="shrink-0 border-slate-300">
+                Open
+              </Button>
+            </CardHeader>
+          </Card>
+        </Link>
+      ) : null}
+
+      {canAccessMenuItem({ href: '/assets/inspections', label: 'Inspections', description: 'View completed inspection records and saved checklist results.' } as never, assetsMenu) ? (
+        <Link href="/assets/inspections">
+          <Card className="hover:bg-muted/50 transition-colors shadow-none border">
+            <CardHeader className="flex flex-row items-center justify-between gap-4">
+              <div>
+                <CardTitle>Inspections</CardTitle>
+                <CardDescription>View completed inspection records and saved checklist results.</CardDescription>
               </div>
               <Button variant="outline" size="sm" className="shrink-0 border-slate-300">
                 Open

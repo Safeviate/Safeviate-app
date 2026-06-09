@@ -4,13 +4,12 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { format } from 'date-fns';
-import { ArrowLeft, CheckCircle2, ChevronDown, CircleAlert, Loader2, Plus, Trash2, Wrench } from 'lucide-react';
+import { ArrowLeft, Loader2, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { MainPageHeader } from '@/components/page-header';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
@@ -142,7 +141,6 @@ export default function AssetInspectionNewPage() {
   const [templateId, setTemplateId] = useState('');
   const [inspectionScope, setInspectionScope] = useState<AssetInspectionScope>('Both');
   const [assetId, setAssetId] = useState('');
-  const [showTemplateSummary, setShowTemplateSummary] = useState(true);
   const [inspectionType, setInspectionType] = useState(INSPECTION_TYPE_OPTIONS[0]);
   const [inspectionDate, setInspectionDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [inspectorId, setInspectorId] = useState('');
@@ -263,14 +261,6 @@ export default function AssetInspectionNewPage() {
       return sections;
     }, []);
   }, [visibleChecklistItems]);
-
-  const recentInspections = useMemo(
-    () =>
-      [...inspections]
-        .sort((a, b) => new Date(b.inspectionDate || b.createdAt || 0).getTime() - new Date(a.inspectionDate || a.createdAt || 0).getTime())
-        .slice(0, 12),
-    [inspections],
-  );
 
   const handleChecklistChange = (index: number, field: keyof AssetInspectionChecklistItem, value: string) => {
     setChecklistItems((current) =>
@@ -445,9 +435,9 @@ export default function AssetInspectionNewPage() {
           actions={(
             <div className="flex flex-wrap items-center gap-2">
               <Button asChild variant="outline" size="compact" className="h-8 border-slate-300 text-[9px] font-black uppercase tracking-[0.08em]">
-                <Link href="/assets/inspections/templates">
+                <Link href="/assets/checklists">
                   <ArrowLeft className="h-3.5 w-3.5" />
-                  Manage Templates
+                  Manage Checklists
                 </Link>
               </Button>
             </div>
@@ -455,7 +445,7 @@ export default function AssetInspectionNewPage() {
         />
       </Card>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.08fr)_minmax(340px,0.92fr)]">
+      <div className="grid gap-6 lg:grid-cols-1">
         <Card className="overflow-hidden border shadow-none">
           <CardContent className="space-y-5 p-4">
             <div>
@@ -520,18 +510,18 @@ export default function AssetInspectionNewPage() {
                         ))
                       ) : (
                         <SelectItem value="__none__" disabled>
-                          No templates available
+                          No checklists available
                         </SelectItem>
                       )}
                     </SelectContent>
                   </Select>
-                  <p className="text-[10px] font-medium text-muted-foreground">Each question in the default templates requires at least 4 photos.</p>
+                  <p className="text-[10px] font-medium text-muted-foreground">Each question in the default checklists requires at least 4 photos.</p>
                 </div>
                 <div className="space-y-2">
                   <Label className="opacity-0">Manage</Label>
                   <div className="flex flex-wrap gap-2">
                     <Button asChild variant="outline" className="h-10 border-slate-300">
-                      <Link href="/assets/inspections/templates">Manage Templates</Link>
+                      <Link href="/assets/checklists">Manage Checklists</Link>
                     </Button>
                     <Button
                       asChild
@@ -539,8 +529,8 @@ export default function AssetInspectionNewPage() {
                       className="h-10 border-slate-300"
                       disabled={!templateId}
                     >
-                      <Link href={`/assets/inspections/templates?copyFrom=${encodeURIComponent(templateId)}`}>
-                        Copy Template
+                      <Link href={`/assets/checklists/new?copyFrom=${encodeURIComponent(templateId)}`}>
+                        Copy Checklist
                       </Link>
                     </Button>
                   </div>
@@ -561,7 +551,7 @@ export default function AssetInspectionNewPage() {
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-[10px] font-medium text-muted-foreground">Exterior and Interior templates can be filtered independently, or combined with Both.</p>
+                <p className="text-[10px] font-medium text-muted-foreground">Exterior and Interior checklists can be filtered independently, or combined with Both.</p>
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
@@ -765,164 +755,6 @@ export default function AssetInspectionNewPage() {
                 </Button>
               </div>
             </form>
-          </CardContent>
-        </Card>
-
-        <Card className="overflow-hidden border shadow-none">
-          <CardContent className="space-y-4 p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Recent Inspections</p>
-                <p className="mt-1 text-sm text-muted-foreground">Recent inspection records are sorted newest first so the history stays compact.</p>
-              </div>
-              <Badge variant="outline" className="border-card-border bg-background/70 text-[10px] font-black uppercase tracking-[0.08em] text-foreground">
-                {recentInspections.length}
-              </Badge>
-            </div>
-
-            <div className="space-y-3 rounded-lg border border-card-border bg-muted/10 p-3">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Template Summary</p>
-                  <p className="mt-1 text-sm font-semibold text-foreground">{selectedTemplate?.title || 'No template selected'}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="border-card-border bg-background/70 text-[10px] font-black uppercase tracking-[0.08em] text-foreground">
-                    {inspectionScope}
-                  </Badge>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 border border-card-border bg-background/70"
-                    onClick={() => setShowTemplateSummary((current) => !current)}
-                  >
-                    <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', showTemplateSummary && 'rotate-180')} />
-                  </Button>
-                </div>
-              </div>
-              {showTemplateSummary ? (
-                <>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <div className="rounded-md border bg-background/70 px-2.5 py-2">
-                      <p className="text-[9px] font-black uppercase tracking-[0.16em] text-muted-foreground">Sections</p>
-                      <p className="mt-1 text-sm font-semibold text-foreground">{selectedTemplate?.sections.length || 0}</p>
-                    </div>
-                    <div className="rounded-md border bg-background/70 px-2.5 py-2">
-                      <p className="text-[9px] font-black uppercase tracking-[0.16em] text-muted-foreground">Questions</p>
-                      <p className="mt-1 text-sm font-semibold text-foreground">{visibleChecklistItems.length}</p>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <p className="text-[9px] font-black uppercase tracking-[0.16em] text-muted-foreground">Question Requirements</p>
-                    <div className="max-h-44 space-y-2 overflow-auto pr-1">
-                      {visibleChecklistItems.length > 0 ? (
-                        visibleChecklistItems.map((item) => (
-                          <div key={`summary-${item.id}`} className="rounded-md border bg-background/70 px-2.5 py-2 text-[11px]">
-                            <div className="flex items-start justify-between gap-2">
-                              <p className="font-semibold text-foreground">{item.label}</p>
-                              <Badge variant="outline" className="border-card-border bg-background/80 text-[9px] font-black uppercase tracking-[0.08em] text-foreground">
-                                {item.scope || 'Both'}
-                              </Badge>
-                            </div>
-                            <p className="mt-1 text-muted-foreground">
-                              Min photos: {Math.max(0, Number(item.minPhotos || 0))}
-                            </p>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="rounded-md border border-dashed bg-background/50 px-3 py-3 text-[11px] text-muted-foreground">
-                          Select a template and scope to preview the checklist summary.
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </>
-              ) : null}
-            </div>
-
-            <ScrollArea className="h-[760px]">
-              <div className="space-y-3 pr-1">
-                {recentInspections.length > 0 ? (
-                  recentInspections.map((inspection) => (
-                    <div key={inspection.id} className="rounded-lg border border-card-border bg-muted/15 p-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-primary/80">{inspection.assetType}</p>
-                          <p className="mt-1 break-words text-sm font-semibold text-foreground">{inspection.assetLabel || inspection.assetId}</p>
-                          <p className="mt-1 text-[11px] font-black uppercase tracking-[0.12em] text-muted-foreground">{inspection.inspectionType}</p>
-                        </div>
-                        <Badge
-                          variant="outline"
-                          className={cn(
-                            'border-card-border text-[10px] font-black uppercase tracking-[0.08em]',
-                            inspection.status === 'Grounded'
-                              ? 'bg-red-50 text-red-700'
-                              : inspection.status === 'Attention Required'
-                                ? 'bg-amber-50 text-amber-700'
-                                : 'bg-emerald-50 text-emerald-700',
-                          )}
-                        >
-                          {inspection.status}
-                        </Badge>
-                      </div>
-
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        <Badge variant="outline" className="border-card-border bg-background/70 text-[10px] font-black uppercase tracking-[0.08em] text-foreground">
-                          {inspection.templateTitle || 'Template'}
-                        </Badge>
-                        <Badge variant="outline" className="border-card-border bg-background/70 text-[10px] font-black uppercase tracking-[0.08em] text-foreground">
-                          {inspection.inspectionScope || 'Both'}
-                        </Badge>
-                      </div>
-
-                      <div className="mt-3 grid gap-2 text-[11px] text-muted-foreground sm:grid-cols-2">
-                        <div className="rounded-md border bg-background/70 px-2.5 py-2">
-                          <p className="text-[9px] font-black uppercase tracking-[0.16em] text-muted-foreground">Inspection Date</p>
-                          <p className="mt-1 font-semibold text-foreground">{formatInspectionDate(inspection.inspectionDate)}</p>
-                        </div>
-                        <div className="rounded-md border bg-background/70 px-2.5 py-2">
-                          <p className="text-[9px] font-black uppercase tracking-[0.16em] text-muted-foreground">Inspector</p>
-                          <p className="mt-1 font-semibold text-foreground">{inspection.inspectorName || inspection.inspectorId || 'Unassigned'}</p>
-                        </div>
-                      </div>
-
-                      {inspection.findings?.trim() ? (
-                        <div className="mt-3 rounded-md border bg-background/70 px-3 py-2">
-                          <p className="text-[9px] font-black uppercase tracking-[0.16em] text-muted-foreground">Findings</p>
-                          <p className="mt-1 text-sm leading-6 text-foreground/80">{inspection.findings}</p>
-                        </div>
-                      ) : null}
-
-                      {Array.isArray(inspection.checklistItems) && inspection.checklistItems.length > 0 ? (
-                        <div className="mt-3 space-y-2">
-                          {inspection.checklistItems.map((item) => (
-                            <div key={item.id} className="flex items-start gap-2 rounded-md border bg-background/70 px-3 py-2">
-                              {item.outcome === 'Pass' ? (
-                                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
-                              ) : (
-                                <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-                              )}
-                              <div className="min-w-0 flex-1">
-                                <p className="text-sm font-semibold text-foreground">{item.label}</p>
-                                <p className="mt-0.5 text-[11px] font-black uppercase tracking-[0.12em] text-muted-foreground">{item.outcome}</p>
-                                {item.notes?.trim() ? <p className="mt-1 text-xs text-muted-foreground">{item.notes}</p> : null}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : null}
-                    </div>
-                  ))
-                ) : (
-                  <div className="flex min-h-[220px] flex-col items-center justify-center rounded-lg border border-dashed border-card-border bg-muted/10 px-4 text-center text-muted-foreground">
-                    <Wrench className="mb-3 h-10 w-10 text-muted-foreground/50" />
-                    <p className="text-sm font-black uppercase tracking-widest text-foreground/85">No inspections yet</p>
-                    <p className="mt-2 text-sm">Save the first aircraft or vehicle inspection and it will appear here.</p>
-                  </div>
-                )}
-              </div>
-            </ScrollArea>
           </CardContent>
         </Card>
       </div>

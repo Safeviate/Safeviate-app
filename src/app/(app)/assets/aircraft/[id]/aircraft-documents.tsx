@@ -126,12 +126,12 @@ export function AircraftDocuments({ aircraft }: AircraftDocumentsProps) {
                     <TableCell>
                       <Popover>
                         <PopoverTrigger asChild>
-                          <Button variant="outline" className="h-10 min-w-[180px] justify-start gap-2 border-2 hover:bg-muted/50 rounded-xl text-left font-black uppercase tracking-tight">
-                            {statusColor && <div className="h-2 w-2 rounded-full animate-pulse shrink-0" style={{ backgroundColor: statusColor }} />}
-                            <CalendarIcon className="h-4 w-4 text-muted-foreground shrink-0" />
-                            <span className="truncate text-xs">
-                              {doc.expirationDate ? format(parseLocalDate(doc.expirationDate) || new Date(doc.expirationDate), 'dd MMM yyyy') : 'Set Expiry Date'}
-                            </span>
+                        <Button variant="outline" className="h-10 min-w-[180px] justify-start gap-2 border-2 hover:bg-muted/50 rounded-xl text-left font-black uppercase tracking-tight">
+                          {statusColor && <div className="h-2 w-2 rounded-full animate-pulse shrink-0" style={{ backgroundColor: statusColor }} />}
+                          <CalendarIcon className="h-4 w-4 text-muted-foreground shrink-0" />
+                          <span className="truncate text-xs">
+                            {doc.expirationDate ? format(parseLocalDate(doc.expirationDate) || new Date(doc.expirationDate), 'dd MMM yyyy') : 'Set Expiry Date'}
+                          </span>
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0 rounded-2xl border-2 shadow-2xl overflow-hidden" align="center">

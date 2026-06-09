@@ -46,7 +46,7 @@ export function AircraftList({ data, tenantId, canEdit }: AircraftListProps) {
                     {ac.make} {ac.model}
                   </p>
                 </div>
-                <div className="rounded-full border bg-background px-2 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-emerald-700">
+                <div className="rounded-lg border bg-background px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-emerald-700">
                   Airworthy
                 </div>
               </CardHeader>

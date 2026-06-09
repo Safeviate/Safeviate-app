@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { ChevronsUpDown, PlusCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { HEADER_ACTION_BUTTON_CLASS } from '@/components/page-header';
+import { HEADER_COMPACT_CONTROL_CLASS } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { PAGE_FORMAT_MOBILE_FULL_WIDTH_BUTTON_CLASS } from '@/lib/page-format-buttons';
 import {
@@ -103,9 +103,9 @@ export function AddVehicleDialog({ tenantId }: { tenantId: string }) {
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
         <Button
-          variant={isMobile ? 'outline' : 'default'}
-          size="default"
-          className={isMobile ? PAGE_FORMAT_MOBILE_FULL_WIDTH_BUTTON_CLASS : HEADER_ACTION_BUTTON_CLASS}
+          size="compact"
+          variant="outline"
+          className={isMobile ? PAGE_FORMAT_MOBILE_FULL_WIDTH_BUTTON_CLASS : HEADER_COMPACT_CONTROL_CLASS}
         >
           <span className="flex items-center gap-2">
             <PlusCircle className={isMobile ? 'h-3.5 w-3.5' : 'h-4 w-4'} /> Add Vehicle

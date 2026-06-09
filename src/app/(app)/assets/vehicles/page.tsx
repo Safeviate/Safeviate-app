@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { MainPageHeader } from '@/components/page-header';
+import { CardControlHeader, HEADER_COMPACT_CONTROL_CLASS } from '@/components/page-header';
 import { usePermissions } from '@/hooks/use-permissions';
 import { useUserProfile } from '@/hooks/use-user-profile';
 import { AddVehicleDialog } from './add-vehicle-dialog';
@@ -55,29 +55,29 @@ export default function VehiclesPage() {
   return (
     <div className="lg:max-w-[1100px] mx-auto w-full flex flex-col gap-6 h-full overflow-hidden px-1 pt-4">
       <Card className="flex-1 flex flex-col overflow-hidden shadow-none border">
-        <MainPageHeader
-          title="Vehicle Fleet"
-          description="Manage company vehicles and supporting ground assets."
+        <CardControlHeader
+          context={(
+            <div className="flex min-w-0 flex-col gap-1">
+              <p className="main-page-header__description text-[10px] font-medium text-muted-foreground sm:text-xs">
+                Manage company vehicles and supporting ground assets.
+              </p>
+            </div>
+          )}
           actions={canManageAssets ? (
             <div className="flex flex-wrap items-center gap-2">
-              <Button asChild variant="outline" size="compact" className="h-8 border-slate-300 text-[9px] font-black uppercase tracking-[0.08em]">
-                <Link href="/assets/inspections/templates">Inspection Templates</Link>
-              </Button>
-              <Button asChild variant="outline" size="compact" className="h-8 border-slate-300 text-[9px] font-black uppercase tracking-[0.08em]">
-                <Link href="/assets/inspections/new?assetType=vehicle">New Inspection</Link>
-              </Button>
-              <Button asChild variant="outline" size="compact" className="h-8 border-slate-300 text-[9px] font-black uppercase tracking-[0.08em]">
-                <Link href="/assets/inspections/new?assetType=vehicle&template=vehicle-exterior-template">Exterior</Link>
-              </Button>
-              <Button asChild variant="outline" size="compact" className="h-8 border-slate-300 text-[9px] font-black uppercase tracking-[0.08em]">
-                <Link href="/assets/inspections/new?assetType=vehicle&template=vehicle-interior-template">Interior</Link>
-              </Button>
-              <Button asChild variant="outline" size="compact" className="h-8 border-slate-300 text-[9px] font-black uppercase tracking-[0.08em]">
-                <Link href="/assets/inspections/new?assetType=vehicle&template=vehicle-full-template">Full</Link>
-              </Button>
               <AddVehicleDialog tenantId={tenantId || ''} />
             </div>
           ) : undefined}
+          navigation={(
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <Button asChild variant="outline" className={HEADER_COMPACT_CONTROL_CLASS}>
+                <Link href="/assets/checklists">Checklists</Link>
+              </Button>
+              <Button asChild variant="default" className={HEADER_COMPACT_CONTROL_CLASS}>
+                <Link href="/assets/inspections">Inspections</Link>
+              </Button>
+            </div>
+          )}
         />
         <CardContent className="flex-1 p-0 overflow-hidden bg-background">
           <VehicleList data={vehicles || []} />
