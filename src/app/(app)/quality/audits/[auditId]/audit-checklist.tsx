@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import type { QualityAudit, QualityAuditChecklistTemplate, AuditChecklistItem, CorrectiveActionPlan, ExternalOrganization } from '@/types/quality';
 import { DocumentUploader } from '../../../users/personnel/[id]/document-uploader';
@@ -88,6 +89,8 @@ const findingSchema = z.object({
   comment: z.string().optional(),
   suggestedImprovements: z.string().optional(),
   level: z.string().optional(),
+  ownerId: z.string().optional(),
+  targetDate: z.string().optional(),
   evidence: z.array(evidenceSchema).optional(),
 });
 
@@ -365,6 +368,8 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
                     comment: '',
                     suggestedImprovements: '',
                     level: '',
+                    ownerId: '',
+                    targetDate: '',
                     evidence: [] 
                 };
             })
@@ -426,10 +431,30 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
         const applicableItems = cascadedFindings.filter(f => f.finding !== 'Not Applicable');
         const compliantItems = applicableItems.filter(f => f.finding === 'Compliant');
         const nonCompliantFindings = cascadedFindings.filter(f => f.finding === 'Non Compliant');
+        const findingsByItemId = new Map(values.findings.map((finding) => [finding.checklistItemId, finding]));
+        const directNonCompliantFindings = normalizedSections.flatMap((section) => {
+            const gate = getSectionGate(section.items, values.findings);
+            return gate ? [section.items[0]] : section.items;
+        }).map((item) => findingsByItemId.get(item.id)).filter((finding): finding is FormValues['findings'][number] => !!finding && finding.finding === 'Non Compliant');
+        const missingResponsibleFindings = directNonCompliantFindings.filter((finding) => !finding.ownerId?.trim());
         
         const complianceScore = applicableItems.length > 0
             ? Math.round((compliantItems.length / applicableItems.length) * 100)
             : 100;
+
+        if (missingResponsibleFindings.length > 0) {
+            const missingFindingNames = missingResponsibleFindings
+                .map((finding) => allChecklistItems.find((item) => item.id === finding.checklistItemId)?.text || finding.checklistItemId)
+                .slice(0, 3);
+            toast({
+                variant: 'destructive',
+                title: 'Responsible Person Required',
+                description: missingFindingNames.length > 0
+                    ? `Assign a responsible person to ${missingResponsibleFindings.length === 1 ? 'the non-compliant finding' : 'all non-compliant findings'} before finalizing: ${missingFindingNames.join(', ')}${missingResponsibleFindings.length > 3 ? '...' : ''}`
+                    : 'Assign a responsible person to every non-compliant finding before finalizing.',
+            });
+            return;
+        }
 
         try {
             await persistAudit({
@@ -445,6 +470,7 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
                 rootCauseAnalysis: '',
                 status: 'Open',
                 actions: [],
+                responsiblePersonId: finding.ownerId?.trim() || audit.auditorId,
             }));
             await Promise.all(newCaps.map((cap) => fetch('/api/corrective-action-plans', {
               method: 'POST',
@@ -623,6 +649,16 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
                                     )}
                                 />
                             )}
+
+                            {effectiveFindingType === 'Non Compliant' && !isInheritedFinding && (
+                                <Badge
+                                    variant="outline"
+                                    className="h-6 border-amber-300 bg-amber-50 px-2.5 text-[10px] font-black uppercase tracking-[0.12em] text-amber-700"
+                                >
+                                    <span className="mr-1">Responsible</span>
+                                    <span className="text-amber-950">{getPersonnelDisplayName(personnel, form.watch(`findings.${itemIndex}.ownerId`) || '') || 'Unassigned'}</span>
+                                </Badge>
+                            )}
                         </div>
 
                         {effectiveFindingType === 'Non Compliant' && !isInheritedFinding && audit.status !== 'Scheduled' && audit.status !== 'In Progress' && (
@@ -646,7 +682,7 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
                         )}
                      </div>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
+                    <div className="grid grid-cols-1 gap-4 pt-4 border-t md:grid-cols-3">
                          <FormField control={form.control} name={`findings.${itemIndex}.comment`} render={({ field }) => (
                              <FormItem>
                                  <FormLabel className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Notes / Observations</FormLabel>
@@ -659,6 +695,52 @@ export function AuditChecklist({ audit, tenantId, findingLevels, caps, personnel
                                  <FormControl><Textarea placeholder="Recommendations for performance..." {...field} disabled={isReadOnly} className="min-h-[80px] text-sm font-medium bg-muted/5 border-slate-200" /></FormControl>
                              </FormItem>
                          )} />
+                         <div className="space-y-4">
+                                    <FormField
+                                control={form.control}
+                                name={`findings.${itemIndex}.ownerId`}
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">
+                                            Responsible Person {effectiveFindingType === 'Non Compliant' && !isInheritedFinding ? '*' : ''}
+                                        </FormLabel>
+                                        <Select onValueChange={(value) => field.onChange(value === '__unassigned__' ? '' : value)} value={field.value || '__unassigned__'} disabled={isReadOnly || isInheritedFinding}>
+                                            <FormControl>
+                                                <SelectTrigger className="bg-muted/5 border-slate-200">
+                                                    <SelectValue placeholder="Assign to..." />
+                                                 </SelectTrigger>
+                                             </FormControl>
+                                             <SelectContent>
+                                                 <SelectItem value="__unassigned__">Unassigned</SelectItem>
+                                                 {personnel.map((person) => (
+                                                    <SelectItem key={person.id} value={person.id}>
+                                                        {person.firstName} {person.lastName}
+                                                    </SelectItem>
+                                                 ))}
+                                             </SelectContent>
+                                         </Select>
+                                     </FormItem>
+                                 )}
+                             />
+                             <FormField
+                                 control={form.control}
+                                 name={`findings.${itemIndex}.targetDate`}
+                                 render={({ field }) => (
+                                     <FormItem>
+                                         <FormLabel className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Target Date</FormLabel>
+                                         <FormControl>
+                                             <Input
+                                                 type="date"
+                                                 value={field.value || ''}
+                                                 onChange={field.onChange}
+                                                 disabled={isReadOnly || isInheritedFinding}
+                                                 className="bg-muted/5 border-slate-200"
+                                             />
+                                         </FormControl>
+                                     </FormItem>
+                                 )}
+                             />
+                         </div>
                     </div>
 
                     {(effectiveFindingType === 'Compliant' || effectiveFindingType === 'Non Compliant') && (

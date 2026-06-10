@@ -16,6 +16,8 @@ import { CustomCalendar } from '@/components/ui/custom-calendar';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { getPersonnelDisplayName } from '@/lib/personnel-label';
 
 const parseLocalDate = (value: string) => {
     const [year, month, day] = value.split('-').map(Number);
@@ -38,6 +40,7 @@ const correctiveActionSchema = z.object({
 
 const capSchema = z.object({
     rootCauseAnalysis: z.string().optional(),
+    responsiblePersonId: z.string().min(1, "Responsible person is required."),
     actions: z.array(correctiveActionSchema),
 });
 
@@ -57,16 +60,18 @@ export function CapActionsForm({ cap, tenantId, personnel, onFormSubmit }: CapAc
         resolver: zodResolver(capSchema),
         defaultValues: {
             rootCauseAnalysis: cap.rootCauseAnalysis || '',
+            responsiblePersonId: cap.responsiblePersonId || '',
             actions: cap.actions?.map(action => ({ ...action, deadline: parseLocalDate(action.deadline) })) || [],
         },
     });
+    const watchedResponsiblePersonId = form.watch('responsiblePersonId');
 
     const { fields, append, remove } = useFieldArray({
         control: form.control,
         name: "actions",
     });
 
-    const onSubmit = (values: CapFormValues) => {
+    const onSubmit = async (values: CapFormValues) => {
         try {
             const dataToSave = {
                 ...values,
@@ -76,7 +81,7 @@ export function CapActionsForm({ cap, tenantId, personnel, onFormSubmit }: CapAc
                 }))
             };
 
-            void fetch('/api/corrective-action-plans', {
+            const response = await fetch('/api/corrective-action-plans', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -86,6 +91,10 @@ export function CapActionsForm({ cap, tenantId, personnel, onFormSubmit }: CapAc
                 },
               }),
             });
+            if (!response.ok) {
+                const payload = await response.json().catch(() => null);
+                throw new Error(payload?.error || 'Failed to save CAP.');
+            }
             window.dispatchEvent(new Event('safeviate-quality-updated'));
             toast({
                 title: 'Corrective Action Plan Saved',
@@ -101,6 +110,51 @@ export function CapActionsForm({ cap, tenantId, personnel, onFormSubmit }: CapAc
         <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <div className="space-y-4">
+                <div className="flex flex-wrap gap-2">
+                    <Badge variant="outline" className="h-6 border-card-border bg-background/70 px-2 text-[10px] font-black uppercase tracking-[0.08em] text-foreground">
+                        Audit #{cap.auditId}
+                    </Badge>
+                    <Badge variant="outline" className="h-6 border-card-border bg-background/70 px-2 text-[10px] font-black uppercase tracking-[0.08em] text-foreground">
+                        Responsible: {getPersonnelDisplayName(personnel, watchedResponsiblePersonId || cap.responsiblePersonId || '') || 'Unassigned'}
+                    </Badge>
+                </div>
+                <div className="rounded-lg border border-amber-200 bg-amber-50/40 p-4 space-y-3">
+                    <div className="flex items-center justify-between gap-3">
+                        <div className="space-y-1">
+                            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-700">Corrective Action Owner</p>
+                            <p className="text-sm font-medium text-muted-foreground">
+                                Assign the person responsible for driving this CAP to closure.
+                            </p>
+                        </div>
+                        <Badge variant="outline" className="h-6 border-amber-300 bg-white px-2 text-[10px] font-black uppercase tracking-[0.08em] text-amber-700">
+                            Required
+                        </Badge>
+                    </div>
+                    <FormField
+                        control={form.control}
+                        name="responsiblePersonId"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Responsible Person</FormLabel>
+                                <Select onValueChange={field.onChange} value={field.value || ''}>
+                                    <FormControl>
+                                        <SelectTrigger className="bg-background border-amber-300">
+                                            <SelectValue placeholder="Assign a responsible person..." />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        {personnel.map((person) => (
+                                            <SelectItem key={person.id} value={person.id}>
+                                                {person.firstName} {person.lastName}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                </div>
                 <FormField control={form.control} name="rootCauseAnalysis" render={({ field }) => ( <FormItem><FormLabel>Root Cause Analysis</FormLabel><FormControl><Textarea className="min-h-24" placeholder="Describe the root cause of the finding..." {...field} /></FormControl><FormMessage /></FormItem> )}/>
 
                 <div className="flex justify-between items-center pt-4">

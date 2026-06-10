@@ -3,15 +3,18 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { format } from 'date-fns';
-import { ArrowRight, CheckCircle2, CircleAlert, Plus, Wrench } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { ArrowRight, CheckCircle2, CircleAlert, FileText, Plus } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { MainPageHeader } from '@/components/page-header';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useTenantRouteAccess } from '@/hooks/use-tenant-route-access';
 import { TenantLayoutDisabledState } from '@/components/tenant-layout-disabled-state';
+import { DeleteActionButton, ViewActionButton } from '@/components/record-action-buttons';
+import { ResponsiveCardGrid } from '@/components/responsive-card-grid';
+import { useToast } from '@/hooks/use-toast';
 import type { AssetInspectionRecord } from '@/types/inspection';
 
 function formatInspectionDate(value?: string | null) {
@@ -20,7 +23,16 @@ function formatInspectionDate(value?: string | null) {
   return Number.isNaN(parsed.getTime()) ? value : format(parsed, 'dd MMM yyyy');
 }
 
+function getStatusBadgeClass(status: AssetInspectionRecord['status']) {
+  return status === 'Grounded'
+    ? 'border-card-border bg-red-50 text-[10px] font-black uppercase tracking-[0.08em] text-red-700'
+    : status === 'Attention Required'
+      ? 'border-card-border bg-amber-50 text-[10px] font-black uppercase tracking-[0.08em] text-amber-700'
+      : 'border-card-border bg-emerald-50 text-[10px] font-black uppercase tracking-[0.08em] text-emerald-700';
+}
+
 export default function AssetInspectionsPage() {
+  const { toast } = useToast();
   const { isLoading, isAllowed } = useTenantRouteAccess({ href: '/assets/inspections' });
   const [inspections, setInspections] = useState<AssetInspectionRecord[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(true);
@@ -48,10 +60,33 @@ export default function AssetInspectionsPage() {
 
   const recentInspections = useMemo(
     () =>
-      [...inspections]
-        .sort((a, b) => new Date(b.inspectionDate || b.createdAt || 0).getTime() - new Date(a.inspectionDate || a.createdAt || 0).getTime()),
+      [...inspections].sort(
+        (a, b) => new Date(b.inspectionDate || b.createdAt || 0).getTime() - new Date(a.inspectionDate || a.createdAt || 0).getTime(),
+      ),
     [inspections],
   );
+
+  const deleteInspection = async (inspection: AssetInspectionRecord) => {
+    const confirmed = window.confirm(`Delete inspection "${inspection.assetLabel || inspection.assetId}"?`);
+    if (!confirmed) return;
+
+    try {
+      const response = await fetch(`/api/asset-inspections?id=${encodeURIComponent(inspection.id)}`, { method: 'DELETE' });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null) as { error?: string } | null;
+        throw new Error(payload?.error || 'Failed to delete inspection.');
+      }
+      toast({ title: 'Inspection deleted', description: `${inspection.assetLabel || inspection.assetId} was removed.` });
+      window.dispatchEvent(new Event('safeviate-asset-inspections-updated'));
+      await loadInspections();
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Delete failed',
+        description: error instanceof Error ? error.message : 'Failed to delete inspection.',
+      });
+    }
+  };
 
   if (!isLoading && !isAllowed) {
     return <TenantLayoutDisabledState />;
@@ -71,7 +106,7 @@ export default function AssetInspectionsPage() {
       <Card className="overflow-hidden border shadow-none">
         <MainPageHeader
           title="Completed Checklists"
-          description="View completed inspection records saved from the asset inspection flow."
+          description="View completed inspection records saved from the asset inspection workflow."
           actions={(
             <div className="flex flex-wrap items-center gap-2">
               <Button asChild variant="outline" size="compact" className="h-8 border-slate-300 text-[9px] font-black uppercase tracking-[0.08em]">
@@ -96,7 +131,7 @@ export default function AssetInspectionsPage() {
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Inspection Records</p>
-              <p className="mt-1 text-sm text-muted-foreground">These are the saved inspection records and completed checklists captured through the workflow.</p>
+              <p className="mt-1 text-sm text-muted-foreground">These are the completed inspection records and saved checklists captured through the workflow.</p>
             </div>
             <Badge variant="outline" className="border-card-border bg-background/70 text-[10px] font-black uppercase tracking-[0.08em] text-foreground">
               {recentInspections.length}
@@ -104,85 +139,71 @@ export default function AssetInspectionsPage() {
           </div>
 
           <ScrollArea className="h-[760px]">
-            <div className="space-y-3 pr-1">
-              {recentInspections.length > 0 ? (
-                recentInspections.map((inspection) => (
-                  <div key={inspection.id} className="rounded-lg border border-card-border bg-muted/15 p-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-primary/80">{inspection.assetType}</p>
-                        <p className="mt-1 break-words text-sm font-semibold text-foreground">{inspection.assetLabel || inspection.assetId}</p>
-                        <p className="mt-1 text-[11px] font-black uppercase tracking-[0.12em] text-muted-foreground">{inspection.inspectionType}</p>
+            <ResponsiveCardGrid
+              items={recentInspections}
+              isLoading={false}
+              gridClassName="sm:grid-cols-2 xl:grid-cols-3"
+              className="pr-1"
+              renderItem={(inspection) => (
+                <Card key={inspection.id} className="overflow-hidden border border-card-border shadow-none">
+                  <CardHeader className="flex flex-row items-start justify-between gap-3 border-b bg-muted/20 px-4 py-3">
+                    <div className="min-w-0 space-y-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Link href={`/assets/inspections/new?inspectionId=${encodeURIComponent(inspection.id)}`} className="truncate text-sm font-black uppercase tracking-[-0.01em] text-foreground hover:underline">
+                          {inspection.assetType === 'vehicle' ? 'Vehicle' : 'Aircraft'}
+                        </Link>
+                        <Badge variant="outline" className="h-6 rounded-full px-2 text-[10px] font-black uppercase tracking-[0.08em]">
+                          Inspection
+                        </Badge>
                       </div>
-                      <Badge
-                        variant="outline"
-                        className={
-                          inspection.status === 'Grounded'
-                            ? 'border-card-border bg-red-50 text-[10px] font-black uppercase tracking-[0.08em] text-red-700'
-                            : inspection.status === 'Attention Required'
-                              ? 'border-card-border bg-amber-50 text-[10px] font-black uppercase tracking-[0.08em] text-amber-700'
-                              : 'border-card-border bg-emerald-50 text-[10px] font-black uppercase tracking-[0.08em] text-emerald-700'
-                        }
-                      >
-                        {inspection.status}
-                      </Badge>
+                      <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">{formatInspectionDate(inspection.inspectionDate)}</p>
                     </div>
-
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      <Badge variant="outline" className="border-card-border bg-background/70 text-[10px] font-black uppercase tracking-[0.08em] text-foreground">
-                        {inspection.templateTitle || 'Checklist'}
-                      </Badge>
-                      <Badge variant="outline" className="border-card-border bg-background/70 text-[10px] font-black uppercase tracking-[0.08em] text-foreground">
-                        {inspection.inspectionScope || 'Both'}
-                      </Badge>
+                    <Badge variant="outline" className={getStatusBadgeClass(inspection.status)}>
+                      {inspection.status}
+                    </Badge>
+                  </CardHeader>
+                  <CardContent className="space-y-4 px-4 py-4">
+                    <div className="rounded-lg border bg-background px-3 py-3">
+                      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Title</p>
+                      <p className="mt-1 text-sm font-semibold text-foreground">{inspection.templateTitle || 'Inspection Checklist'}</p>
                     </div>
-
-                    <div className="mt-3 grid gap-2 text-[11px] text-muted-foreground sm:grid-cols-2">
-                      <div className="rounded-md border bg-background/70 px-2.5 py-2">
-                        <p className="text-[9px] font-black uppercase tracking-[0.16em] text-muted-foreground">Inspection Date</p>
-                        <p className="mt-1 font-semibold text-foreground">{formatInspectionDate(inspection.inspectionDate)}</p>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="rounded-lg border bg-background px-3 py-3">
+                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Asset</p>
+                        <p className="mt-1 text-sm font-semibold text-foreground">{inspection.assetLabel || inspection.assetId}</p>
                       </div>
-                      <div className="rounded-md border bg-background/70 px-2.5 py-2">
-                        <p className="text-[9px] font-black uppercase tracking-[0.16em] text-muted-foreground">Inspector</p>
-                        <p className="mt-1 font-semibold text-foreground">{inspection.inspectorName || inspection.inspectorId || 'Unassigned'}</p>
+                      <div className="rounded-lg border bg-background px-3 py-3">
+                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Inspector</p>
+                        <p className="mt-1 text-sm font-semibold text-foreground">{inspection.inspectorName || inspection.inspectorId || '-'}</p>
+                      </div>
+                      <div className="rounded-lg border bg-background px-3 py-3 sm:col-span-2">
+                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Scope</p>
+                        <p className="mt-1 text-sm font-semibold text-foreground">{inspection.inspectionScope || 'Both'}</p>
+                      </div>
+                      <div className="rounded-lg border bg-background px-3 py-3 sm:col-span-2">
+                        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Checklist Items</p>
+                        <p className="mt-1 text-sm font-semibold text-foreground">{inspection.checklistItems?.length || 0} questions</p>
                       </div>
                     </div>
-
-                    {inspection.findings?.trim() ? (
-                      <div className="mt-3 rounded-md border bg-background/70 px-3 py-2">
-                        <p className="text-[9px] font-black uppercase tracking-[0.16em] text-muted-foreground">Findings</p>
-                        <p className="mt-1 text-sm leading-6 text-foreground/80">{inspection.findings}</p>
-                      </div>
-                    ) : null}
-
-                    {Array.isArray(inspection.checklistItems) && inspection.checklistItems.length > 0 ? (
-                      <div className="mt-3 space-y-2">
-                        {inspection.checklistItems.map((item) => (
-                          <div key={item.id} className="flex items-start gap-2 rounded-md border bg-background/70 px-3 py-2">
-                            {item.outcome === 'Pass' ? (
-                              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
-                            ) : (
-                              <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-                            )}
-                            <div className="min-w-0 flex-1">
-                              <p className="text-sm font-semibold text-foreground">{item.label}</p>
-                              <p className="mt-0.5 text-[11px] font-black uppercase tracking-[0.12em] text-muted-foreground">{item.outcome}</p>
-                              {item.notes?.trim() ? <p className="mt-1 text-xs text-muted-foreground">{item.notes}</p> : null}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : null}
-                  </div>
-                ))
-              ) : (
+                    <div className="flex items-center justify-end gap-2">
+                      <ViewActionButton href={`/assets/inspections/new?inspectionId=${encodeURIComponent(inspection.id)}`} />
+                      <DeleteActionButton
+                        description={`This will permanently delete inspection ${inspection.assetLabel || inspection.assetId}.`}
+                        onDelete={() => void deleteInspection(inspection)}
+                        srLabel="Delete inspection"
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+              emptyState={
                 <div className="flex min-h-[220px] flex-col items-center justify-center rounded-lg border border-dashed border-card-border bg-muted/10 px-4 text-center text-muted-foreground">
-                  <Wrench className="mb-3 h-10 w-10 text-muted-foreground/50" />
-                  <p className="text-sm font-black uppercase tracking-widest text-foreground/85">No completed checklists yet</p>
+                  <FileText className="mb-3 h-10 w-10 text-muted-foreground/50" />
+                  <p className="text-sm font-black uppercase tracking-widest text-foreground/85">No completed checklists saved yet</p>
                   <p className="mt-2 text-sm">Save the first asset inspection and it will appear here.</p>
                 </div>
-              )}
-            </div>
+              }
+            />
           </ScrollArea>
         </CardContent>
       </Card>

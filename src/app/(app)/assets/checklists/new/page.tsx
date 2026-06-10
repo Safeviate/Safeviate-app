@@ -1,17 +1,15 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { ArrowLeft, Copy, Edit, GripVertical, Loader2, Plus, Trash2, Layers3 } from 'lucide-react';
+import { ArrowLeft, GripVertical, Loader2, PlusCircle, Trash2, Layers3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { MainPageHeader } from '@/components/page-header';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import type {
@@ -22,7 +20,7 @@ import type {
   AssetInspectionTemplateItem,
 } from '@/types/inspection';
 import { Textarea } from '@/components/ui/textarea';
-import { cn } from '@/lib/utils';
+import { CardHeader } from '@/components/ui/card';
 
 type TemplateSectionDraft = AssetInspectionTemplateSection;
 
@@ -54,15 +52,6 @@ function createEmptySection(): TemplateSectionDraft {
   };
 }
 
-function hydrateTemplate(template: AssetInspectionTemplate) {
-  return {
-    id: template.id,
-    title: template.title,
-    assetType: template.assetType,
-    sections: template.sections.length > 0 ? template.sections : [createEmptySection()],
-  };
-}
-
 export default function AssetInspectionChecklistsPage() {
   const { toast } = useToast();
   const searchParams = useSearchParams();
@@ -86,13 +75,6 @@ export default function AssetInspectionChecklistsPage() {
       const payload = await response.json().catch(() => ({ templates: [] }));
       const nextTemplates = Array.isArray(payload.templates) ? payload.templates : [];
       setTemplates(nextTemplates);
-      if (!selectedTemplateId && nextTemplates[0]) {
-        const first = nextTemplates[0] as AssetInspectionTemplate;
-        setSelectedTemplateId(first.id);
-        setTemplateTitle(first.title);
-        setAssetType(first.assetType);
-        setSections(first.sections.length > 0 ? first.sections : [createEmptySection()]);
-      }
     } catch {
       setTemplates([]);
     } finally {
@@ -107,6 +89,16 @@ export default function AssetInspectionChecklistsPage() {
   useEffect(() => {
     const templateId = searchParams?.get('template')?.trim() || '';
     const copyFrom = searchParams?.get('copyFrom')?.trim() || '';
+    if (!templateId && !copyFrom) {
+      copiedTemplateRef.current = null;
+      setCopySourceTitle('');
+      setIsCopyDraft(false);
+      setSelectedTemplateId('');
+      setTemplateTitle('');
+      setAssetType('aircraft');
+      setSections([createEmptySection()]);
+      return;
+    }
     if (templateId && templates.length > 0) {
       const source = templates.find((template) => template.id === templateId);
       if (!source) return;
@@ -125,32 +117,10 @@ export default function AssetInspectionChecklistsPage() {
     copiedTemplateRef.current = copyFrom;
     setCopySourceTitle(source.title);
     setIsCopyDraft(true);
-    duplicateTemplate(source);
-  }, [searchParams, templates]);
-
-  const sortedTemplates = useMemo(
-    () =>
-      [...templates].sort((a, b) => a.title.localeCompare(b.title)),
-    [templates],
-  );
-
-  const selectTemplate = (template: AssetInspectionTemplate) => {
-    const hydrated = hydrateTemplate(template);
-    setSelectedTemplateId(hydrated.id);
-    setTemplateTitle(hydrated.title);
-    setAssetType(hydrated.assetType);
-    setSections(hydrated.sections);
-    setCopySourceTitle('');
-    setIsCopyDraft(false);
-  };
-
-  const duplicateTemplate = (template: AssetInspectionTemplate) => {
-    const copyTitle = `${template.title} Copy`;
     setSelectedTemplateId('');
-    setTemplateTitle(copyTitle);
-    setAssetType(template.assetType);
-    setIsCopyDraft(true);
-    setSections(hydrateTemplate(template).sections.map((section) => ({
+    setTemplateTitle(`${source.title} Copy`);
+    setAssetType(source.assetType);
+    setSections((source.sections.length > 0 ? source.sections : [createEmptySection()]).map((section) => ({
       ...section,
       id: crypto.randomUUID(),
       items: section.items.map((item) => ({
@@ -158,44 +128,7 @@ export default function AssetInspectionChecklistsPage() {
         id: crypto.randomUUID(),
       })),
     })));
-  };
-
-  const deleteTemplate = async (template: AssetInspectionTemplate) => {
-    const confirmed = window.confirm(`Delete template \"${template.title}\"?`);
-    if (!confirmed) return;
-
-    setIsSaving(true);
-    try {
-      const response = await fetch(`/api/asset-inspection-templates?id=${encodeURIComponent(template.id)}`, {
-        method: 'DELETE',
-      });
-
-      if (!response.ok) {
-        const payload = await response.json().catch(() => null) as { error?: string } | null;
-        throw new Error(payload?.error || 'Failed to delete template.');
-      }
-
-      toast({ title: 'Template deleted', description: `${template.title} was removed.` });
-      window.dispatchEvent(new Event('safeviate-asset-inspection-templates-updated'));
-      await loadTemplates();
-      if (selectedTemplateId === template.id) {
-        resetForm();
-      }
-    } catch (error) {
-      toast({
-        variant: 'destructive',
-        title: 'Delete failed',
-        description: error instanceof Error ? error.message : 'Failed to delete template.',
-      });
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const getInspectionHref = (template: AssetInspectionTemplate) => {
-    const assetTypeParam = template.assetType === 'all' ? 'aircraft' : template.assetType;
-    return `/assets/inspections/new?assetType=${encodeURIComponent(assetTypeParam)}&template=${encodeURIComponent(template.id)}`;
-  };
+  }, [searchParams, templates]);
 
   const resetForm = () => {
     setSelectedTemplateId('');
@@ -354,10 +287,7 @@ export default function AssetInspectionChecklistsPage() {
     return (
       <div className="mx-auto flex w-full max-w-[1180px] flex-col gap-6 px-1 pt-4">
         <Skeleton className="h-20 w-full" />
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
-          <Skeleton className="h-[760px] w-full" />
-          <Skeleton className="h-[760px] w-full" />
-        </div>
+        <Skeleton className="h-[760px] w-full" />
       </div>
     );
   }
@@ -376,16 +306,12 @@ export default function AssetInspectionChecklistsPage() {
                   Back to Checklists
                 </Link>
               </Button>
-              <Button type="button" variant="outline" size="compact" className="h-8 border-slate-300 text-[9px] font-black uppercase tracking-[0.08em]" onClick={resetForm}>
-                <Layers3 className="h-3.5 w-3.5" />
-                New Checklist
-              </Button>
             </div>
           )}
         />
       </Card>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.08fr)_minmax(340px,0.92fr)]">
+      <div className="grid gap-6">
         <Card className="overflow-hidden border shadow-none">
           <CardContent className="space-y-5 p-4">
             <div className="grid gap-4 sm:grid-cols-2">
@@ -416,21 +342,33 @@ export default function AssetInspectionChecklistsPage() {
             </div>
 
             <div className="space-y-3">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Sections</p>
-                  <p className="mt-1 text-sm text-muted-foreground">Group questions into logical parts like Exterior, Interior, or anything else your operation needs.</p>
-                  <p className="mt-1 text-[10px] font-medium text-muted-foreground">Drag the grip icon to reorder sections and questions.</p>
+              <div className="rounded-xl border bg-muted/20 p-4">
+                <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <h3 className="text-sm font-black uppercase tracking-[0.16em] text-foreground">Create / Import</h3>
+                    <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                      Build sections manually before saving the checklist.
+                    </p>
+                    <p className="mt-1 text-[10px] font-medium text-muted-foreground">Drag the grip icon to reorder sections and questions.</p>
+                  </div>
+                  <span className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">1 action</span>
                 </div>
-                <Button type="button" variant="outline" size="sm" className="h-8 border-slate-300 text-[9px] font-black uppercase tracking-[0.08em]" onClick={addSection}>
-                  <Plus className="mr-2 h-3.5 w-3.5" />
-                  Add Section
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={addSection}
+                    className="h-10 justify-start gap-2 border-[hsl(var(--header-button-border))] bg-[hsl(var(--header-button-background))] px-3 text-[10px] font-black uppercase shadow-none hover:bg-[hsl(var(--header-button-hover))]"
+                  >
+                    <PlusCircle className="h-4 w-4" />
+                    Manual Creation
+                  </Button>
+                </div>
               </div>
 
               <div className="space-y-4">
                 {sections.map((section, sectionIndex) => (
-                  <div
+                  <Card
                     key={section.id}
                     data-index={sectionIndex}
                     ref={(node) => {
@@ -453,30 +391,34 @@ export default function AssetInspectionChecklistsPage() {
                       }
                       sectionDragRef.current = null;
                     }}
-                    className="rounded-lg border border-card-border bg-muted/15 p-3"
+                    className="mb-4 bg-muted/30 transition-shadow"
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex h-10 w-10 shrink-0 cursor-grab items-center justify-center rounded-md border bg-background text-muted-foreground active:cursor-grabbing">
-                        <GripVertical className="h-5 w-5" />
-                      </div>
-                      <div className="grid flex-1 gap-3 sm:grid-cols-[minmax(0,1fr)_140px]">
-                        <div className="space-y-2">
-                          <Label className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Section Title</Label>
-                          <Input value={section.title} onChange={(event) => updateSection(sectionIndex, { title: event.target.value })} placeholder="e.g. Exterior" />
+                    <CardHeader className="p-3">
+                      <div className="grid gap-3 sm:grid-cols-[auto_minmax(0,1fr)_140px_auto] sm:items-start">
+                        <div className="flex h-10 w-10 shrink-0 cursor-grab items-center justify-center rounded-md border bg-background text-muted-foreground active:cursor-grabbing">
+                          <GripVertical className="h-5 w-5" />
                         </div>
-                        <div className="space-y-2">
-                          <Label className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Items</Label>
-                          <div className="flex h-10 items-center rounded-md border bg-background px-3 text-sm font-semibold text-foreground">
-                            {section.items.length}
+                        <div className="grid flex-1 gap-3 sm:grid-cols-[minmax(0,1fr)_140px]">
+                          <div className="space-y-2">
+                            <Label className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Section Title</Label>
+                            <Input value={section.title} onChange={(event) => updateSection(sectionIndex, { title: event.target.value })} placeholder="e.g. Exterior" />
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Items</Label>
+                            <div className="flex h-10 items-center rounded-md border bg-background px-3 text-sm font-semibold text-foreground">
+                              {section.items.length}
+                            </div>
                           </div>
                         </div>
+                        <div className="flex justify-end">
+                          <Button type="button" variant="destructive" size="icon" className="h-9 w-9 shrink-0" onClick={() => removeSection(sectionIndex)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
-                      <Button type="button" variant="destructive" size="icon" className="h-9 w-9 shrink-0" onClick={() => removeSection(sectionIndex)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
+                    </CardHeader>
 
-                    <div className="mt-4 space-y-3">
+                    <CardContent className="space-y-3 px-3 pb-3 pt-0">
                       {section.items.map((item, itemIndex) => (
                         <div
                           key={item.id}
@@ -503,9 +445,9 @@ export default function AssetInspectionChecklistsPage() {
                             }
                             itemDragRef.current = null;
                           }}
-                          className="rounded-md border bg-background/70 p-3"
+                          className="rounded-md border bg-background p-3"
                         >
-                          <div className="grid gap-3 md:grid-cols-[minmax(0,1.5fr)_140px_120px_120px_auto]">
+                          <div className="grid gap-3 lg:grid-cols-[auto_minmax(0,1.6fr)_minmax(140px,0.75fr)_120px_120px_auto] lg:items-start">
                             <div className="flex items-start pt-2 text-muted-foreground">
                               <div className="flex h-8 w-8 cursor-grab items-center justify-center rounded-md border bg-background active:cursor-grabbing">
                                 <GripVertical className="h-4 w-4" />
@@ -517,7 +459,7 @@ export default function AssetInspectionChecklistsPage() {
                                 value={item.label}
                                 onChange={(event) => updateItem(sectionIndex, itemIndex, { label: event.target.value })}
                                 placeholder="Describe the inspection point"
-                                className="min-h-16"
+                                className="min-h-24"
                               />
                             </div>
                             <div className="space-y-2">
@@ -566,16 +508,16 @@ export default function AssetInspectionChecklistsPage() {
                         </div>
                       ))}
                       <Button type="button" variant="outline" size="sm" className="h-8 border-slate-300 text-[9px] font-black uppercase tracking-[0.08em]" onClick={() => addItem(sectionIndex)}>
-                        <Plus className="mr-2 h-3.5 w-3.5" />
+                        <PlusCircle className="mr-2 h-3.5 w-3.5" />
                         Add Question
                       </Button>
-                    </div>
-                  </div>
+                    </CardContent>
+                  </Card>
                 ))}
               </div>
             </div>
 
-            <div className="flex justify-end gap-2">
+            <div className="flex flex-wrap justify-end gap-2">
               <Button asChild variant="outline" size="compact" className="h-9 border-slate-300">
                 <Link href="/assets/checklists">Cancel</Link>
               </Button>
@@ -590,129 +532,6 @@ export default function AssetInspectionChecklistsPage() {
                 )}
               </Button>
             </div>
-          </CardContent>
-        </Card>
-
-        <Card className="overflow-hidden border shadow-none">
-          <CardContent className="space-y-4 p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Existing Checklists</p>
-                  <p className="mt-1 text-sm text-muted-foreground">Select a checklist to edit it or create a fresh one for a different workflow.</p>
-              </div>
-              <Badge variant="outline" className="border-card-border bg-background/70 text-[10px] font-black uppercase tracking-[0.08em] text-foreground">
-                {sortedTemplates.length}
-              </Badge>
-            </div>
-
-            <ScrollArea className="h-[760px]">
-              <div className="space-y-3 pr-1">
-                {sortedTemplates.length > 0 ? (
-                  sortedTemplates.map((template) => (
-                    <div
-                      key={template.id}
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => selectTemplate(template)}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter' || event.key === ' ') {
-                          event.preventDefault();
-                          selectTemplate(template);
-                        }
-                      }}
-                      className={cn(
-                        'relative w-full rounded-lg border border-card-border bg-muted/10 p-3 text-left transition-colors hover:border-primary/30',
-                        selectedTemplateId === template.id && 'border-primary/70 bg-primary/10 shadow-sm ring-1 ring-primary/20',
-                        isCopyDraft && selectedTemplateId === '' && templateTitle === `${template.title} Copy` && 'border-amber-400/80 bg-amber-50/60 ring-1 ring-amber-200/60',
-                      )}
-                    >
-                      {isCopyDraft && selectedTemplateId === '' && templateTitle === `${template.title} Copy` ? (
-                        <span className="absolute right-2 top-2 rounded-lg border border-amber-300 bg-amber-100 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] text-amber-900">
-                          Draft
-                        </span>
-                      ) : null}
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-primary/80">{template.assetType}</p>
-                          <p className="mt-1 break-words text-sm font-semibold text-foreground">{template.title}</p>
-                          {isCopyDraft && selectedTemplateId === '' && templateTitle === `${template.title} Copy` ? (
-                            <p className="mt-1 text-[10px] font-black uppercase tracking-[0.16em] text-amber-700">Copy Draft</p>
-                          ) : null}
-                        </div>
-                        <div className="flex flex-col items-end gap-1">
-                          {isCopyDraft && selectedTemplateId === '' && templateTitle === `${template.title} Copy` ? (
-                            <Badge className="border-amber-300 bg-amber-100 text-[10px] font-black uppercase tracking-[0.08em] text-amber-900">
-                              Copy Draft
-                            </Badge>
-                          ) : null}
-                          <Badge variant="outline" className="border-card-border bg-background/70 text-[10px] font-black uppercase tracking-[0.08em] text-foreground">
-                            {template.sections.length} section{template.sections.length === 1 ? '' : 's'}
-                          </Badge>
-                        </div>
-                      </div>
-                      <div className="mt-2 text-[11px] text-muted-foreground">
-                        {template.sections.reduce((count, section) => count + section.items.length, 0)} questions
-                      </div>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        <Button asChild type="button" variant="outline" size="sm" className="h-7 border-slate-300 text-[9px] font-black uppercase tracking-[0.08em]">
-                          <Link href={getInspectionHref(template)}>
-                            Start Inspection
-                          </Link>
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="h-7 border-slate-300 text-[9px] font-black uppercase tracking-[0.08em]"
-                          onClick={(event) => {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            selectTemplate(template);
-                          }}
-                        >
-                          <Edit className="mr-1.5 h-3.5 w-3.5" />
-                          Edit
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="h-7 border-slate-300 text-[9px] font-black uppercase tracking-[0.08em]"
-                          onClick={(event) => {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            duplicateTemplate(template);
-                          }}
-                        >
-                          <Copy className="mr-1.5 h-3.5 w-3.5" />
-                          Duplicate
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="h-7 border-slate-300 text-[9px] font-black uppercase tracking-[0.08em]"
-                          onClick={(event) => {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            void deleteTemplate(template);
-                          }}
-                        >
-                          <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-                          Delete
-                        </Button>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="flex min-h-[220px] flex-col items-center justify-center rounded-lg border border-dashed border-card-border bg-muted/10 px-4 text-center text-muted-foreground">
-                    <Layers3 className="mb-3 h-10 w-10 text-muted-foreground/50" />
-                    <p className="text-sm font-black uppercase tracking-widest text-foreground/85">No checklists yet</p>
-                    <p className="mt-2 text-sm">Create the first checklist to start reusing inspections across assets.</p>
-                  </div>
-                )}
-              </div>
-            </ScrollArea>
           </CardContent>
         </Card>
       </div>

@@ -137,6 +137,7 @@ export default function AssetInspectionNewPage() {
   const [templates, setTemplates] = useState<AssetInspectionTemplate[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [editingInspectionId, setEditingInspectionId] = useState('');
   const [assetType, setAssetType] = useState<AssetInspectionAssetType>('aircraft');
   const [templateId, setTemplateId] = useState('');
   const [inspectionScope, setInspectionScope] = useState<AssetInspectionScope>('Both');
@@ -211,12 +212,6 @@ export default function AssetInspectionNewPage() {
   }, [aircraft, assetType, vehicles]);
 
   useEffect(() => {
-    if (!assetId && assetOptions[0]?.id) {
-      setAssetId(assetOptions[0].id);
-    }
-  }, [assetId, assetOptions]);
-
-  useEffect(() => {
     const nextTemplate = templates.find((template) => template.id === templateId) || null;
     if (!templateId || !nextTemplate) return;
     setChecklistItems(flattenTemplateChecklist(nextTemplate));
@@ -245,10 +240,36 @@ export default function AssetInspectionNewPage() {
 
   useEffect(() => {
     const requestedTemplateId = searchParams?.get('template')?.trim() || '';
+    const requestedInspectionId = searchParams?.get('inspectionId')?.trim() || '';
+    if (requestedInspectionId && inspections.length > 0) {
+      const existingInspection = inspections.find((inspection) => inspection.id === requestedInspectionId) || null;
+      if (existingInspection) {
+        setEditingInspectionId(existingInspection.id);
+        setAssetType(existingInspection.assetType);
+        setTemplateId(existingInspection.templateId || '');
+        setInspectionScope(existingInspection.inspectionScope || 'Both');
+        setAssetId(existingInspection.assetId);
+        setInspectionType(existingInspection.inspectionType || INSPECTION_TYPE_OPTIONS[0]);
+        setInspectionDate(existingInspection.inspectionDate || new Date().toISOString().slice(0, 10));
+        setInspectorId(existingInspection.inspectorId || '');
+        setStatus(existingInspection.status || 'Serviceable');
+        setFindings(existingInspection.findings || '');
+        setNotes(existingInspection.notes || '');
+        setNextInspectionDate(existingInspection.nextInspectionDate || '');
+        setChecklistItems((existingInspection.checklistItems || []).map((item) => ({
+          ...item,
+          photos: Array.isArray(item.photos) ? item.photos : [],
+        })));
+        return;
+      }
+    }
+
     if (!requestedTemplateId || !availableTemplates.some((template) => template.id === requestedTemplateId)) return;
+    const requestedTemplate = availableTemplates.find((template) => template.id === requestedTemplateId) || null;
+    setEditingInspectionId('');
     setTemplateId(requestedTemplateId);
-    setChecklistItems(flattenTemplateChecklist(availableTemplates.find((template) => template.id === requestedTemplateId) || null));
-  }, [availableTemplates, searchParams]);
+    setChecklistItems(flattenTemplateChecklist(requestedTemplate));
+  }, [availableTemplates, inspections, searchParams]);
   const checklistSections = useMemo(() => {
     return visibleChecklistItems.reduce<{ title: string; items: AssetInspectionChecklistItem[] }[]>((sections, item) => {
       const sectionTitle = item.sectionTitle || 'Questions';
@@ -352,7 +373,7 @@ export default function AssetInspectionNewPage() {
     try {
       const payload = {
         inspection: {
-          id: crypto.randomUUID(),
+          id: editingInspectionId || crypto.randomUUID(),
           assetType,
           assetId,
           assetLabel: selectedAssetLabel,
@@ -392,6 +413,7 @@ export default function AssetInspectionNewPage() {
 
       toast({ title: 'Inspection saved', description: `${selectedAssetLabel} inspection has been recorded.` });
       window.dispatchEvent(new Event('safeviate-asset-inspections-updated'));
+      setEditingInspectionId('');
       setInspectionType(INSPECTION_TYPE_OPTIONS[0]);
       setInspectionDate(new Date().toISOString().slice(0, 10));
       setInspectorId('');
@@ -486,7 +508,7 @@ export default function AssetInspectionNewPage() {
                         ))
                       ) : (
                         <SelectItem value="__none__" disabled>
-                          No {assetType} records available
+                          No registered {assetType} available
                         </SelectItem>
                       )}
                     </SelectContent>
@@ -494,7 +516,7 @@ export default function AssetInspectionNewPage() {
                 </div>
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto]">
+              <div className="grid gap-4 sm:grid-cols-1">
                 <div className="space-y-2">
                   <Label>Inspection Template</Label>
                   <Select value={templateId} onValueChange={handleTemplateChange}>
@@ -516,24 +538,6 @@ export default function AssetInspectionNewPage() {
                     </SelectContent>
                   </Select>
                   <p className="text-[10px] font-medium text-muted-foreground">Each question in the default checklists requires at least 4 photos.</p>
-                </div>
-                <div className="space-y-2">
-                  <Label className="opacity-0">Manage</Label>
-                  <div className="flex flex-wrap gap-2">
-                    <Button asChild variant="outline" className="h-10 border-slate-300">
-                      <Link href="/assets/checklists">Manage Checklists</Link>
-                    </Button>
-                    <Button
-                      asChild
-                      variant="outline"
-                      className="h-10 border-slate-300"
-                      disabled={!templateId}
-                    >
-                      <Link href={`/assets/checklists/new?copyFrom=${encodeURIComponent(templateId)}`}>
-                        Copy Checklist
-                      </Link>
-                    </Button>
-                  </div>
                 </div>
               </div>
 
@@ -641,7 +645,7 @@ export default function AssetInspectionNewPage() {
                         {section.items.map((item) => {
                           const index = checklistItems.findIndex((entry) => entry.id === item.id);
                           return (
-                            <div key={item.id} className="rounded-lg border border-card-border bg-muted/15 p-3">
+                        <div key={item.id} className="rounded-lg border border-card-border bg-muted/15 p-3">
                       <div className="grid gap-3 md:grid-cols-[minmax(0,1.6fr)_170px_1fr_auto]">
                         <div className="space-y-2">
                           <Label className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Checklist Item</Label>
@@ -680,9 +684,6 @@ export default function AssetInspectionNewPage() {
                               </Button>
                             )}
                           />
-                          <Button type="button" variant="destructive" size="icon" className="h-9 w-9" onClick={() => removeChecklistItem(index)}>
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
                         </div>
                       </div>
 

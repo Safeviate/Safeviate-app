@@ -168,11 +168,12 @@ async function getConfig(tenantId: string) {
 }
 
 function getTemplates(config: Record<string, unknown>) {
-  const saved = Array.isArray(config['asset-inspection-templates'])
+  const hasSavedTemplates = Array.isArray(config['asset-inspection-templates']);
+  const saved = hasSavedTemplates
     ? (config['asset-inspection-templates'] as TemplateRecord[]).map((item) => sanitizeTemplate(item))
     : [];
 
-  return saved.length > 0 ? saved : DEFAULT_TEMPLATES;
+  return hasSavedTemplates ? saved : DEFAULT_TEMPLATES;
 }
 
 export async function GET(request: Request) {

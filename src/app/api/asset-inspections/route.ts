@@ -178,3 +178,31 @@ export async function POST(request: Request) {
 
   return NextResponse.json({ inspection: incoming }, { status: 200 });
 }
+
+export async function DELETE(request: Request) {
+  const tenantId = await getTenantId(request);
+  if (!tenantId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const { searchParams } = new URL(request.url);
+  const inspectionId = searchParams.get('id')?.trim();
+  if (!inspectionId) return NextResponse.json({ error: 'Inspection id is required' }, { status: 400 });
+
+  const config = await getConfig(tenantId);
+  const inspections = Array.isArray(config['asset-inspections'])
+    ? (config['asset-inspections'] as AssetInspectionRecord[]).map((item) => sanitizeInspection(item))
+    : [];
+  const nextInspections = inspections.filter((inspection) => inspection.id !== inspectionId);
+
+  if (nextInspections.length === inspections.length) {
+    return NextResponse.json({ error: 'Inspection not found' }, { status: 404 });
+  }
+
+  const nextConfig = { ...config, 'asset-inspections': nextInspections };
+  await prisma.$executeRawUnsafe(
+    `INSERT INTO tenant_configs (tenant_id, data, created_at, updated_at) VALUES ($1, $2::jsonb, NOW(), NOW()) ON CONFLICT (tenant_id) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
+    tenantId,
+    JSON.stringify(nextConfig)
+  );
+
+  return NextResponse.json({ ok: true }, { status: 200 });
+}
