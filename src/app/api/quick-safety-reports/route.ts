@@ -15,7 +15,15 @@ export async function GET(request: Request) {
       context.tenantId,
     );
 
-    return NextResponse.json({ reports: rows.map((row) => row.data) }, { status: 200 });
+    return NextResponse.json(
+      {
+        reports: rows.map((row) => ({
+          ...(row.data as Record<string, unknown>),
+          tenantId: context.tenantId,
+        })),
+      },
+      { status: 200 }
+    );
   } catch (error) {
     console.error('[quick-safety-reports] read failed:', error);
     return NextResponse.json({ reports: [] }, { status: 200 });
@@ -57,7 +65,7 @@ export async function POST(request: Request) {
       JSON.stringify(data),
     );
 
-    return NextResponse.json({ report: data }, { status: 201 });
+    return NextResponse.json({ report: { ...data, tenantId: context.tenantId } }, { status: 201 });
   } catch (error) {
     console.error('[quick-safety-reports] write failed:', error);
     return NextResponse.json({ error: 'Failed to submit quick safety report.' }, { status: 500 });
@@ -98,7 +106,7 @@ export async function PUT(request: Request) {
       JSON.stringify(data),
     );
 
-    return NextResponse.json({ report: data }, { status: 200 });
+    return NextResponse.json({ report: { ...data, tenantId: context.tenantId } }, { status: 200 });
   } catch (error) {
     console.error('[quick-safety-reports] update failed:', error);
     return NextResponse.json({ error: 'Failed to update quick safety report.' }, { status: 500 });

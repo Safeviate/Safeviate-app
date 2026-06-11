@@ -82,6 +82,7 @@ export interface ReportSignature {
 
 export interface SafetyReport {
     id: string;
+    tenantId?: string | null;
     reportNumber: string;
     reportType: ReportType;
     status: ReportStatus;

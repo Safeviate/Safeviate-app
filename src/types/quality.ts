@@ -108,6 +108,7 @@ export interface QualityAuditSignoff {
 
 export interface QualityAudit {
     id: string;
+    tenantId?: string | null;
     templateId: string;
     title: string;
     auditNumber: string;
@@ -130,6 +131,7 @@ export interface QualityAudit {
 
 export interface CorrectiveActionPlan {
     id: string;
+    tenantId?: string | null;
     auditId: string;
     findingId: string;
     rootCauseAnalysis: string;

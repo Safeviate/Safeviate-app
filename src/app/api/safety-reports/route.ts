@@ -31,7 +31,15 @@ export async function GET(request: Request) {
       writes: 0,
       durationMs: Date.now() - startedAt,
     });
-    return NextResponse.json({ reports: rows.map((row) => row.data) }, { status: 200 });
+    return NextResponse.json(
+      {
+        reports: rows.map((row) => ({
+          ...(row.data as Record<string, unknown>),
+          tenantId,
+        })),
+      },
+      { status: 200 }
+    );
   } catch (error) {
     console.error('[safety-reports] fallback to empty list:', error);
     await recordSimulationRouteMetric({
@@ -76,7 +84,7 @@ export async function POST(request: Request) {
       writes: 1,
       durationMs: Date.now() - startedAt,
     });
-    return NextResponse.json({ report: data }, { status: 201 });
+    return NextResponse.json({ report: { ...data, tenantId } }, { status: 201 });
   } catch (error) {
     console.error('[safety-reports] write failed:', error);
     await recordSimulationRouteMetric({

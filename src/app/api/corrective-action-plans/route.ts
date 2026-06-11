@@ -15,7 +15,10 @@ async function getAllCaps(tenantId: string) {
     `SELECT data FROM corrective_action_plans WHERE tenant_id = $1 ORDER BY created_at DESC`,
     tenantId
   );
-  return rows.map((row) => row.data);
+  return rows.map((row) => ({
+    ...(row.data as Record<string, unknown>),
+    tenantId,
+  }));
 }
 
 export async function GET(request: Request) {
@@ -69,6 +72,6 @@ export async function POST(request: Request) {
     writes: 1,
     durationMs: Date.now() - startedAt,
   });
-  return NextResponse.json({ cap: data }, { status: 200 });
+  return NextResponse.json({ cap: { ...data, tenantId } }, { status: 200 });
 }
 

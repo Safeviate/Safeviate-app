@@ -246,6 +246,7 @@ export default function TaskTrackerPage() {
   const [personnel, setPersonnel] = useState<Personnel[]>([]);
   const [organizations, setOrganizations] = useState<ExternalOrganization[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const isCurrentTenantRecord = (record: { tenantId?: string | null } | null | undefined) => record?.tenantId === tenantId;
 
   const loadData = useCallback(() => {
     setIsLoading(true);
@@ -258,10 +259,10 @@ export default function TaskTrackerPage() {
         const summary = await summaryRes.json().catch(() => ({}));
         const orgsPayload = await orgsRes.json().catch(() => ({}));
 
-        setMocs(Array.isArray(summary.mocs) ? summary.mocs : []);
-        setSafetyReports(Array.isArray(summary.reports) ? summary.reports : []);
-        setCaps(Array.isArray(summary.caps) ? summary.caps : []);
-        setAudits(Array.isArray(summary.audits) ? summary.audits : []);
+        setMocs(Array.isArray(summary.mocs) ? summary.mocs.filter(isCurrentTenantRecord) : []);
+        setSafetyReports(Array.isArray(summary.reports) ? summary.reports.filter(isCurrentTenantRecord) : []);
+        setCaps(Array.isArray(summary.caps) ? summary.caps.filter(isCurrentTenantRecord) : []);
+        setAudits(Array.isArray(summary.audits) ? summary.audits.filter(isCurrentTenantRecord) : []);
         setPersonnel(Array.isArray(summary.personnel) ? summary.personnel : []);
         setOrganizations(Array.isArray(orgsPayload.organizations) ? orgsPayload.organizations : []);
       } catch (e) {
@@ -305,7 +306,7 @@ export default function TaskTrackerPage() {
     const personnelMap = new Map(personnel.map((p) => [p.id, `${p.firstName} ${p.lastName}`]));
     const tasks: UnifiedTask[] = [];
 
-    (mocs || []).forEach((moc) => {
+    (mocs || []).filter(isCurrentTenantRecord).forEach((moc) => {
       moc.phases?.forEach((phase) => {
         phase.steps?.forEach((step) => {
           step.hazards?.forEach((hazard) => {
@@ -332,7 +333,7 @@ export default function TaskTrackerPage() {
       });
     });
 
-    (safetyReports || []).forEach((report) => {
+    (safetyReports || []).filter(isCurrentTenantRecord).forEach((report) => {
       (report.investigationTasks || []).forEach((task) => {
         if (task.status !== 'Completed') {
           tasks.push({
@@ -351,7 +352,7 @@ export default function TaskTrackerPage() {
       });
     });
 
-    (audits || []).forEach((audit) => {
+    (audits || []).filter(isCurrentTenantRecord).forEach((audit) => {
       if ((audit as { analysisType?: string } | undefined)?.analysisType !== 'gap-analysis') return;
 
       (audit.findings || []).forEach((finding) => {
@@ -387,6 +388,7 @@ export default function TaskTrackerPage() {
   const auditCapEntries = useMemo<AuditCapEntry[]>(() => {
     if (isLoading) return [];
     return (caps || [])
+      .filter(isCurrentTenantRecord)
       .map((cap) => {
         const audit = auditsMap.get(cap.auditId);
         if (!audit || (audit as { analysisType?: string } | undefined)?.analysisType === 'gap-analysis') return null;

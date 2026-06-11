@@ -47,6 +47,7 @@ export interface MocPhase {
 
 export interface ManagementOfChange {
     id: string;
+    tenantId?: string | null;
     mocNumber: string;
     title: string;
     description: string;

@@ -485,6 +485,9 @@ export default function SafetyReportsPage() {
   const [classifyingQuickReportId, setClassifyingQuickReportId] = useState<string | null>(null);
 
   const canManageAll = hasPermission('safety-reports-manage');
+  function isCurrentTenantRecord(record: { tenantId?: string | null }) {
+    return record.tenantId === tenantId;
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -506,9 +509,9 @@ export default function SafetyReportsPage() {
         const quickPayload = await quickResponse.json().catch(() => ({ reports: [] }));
         const summaryPayload = await summaryResponse.json().catch(() => ({ technicalReports: [] }));
         if (!cancelled) {
-          setAllReports(payload.reports ?? []);
-          setQuickSafetyReports(Array.isArray(quickPayload?.reports) ? quickPayload.reports : []);
-          setTechnicalReports(Array.isArray(summaryPayload?.technicalReports) ? summaryPayload.technicalReports : []);
+          setAllReports(Array.isArray(payload.reports) ? payload.reports.filter(isCurrentTenantRecord) : []);
+          setQuickSafetyReports(Array.isArray(quickPayload?.reports) ? quickPayload.reports.filter(isCurrentTenantRecord) : []);
+          setTechnicalReports(Array.isArray(summaryPayload?.technicalReports) ? summaryPayload.technicalReports.filter(isCurrentTenantRecord) : []);
         }
       } finally {
         if (!cancelled) setIsLoadingReports(false);
@@ -537,9 +540,9 @@ export default function SafetyReportsPage() {
           const quickPayload = await quickResponse.json().catch(() => ({ reports: [] }));
           const summaryPayload = await summaryResponse.json().catch(() => ({ technicalReports: [] }));
 
-          setAllReports(Array.isArray(payload.reports) ? payload.reports : []);
-          setQuickSafetyReports(Array.isArray(quickPayload?.reports) ? quickPayload.reports : []);
-          setTechnicalReports(Array.isArray(summaryPayload?.technicalReports) ? summaryPayload.technicalReports : []);
+          setAllReports(Array.isArray(payload.reports) ? payload.reports.filter(isCurrentTenantRecord) : []);
+          setQuickSafetyReports(Array.isArray(quickPayload?.reports) ? quickPayload.reports.filter(isCurrentTenantRecord) : []);
+          setTechnicalReports(Array.isArray(summaryPayload?.technicalReports) ? summaryPayload.technicalReports.filter(isCurrentTenantRecord) : []);
         } catch {
           setAllReports([]);
           setQuickSafetyReports([]);

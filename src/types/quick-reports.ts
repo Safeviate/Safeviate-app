@@ -9,6 +9,7 @@ export interface QuickReportPhotoAttachment {
 
 export interface TechnicalQuickReport {
   id: string;
+  tenantId?: string | null;
   reportNumber: string;
   reportType: string;
   status: 'Open' | 'Closed';
@@ -36,6 +37,7 @@ export interface TechnicalQuickReport {
 
 export interface QuickSafetyReport {
   id: string;
+  tenantId?: string | null;
   reportNumber: string;
   reportType: string;
   status: 'Open' | 'Closed';
