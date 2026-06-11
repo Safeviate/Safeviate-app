@@ -161,7 +161,6 @@ export default function AuditDetailPage({ params }: AuditDetailPageProps) {
               audit={enrichedAudit} 
               tenantId={tenantId!}
               findingLevels={findingLevelsSettings?.levels || []}
-              caps={caps || []}
               personnel={personnel || []}
               organizations={organizations || []}
               aircraft={aircraft || []}

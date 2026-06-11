@@ -1,6 +1,7 @@
 'use client';
 
-import { useMemo, useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
+import { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -16,10 +17,17 @@ import { cn } from '@/lib/utils';
 import { ResponsiveCardGrid } from '@/components/responsive-card-grid';
 import { TenantLayoutDisabledState } from '@/components/tenant-layout-disabled-state';
 import { useTenantRouteAccess } from '@/hooks/use-tenant-route-access';
+import { useToast } from '@/hooks/use-toast';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { CustomCalendar } from '@/components/ui/custom-calendar';
+import { CalendarIcon } from 'lucide-react';
+import { getPersonnelDisplayName } from '@/lib/personnel-label';
 
 import type { ManagementOfChange } from '@/types/moc';
 import type { SafetyReport } from '@/types/safety-report';
-import type { CorrectiveActionPlan, QualityAudit, ExternalOrganization } from '@/types/quality';
+import type { CorrectiveActionPlan, QualityAudit, QualityFinding, ExternalOrganization } from '@/types/quality';
 import type { Personnel } from '@/app/(app)/users/personnel/page';
 
 const parseLocalDate = (value: string) => {
@@ -33,7 +41,7 @@ const parseLocalDate = (value: string) => {
 type UnifiedTask = {
   id: string;
   description: string;
-  sourceType: 'MOC' | 'Audit' | 'Audit CAP' | 'Gap Analysis' | 'Safety Report';
+  sourceType: 'MOC' | 'Audit' | 'Gap Analysis' | 'Safety Report';
   sourceIdentifier: string;
   link: string;
   assigneeId: string;
@@ -42,6 +50,184 @@ type UnifiedTask = {
   status: 'Open' | 'In Progress' | 'Completed' | 'Closed' | 'Cancelled';
   organizationId?: string | null;
 };
+
+type AuditCapEntry = {
+  cap: CorrectiveActionPlan;
+  audit: QualityAudit;
+  observation: string;
+  findingLevel: string;
+};
+
+const formatCapDueDate = (value?: string) => {
+  if (!value) return '';
+  return value.length >= 10 ? value.slice(0, 10) : value;
+};
+
+const toNoonUtcIso = (date: Date) =>
+  new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), 12)).toISOString();
+
+const parseCapObservation = (finding?: QualityFinding) =>
+  finding?.comment?.trim()
+  || finding?.gapDescription?.trim()
+  || finding?.actionPlan?.trim()
+  || finding?.currentState?.trim()
+  || finding?.desiredState?.trim()
+  || 'No observation recorded.';
+
+const parseCapFindingLevel = (finding?: QualityFinding) => finding?.level?.trim() || 'Unclassified';
+
+interface AuditCapBoardCardProps {
+  cap: CorrectiveActionPlan;
+  audit: QualityAudit;
+  observation: string;
+  findingLevel: string;
+  personnel: Personnel[];
+}
+
+function AuditCapBoardCard({ cap, audit, observation, findingLevel, personnel }: AuditCapBoardCardProps) {
+  const { toast } = useToast();
+  const correctiveActionRef = useRef<HTMLTextAreaElement | null>(null);
+  const [rootCauseAnalysis, setRootCauseAnalysis] = useState(cap.rootCauseAnalysis || '');
+  const [responsiblePersonId, setResponsiblePersonId] = useState(cap.responsiblePersonId || '');
+  const [dueDate, setDueDate] = useState(formatCapDueDate(cap.dueDate || audit.auditDate));
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDueDateOpen, setIsDueDateOpen] = useState(false);
+
+  useEffect(() => {
+    setRootCauseAnalysis(cap.rootCauseAnalysis || '');
+    setResponsiblePersonId(cap.responsiblePersonId || '');
+    setDueDate(formatCapDueDate(cap.dueDate || audit.auditDate));
+  }, [audit.auditDate, cap.dueDate, cap.id, cap.responsiblePersonId, cap.rootCauseAnalysis]);
+
+  useEffect(() => {
+    const textarea = correctiveActionRef.current;
+    if (!textarea) return;
+    textarea.style.height = 'auto';
+    textarea.style.height = `${Math.max(textarea.scrollHeight, 44)}px`;
+  }, [rootCauseAnalysis]);
+
+  const saveCap = async () => {
+    try {
+      setIsSaving(true);
+      const response = await fetch('/api/corrective-action-plans', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cap: {
+            ...cap,
+            rootCauseAnalysis,
+            responsiblePersonId,
+            dueDate: dueDate ? toNoonUtcIso(parseLocalDate(dueDate)) : '',
+          },
+        }),
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw new Error(payload?.error || 'Failed to save corrective action plan.');
+      }
+      window.dispatchEvent(new Event('safeviate-quality-updated'));
+      toast({
+        title: 'Corrective Action Plan Saved',
+        description: 'The CAP has been updated.',
+      });
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to save CAP.',
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <div className="rounded-lg border border-card-border bg-muted/10 p-3 shadow-none">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="space-y-2">
+          <Button asChild variant="outline" size="sm" className="h-7 px-3 text-[10px] font-black uppercase tracking-[0.08em]">
+            <Link href={`/quality/audits/${audit.id}`}>Audit #{audit.auditNumber}</Link>
+          </Button>
+          <div className="space-y-1">
+            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Observation</p>
+            <p className="text-sm font-medium text-foreground">{observation}</p>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-start justify-end gap-2">
+          <Badge variant="outline" className="h-[22px] rounded-lg border-card-border bg-background px-2 text-[10px] font-black uppercase tracking-[0.08em] text-foreground">
+            {cap.status}
+          </Badge>
+          <div className="flex h-[22px] items-center justify-between gap-3 rounded-lg border border-card-border bg-white px-2 text-left">
+            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Finding Level</p>
+            <p className="text-[10px] font-semibold leading-none text-foreground">{findingLevel}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 lg:grid-cols-2">
+        <div className="space-y-2 lg:col-span-2">
+          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Corrective Action</p>
+          <Textarea
+            ref={correctiveActionRef}
+            value={rootCauseAnalysis}
+            onChange={(event) => setRootCauseAnalysis(event.target.value)}
+            rows={1}
+            placeholder="Describe the corrective action..."
+            className="min-h-11 resize-none overflow-hidden bg-background"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Responsible Person</p>
+          <Select value={responsiblePersonId || ''} onValueChange={(value) => setResponsiblePersonId(value === '__unassigned__' ? '' : value)}>
+            <SelectTrigger className="bg-background">
+              <SelectValue placeholder="Assign a responsible person..." />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__unassigned__">Unassigned</SelectItem>
+              {personnel.map((person) => (
+                <SelectItem key={person.id} value={person.id}>
+                  {person.firstName} {person.lastName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
+          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Due Date</p>
+          <Popover open={isDueDateOpen} onOpenChange={setIsDueDateOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full justify-between bg-background text-left font-normal"
+              >
+                <span>{dueDate ? format(parseLocalDate(dueDate), 'dd MMM yy') : 'Pick a date'}</span>
+                <CalendarIcon className="h-4 w-4 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0">
+              <CustomCalendar
+                selectedDate={dueDate ? parseLocalDate(dueDate) : undefined}
+                onDateSelect={(date) => {
+                  setDueDate(format(date, 'yyyy-MM-dd'));
+                  setIsDueDateOpen(false);
+                }}
+              />
+            </PopoverContent>
+          </Popover>
+        </div>
+      </div>
+
+      <div className="mt-4 flex items-center justify-end gap-2">
+        <Button type="button" variant="outline" size="sm" onClick={saveCap} disabled={isSaving}>
+          Save CAP
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 export default function TaskTrackerPage() {
   const { tenantId } = useUserProfile();
@@ -165,66 +351,8 @@ export default function TaskTrackerPage() {
       });
     });
 
-    const auditsMap = new Map((audits || []).map((a) => [a.id, a]));
-    const capsByAuditId = new Map((caps || []).map((cap) => [cap.auditId, cap]));
-
-    (caps || []).forEach((cap) => {
-      const audit = auditsMap.get(cap.auditId);
-      const auditFinding = audit?.findings?.find((finding) => finding.checklistItemId === cap.findingId);
-      const isGapAnalysis = (audit as { analysisType?: string } | undefined)?.analysisType === 'gap-analysis';
-      const sourceType: UnifiedTask['sourceType'] = isGapAnalysis ? 'Gap Analysis' : 'Audit';
-      const sourceIdentifier = audit?.auditNumber || (isGapAnalysis ? 'Unknown Gap Analysis' : 'Unknown Audit');
-      const link = isGapAnalysis ? `/quality/gap-analyses/${cap.auditId}` : `/quality/audits/${cap.auditId}`;
-      const actionableItems = (cap.actions || []).filter((action) => action.status !== 'Closed' && action.status !== 'Cancelled');
-      actionableItems.forEach((action) => {
-        tasks.push({
-          id: action.id,
-          description: action.description,
-          sourceType,
-          sourceIdentifier,
-          link,
-          assigneeId: action.responsiblePersonId,
-          assigneeName: personnelMap.get(action.responsiblePersonId) || 'Unassigned',
-          dueDate: action.deadline,
-          status: action.status,
-          organizationId: audit?.organizationId,
-        });
-      });
-
-      if (actionableItems.length === 0 && cap.status !== 'Closed' && cap.status !== 'Cancelled') {
-        const assigneeId = cap.responsiblePersonId?.trim()
-          || auditFinding?.ownerId?.trim()
-          || audit?.auditorId
-          || '';
-        const dueDate = auditFinding?.targetDate?.trim() || audit?.auditDate || '';
-        tasks.push({
-          id: cap.id,
-          description:
-            auditFinding?.actionPlan?.trim()
-            || auditFinding?.suggestedImprovements?.trim()
-            || auditFinding?.gapDescription?.trim()
-            || auditFinding?.currentState?.trim()
-            || auditFinding?.desiredState?.trim()
-            || auditFinding?.checklistItemId
-            || cap.id,
-          sourceType: 'Audit CAP',
-          sourceIdentifier: audit?.auditNumber || 'Unknown Audit',
-          link,
-          assigneeId,
-          assigneeName: personnelMap.get(assigneeId) || 'Unassigned',
-          dueDate,
-          status: cap.status,
-          organizationId: audit?.organizationId,
-        });
-      }
-    });
-
     (audits || []).forEach((audit) => {
       if ((audit as { analysisType?: string } | undefined)?.analysisType !== 'gap-analysis') return;
-
-      const existingCap = capsByAuditId.get(audit.id);
-      const hasOpenCapActions = (existingCap?.actions || []).some((action) => action.status !== 'Closed' && action.status !== 'Cancelled');
-      if (hasOpenCapActions) return;
 
       (audit.findings || []).forEach((finding) => {
         if (finding.gapStatus !== 'Open gap' && finding.gapStatus !== 'Partial coverage') return;
@@ -255,34 +383,46 @@ export default function TaskTrackerPage() {
     return tasks.sort((a, b) => parseLocalDate(a.dueDate).getTime() - parseLocalDate(b.dueDate).getTime());
   }, [mocs, safetyReports, caps, audits, personnel, isLoading]);
 
-  const capsById = useMemo(() => new Map((caps || []).map((cap) => [cap.id, cap])), [caps]);
+  const auditsMap = useMemo(() => new Map((audits || []).map((audit) => [audit.id, audit])), [audits]);
+  const auditCapEntries = useMemo<AuditCapEntry[]>(() => {
+    if (isLoading) return [];
+    return (caps || [])
+      .map((cap) => {
+        const audit = auditsMap.get(cap.auditId);
+        if (!audit || (audit as { analysisType?: string } | undefined)?.analysisType === 'gap-analysis') return null;
+        const finding = audit.findings?.find((item) => item.checklistItemId === cap.findingId);
+        return {
+          cap,
+          audit,
+          observation: parseCapObservation(finding),
+          findingLevel: parseCapFindingLevel(finding),
+        };
+      })
+      .filter((entry): entry is AuditCapEntry => Boolean(entry));
+  }, [auditsMap, caps, isLoading]);
 
-  const auditCapTasks = useMemo(
-    () => allTasks.filter((task) => task.sourceType === 'Audit CAP'),
-    [allTasks]
-  );
   const auditCapSnapshot = useMemo(() => {
     const now = new Date();
     const weekAhead = new Date(now);
     weekAhead.setDate(now.getDate() + 7);
 
-    const overdue = auditCapTasks.filter((task) => {
-      const due = parseLocalDate(task.dueDate);
+    const overdue = auditCapEntries.filter((entry) => {
+      const due = parseLocalDate(formatCapDueDate(entry.cap.dueDate || entry.audit.auditDate));
       return due.getTime() < new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12).getTime()
-        && task.status !== 'Closed'
-        && task.status !== 'Cancelled';
+        && entry.cap.status !== 'Closed'
+        && entry.cap.status !== 'Cancelled';
     }).length;
-    const dueSoon = auditCapTasks.filter((task) => {
-      const due = parseLocalDate(task.dueDate);
+    const dueSoon = auditCapEntries.filter((entry) => {
+      const due = parseLocalDate(formatCapDueDate(entry.cap.dueDate || entry.audit.auditDate));
       return due.getTime() >= new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12).getTime()
         && due.getTime() <= weekAhead.getTime()
-        && task.status !== 'Closed'
-        && task.status !== 'Cancelled';
+        && entry.cap.status !== 'Closed'
+        && entry.cap.status !== 'Cancelled';
     }).length;
-    const open = auditCapTasks.filter((task) => task.status !== 'Closed' && task.status !== 'Cancelled').length;
+    const open = auditCapEntries.filter((entry) => entry.cap.status !== 'Closed' && entry.cap.status !== 'Cancelled').length;
 
     return { overdue, dueSoon, open };
-  }, [auditCapTasks]);
+  }, [auditCapEntries]);
   const auditCapWindow = useMemo(() => {
     const today = new Date();
     return new Date(today.getFullYear(), today.getMonth(), today.getDate(), 12).getTime();
@@ -312,8 +452,6 @@ export default function TaskTrackerPage() {
         return 'border-primary/30 bg-primary/10 text-primary';
       case 'Audit':
         return 'border-slate-300 bg-slate-50 text-slate-700';
-      case 'Audit CAP':
-        return 'border-amber-300 bg-amber-50 text-amber-700';
       case 'Safety Report':
         return 'border-amber-300 bg-amber-50 text-amber-700';
       case 'MOC':
@@ -329,32 +467,18 @@ export default function TaskTrackerPage() {
       className="p-4"
       gridClassName="sm:grid-cols-2 xl:grid-cols-3"
       renderItem={(task) => (
-          (() => {
-            const auditCap = task.sourceType === 'Audit CAP' ? capsById.get(task.id) : null;
-            const totalActions = auditCap?.actions?.length || 0;
-            const activeActions = (auditCap?.actions || []).filter((action) => action.status !== 'Closed' && action.status !== 'Cancelled').length;
-            const closedActions = totalActions - activeActions;
-
-            return (
           <Card
             key={task.id}
             className={cn(
               "overflow-hidden border shadow-none transition-shadow hover:shadow-sm",
-              task.sourceType === 'Audit CAP' && "border-amber-300 bg-amber-50/40"
             )}
           >
             <CardHeader className="flex flex-row items-start justify-between gap-3 border-b bg-muted/20 px-4 py-3">
               <div className="min-w-0 space-y-1">
                 <p className="truncate text-sm font-black uppercase tracking-[-0.01em] text-foreground">{task.description}</p>
                 <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
-                  {task.sourceType === 'Audit CAP' ? 'Corrective Action Plan' : task.sourceType} - {task.sourceIdentifier}
+                  {task.sourceType} - {task.sourceIdentifier}
                 </p>
-                {task.sourceType === 'Audit CAP' ? (
-                  <div className="mt-2 inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1">
-                    <span className="text-[9px] font-black uppercase tracking-[0.16em] text-amber-700">Responsible</span>
-                    <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-amber-950">{task.assigneeName}</span>
-                  </div>
-                ) : null}
               </div>
               <div className="flex shrink-0 flex-col items-end gap-2">
                 <Badge variant="outline" className={cn('text-[9px] font-black uppercase py-0.5 px-3', getSourceBadgeClassName(task.sourceType))}>
@@ -363,25 +487,9 @@ export default function TaskTrackerPage() {
               <Badge variant={getStatusBadgeVariant(task.status)} className="text-[10px] font-black uppercase py-0.5 px-3">
                 {task.status}
               </Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4 px-4 py-4">
-            {task.sourceType === 'Audit CAP' ? (
-              <div className="grid gap-3 sm:grid-cols-3">
-                <div className="rounded-lg border border-amber-200 bg-white px-3 py-3">
-                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">CAP Status</p>
-                  <p className="mt-1 text-sm font-semibold text-foreground">{auditCap?.status || task.status}</p>
-                </div>
-                <div className="rounded-lg border border-amber-200 bg-white px-3 py-3">
-                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Open Actions</p>
-                  <p className="mt-1 text-sm font-semibold text-foreground">{activeActions}</p>
-                </div>
-                <div className="rounded-lg border border-amber-200 bg-white px-3 py-3">
-                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Closed Actions</p>
-                  <p className="mt-1 text-sm font-semibold text-foreground">{closedActions}</p>
-                </div>
               </div>
-            ) : null}
+            </CardHeader>
+            <CardContent className="space-y-4 px-4 py-4">
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-lg border bg-background px-3 py-3">
                 <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Assignee</p>
@@ -397,8 +505,6 @@ export default function TaskTrackerPage() {
             </div>
           </CardContent>
         </Card>
-            );
-          })()
       )}
       emptyState={(
         <div className="h-24 text-center flex items-center justify-center text-muted-foreground text-[10px] uppercase font-black tracking-widest bg-muted/5">
@@ -408,41 +514,41 @@ export default function TaskTrackerPage() {
     />
   );
 
-  const renderCapBoard = (tasks: UnifiedTask[]) => {
-    const capTasks = tasks.filter((task) => task.sourceType === 'Audit CAP');
-    if (capTasks.length === 0) return null;
+  const renderCapBoard = (entries: AuditCapEntry[]) => {
+    if (entries.length === 0) return null;
 
     const dueSoonWindow = new Date();
     dueSoonWindow.setDate(dueSoonWindow.getDate() + 7);
-    const filteredCapTasks = capTasks.filter((task) => {
+    const filteredCapEntries = entries.filter((entry) => {
       if (capFocusFilter === 'All') return true;
-      if (capFocusFilter === 'Open') return task.status === 'Open';
-      if (capFocusFilter === 'In Progress') return task.status === 'In Progress';
-      if (capFocusFilter === 'Closed') return task.status === 'Closed' || task.status === 'Cancelled';
-      const due = parseLocalDate(task.dueDate).getTime();
+      if (capFocusFilter === 'Open') return entry.cap.status === 'Open';
+      if (capFocusFilter === 'In Progress') return entry.cap.status === 'In Progress';
+      if (capFocusFilter === 'Closed') return entry.cap.status === 'Closed' || entry.cap.status === 'Cancelled';
+      const due = parseLocalDate(formatCapDueDate(entry.cap.dueDate || entry.audit.auditDate)).getTime();
       if (capFocusFilter === 'Overdue') {
-        return due < auditCapWindow && task.status !== 'Closed' && task.status !== 'Cancelled';
+        return due < auditCapWindow && entry.cap.status !== 'Closed' && entry.cap.status !== 'Cancelled';
       }
       if (capFocusFilter === 'Due Soon') {
-        return due >= auditCapWindow && due <= dueSoonWindow.getTime() && task.status !== 'Closed' && task.status !== 'Cancelled';
+        return due >= auditCapWindow && due <= dueSoonWindow.getTime() && entry.cap.status !== 'Closed' && entry.cap.status !== 'Cancelled';
       }
       if (capFocusFilter === 'Unassigned') {
-        return !task.assigneeId?.trim();
+        return !entry.cap.responsiblePersonId?.trim();
       }
       return true;
     });
 
-    const columns: Array<{ key: UnifiedTask['status'] | 'Cancelled'; label: string; statuses: UnifiedTask['status'][]; border: string; tone: string }> = [
-      { key: 'Open', label: 'Open', statuses: ['Open'], border: 'border-amber-200', tone: 'bg-amber-50 text-amber-900' },
-      { key: 'In Progress', label: 'In Progress', statuses: ['In Progress'], border: 'border-blue-200', tone: 'bg-blue-50 text-blue-900' },
-      { key: 'Closed', label: 'Closed', statuses: ['Closed', 'Cancelled'], border: 'border-emerald-200', tone: 'bg-emerald-50 text-emerald-900' },
+    const columns: Array<{ label: string; statuses: CorrectiveActionPlan['status'][]; border: string; tone: string }> = [
+      { label: 'Open', statuses: ['Open'], border: 'border-amber-200', tone: 'bg-amber-50 text-amber-900' },
     ];
-    const sortTasks = (tasksToSort: UnifiedTask[]) => [...tasksToSort].sort((a, b) => {
+    const sortEntries = (entriesToSort: AuditCapEntry[]) => [...entriesToSort].sort((a, b) => {
+      const aOwner = getPersonnelDisplayName(personnel, a.cap.responsiblePersonId || '');
+      const bOwner = getPersonnelDisplayName(personnel, b.cap.responsiblePersonId || '');
+      const aDue = parseLocalDate(formatCapDueDate(a.cap.dueDate || a.audit.auditDate)).getTime();
+      const bDue = parseLocalDate(formatCapDueDate(b.cap.dueDate || b.audit.auditDate)).getTime();
       if (capSortBy === 'Owner') {
-        return (a.assigneeName || '').localeCompare(b.assigneeName || '') || parseLocalDate(a.dueDate).getTime() - parseLocalDate(b.dueDate).getTime();
+        return aOwner.localeCompare(bOwner) || aDue - bDue;
       }
-      return parseLocalDate(a.dueDate).getTime() - parseLocalDate(b.dueDate).getTime()
-        || (a.assigneeName || '').localeCompare(b.assigneeName || '');
+      return aDue - bDue || aOwner.localeCompare(bOwner);
     });
 
     return (
@@ -491,51 +597,37 @@ export default function TaskTrackerPage() {
                   </Button>
                 ))}
                 <Badge variant="outline" className="h-6 border-amber-300 bg-amber-50 px-2 text-[10px] font-black uppercase tracking-[0.08em] text-amber-700">
-                  {filteredCapTasks.length} Tasks
+                  {filteredCapEntries.length} Tasks
                 </Badge>
               </div>
             </div>
           </div>
-          <div className="grid gap-3 p-4 lg:grid-cols-3">
+          <div className={cn('grid gap-3 p-4', columns.length > 1 ? 'lg:grid-cols-3' : 'grid-cols-1')}>
             {columns.map((column) => {
-              const columnTasks = sortTasks(filteredCapTasks.filter((task) => column.statuses.includes(task.status)));
+              const columnEntries = sortEntries(filteredCapEntries.filter((entry) => column.statuses.includes(entry.cap.status)));
               return (
-                <div key={column.label} className={cn('rounded-lg border bg-background/80 p-3', column.border)}>
+                <div key={column.label} className={cn('w-full rounded-lg border bg-background/80 p-3', column.border)}>
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">{column.label}</p>
-                    <Badge variant="outline" className={cn('h-6 px-2 text-[10px] font-black uppercase tracking-[0.08em]', column.tone)}>
-                      {columnTasks.length}
-                    </Badge>
                   </div>
                   {!isCapBoardCollapsed ? (
                     <div className="mt-3 space-y-3">
-                    {columnTasks.length > 0 ? (
-                      columnTasks.map((task) => (
-                        <div key={task.id} className="rounded-lg border border-card-border bg-muted/10 px-3 py-3 shadow-none">
-                          <div className="space-y-1">
-                            <p className="text-sm font-black uppercase tracking-[-0.01em] text-foreground">{task.description}</p>
-                            <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">{task.sourceIdentifier}</p>
-                          </div>
-                          <div className="mt-3 grid gap-2">
-                            <div className="rounded-lg border border-amber-200 bg-white px-2.5 py-2">
-                              <p className="text-[9px] font-black uppercase tracking-[0.16em] text-amber-700">Owner</p>
-                              <p className="mt-0.5 text-[11px] font-semibold text-amber-950">{task.assigneeName}</p>
-                            </div>
-                            <div className="rounded-lg border border-card-border bg-white px-2.5 py-2">
-                              <p className="text-[9px] font-black uppercase tracking-[0.16em] text-muted-foreground">Do by</p>
-                              <p className="mt-0.5 text-[11px] font-semibold text-foreground">{format(parseLocalDate(task.dueDate), 'dd MMM yy')}</p>
-                            </div>
-                          </div>
-                          <div className="mt-3 flex items-center justify-end">
-                            <ViewActionButton href={task.link} />
-                          </div>
+                      {columnEntries.length > 0 ? (
+                        columnEntries.map((entry) => (
+                        <AuditCapBoardCard
+                          key={entry.cap.id}
+                          cap={entry.cap}
+                          audit={entry.audit}
+                          observation={entry.observation}
+                          findingLevel={entry.findingLevel}
+                          personnel={personnel}
+                          />
+                        ))
+                      ) : (
+                        <div className="rounded-lg border border-dashed border-card-border bg-muted/5 px-3 py-6 text-center text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                          No items
                         </div>
-                      ))
-                    ) : (
-                      <div className="rounded-lg border border-dashed border-card-border bg-muted/5 px-3 py-6 text-center text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                        No items
-                      </div>
-                    )}
+                      )}
                     </div>
                   ) : (
                     <div className="mt-3 rounded-lg border border-dashed border-card-border bg-muted/5 px-3 py-6 text-center text-[10px] font-black uppercase tracking-widest text-muted-foreground">
@@ -553,12 +645,12 @@ export default function TaskTrackerPage() {
 
   const renderOrgCard = (orgId: string | 'internal') => {
     const filteredTasks = allTasks.filter((task) => (orgId === 'internal' ? !task.organizationId : task.organizationId === orgId));
-    const capTasks = filteredTasks.filter((task) => task.sourceType === 'Audit CAP');
-    const remainingTasks = filteredTasks.filter((task) => task.sourceType !== 'Audit CAP');
+    const filteredAuditCaps = auditCapEntries.filter((entry) => (orgId === 'internal' ? !entry.audit.organizationId : entry.audit.organizationId === orgId));
+    const remainingTasks = filteredTasks;
     const headerBandBorderStyle = { borderBottomColor: 'hsl(var(--card-border))' };
 
     return (
-      <Card className="min-h-[400px] flex flex-col shadow-none border">
+      <Card className="min-h-[400px] flex h-full flex-1 flex-col overflow-hidden shadow-none border">
         {shouldShowOrganizationTabs && (
           <div className="w-full border-b border-border px-4 py-3" style={headerBandBorderStyle}>
             <OrganizationTabsRow
@@ -569,26 +661,28 @@ export default function TaskTrackerPage() {
             />
           </div>
         )}
-        <CardContent className={cn('p-0', isMobile ? 'overflow-y-auto' : 'overflow-auto')}>
-          {capTasks.length > 0 ? renderCapBoard(filteredTasks) : null}
-          {remainingTasks.length > 0 ? (
-            <div className="space-y-4 p-4">
-              <div className="rounded-lg border border-card-border bg-background/70 overflow-hidden">
-                <div className="border-b border-card-border bg-muted/20 px-4 py-3">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="space-y-1">
-                      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">Other Tasks</p>
-                      <p className="text-sm font-medium text-muted-foreground">Supporting work that sits alongside the audit corrective actions.</p>
+        <CardContent className="flex-1 min-h-0 p-0 bg-muted/5 overflow-hidden">
+          <div className={cn('flex h-full min-h-0 flex-col overflow-y-auto', isMobile ? 'touch-pan-y' : '')}>
+            {filteredAuditCaps.length > 0 ? renderCapBoard(filteredAuditCaps) : null}
+            {remainingTasks.length > 0 ? (
+              <div className="space-y-4 p-4">
+                <div className="rounded-lg border border-card-border bg-background/70 overflow-hidden">
+                  <div className="border-b border-card-border bg-muted/20 px-4 py-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">Other Tasks</p>
+                        <p className="text-sm font-medium text-muted-foreground">Supporting work that sits alongside the audit corrective actions.</p>
+                      </div>
+                      <Badge variant="outline" className="h-6 border-slate-300 bg-slate-50 px-2 text-[10px] font-black uppercase tracking-[0.08em] text-slate-700">
+                        {remainingTasks.length} Tasks
+                      </Badge>
                     </div>
-                    <Badge variant="outline" className="h-6 border-slate-300 bg-slate-50 px-2 text-[10px] font-black uppercase tracking-[0.08em] text-slate-700">
-                      {remainingTasks.length} Tasks
-                    </Badge>
                   </div>
+                  {renderTasksTable(remainingTasks)}
                 </div>
-                {renderTasksTable(remainingTasks)}
               </div>
-            </div>
-          ) : null}
+            ) : null}
+          </div>
         </CardContent>
       </Card>
     );
@@ -606,7 +700,10 @@ export default function TaskTrackerPage() {
   const showTabs = shouldShowOrganizationTabs;
 
   return (
-    <div className={cn('max-w-[1100px] mx-auto w-full flex flex-col gap-6 px-1 pt-4', isMobile ? 'min-h-0 overflow-y-auto' : 'h-full')}>
+    <div className={cn(
+      'max-w-[1100px] mx-auto w-full flex flex-col gap-6 px-1 pt-4 pb-6 min-h-0',
+      isMobile ? 'min-h-0 overflow-y-auto' : 'h-full overflow-hidden'
+    )}>
       <Card className="border shadow-none overflow-hidden">
         <CardHeader className="border-b bg-muted/20 px-4 py-3">
           <div className="space-y-1">
@@ -632,14 +729,14 @@ export default function TaskTrackerPage() {
       {!showTabs ? (
         renderOrgCard(scopedOrganizationId)
       ) : (
-        <Tabs value={activeOrgTab} onValueChange={setActiveOrgTab} className={cn('w-full flex-1 flex flex-col', isMobile ? 'overflow-visible' : 'overflow-hidden')}>
+        <Tabs value={activeOrgTab} onValueChange={setActiveOrgTab} className={cn('w-full flex-1 min-h-0 flex flex-col', isMobile ? 'overflow-visible' : 'overflow-hidden')}>
           <div className={cn('flex-1 min-h-0', isMobile ? 'overflow-visible' : 'overflow-hidden')}>
-            <TabsContent value="internal" className={cn('m-0 p-0', isMobile ? 'min-h-0' : 'h-full')}>
+            <TabsContent value="internal" className={cn('m-0 h-full flex min-h-0 flex-col p-0', isMobile ? 'min-h-0' : 'min-h-0')}>
               {renderOrgCard('internal')}
             </TabsContent>
 
             {(organizations || []).map((org) => (
-              <TabsContent key={org.id} value={org.id} className={cn('m-0 p-0', isMobile ? 'min-h-0' : 'h-full')}>
+              <TabsContent key={org.id} value={org.id} className={cn('m-0 h-full flex min-h-0 flex-col p-0', isMobile ? 'min-h-0' : 'min-h-0')}>
                 {renderOrgCard(org.id)}
               </TabsContent>
             ))}

@@ -136,6 +136,7 @@ export interface CorrectiveActionPlan {
     status: CorrectiveActionStatus;
     actions?: CorrectiveAction[];
     responsiblePersonId?: string;
+    dueDate?: string;
     createdAt?: string;
     updatedAt?: string;
 }
