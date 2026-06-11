@@ -14,7 +14,6 @@ const SAFETY_FALLBACKS = [
   '/safety/risk-register',
   '/safety/safety-indicators',
   '/safety/risk-matrix',
-  '/safety/safety-files',
   '/safety/management-of-change',
 ] as const;
 

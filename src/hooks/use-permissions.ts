@@ -68,7 +68,7 @@ export const usePermissions = () => {
   );
 
   const canAccessMenuItem = useCallback(
-    (item: MenuItem | SubMenuItem, parentItem?: MenuItem) => {
+    (item: MenuItem | SubMenuItem, parentItem?: MenuItem): boolean => {
       if (isLoading || !userProfile) return false;
 
       const itemHref = item.href;
@@ -93,13 +93,18 @@ export const usePermissions = () => {
 
       if (!isTenantHrefEnabledByLayout(tenant, itemHref)) return false;
 
+      if (item.permissionId && !hasPermission(item.permissionId)) return false;
+
       const isEnabledByTenant =
         bypassIndustryRestrictions ||
         !tenant?.enabledMenus ||
         tenant.enabledMenus.includes(itemHref);
-      if (!isEnabledByTenant) return false;
-
-      if (item.permissionId && !hasPermission(item.permissionId)) return false;
+      if (!isEnabledByTenant) {
+        if (item.subItems?.length) {
+          return item.subItems.some((subItem) => canAccessMenuItem(subItem, parentItem || undefined));
+        }
+        return false;
+      }
 
       return true;
     },

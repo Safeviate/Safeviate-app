@@ -7,6 +7,7 @@ import {
   GaugeCircle,
   PlaneTakeoff,
   AlertTriangle,
+  ShieldAlert,
   GraduationCap,
   Plane,
   CheckSquare,
@@ -175,12 +176,6 @@ export const menuConfig: MenuItem[] = [
         permissionId: 'moc-manage',
       },
       {
-        href: '/safety/safety-files',
-        label: 'Safety Files',
-        description: 'Track on-site construction health and safety file readiness.',
-        permissionId: 'safety-view',
-      },
-      {
         href: '/safety/risk-matrix',
         label: 'Risk Matrix',
         description: 'Visualize the organizational risk landscape.',
@@ -203,6 +198,20 @@ export const menuConfig: MenuItem[] = [
         label: 'Safety Reports',
         description: 'View and manage safety reports.',
         permissionId: 'safety-reports-manage',
+      },
+    ],
+  },
+  {
+    href: '/ohs',
+    label: 'OHS',
+    icon: ShieldAlert,
+    permissionId: 'safety-view',
+    subItems: [
+      {
+        href: '/safety/safety-files',
+        label: 'Safety Files',
+        description: 'Track on-site construction health and safety file readiness.',
+        permissionId: 'safety-view',
       },
     ],
   },

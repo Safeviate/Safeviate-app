@@ -182,11 +182,11 @@ async function readTenantConfig(tenantId: string) {
   });
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const startedAt = Date.now();
   let tenantId: string | null = null;
   try {
-    tenantId = (await getTenantIdFromSession(new Request('http://localhost'))) || 'safeviate';
+    tenantId = await getTenantIdFromSession(request);
     if (!tenantId) {
       return NextResponse.json(EMPTY_SUMMARY, { status: 200 });
     }

@@ -46,13 +46,6 @@ const getLastSubmenuByParent = (): Record<string, string> => {
     return lastSubmenuByParentMemory;
 };
 
-const buildInitialOpenParents = (pathname: string) =>
-  menuConfig.reduce<Record<string, boolean>>((acc, item) => {
-    if (!item.subItems?.length) return acc;
-    acc[item.href] = pathname.startsWith(item.href) && pathname !== item.href;
-    return acc;
-  }, {});
-
 const setLastSubmenuByParent = (parentHref: string, subHref: string) => {
     lastSubmenuByParentMemory = { ...lastSubmenuByParentMemory, [parentHref]: subHref };
 };
@@ -83,6 +76,16 @@ const hasActiveDescendant = (items: SubMenuItem[] | undefined, currentPathname: 
       hasActiveDescendant(item.subItems, currentPathname, normalizePath)
     );
 };
+
+function buildInitialOpenParents(pathname: string, normalizePath: (path: string) => string) {
+  return menuConfig.reduce<Record<string, boolean>>((acc, item) => {
+    if (!item.subItems?.length) return acc;
+    acc[item.href] =
+      (pathname.startsWith(item.href) && pathname !== item.href) ||
+      hasActiveDescendant(item.subItems, pathname, normalizePath);
+    return acc;
+  }, {});
+}
 
 const renderNestedSubItems = (
     items: SubMenuItem[],
@@ -149,10 +152,10 @@ const SidebarItems = () => {
     const { canAccessMenuItem } = usePermissions();
     const currentPathname = pathname ?? '';
     const lastSubmenuByParent = useMemo(() => getLastSubmenuByParent(), [pathname]);
-    const [openParents, setOpenParents] = useState<Record<string, boolean>>(() => buildInitialOpenParents(currentPathname));
+    const normalizePath = (path: string) => path.replace(/\/+$/, '');
+    const [openParents, setOpenParents] = useState<Record<string, boolean>>(() => buildInitialOpenParents(currentPathname, normalizePath));
     const [dismissedParents, setDismissedParents] = useState<Record<string, boolean>>({});
     const [roleBasedUserSubItems, setRoleBasedUserSubItems] = useState<SubMenuItem[]>(USERS_STATIC_SUB_ITEMS);
-    const normalizePath = (path: string) => path.replace(/\/+$/, '');
 
     useEffect(() => {
       let cancelled = false;
@@ -202,7 +205,7 @@ const SidebarItems = () => {
 
     useEffect(() => {
         setOpenParents((current) => {
-            const next = buildInitialOpenParents(currentPathname);
+            const next = buildInitialOpenParents(currentPathname, normalizePath);
             const keys = new Set([...Object.keys(current), ...Object.keys(next)]);
             const isSame = [...keys].every((key) => Boolean(current[key]) === Boolean(next[key]));
             return isSame ? current : next;
