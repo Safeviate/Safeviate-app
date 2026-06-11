@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,6 +19,7 @@ const agreementSections = BETA_NDA_AGREEMENT_TEXT.split('\n\n').filter(Boolean);
 export default function BetaNdaClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { data: session } = useSession();
   const { toast } = useToast();
   const initialEmail = searchParams?.get('email')?.trim() || '';
   const initialTenantId = searchParams?.get('tenantId')?.trim() || '';
@@ -129,8 +131,12 @@ export default function BetaNdaClient() {
         description: 'Thanks. You can now continue to sign in.',
       });
 
-      const tenantQuery = tenantId ? `&tenantId=${encodeURIComponent(tenantId)}` : '';
-      router.push(`/login?email=${encodeURIComponent(email)}${tenantQuery}&nda=accepted`);
+      if (session?.user?.email) {
+        router.push('/dashboard');
+      } else {
+        const tenantQuery = tenantId ? `&tenantId=${encodeURIComponent(tenantId)}` : '';
+        router.push(`/login?email=${encodeURIComponent(email)}${tenantQuery}&nda=accepted`);
+      }
     } catch (error: any) {
       toast({
         variant: 'destructive',

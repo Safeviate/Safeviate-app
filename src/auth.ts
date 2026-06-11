@@ -3,7 +3,6 @@ import CredentialsProvider from 'next-auth/providers/credentials';
 import { compare, hash } from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
 import { assertRequiredEnv } from '@/lib/server/env';
-import { BETA_NDA_VERSION, isBetaNdaRequiredForTenant } from '@/lib/server/beta-nda';
 import { enforceRateLimit } from '@/lib/server/request-security';
 import { MASTER_TENANT_EMAILS } from '@/lib/tenant-constants';
 
@@ -143,22 +142,6 @@ export const authOptions: NextAuthOptions = {
             throw new Error('This account does not have an active password yet. Please request a new password reset link.');
           }
 
-          const betaNdaRequired = await isBetaNdaRequiredForTenant(dbUser.tenantId);
-          const ndaAcceptance = await prisma.betaNdaAcceptance.findUnique({
-            where: {
-              tenantId_email_ndaVersion: {
-                tenantId: dbUser.tenantId.trim() || 'safeviate',
-                email: dbUser.email.trim().toLowerCase(),
-                ndaVersion: BETA_NDA_VERSION,
-              },
-            },
-            select: { id: true },
-          });
-
-          if (betaNdaRequired && !ndaAcceptance) {
-            console.warn('[AUTH] Login denied because the NDA has not been accepted.', { email });
-            return null;
-          }
         }
 
         if (dbUser?.passwordHash) {

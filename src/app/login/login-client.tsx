@@ -281,12 +281,12 @@ export default function LoginClient() {
   const getLoginErrorMessage = (nextErrorMessage?: string | null) => {
     if (!nextErrorMessage) return 'Incorrect email or password.';
     if (nextErrorMessage === 'CredentialsSignin') {
-      return 'Login failed. Check the password, or complete the beta NDA if this is a tester account.';
+      return 'Login failed. Check the email and password, or complete password setup if this is a new account.';
     }
     return nextErrorMessage;
   };
 
-  const redirectToNdaIfNeeded = async () => {
+  const showPasswordSetupStatusIfNeeded = async () => {
     const query = new URLSearchParams({ email });
     if (tenantId) {
       query.set('tenantId', tenantId);
@@ -309,16 +309,6 @@ export default function LoginClient() {
         description: message,
       });
       setLoginOpen(true);
-      return true;
-    }
-
-    if (payload?.enabled === false) {
-      return false;
-    }
-
-    if (payload?.accepted === false) {
-      const tenantQuery = payload?.tenantId ? `&tenantId=${encodeURIComponent(String(payload.tenantId))}` : '';
-      router.push(`/beta-nda?email=${encodeURIComponent(email)}${tenantQuery}`);
       return true;
     }
 
@@ -352,7 +342,7 @@ export default function LoginClient() {
       if (!result || result.error) {
         const isGenericCredentialsFailure = !result?.error || result.error === 'CredentialsSignin';
         if (isGenericCredentialsFailure) {
-          const followUpHandled = await redirectToNdaIfNeeded();
+          const followUpHandled = await showPasswordSetupStatusIfNeeded();
           if (followUpHandled) {
             return;
           }

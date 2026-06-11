@@ -12,8 +12,7 @@ interface AuthGuardProps {
 
 export function AuthGuard({ children }: AuthGuardProps) {
   const { data: session, status } = useSession();
-  const { isLoading: isProfileLoading } = useUserProfile();
-  const { userProfile } = useUserProfile();
+  const { isLoading: isProfileLoading, userProfile, tenantId } = useUserProfile();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -30,6 +29,38 @@ export function AuthGuard({ children }: AuthGuardProps) {
       router.push('/dashboard');
     }
   }, [authUser, bootstrapActive, isLoading, router, pathname]);
+
+  useEffect(() => {
+    if (isLoading || !authUser?.email || !tenantId) return;
+
+    let cancelled = false;
+    const enforceNdaGate = async () => {
+      try {
+        const query = new URLSearchParams({
+          email: authUser.email || '',
+          tenantId,
+        });
+        const response = await fetch(`/api/auth/nda-status?${query.toString()}`, {
+          cache: 'no-store',
+        });
+        const payload = await response.json().catch(() => null);
+        if (cancelled || payload?.enabled === false || payload?.accepted !== false) return;
+
+        const targetTenantId = String(payload?.tenantId || tenantId);
+        router.replace(
+          `/beta-nda?email=${encodeURIComponent(authUser.email || '')}&tenantId=${encodeURIComponent(targetTenantId)}`
+        );
+      } catch (error) {
+        console.error('[AuthGuard] NDA status check failed:', error);
+      }
+    };
+
+    void enforceNdaGate();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authUser?.email, isLoading, router, tenantId]);
 
   if (isLoading && pathname !== '/login') {
     return (
