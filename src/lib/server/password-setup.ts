@@ -174,11 +174,39 @@ export async function completePasswordSetup(token: string, password: string): Pr
   }
 
   if (invite.usedAt) {
-    if (invite.user?.passwordHash) {
+    const newerInvite = await prisma.passwordSetupInvite.findFirst({
+      where: {
+        tenantId: invite.tenantId,
+        email: normalizeEmail(invite.email),
+        createdAt: { gt: invite.createdAt },
+      },
+      select: { id: true },
+      orderBy: { createdAt: 'desc' },
+    }).catch(() => null);
+
+    if (newerInvite) {
+      return {
+        success: false,
+        error: 'This setup link has already been replaced by a newer link. Please use the latest email.',
+      };
+    }
+
+    const completedUser = invite.user?.passwordHash
+      ? invite.user
+      : await prisma.user.findFirst({
+          where: {
+            tenantId: invite.tenantId,
+            email: normalizeEmail(invite.email),
+            passwordHash: { not: null },
+          },
+          select: { id: true, passwordHash: true },
+        }).catch(() => null);
+
+    if (completedUser?.passwordHash) {
       return {
         success: true,
         email: normalizeEmail(invite.email),
-        userId: invite.user.id,
+        userId: completedUser.id,
         diagnostics: {
           tenantId: invite.tenantId,
           inviteId: invite.id,

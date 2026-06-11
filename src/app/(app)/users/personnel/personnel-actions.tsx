@@ -12,7 +12,7 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Eye, Trash2, Mail, Loader2, KeyRound, UserCheck, UserX } from 'lucide-react';
+import { Check, Copy, Eye, Trash2, Mail, Loader2, KeyRound, UserCheck, UserX } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { Personnel, PilotProfile } from './personnel-directory-page';
 import Link from 'next/link';
@@ -48,6 +48,7 @@ export function PersonnelActions({ tenantId, user }: PersonnelActionsProps) {
   const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [isUpdatingSuspension, setIsUpdatingSuspension] = useState(false);
   const [resetLink, setResetLink] = useState('');
+  const [copiedResetLink, setCopiedResetLink] = useState(false);
 
   const canDelete = hasPermission('users-delete');
   const canEdit = hasPermission('users-edit');
@@ -209,6 +210,25 @@ export function PersonnelActions({ tenantId, user }: PersonnelActionsProps) {
     }
   };
 
+  const handleCopyResetLink = async () => {
+    if (!resetLink) return;
+    try {
+      await navigator.clipboard.writeText(resetLink);
+      setCopiedResetLink(true);
+      window.setTimeout(() => setCopiedResetLink(false), 1800);
+      toast({
+        title: 'Setup Link Copied',
+        description: 'The local setup/reset link has been copied.',
+      });
+    } catch {
+      toast({
+        variant: 'destructive',
+        title: 'Copy Failed',
+        description: 'Could not copy the setup/reset link.',
+      });
+    }
+  };
+
   return (
     <>
       <div className="flex items-center justify-end gap-2">
@@ -271,11 +291,23 @@ export function PersonnelActions({ tenantId, user }: PersonnelActionsProps) {
       </div>
 
       {resetLink && showResetLinkFallback ? (
-        <div className="mt-3 rounded-lg border border-cyan-400/30 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-50">
-          <span className="font-semibold">Reset link generated locally:</span>{' '}
-          <a href={resetLink} className="break-all underline decoration-cyan-300/60 underline-offset-4">
-            {resetLink}
-          </a>
+        <div className="mt-3 flex min-w-0 items-center justify-between gap-2 rounded-lg border border-cyan-400/30 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-900 dark:text-cyan-50">
+          <div className="min-w-0">
+            <p className="font-black uppercase tracking-[0.14em]">Local setup link</p>
+            <p className="truncate text-[11px] opacity-80" title={resetLink}>
+              Generated for local/dev email fallback.
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-7 shrink-0 gap-1 border-cyan-400/40 px-2 text-[10px] font-black uppercase"
+            onClick={handleCopyResetLink}
+          >
+            {copiedResetLink ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+            {copiedResetLink ? 'Copied' : 'Copy'}
+          </Button>
         </div>
       ) : null}
 
