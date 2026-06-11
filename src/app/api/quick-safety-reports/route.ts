@@ -112,3 +112,26 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: 'Failed to update quick safety report.' }, { status: 500 });
   }
 }
+
+export async function DELETE(request: Request) {
+  try {
+    const body = await request.json().catch(() => null);
+    const incoming = body?.report ?? {};
+    const context = await resolveQuickReportContext({
+      request,
+      publicTenantId: typeof incoming?.tenantId === 'string' ? incoming.tenantId : null,
+    });
+    if (!context) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    const reportId = typeof body?.reportId === 'string' ? body.reportId : typeof incoming?.id === 'string' ? incoming.id : '';
+    if (!reportId) return NextResponse.json({ error: 'Missing report id.' }, { status: 400 });
+
+    await ensureQuickSafetyReportsSchema();
+    await prisma.$executeRawUnsafe(`DELETE FROM quick_safety_reports WHERE id = $1 AND tenant_id = $2`, reportId, context.tenantId);
+
+    return NextResponse.json({ ok: true }, { status: 200 });
+  } catch (error) {
+    console.error('[quick-safety-reports] delete failed:', error);
+    return NextResponse.json({ error: 'Failed to delete quick safety report.' }, { status: 500 });
+  }
+}

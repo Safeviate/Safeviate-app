@@ -124,6 +124,7 @@ interface QuickSafetyInboxProps {
     canManage: boolean;
     classifyingReportId: string | null;
     onClassify: (report: QuickSafetyReport) => Promise<void>;
+    onDelete: (report: QuickSafetyReport) => Promise<void>;
 }
 
 interface TechnicalIntakeProps {
@@ -207,7 +208,7 @@ function ReportsTable({ reports, tenantId, canManage, currentUserEmail }: Report
     );
 }
 
-function QuickSafetyInbox({ reports, canManage, classifyingReportId, onClassify }: QuickSafetyInboxProps) {
+function QuickSafetyInbox({ reports, canManage, classifyingReportId, onClassify, onDelete }: QuickSafetyInboxProps) {
     return (
         <div className="border-b bg-muted/5 p-4">
             <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -285,16 +286,24 @@ function QuickSafetyInbox({ reports, canManage, classifyingReportId, onClassify 
                                         </Link>
                                     </Button>
                                 ) : canManage ? (
-                                    <Button
-                                        type="button"
-                                        size="sm"
-                                        className="h-8 flex-1 justify-between px-3 text-[10px] font-black uppercase"
-                                        disabled={classifyingReportId === report.id}
-                                        onClick={() => void onClassify(report)}
-                                    >
-                                        {classifyingReportId === report.id ? 'Classifying...' : 'Classify into Safety'}
-                                        <ArrowRight className="ml-2 h-3.5 w-3.5" />
-                                    </Button>
+                                    <div className="flex flex-1 flex-wrap gap-2">
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            className="h-8 flex-1 justify-between px-3 text-[10px] font-black uppercase"
+                                            disabled={classifyingReportId === report.id}
+                                            onClick={() => void onClassify(report)}
+                                        >
+                                            {classifyingReportId === report.id ? 'Classifying...' : 'Classify into Safety'}
+                                            <ArrowRight className="ml-2 h-3.5 w-3.5" />
+                                        </Button>
+                                        <DeleteActionButton
+                                            description={`This will permanently delete preliminary safety report #${report.reportNumber}. This action cannot be undone.`}
+                                            onDelete={() => void onDelete(report)}
+                                            srLabel={`Delete preliminary safety report ${report.reportNumber}`}
+                                            iconOnly={false}
+                                        />
+                                    </div>
                                 ) : (
                                     <div className="px-2 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
                                         Awaiting management classification
@@ -688,6 +697,33 @@ export default function SafetyReportsPage() {
     }
   };
 
+  const handleDeleteQuickReport = async (report: QuickSafetyReport) => {
+    try {
+      const response = await fetch('/api/quick-safety-reports', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reportId: report.id }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error || 'Failed to delete the preliminary safety report.');
+      }
+
+      setQuickSafetyReports((current) => current.filter((entry) => entry.id !== report.id));
+      dispatchSafeviateEvent(SAFEVIATE_QUICK_SAFETY_REPORTS_UPDATED);
+      toast({
+        title: 'Preliminary Report Deleted',
+        description: `${report.reportNumber} has been removed from quick intake.`,
+      });
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Delete Failed',
+        description: error instanceof Error ? error.message : 'Failed to delete the preliminary safety report.',
+      });
+    }
+  };
+
   const renderOrgCard = (orgId: string | 'internal') => {
     const filteredReports = (allReports || []).filter(r => 
         orgId === 'internal' ? !r.organizationId : r.organizationId === orgId
@@ -750,6 +786,7 @@ export default function SafetyReportsPage() {
                             canManage={canManageAll}
                             classifyingReportId={classifyingQuickReportId}
                             onClassify={handleClassifyQuickReport}
+                            onDelete={handleDeleteQuickReport}
                         />
                     </>
                 ) : null}
