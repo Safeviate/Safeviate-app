@@ -1739,7 +1739,7 @@ function StatTile({
   return (
     <div
       className={cn(
-        'flex min-h-[36px] items-center rounded-lg border px-2.5 py-1.5 shadow-none transition-colors',
+        'flex min-h-[36px] items-center rounded-md border px-2.5 py-1.5 shadow-none transition-colors',
         toneStyles[tone]
       )}
     >
