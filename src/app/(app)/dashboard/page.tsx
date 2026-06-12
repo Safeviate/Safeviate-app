@@ -18,7 +18,6 @@ import { cn } from '@/lib/utils';
 import { buildTrainingCompetencyAreas } from '@/lib/training-competencies';
 import { parseJsonResponse } from '@/lib/safe-json';
 import {
-  CARD_HEADER_ACTION_ZONE_CLASS,
   CARD_HEADER_BAND_CLASS,
   CARD_HEADER_SCOPE_ZONE_CLASS,
   HEADER_COMPACT_CONTROL_CLASS,
@@ -34,7 +33,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Area, ComposedChart, CartesianGrid, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Area, Bar, BarChart, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis, Cell } from 'recharts';
 import type { Aircraft } from '@/types/aircraft';
 import type { Booking } from '@/types/booking';
 import type { AttendanceRecordData } from '@/types/attendance';
@@ -255,7 +254,7 @@ type QualityMetrics = {
   }>;
 };
 
-const DASHBOARD_SHELL_CLASS = 'overflow-hidden border bg-background shadow-none';
+const DASHBOARD_SHELL_CLASS = 'overflow-hidden rounded-xl border border-card-border bg-background shadow-none';
 const DEFAULT_INSTRUCTOR_WARNING_BANDS: InstructorWarningBand[] = [
   { hours: 20, warningHours: 10, color: '#60a5fa', foregroundColor: '#ffffff' },
   { hours: 40, warningHours: 30, color: '#facc15', foregroundColor: '#000000' },
@@ -315,13 +314,6 @@ const INDUSTRY_DESCRIPTIONS: Record<DashboardIndustry, string> = {
   AMO: 'The maintenance dashboard shell will be built section by section.',
   OHS: 'The safety dashboard shell will be built section by section.',
 };
-
-const INDUSTRY_SWITCHER: IndustryTab[] = [
-  { value: 'ATO', label: 'ATO' },
-  { value: 'AOC', label: 'AOC' },
-  { value: 'AMO', label: 'AMO' },
-  { value: 'OHS', label: 'OHS' },
-];
 
 const EMPTY_NOTE = 'This section is intentionally empty for now. We will add content in the next build stage.';
 const DEFAULT_FLEET_TARGET_HOURS = 20;
@@ -787,7 +779,6 @@ export default function DashboardPage() {
   const [fleetPeriod, setFleetPeriod] = useState<FleetPeriod>('month');
   const [instructorPeriod, setInstructorPeriod] = useState<FleetPeriod>('month');
   const [studentPeriod, setStudentPeriod] = useState<FleetPeriod>('month');
-  const [selectedAircraftId, setSelectedAircraftId] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
   const [isTargetLoading, setIsTargetLoading] = useState(true);
 
@@ -1219,12 +1210,6 @@ export default function DashboardPage() {
       .sort((a, b) => b.loggedHours - a.loggedHours);
   }, [fleetPeriod, fleetTargetHours, summary.aircrafts, summary.bookings]);
 
-  useEffect(() => {
-    if (!selectedAircraftId && fleetRows[0]?.aircraft.id) {
-      setSelectedAircraftId(fleetRows[0].aircraft.id);
-    }
-  }, [fleetRows, selectedAircraftId]);
-
   const fleetTrend = useMemo<FleetTrendPoint[]>(() => {
     const bookings = Array.isArray(summary.bookings) ? summary.bookings : [];
     const buckets = buildTrendBuckets(fleetPeriod);
@@ -1311,7 +1296,7 @@ export default function DashboardPage() {
   }, [fleetRows, summary.bookings]);
 
   const targetHoursLabel = isTargetLoading ? 'Loading...' : formatHours(fleetTargetHours);
-  const selectedAircraft = fleetRows.find((row) => row.aircraft.id === selectedAircraftId) || fleetRows[0] || null;
+  const selectedAircraft = fleetRows[0] || null;
   const selectedAircraftTrend = useMemo<FleetTrendPoint[]>(() => {
     if (!selectedAircraft) return [];
     const bookings = Array.isArray(summary.bookings) ? summary.bookings : [];
@@ -1366,8 +1351,27 @@ export default function DashboardPage() {
     });
   }, [fleetPeriod, fleetTargetHours, selectedAircraft, summary.bookings]);
 
-  const activeIndustryLabel = INDUSTRY_SWITCHER.find((item) => item.value === activeIndustry)?.label || activeIndustry;
   const activeTabLabel = tabs.find((tab) => tab.value === activeTab)?.label || tabs[0]?.label || 'Overview';
+  const activeDashboardPeriod =
+    activeIndustry === 'ATO'
+      ? activeTab === 'fleet'
+        ? fleetPeriod
+        : activeTab === 'instructors'
+          ? instructorPeriod
+          : activeTab === 'students'
+            ? studentPeriod
+            : null
+      : null;
+  const activeDashboardPeriodLabel =
+    activeDashboardPeriod === 'week' ? '7 Days' : activeDashboardPeriod === 'month' ? '30 Days' : activeDashboardPeriod === 'all' ? 'All Time' : null;
+  const activeDashboardPeriodLongLabel =
+    activeDashboardPeriod === 'week'
+      ? 'Last 7 days'
+      : activeDashboardPeriod === 'month'
+        ? 'Last 30 days'
+        : activeDashboardPeriod === 'all'
+          ? 'All time'
+          : null;
   const openTechnicalReports = useMemo(
     () => (Array.isArray(summary.technicalReports) ? summary.technicalReports : []).filter((report) => (report.status || 'Open') !== 'Closed'),
     [summary.technicalReports]
@@ -1380,16 +1384,6 @@ export default function DashboardPage() {
     [quickSafetyReports]
   );
   const quickReportAttentionCount = openTechnicalReports.length + openQuickSafetyReports.length;
-  const renderIndustryLabel = (industry: DashboardIndustry, label: string) => (
-    <span className="flex items-center gap-2">
-      <span>{label}</span>
-      {industry === 'ATO' && quickReportAttentionCount > 0 ? (
-        <Badge variant="destructive" className="h-5 px-2 text-[9px] font-black uppercase tracking-widest">
-          {quickReportAttentionCount}
-        </Badge>
-      ) : null}
-    </span>
-  );
   const renderTabLabel = (tab: IndustryTab) => (
     <span className="flex items-center gap-2">
       <span>{tab.label}</span>
@@ -1449,341 +1443,159 @@ export default function DashboardPage() {
         <CardHeader className={cn(CARD_HEADER_BAND_CLASS, 'sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80', isModern && 'bg-white/95 supports-[backdrop-filter]:bg-white/85')}>
           <div className={CARD_HEADER_SCOPE_ZONE_CLASS}>
             <CardTitle className="text-sm font-black uppercase tracking-tight">{INDUSTRY_TITLES[activeIndustry]}</CardTitle>
-            <CardDescription className="mt-1 text-xs">
-              {INDUSTRY_DESCRIPTIONS[activeIndustry]}
-              <span className="ml-2 font-black uppercase tracking-[0.18em] text-foreground/70">Active: {activeTabLabel}</span>
-              {activeIndustry === 'ATO' ? (
-                <span className="ml-2 font-black uppercase tracking-[0.18em] text-foreground/70">
-                  Period: {fleetPeriod === 'week' ? 'Last 7 days' : fleetPeriod === 'month' ? 'Last 30 days' : 'All time'}
-                </span>
-              ) : null}
-            </CardDescription>
-          </div>
-          <div className={CARD_HEADER_ACTION_ZONE_CLASS}>
-            {isMobile ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className={cn(
-                      HEADER_SECONDARY_BUTTON_CLASS,
-                      HEADER_COMPACT_CONTROL_CLASS,
-                      'w-full justify-between text-foreground hover:bg-accent/40'
-                    )}
-                  >
-                    <span className="flex min-w-0 items-center gap-2">
-                      <MoreHorizontal className="h-3.5 w-3.5 shrink-0" />
-                      <span className="truncate">{activeIndustryLabel}</span>
-                    </span>
-                    <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-60" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-[var(--radix-dropdown-menu-trigger-width)]">
-                  {INDUSTRY_SWITCHER.map((item) => (
-                    <DropdownMenuItem
-                      key={item.value}
-                      onClick={() => setActiveIndustry(item.value as DashboardIndustry)}
-                      className="text-[10px] font-bold uppercase"
-                    >
-                      {renderIndustryLabel(item.value as DashboardIndustry, item.label)}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : (
-              <Tabs value={activeIndustry} onValueChange={(value) => setActiveIndustry(value as DashboardIndustry)} className="w-full md:w-auto">
-                <TabsList className={HEADER_TAB_LIST_CLASS}>
-                  {INDUSTRY_SWITCHER.map((item) => (
-                    <TabsTrigger key={item.value} value={item.value} className={HEADER_TAB_TRIGGER_CLASS}>
-                      {renderIndustryLabel(item.value as DashboardIndustry, item.label)}
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
-              </Tabs>
-            )}
+            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-black uppercase tracking-[0.18em] text-foreground/70">
+              <span>Active: {activeTabLabel}</span>
+              {activeDashboardPeriodLongLabel ? <span>Period: {activeDashboardPeriodLongLabel}</span> : null}
+            </div>
           </div>
         </CardHeader>
 
         <CardContent className="min-h-0 flex-1 p-0">
           <Tabs key={activeIndustry} value={activeTab} onValueChange={setActiveTab} className="flex h-full min-h-0 flex-col">
-            <div className={cn(CARD_HEADER_BAND_CLASS, 'bg-transparent flex justify-center')}>
+            <div className={cn(CARD_HEADER_BAND_CLASS, 'bg-transparent')}>
               {isMobile ? (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className={cn(
-                        HEADER_SECONDARY_BUTTON_CLASS,
-                        HEADER_COMPACT_CONTROL_CLASS,
-                        'w-full justify-between text-foreground hover:bg-accent/40'
-                      )}
-                    >
-                      <span className="flex min-w-0 items-center gap-2">
-                        <MoreHorizontal className="h-3.5 w-3.5 shrink-0" />
-                        <span className="truncate">{activeTabLabel}</span>
-                      </span>
-                      <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-60" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                <DropdownMenuContent align="center" className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-[var(--radix-dropdown-menu-trigger-width)]">
-                  {tabs.map((tab) => (
-                    <DropdownMenuItem
-                      key={tab.value}
-                      onClick={() => setActiveTab(tab.value)}
-                      className="text-[10px] font-bold uppercase"
-                    >
-                      {tab.label}
-                      {tab.value === 'safety' && quickReportAttentionCount > 0 ? ` (${quickReportAttentionCount})` : ''}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : (
-              <TabsList className={cn(HEADER_TAB_LIST_CLASS, 'border-0 bg-transparent px-0 py-0 justify-center')}>
-                {tabs.map((tab) => (
-                  <TabsTrigger key={tab.value} value={tab.value} className={HEADER_TAB_TRIGGER_CLASS}>
-                    {renderTabLabel(tab)}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            )}
+                <div className="flex w-full flex-col gap-2">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className={cn(
+                          HEADER_SECONDARY_BUTTON_CLASS,
+                          HEADER_COMPACT_CONTROL_CLASS,
+                          'w-full justify-between text-foreground hover:bg-accent/40'
+                        )}
+                      >
+                        <span className="flex min-w-0 items-center gap-2">
+                          <MoreHorizontal className="h-3.5 w-3.5 shrink-0" />
+                          <span className="truncate">{activeTabLabel}</span>
+                        </span>
+                        <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-60" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="center" className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-[var(--radix-dropdown-menu-trigger-width)]">
+                      {tabs.map((tab) => (
+                        <DropdownMenuItem
+                          key={tab.value}
+                          onClick={() => setActiveTab(tab.value)}
+                          className="text-[10px] font-bold uppercase"
+                        >
+                          {tab.label}
+                          {tab.value === 'safety' && quickReportAttentionCount > 0 ? ` (${quickReportAttentionCount})` : ''}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+
+                  {activeDashboardPeriodLabel ? (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className={cn(
+                            HEADER_SECONDARY_BUTTON_CLASS,
+                            HEADER_COMPACT_CONTROL_CLASS,
+                            'w-full justify-between text-foreground hover:bg-accent/40'
+                          )}
+                        >
+                          <span className="flex min-w-0 items-center gap-2">
+                            <MoreHorizontal className="h-3.5 w-3.5 shrink-0" />
+                            <span className="truncate">{activeDashboardPeriodLabel}</span>
+                          </span>
+                          <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-60" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="center" className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-[var(--radix-dropdown-menu-trigger-width)]">
+                        {FLEET_PERIOD_OPTIONS.map((period) => (
+                          <DropdownMenuItem
+                            key={period}
+                            onClick={() => {
+                              if (activeTab === 'fleet') setFleetPeriod(period);
+                              if (activeTab === 'instructors') setInstructorPeriod(period);
+                              if (activeTab === 'students') setStudentPeriod(period);
+                            }}
+                            className="text-[10px] font-bold uppercase"
+                          >
+                            {period === 'week' ? '7 Days' : period === 'month' ? '30 Days' : 'All Time'}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  ) : null}
+                </div>
+              ) : (
+                <div className="flex w-full flex-wrap items-center justify-between gap-3">
+                  <TabsList className={cn(HEADER_TAB_LIST_CLASS, 'border-0 bg-transparent px-0 py-0')}>
+                    {tabs.map((tab) => (
+                      <TabsTrigger key={tab.value} value={tab.value} className={HEADER_TAB_TRIGGER_CLASS}>
+                        {renderTabLabel(tab)}
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
+
+                  {activeDashboardPeriodLabel ? (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">Period</span>
+                      {FLEET_PERIOD_OPTIONS.map((period) => (
+                        <button
+                          key={period}
+                          type="button"
+                          onClick={() => {
+                            if (activeTab === 'fleet') setFleetPeriod(period);
+                            if (activeTab === 'instructors') setInstructorPeriod(period);
+                            if (activeTab === 'students') setStudentPeriod(period);
+                          }}
+                          className={cn(
+                            HEADER_COMPACT_CONTROL_CLASS,
+                            activeDashboardPeriod === period ? 'border-foreground text-foreground' : 'border-input text-muted-foreground'
+                          )}
+                        >
+                          {period === 'week' ? '7 Days' : period === 'month' ? '30 Days' : 'All Time'}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              )}
             </div>
 
-            {activeIndustry === 'ATO' && activeTab === 'fleet' ? (
-              <div className={cn(CARD_HEADER_BAND_CLASS, 'bg-transparent')}>
-                {isMobile ? (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className={cn(
-                          HEADER_SECONDARY_BUTTON_CLASS,
-                          HEADER_COMPACT_CONTROL_CLASS,
-                          'w-full justify-between text-foreground hover:bg-accent/40'
-                        )}
-                      >
-                        <span className="flex min-w-0 items-center gap-2">
-                          <MoreHorizontal className="h-3.5 w-3.5 shrink-0" />
-                          <span className="truncate">
-                            {fleetPeriod === 'week' ? '7 Days' : fleetPeriod === 'month' ? '30 Days' : 'All Time'}
-                          </span>
-                        </span>
-                        <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-60" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="center" className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-[var(--radix-dropdown-menu-trigger-width)]">
-                      {FLEET_PERIOD_OPTIONS.map((period) => (
-                        <DropdownMenuItem
-                          key={period}
-                          onClick={() => setFleetPeriod(period)}
-                          className="text-[10px] font-bold uppercase"
-                        >
-                          {period === 'week' ? '7 Days' : period === 'month' ? '30 Days' : 'All Time'}
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                ) : (
-                  <div className="flex w-full flex-wrap items-center justify-center gap-2">
-                    <span className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">Period</span>
-                    {FLEET_PERIOD_OPTIONS.map((period) => (
-                      <button
-                        key={period}
-                        type="button"
-                        onClick={() => setFleetPeriod(period)}
-                        className={cn(
-                          HEADER_COMPACT_CONTROL_CLASS,
-                          fleetPeriod === period ? 'border-foreground text-foreground' : 'border-input text-muted-foreground'
-                        )}
-                      >
-                        {period === 'week' ? '7 Days' : period === 'month' ? '30 Days' : 'All Time'}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ) : null}
-
-            {activeIndustry === 'ATO' && activeTab === 'instructors' ? (
-              <div className={cn(CARD_HEADER_BAND_CLASS, 'bg-transparent')}>
-                {isMobile ? (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className={cn(
-                          HEADER_SECONDARY_BUTTON_CLASS,
-                          HEADER_COMPACT_CONTROL_CLASS,
-                          'w-full justify-between text-foreground hover:bg-accent/40'
-                        )}
-                      >
-                        <span className="flex min-w-0 items-center gap-2">
-                          <MoreHorizontal className="h-3.5 w-3.5 shrink-0" />
-                          <span className="truncate">
-                            {instructorPeriod === 'week' ? '7 Days' : instructorPeriod === 'month' ? '30 Days' : 'All Time'}
-                          </span>
-                        </span>
-                        <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-60" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="center" className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-[var(--radix-dropdown-menu-trigger-width)]">
-                      {FLEET_PERIOD_OPTIONS.map((period) => (
-                        <DropdownMenuItem
-                          key={period}
-                          onClick={() => setInstructorPeriod(period)}
-                          className="text-[10px] font-bold uppercase"
-                        >
-                          {period === 'week' ? '7 Days' : period === 'month' ? '30 Days' : 'All Time'}
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                ) : (
-                  <div className="flex w-full flex-wrap items-center justify-center gap-2">
-                    <span className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">Period</span>
-                    {FLEET_PERIOD_OPTIONS.map((period) => (
-                      <button
-                        key={period}
-                        type="button"
-                        onClick={() => setInstructorPeriod(period)}
-                        className={cn(
-                          HEADER_COMPACT_CONTROL_CLASS,
-                          instructorPeriod === period ? 'border-foreground text-foreground' : 'border-input text-muted-foreground'
-                        )}
-                      >
-                        {period === 'week' ? '7 Days' : period === 'month' ? '30 Days' : 'All Time'}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ) : null}
-
-            {activeIndustry === 'ATO' && activeTab === 'students' ? (
-              <div className={cn(CARD_HEADER_BAND_CLASS, 'bg-transparent')}>
-                {isMobile ? (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className={cn(
-                          HEADER_SECONDARY_BUTTON_CLASS,
-                          HEADER_COMPACT_CONTROL_CLASS,
-                          'w-full justify-between text-foreground hover:bg-accent/40'
-                        )}
-                      >
-                        <span className="flex min-w-0 items-center gap-2">
-                          <MoreHorizontal className="h-3.5 w-3.5 shrink-0" />
-                          <span className="truncate">
-                            {studentPeriod === 'week' ? '7 Days' : studentPeriod === 'month' ? '30 Days' : 'All Time'}
-                          </span>
-                        </span>
-                        <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-60" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="center" className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-[var(--radix-dropdown-menu-trigger-width)]">
-                      {FLEET_PERIOD_OPTIONS.map((period) => (
-                        <DropdownMenuItem
-                          key={period}
-                          onClick={() => setStudentPeriod(period)}
-                          className="text-[10px] font-bold uppercase"
-                        >
-                          {period === 'week' ? '7 Days' : period === 'month' ? '30 Days' : 'All Time'}
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                ) : (
-                  <div className="flex w-full flex-wrap items-center justify-center gap-2">
-                    <span className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">Period</span>
-                    {FLEET_PERIOD_OPTIONS.map((period) => (
-                      <button
-                        key={period}
-                        type="button"
-                        onClick={() => setStudentPeriod(period)}
-                        className={cn(
-                          HEADER_COMPACT_CONTROL_CLASS,
-                          studentPeriod === period ? 'border-foreground text-foreground' : 'border-input text-muted-foreground'
-                        )}
-                      >
-                        {period === 'week' ? '7 Days' : period === 'month' ? '30 Days' : 'All Time'}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ) : null}
-
             <ScrollArea className="h-full flex-1">
-              <div className="p-6 pb-10 md:p-8 md:pb-10">
+              <div className="p-5 pb-10 md:p-6 md:pb-10">
                 {activeIndustry === 'ATO' ? (
                   <>
-                    <TabsContent value="fleet" className="m-0 space-y-6">
-                      <div className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
-                        <Card className={cn(DASHBOARD_SHELL_CLASS, 'flex min-h-[460px] flex-col', isModern && 'border-slate-200/80 bg-white/95')}>
+                    <TabsContent value="fleet" className="m-0 space-y-5">
+                      <div className="grid items-start gap-5 xl:grid-cols-[0.78fr_1.22fr]">
+                        <Card className={cn(DASHBOARD_SHELL_CLASS, 'flex flex-col self-start', isModern && 'border-slate-200/80 bg-white/95')}>
                           <CardHeader className="border-b bg-muted/5 px-4 py-3">
                             <CardTitle className="text-sm font-black uppercase tracking-tight">Fleet Overview</CardTitle>
                             <CardDescription className="text-xs">Aircraft readiness, fuel, oil, and utilisation at a glance.</CardDescription>
                           </CardHeader>
-                          <CardContent className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3">
-                            <StatTile label="In Service" value={String(fleetTotals.inService)} hint="Aircraft ready for training" />
-                            <StatTile label="Nearing Service" value={String(fleetTotals.nearingService)} hint="Within warning band" />
-                            <StatTile label="Overdue" value={String(fleetTotals.overdueService)} hint="Past service threshold" />
-                            <StatTile label="Fleet Hours" value={formatHours(fleetTotals.totalHours)} hint="Logged flight time" />
-                            <StatTile label="Fuel Uplift" value={`${fleetTotals.totalFuelLitres.toFixed(1)}L`} hint={`${fleetTotals.totalFuelGallons.toFixed(1)} gal logged`} />
-                            <StatTile label="Oil Uplift" value={`${fleetTotals.totalOilUplift.toFixed(1)}`} hint="Logged oil uplift" />
-                            <StatTile label="Avg Utilisation" value={formatHours(fleetTotals.averageUtilisation)} hint="Average per aircraft" />
-                            <StatTile label="Target Met" value={String(fleetTotals.metTargetCount)} hint="Aircraft meeting target" />
+                          <CardContent className="p-3">
+                            <div className="grid gap-2 md:grid-cols-2">
+                              <div className="space-y-2">
+                                <StatTile label="In Service" value={String(fleetTotals.inService)} hint="Aircraft ready for training" tone="positive" />
+                                <StatTile label="Nearing Service" value={String(fleetTotals.nearingService)} hint="Within warning band" tone="warning" />
+                                <StatTile label="Overdue" value={String(fleetTotals.overdueService)} hint="Past service threshold" tone="danger" />
+                                <StatTile label="Fleet Hours" value={formatHours(fleetTotals.totalHours)} hint="Logged flight time" tone="info" />
+                              </div>
+                              <div className="space-y-2">
+                                <StatTile label="Fuel Uplift" value={`${fleetTotals.totalFuelLitres.toFixed(1)}L`} hint={`${fleetTotals.totalFuelGallons.toFixed(1)} gal logged`} />
+                                <StatTile label="Oil Uplift" value={`${fleetTotals.totalOilUplift.toFixed(1)}`} hint="Logged oil uplift" />
+                                <StatTile label="Avg Utilisation" value={formatHours(fleetTotals.averageUtilisation)} hint="Average per aircraft" tone="info" />
+                                <StatTile label="Target Met" value={String(fleetTotals.metTargetCount)} hint="Aircraft meeting target" tone="positive" />
+                              </div>
+                            </div>
                           </CardContent>
                         </Card>
 
-                        <Card className={cn(DASHBOARD_SHELL_CLASS, 'flex min-h-[460px] flex-col', isModern && 'border-slate-200/80 bg-white/95')}>
-                          <CardHeader className="border-b bg-muted/5 px-4 py-3">
-                            <CardTitle className="text-sm font-black uppercase tracking-tight">Aircraft Selector</CardTitle>
-                            <CardDescription className="text-xs">Pick an aircraft card to open its utilisation detail.</CardDescription>
-                          </CardHeader>
-                          <CardContent className="space-y-3 p-4">
-                            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                              {fleetRows.slice(0, 6).map((row) => {
-                                const isSelected = selectedAircraftId === row.aircraft.id;
-                                return (
-                                  <Link
-                                    key={row.aircraft.id}
-                                    href={`/assets/aircraft/${row.aircraft.id}`}
-                                    className={cn(
-                                      'block rounded-2xl border p-3 text-left transition-colors',
-                                      isSelected ? 'border-foreground bg-foreground/5' : 'border-input bg-background hover:border-foreground/40'
-                                    )}
-                                  >
-                                    <div className="flex items-start justify-between gap-2">
-                                      <div className="min-w-0">
-                                        <p className="truncate text-sm font-black uppercase tracking-tight">{row.aircraft.tailNumber}</p>
-                                        <p className="text-[10px] font-medium uppercase text-muted-foreground">
-                                          {row.aircraft.make} {row.aircraft.model}
-                                        </p>
-                                      </div>
-                                      <Badge
-                                        variant={row.targetMet ? 'default' : 'secondary'}
-                                        className="text-[10px] font-black uppercase"
-                                      >
-                                        {row.targetMet ? 'Met' : 'Below'}
-                                      </Badge>
-                                    </div>
-                                    <div className="mt-3 flex items-center justify-between gap-3 text-[10px] uppercase tracking-widest text-muted-foreground">
-                                      <span>Utilisation</span>
-                                      <span className="font-black text-foreground">{formatHours(row.loggedHours)}</span>
-                                    </div>
-                                  </Link>
-                                );
-                              })}
-                            </div>
-
-                            <div className="h-[240px]">
+                        <div className="space-y-5">
+                          <Card className={cn(DASHBOARD_SHELL_CLASS, 'flex min-h-[250px] flex-col', isModern && 'border-slate-200/80 bg-white/95')}>
+                            <CardHeader className="border-b bg-muted/5 px-4 py-3">
+                              <CardTitle className="text-sm font-black uppercase tracking-tight">Fleet Trend</CardTitle>
+                              <CardDescription className="text-xs">Selected aircraft utilisation and maintenance load over the period.</CardDescription>
+                            </CardHeader>
+                            <CardContent className="h-[240px] p-4">
                               {isLoading || isTargetLoading ? (
                                 <Skeleton className="h-full w-full" />
                               ) : selectedAircraftTrend.length > 0 ? (
@@ -1808,15 +1620,47 @@ export default function DashboardPage() {
                                   No trend data available yet.
                                 </div>
                               )}
-                            </div>
-                            {selectedAircraft ? (
-                              <p className="text-[10px] uppercase tracking-widest text-muted-foreground">
-                                Showing {selectedAircraft.aircraft.tailNumber} for the selected period.
-                              </p>
-                            ) : null}
-                          </CardContent>
-                        </Card>
+                            </CardContent>
+                          </Card>
+
+                          <Card className={cn(DASHBOARD_SHELL_CLASS, 'flex min-h-[250px] flex-col', isModern && 'border-slate-200/80 bg-white/95')}>
+                            <CardHeader className="border-b bg-muted/5 px-4 py-3">
+                              <CardTitle className="text-sm font-black uppercase tracking-tight">Fleet Mix</CardTitle>
+                              <CardDescription className="text-xs">Status distribution and target performance in one glance.</CardDescription>
+                            </CardHeader>
+                            <CardContent className="h-[240px] p-4">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <BarChart
+                                  data={[
+                                    { name: 'In Service', value: fleetTotals.inService, fill: '#10b981' },
+                                    { name: 'Nearing', value: fleetTotals.nearingService, fill: '#f59e0b' },
+                                    { name: 'Overdue', value: fleetTotals.overdueService, fill: '#ef4444' },
+                                    { name: 'Target Met', value: fleetTotals.metTargetCount, fill: '#14b8a6' },
+                                  ]}
+                                  layout="vertical"
+                                  margin={{ top: 0, right: 12, left: 8, bottom: 0 }}
+                                >
+                                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                                  <XAxis type="number" tickLine={false} axisLine={false} fontSize={11} />
+                                  <YAxis type="category" dataKey="name" tickLine={false} axisLine={false} fontSize={11} width={82} />
+                                  <Tooltip />
+                                  <Bar dataKey="value" radius={8} barSize={18}>
+                                    {[
+                                      { name: 'In Service', value: fleetTotals.inService, fill: '#10b981' },
+                                      { name: 'Nearing', value: fleetTotals.nearingService, fill: '#f59e0b' },
+                                      { name: 'Overdue', value: fleetTotals.overdueService, fill: '#ef4444' },
+                                      { name: 'Target Met', value: fleetTotals.metTargetCount, fill: '#14b8a6' },
+                                    ].map((entry) => (
+                                      <Cell key={entry.name} fill={entry.fill} />
+                                    ))}
+                                  </Bar>
+                                </BarChart>
+                              </ResponsiveContainer>
+                            </CardContent>
+                          </Card>
+                        </div>
                       </div>
+
                     </TabsContent>
 
                     {tabs.filter((tab) => tab.value !== 'fleet').map((tab) => (
@@ -1865,12 +1709,50 @@ export default function DashboardPage() {
   );
 }
 
-function StatTile({ label, value, hint }: { label: string; value: string; hint: string }) {
+function StatTile({
+  label,
+  value,
+  hint,
+  tone = 'neutral',
+}: {
+  label: string;
+  value: string;
+  hint: string;
+  tone?: 'neutral' | 'positive' | 'warning' | 'danger' | 'info';
+}) {
+  const toneStyles: Record<'neutral' | 'positive' | 'warning' | 'danger' | 'info', string> = {
+    neutral: 'border-card-border/80 bg-background',
+    positive: 'border-emerald-200/90 bg-emerald-50/50',
+    warning: 'border-amber-200/90 bg-amber-50/55',
+    danger: 'border-rose-200/90 bg-rose-50/55',
+    info: 'border-sky-200/90 bg-sky-50/50',
+  };
+
+  const accentStyles: Record<'neutral' | 'positive' | 'warning' | 'danger' | 'info', string> = {
+    neutral: 'bg-slate-300',
+    positive: 'bg-emerald-500',
+    warning: 'bg-amber-500',
+    danger: 'bg-rose-500',
+    info: 'bg-sky-500',
+  };
+
   return (
-    <div className="flex min-h-[128px] flex-col justify-between rounded-2xl border bg-muted/5 p-4">
-      <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">{label}</p>
-      <p className="mt-3 text-2xl font-black">{value}</p>
-      <p className="mt-2 text-[10px] font-medium uppercase text-muted-foreground">{hint}</p>
+    <div
+      className={cn(
+        'flex min-h-[36px] items-center rounded-lg border px-2.5 py-1.5 shadow-none transition-colors',
+        toneStyles[tone]
+      )}
+    >
+      <div className="flex w-full items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <p className="text-[9px] font-medium uppercase tracking-[0.14em] text-muted-foreground">{label}</p>
+            <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', accentStyles[tone])} />
+          </div>
+          <p className="mt-0.5 truncate text-[9px] font-medium leading-4 text-muted-foreground">{hint}</p>
+        </div>
+        <p className="shrink-0 text-[0.95rem] font-semibold leading-none tracking-tight text-foreground">{value}</p>
+      </div>
     </div>
   );
 }
@@ -1888,7 +1770,7 @@ function StageCard({ tabLabel, modern }: { tabLabel: string; modern: boolean }) 
         <CardDescription className="text-xs">{EMPTY_NOTE}</CardDescription>
       </CardHeader>
       <CardContent className="flex min-h-[280px] items-center justify-center p-6">
-        <div className="max-w-xl rounded-2xl border border-dashed border-card-border/70 bg-muted/5 px-6 py-10 text-center">
+          <div className="max-w-xl rounded-xl border border-dashed border-card-border/70 bg-muted/5 px-6 py-10 text-center">
           <p className="text-sm font-black uppercase tracking-[0.18em] text-foreground/80">{tabLabel} scaffold ready</p>
           <p className="mt-3 text-sm text-muted-foreground">
             We will build this section separately so the dashboard stays clean and focused by industry.
@@ -1927,8 +1809,8 @@ function InstructorOverviewCard({
           Daily flight load and duty pressure at a glance for {metrics.periodLabel.toLowerCase()}.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4 p-4 md:p-6">
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <CardContent className="space-y-3 p-3 md:p-4">
+        <div className="space-y-2">
           <StatTile label="Today Flight" value={formatHours(metrics.totalTodayFlightHours)} hint="Current daily training load" />
           <StatTile label="Today Duty" value={formatHours(metrics.totalTodayDutyHours)} hint="Attendance-based duty time" />
           <StatTile label="Watch" value={String(metrics.watchCount)} hint="Near daily limit" />
@@ -1936,7 +1818,7 @@ function InstructorOverviewCard({
         </div>
 
         <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-          <div className="rounded-2xl border bg-background">
+          <div className="rounded-xl border bg-background">
             <div className="flex items-center justify-between gap-3 border-b bg-muted/5 px-4 py-3">
               <div className="min-w-0">
                 <p className="text-sm font-black uppercase tracking-tight">Top Instructor Load</p>
@@ -1953,22 +1835,22 @@ function InstructorOverviewCard({
                 topRows.map((row) => {
                   const statusClass = getStatusStyles(row.status);
                   return (
-                    <div key={row.id} className="grid gap-3 px-4 py-4 md:grid-cols-[minmax(0,1.2fr)_repeat(3,minmax(0,0.8fr))] md:items-center">
+                    <div key={row.id} className="grid gap-3 px-3 py-3 md:grid-cols-[minmax(0,1.2fr)_repeat(3,minmax(0,0.8fr))] md:items-center">
                       <div className="min-w-0">
                         <p className="truncate text-sm font-black uppercase tracking-tight">{row.name}</p>
                         <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
                           {row.hasOpenSession ? 'Active session' : 'No open session'}
                         </p>
                       </div>
-                      <div className="rounded-lg border bg-background px-3 py-3">
+                      <div className="rounded-xl border bg-background px-3 py-2.5">
                         <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Today Flight</p>
                         <p className="mt-1 text-sm font-black">{formatHours(row.todayFlightHours)}</p>
                       </div>
-                      <div className="rounded-lg border bg-background px-3 py-3">
+                      <div className="rounded-xl border bg-background px-3 py-2.5">
                         <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Period Flight</p>
                         <p className="mt-1 text-sm font-black">{formatHours(row.periodFlightHours)}</p>
                       </div>
-                      <div className={cn('rounded-lg border px-3 py-3', statusClass)}>
+                      <div className={cn('rounded-xl border px-3 py-2.5', statusClass)}>
                         <p className="text-[10px] font-black uppercase tracking-[0.16em]">
                           {row.status === 'over' ? 'Over' : row.status === 'watch' ? 'Watch' : 'Safe'}
                         </p>
@@ -1987,7 +1869,7 @@ function InstructorOverviewCard({
             </div>
           </div>
 
-          <div className="rounded-2xl border bg-background p-4">
+          <div className="rounded-xl border bg-background p-4">
             <p className="text-sm font-black uppercase tracking-tight">Quick Read</p>
             <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
               A simple summary for the duty team.
@@ -2002,7 +1884,7 @@ function InstructorOverviewCard({
           </div>
         </div>
 
-        <div className="rounded-2xl border bg-background">
+        <div className="rounded-xl border bg-background">
           <div className="flex items-center justify-between gap-3 border-b bg-muted/5 px-4 py-3">
             <div className="min-w-0">
               <p className="text-sm font-black uppercase tracking-tight">Preliminary Technical Report Notifications</p>
@@ -2017,7 +1899,7 @@ function InstructorOverviewCard({
           <div className="divide-y">
             {technicalNotifications.length > 0 ? (
               technicalNotifications.map((report) => (
-                <div key={report.id} className="grid gap-3 px-4 py-4 md:grid-cols-[minmax(0,1.4fr)_repeat(2,minmax(0,0.8fr))] md:items-center">
+                <div key={report.id} className="grid gap-3 px-3 py-3 md:grid-cols-[minmax(0,1.4fr)_repeat(2,minmax(0,0.8fr))] md:items-center">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-black uppercase tracking-tight">
                       {report.reportNumber} · {report.title || report.summary}
@@ -2026,16 +1908,16 @@ function InstructorOverviewCard({
                       {report.aircraftLabel || 'Aircraft not set'} · {report.location || 'Unknown location'}
                     </p>
                   </div>
-                  <div className="rounded-lg border bg-background px-3 py-3">
-                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Status</p>
-                    <Badge variant={report.status === 'Closed' ? 'default' : 'destructive'} className="mt-2 text-[10px] font-black uppercase">
-                      {report.status}
-                    </Badge>
-                  </div>
-                  <div className="rounded-lg border bg-background px-3 py-3">
-                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Filed</p>
-                    <p className="mt-1 text-sm font-black">{format(parseLocalDate(report.eventDate) || new Date(report.eventDate), 'dd MMM yyyy')}</p>
-                  </div>
+                    <div className="rounded-xl border bg-background px-3 py-2.5">
+                      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Status</p>
+                      <Badge variant={report.status === 'Closed' ? 'default' : 'destructive'} className="mt-2 text-[10px] font-black uppercase">
+                        {report.status}
+                      </Badge>
+                    </div>
+                    <div className="rounded-xl border bg-background px-3 py-2.5">
+                      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Filed</p>
+                      <p className="mt-1 text-sm font-black">{format(parseLocalDate(report.eventDate) || new Date(report.eventDate), 'dd MMM yyyy')}</p>
+                    </div>
                 </div>
               ))
             ) : (
@@ -2066,8 +1948,8 @@ function StudentOverviewCard({ modern, metrics, summary }: { modern: boolean; me
           Progress, recency, and milestone pressure for {metrics.periodLabel.toLowerCase()}.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4 p-4 md:p-6">
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <CardContent className="space-y-3 p-3 md:p-4">
+        <div className="space-y-2">
           <StatTile label="Active Students" value={String(metrics.activeStudents)} hint="Students flown in the period" />
           <StatTile label="New Students" value={String(metrics.newStudents)} hint="First flight in the period" />
           <StatTile label="Recent Debriefs" value={String(metrics.recentDebriefs)} hint="Reports captured recently" />
@@ -2075,7 +1957,7 @@ function StudentOverviewCard({ modern, metrics, summary }: { modern: boolean; me
         </div>
 
         <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
-          <div className="rounded-2xl border bg-background">
+          <div className="rounded-xl border bg-background">
             <div className="flex items-center justify-between gap-3 border-b bg-muted/5 px-4 py-3">
               <div className="min-w-0">
                 <p className="text-sm font-black uppercase tracking-tight">Students at Risk</p>
@@ -2108,7 +1990,7 @@ function StudentOverviewCard({ modern, metrics, summary }: { modern: boolean; me
                     <div
                       key={row.id}
                       className={cn(
-                        'grid gap-3 px-4 py-4 md:grid-cols-[minmax(0,1.35fr)_repeat(5,minmax(0,0.74fr))] md:items-center',
+                        'grid gap-3 px-3 py-3 md:grid-cols-[minmax(0,1.35fr)_repeat(5,minmax(0,0.74fr))] md:items-center',
                         row.status !== 'safe' && 'bg-muted/20'
                       )}
                     >
@@ -2145,22 +2027,22 @@ function StudentOverviewCard({ modern, metrics, summary }: { modern: boolean; me
                         </div>
                       </div>
 
-                      <div className="rounded-lg border bg-background px-3 py-3">
+                      <div className="rounded-xl border bg-background px-3 py-2.5">
                         <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Recent Hours</p>
                         <p className="mt-1 text-sm font-black">{formatHours(row.recentFlightHours)}</p>
                       </div>
 
-                      <div className="rounded-lg border bg-background px-3 py-3">
+                      <div className="rounded-xl border bg-background px-3 py-2.5">
                         <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Since Flight</p>
                         <p className="mt-1 text-sm font-black">{formatDaysSince(row.daysSinceFlight)}</p>
                       </div>
 
-                      <div className="rounded-lg border bg-background px-3 py-3">
+                      <div className="rounded-xl border bg-background px-3 py-2.5">
                         <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Since Debrief</p>
                         <p className="mt-1 text-sm font-black">{formatDaysSince(row.daysSinceDebrief)}</p>
                       </div>
 
-                      <div className="rounded-lg border bg-background px-3 py-3">
+                      <div className="rounded-xl border bg-background px-3 py-2.5">
                         <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Pace</p>
                         <p className="mt-1 text-sm font-black">{formatPace(row.pacePerWeek)}</p>
                         <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
@@ -2168,7 +2050,7 @@ function StudentOverviewCard({ modern, metrics, summary }: { modern: boolean; me
                         </p>
                       </div>
 
-                      <div className={cn('rounded-lg border px-3 py-3', statusClass)}>
+                      <div className={cn('rounded-xl border px-3 py-2.5', statusClass)}>
                         <p className="text-[10px] font-black uppercase tracking-[0.16em]">
                           {row.status === 'over' ? 'At risk' : row.status === 'watch' ? 'Watch' : 'Safe'}
                         </p>
@@ -2193,7 +2075,7 @@ function StudentOverviewCard({ modern, metrics, summary }: { modern: boolean; me
             </div>
           </div>
 
-          <div className="rounded-2xl border bg-background p-4">
+          <div className="rounded-xl border bg-background p-4">
             <p className="text-sm font-black uppercase tracking-tight">Student Quick Read</p>
             <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
               Recent movement and milestone pressure.
@@ -2239,8 +2121,8 @@ function SafetyOverviewCard({ modern, summary }: { modern: boolean; summary: Sum
           Open reports, risk pressure, and active corrective actions in one place.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4 p-4 md:p-6">
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <CardContent className="space-y-3 p-3 md:p-4">
+        <div className="space-y-2">
           <StatTile label="Open Reports" value={String(metrics.openReports)} hint="Reports still active" />
           <StatTile label="Open Hazards" value={String(metrics.openRisks)} hint="Risk items requiring attention" />
           <StatTile label="Open CAPs" value={String(metrics.openCaps)} hint="Corrective actions in flight" />
@@ -2248,7 +2130,7 @@ function SafetyOverviewCard({ modern, summary }: { modern: boolean; summary: Sum
         </div>
 
         <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
-          <div className="rounded-2xl border bg-background">
+          <div className="rounded-xl border bg-background">
             <div className="flex items-center justify-between gap-3 border-b bg-muted/5 px-4 py-3">
               <div className="min-w-0">
                 <p className="text-sm font-black uppercase tracking-tight">Recent Safety Reports</p>
@@ -2263,24 +2145,24 @@ function SafetyOverviewCard({ modern, summary }: { modern: boolean; summary: Sum
             <div className="divide-y">
               {reports.length > 0 ? (
                 reports.map((report) => (
-                  <div key={report.id} className="grid gap-3 px-4 py-4 md:grid-cols-[minmax(0,1.3fr)_repeat(3,minmax(0,0.8fr))] md:items-center">
+                  <div key={report.id} className="grid gap-3 px-3 py-3 md:grid-cols-[minmax(0,1.3fr)_repeat(3,minmax(0,0.8fr))] md:items-center">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-black uppercase tracking-tight">{report.title}</p>
                       <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
                         {report.location} · {report.dateLabel}
                       </p>
                     </div>
-                    <div className="rounded-lg border bg-background px-3 py-3">
+                    <div className="rounded-xl border bg-background px-3 py-2.5">
                       <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Status</p>
                       <Badge variant="outline" className="mt-2 text-[10px] font-black uppercase">
                         {report.status}
                       </Badge>
                     </div>
-                    <div className="rounded-lg border bg-background px-3 py-3">
+                    <div className="rounded-xl border bg-background px-3 py-2.5">
                       <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Classification</p>
                       <p className="mt-1 text-sm font-black">{report.classification}</p>
                     </div>
-                    <div className="rounded-lg border bg-background px-3 py-3">
+                    <div className="rounded-xl border bg-background px-3 py-2.5">
                       <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">CAPs</p>
                       <p className="mt-1 text-sm font-black">{report.actionCount}</p>
                     </div>
@@ -2295,7 +2177,7 @@ function SafetyOverviewCard({ modern, summary }: { modern: boolean; summary: Sum
           </div>
 
           <div className="space-y-4">
-            <div className="rounded-2xl border bg-background p-4">
+            <div className="rounded-xl border bg-background p-4">
               <p className="text-sm font-black uppercase tracking-tight">Safety Quick Read</p>
               <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
                 Simple oversight for the duty team.
@@ -2308,7 +2190,7 @@ function SafetyOverviewCard({ modern, summary }: { modern: boolean; summary: Sum
               </div>
             </div>
 
-            <div className="rounded-2xl border bg-background">
+            <div className="rounded-xl border bg-background">
               <div className="flex items-center justify-between gap-3 border-b bg-muted/5 px-4 py-3">
                 <div className="min-w-0">
                   <p className="text-sm font-black uppercase tracking-tight">Preliminary Technical Reports</p>
@@ -2323,20 +2205,20 @@ function SafetyOverviewCard({ modern, summary }: { modern: boolean; summary: Sum
               <div className="divide-y">
                 {technicalNotifications.length > 0 ? (
                   technicalNotifications.map((report) => (
-                    <div key={report.id} className="grid gap-3 px-4 py-4 md:grid-cols-[minmax(0,1.2fr)_repeat(2,minmax(0,0.8fr))] md:items-center">
+                    <div key={report.id} className="grid gap-3 px-3 py-3 md:grid-cols-[minmax(0,1.2fr)_repeat(2,minmax(0,0.8fr))] md:items-center">
                       <div className="min-w-0">
                         <p className="truncate text-sm font-black uppercase tracking-tight">{report.aircraftLabel || 'Aircraft not set'}</p>
                         <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
                           {report.reportNumber} Â· {report.title || report.summary}
                         </p>
                       </div>
-                      <div className="rounded-lg border bg-background px-3 py-3">
+                      <div className="rounded-xl border bg-background px-3 py-2.5">
                         <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Status</p>
                         <Badge variant={report.status === 'Closed' ? 'default' : 'destructive'} className="mt-2 text-[10px] font-black uppercase">
                           {report.status}
                         </Badge>
                       </div>
-                      <div className="rounded-lg border bg-background px-3 py-3">
+                      <div className="rounded-xl border bg-background px-3 py-2.5">
                         <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Filed</p>
                         <p className="mt-1 text-sm font-black">{format(parseLocalDate(report.eventDate) || new Date(report.eventDate), 'dd MMM yyyy')}</p>
                         <Button asChild variant="link" className="mt-1 h-auto px-0 text-[10px] font-black uppercase tracking-[0.18em] text-primary">
@@ -2355,7 +2237,7 @@ function SafetyOverviewCard({ modern, summary }: { modern: boolean; summary: Sum
               </div>
             </div>
 
-            <div className="rounded-2xl border bg-background">
+            <div className="rounded-xl border bg-background">
               <div className="flex items-center justify-between gap-3 border-b bg-muted/5 px-4 py-3">
                 <div className="min-w-0">
                   <p className="text-sm font-black uppercase tracking-tight">Open Hazards</p>
@@ -2370,18 +2252,18 @@ function SafetyOverviewCard({ modern, summary }: { modern: boolean; summary: Sum
               <div className="divide-y">
                 {risks.length > 0 ? (
                   risks.map((risk) => (
-                    <div key={risk.id} className="grid gap-3 px-4 py-4 md:grid-cols-[minmax(0,1.2fr)_repeat(2,minmax(0,0.8fr))] md:items-center">
+                    <div key={risk.id} className="grid gap-3 px-3 py-3 md:grid-cols-[minmax(0,1.2fr)_repeat(2,minmax(0,0.8fr))] md:items-center">
                       <div className="min-w-0">
                         <p className="truncate text-sm font-black uppercase tracking-tight">{risk.hazard}</p>
                         <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
                           {risk.hazardArea}
                         </p>
                       </div>
-                      <div className="rounded-lg border bg-background px-3 py-3">
+                      <div className="rounded-xl border bg-background px-3 py-2.5">
                         <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Status</p>
                         <p className="mt-1 text-sm font-black">{risk.status}</p>
                       </div>
-                      <div className="rounded-lg border bg-background px-3 py-3">
+                      <div className="rounded-xl border bg-background px-3 py-2.5">
                         <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Risks / Mitigations</p>
                         <p className="mt-1 text-sm font-black">
                           {risk.riskCount} / {risk.mitigationCount}
@@ -2423,8 +2305,8 @@ function QualityOverviewCard({ modern, summary, organizationScopeId }: { modern:
           Audit progress, open findings, and corrective action flow for the current tenant.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4 p-4 md:p-6">
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <CardContent className="space-y-3 p-3 md:p-4">
+        <div className="space-y-2">
           <StatTile label="Open Audits" value={String(metrics.openAudits)} hint="Audits not yet closed" />
           <StatTile label="Closed Audits" value={String(metrics.closedAudits)} hint="Finalised or archived" />
           <StatTile label="Open Findings" value={String(metrics.openFindings)} hint="Non-compliant items raised" />
@@ -2434,7 +2316,7 @@ function QualityOverviewCard({ modern, summary, organizationScopeId }: { modern:
         </div>
 
         <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
-          <div className="rounded-2xl border bg-background">
+          <div className="rounded-xl border bg-background">
             <div className="flex items-center justify-between gap-3 border-b bg-muted/5 px-4 py-3">
               <div className="min-w-0">
                 <p className="text-sm font-black uppercase tracking-tight">Recent Audits</p>
@@ -2449,26 +2331,26 @@ function QualityOverviewCard({ modern, summary, organizationScopeId }: { modern:
             <div className="divide-y">
               {metrics.auditRows.length > 0 ? (
                 metrics.auditRows.map((audit) => (
-                  <div key={audit.id} className="grid gap-3 px-4 py-4 md:grid-cols-[minmax(0,1.2fr)_repeat(3,minmax(0,0.8fr))] md:items-center">
+                  <div key={audit.id} className="grid gap-3 px-3 py-3 md:grid-cols-[minmax(0,1.2fr)_repeat(3,minmax(0,0.8fr))] md:items-center">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-black uppercase tracking-tight">{audit.title}</p>
                       <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
                         {audit.auditNumber} · {audit.dateLabel}
                       </p>
                     </div>
-                    <div className="rounded-lg border bg-background px-3 py-3">
+                    <div className="rounded-xl border bg-background px-3 py-2.5">
                       <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Status</p>
                       <Badge variant="outline" className="mt-2 text-[10px] font-black uppercase">
                         {audit.status}
                       </Badge>
                     </div>
-                    <div className="rounded-lg border bg-background px-3 py-3">
+                    <div className="rounded-xl border bg-background px-3 py-2.5">
                       <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Score</p>
                       <p className="mt-1 text-sm font-black">
                         {audit.complianceScore !== null ? `${audit.complianceScore.toFixed(1)}%` : 'N/A'}
                       </p>
                     </div>
-                    <div className="rounded-lg border bg-background px-3 py-3">
+                    <div className="rounded-xl border bg-background px-3 py-2.5">
                       <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Findings</p>
                       <p className="mt-1 text-sm font-black">{audit.findingCount}</p>
                     </div>
@@ -2484,7 +2366,7 @@ function QualityOverviewCard({ modern, summary, organizationScopeId }: { modern:
 
           <div className="space-y-4">
             {(metrics.overdueCaps > 0 || metrics.dueSoonCaps > 0) && (
-              <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4">
+              <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-4">
                 <div className="flex flex-col gap-3 rounded-xl border border-amber-200 bg-background px-4 py-3 md:flex-row md:items-center md:justify-between">
                   <div className="min-w-0">
                     <p className="text-sm font-black uppercase tracking-tight text-amber-900">Corrective action attention required</p>
@@ -2501,7 +2383,7 @@ function QualityOverviewCard({ modern, summary, organizationScopeId }: { modern:
               </div>
             )}
 
-            <div className="rounded-2xl border bg-background p-4">
+            <div className="rounded-xl border bg-background p-4">
               <p className="text-sm font-black uppercase tracking-tight">Quality Quick Read</p>
               <p className="mt-1 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
                 Audit and corrective action flow.
@@ -2516,7 +2398,7 @@ function QualityOverviewCard({ modern, summary, organizationScopeId }: { modern:
               </div>
             </div>
 
-            <div className="rounded-2xl border bg-background">
+            <div className="rounded-xl border bg-background">
               <div className="flex items-center justify-between gap-3 border-b bg-muted/5 px-4 py-3">
                 <div className="min-w-0">
                   <p className="text-sm font-black uppercase tracking-tight">Upcoming CAP Deadlines</p>
@@ -2531,18 +2413,18 @@ function QualityOverviewCard({ modern, summary, organizationScopeId }: { modern:
               <div className="divide-y">
                 {metrics.upcomingCapRows.length > 0 ? (
                   metrics.upcomingCapRows.map((action) => (
-                    <div key={action.id} className="grid gap-3 px-4 py-4 md:grid-cols-[minmax(0,1.2fr)_repeat(2,minmax(0,0.8fr))] md:items-center">
+                    <div key={action.id} className="grid gap-3 px-3 py-3 md:grid-cols-[minmax(0,1.2fr)_repeat(2,minmax(0,0.8fr))] md:items-center">
                       <div className="min-w-0">
                         <p className="truncate text-sm font-black uppercase tracking-tight">{action.description}</p>
                         <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
                           {action.sourceType} · {action.sourceIdentifier}
                         </p>
                       </div>
-                      <div className="rounded-lg border bg-background px-3 py-3">
+                      <div className="rounded-xl border bg-background px-3 py-2.5">
                         <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Assignee</p>
                         <p className="mt-1 text-sm font-black">{action.assignee}</p>
                       </div>
-                      <div className="rounded-lg border bg-background px-3 py-3">
+                      <div className="rounded-xl border bg-background px-3 py-2.5">
                         <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Do by</p>
                         <p className="mt-1 text-sm font-black">{format(parseLocalDate(action.dueDate), 'dd MMM yyyy')}</p>
                       </div>
@@ -2556,7 +2438,7 @@ function QualityOverviewCard({ modern, summary, organizationScopeId }: { modern:
               </div>
             </div>
 
-            <div className="rounded-2xl border bg-background">
+            <div className="rounded-xl border bg-background">
               <div className="flex items-center justify-between gap-3 border-b bg-muted/5 px-4 py-3">
                 <div className="min-w-0">
                   <p className="text-sm font-black uppercase tracking-tight">New Corrective Actions</p>
@@ -2571,18 +2453,18 @@ function QualityOverviewCard({ modern, summary, organizationScopeId }: { modern:
               <div className="divide-y">
                 {metrics.recentCapRows.length > 0 ? (
                   metrics.recentCapRows.map((action) => (
-                    <div key={action.id} className="grid gap-3 px-4 py-4 md:grid-cols-[minmax(0,1.2fr)_repeat(2,minmax(0,0.8fr))] md:items-center">
+                    <div key={action.id} className="grid gap-3 px-3 py-3 md:grid-cols-[minmax(0,1.2fr)_repeat(2,minmax(0,0.8fr))] md:items-center">
                       <div className="min-w-0">
                         <p className="truncate text-sm font-black uppercase tracking-tight">{action.description}</p>
                         <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
                           {action.sourceType} · {action.sourceIdentifier} · Opened {format(parseLocalDate(action.openedDate), 'dd MMM yyyy')}
                         </p>
                       </div>
-                      <div className="rounded-lg border bg-background px-3 py-3">
+                      <div className="rounded-xl border bg-background px-3 py-2.5">
                         <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Assignee</p>
                         <p className="mt-1 text-sm font-black">{action.assignee}</p>
                       </div>
-                      <div className="rounded-lg border bg-background px-3 py-3">
+                      <div className="rounded-xl border bg-background px-3 py-2.5">
                         <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Status</p>
                         <p className="mt-1 text-sm font-black">{action.status}</p>
                       </div>
@@ -2616,15 +2498,15 @@ function InstructorLoadCard({ modern, metrics }: { modern: boolean; metrics: Ins
           Duty period, flight time, and daily pressure for {metrics.periodLabel.toLowerCase()}.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4 p-4 md:p-6">
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <CardContent className="space-y-3 p-3 md:p-4">
+        <div className="space-y-2">
           <StatTile label="Period Flight" value={formatHours(metrics.totalPeriodFlightHours)} hint={`Across ${metrics.rows.length} instructors`} />
           <StatTile label="Period Duty" value={formatHours(metrics.totalPeriodDutyHours)} hint="Attendance clocked time" />
           <StatTile label="Today Flight" value={formatHours(metrics.totalTodayFlightHours)} hint="Used for daily pressure" />
           <StatTile label="Today Duty" value={formatHours(metrics.totalTodayDutyHours)} hint={`${metrics.openSessions} open sessions`} />
         </div>
 
-        <div className="rounded-2xl border bg-background">
+        <div className="rounded-xl border bg-background">
           <div className="flex items-center justify-between gap-3 border-b bg-muted/5 px-4 py-3">
             <div className="min-w-0">
               <p className="text-sm font-black uppercase tracking-tight">Instructor Watchlist</p>
@@ -2650,7 +2532,7 @@ function InstructorLoadCard({ modern, metrics }: { modern: boolean; metrics: Ins
                   <div
                     key={row.id}
                     className={cn(
-                      'grid gap-3 px-4 py-4 md:grid-cols-[minmax(0,1.6fr)_repeat(4,minmax(0,0.8fr))] md:items-center',
+                      'grid gap-3 px-3 py-3 md:grid-cols-[minmax(0,1.6fr)_repeat(4,minmax(0,0.8fr))] md:items-center',
                       row.status !== 'safe' && 'bg-muted/20'
                     )}
                   >
@@ -2666,22 +2548,22 @@ function InstructorLoadCard({ modern, metrics }: { modern: boolean; metrics: Ins
                       </p>
                     </div>
 
-                    <div className="rounded-lg border bg-background px-3 py-3">
+                    <div className="rounded-xl border bg-background px-3 py-2.5">
                       <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Today Flight</p>
                       <p className="mt-1 text-sm font-black">{formatHours(row.todayFlightHours)}</p>
                     </div>
 
-                    <div className="rounded-lg border bg-background px-3 py-3">
+                    <div className="rounded-xl border bg-background px-3 py-2.5">
                       <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Period Flight</p>
                       <p className="mt-1 text-sm font-black">{formatHours(row.periodFlightHours)}</p>
                     </div>
 
-                    <div className="rounded-lg border bg-background px-3 py-3">
+                    <div className="rounded-xl border bg-background px-3 py-2.5">
                       <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">Period Duty</p>
                       <p className="mt-1 text-sm font-black">{formatHours(row.periodDutyHours)}</p>
                     </div>
 
-                    <div className={cn('rounded-lg border px-3 py-3', statusClass)}>
+                    <div className={cn('rounded-xl border px-3 py-2.5', statusClass)}>
                       <p className="text-[10px] font-black uppercase tracking-[0.16em]">{statusLabel}</p>
                       <p className="mt-1 text-sm font-black">
                         {row.warningHours !== null ? `Warn at ${row.warningHours}h` : 'No warning band'}
