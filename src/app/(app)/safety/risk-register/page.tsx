@@ -236,7 +236,6 @@ export default function RiskRegisterPage() {
             <TableHead className="text-[10px] uppercase font-bold tracking-wider">Initial</TableHead>
             <TableHead className="w-[20%] text-[10px] uppercase font-bold tracking-wider">Mitigation</TableHead>
             <TableHead className="text-[10px] uppercase font-bold tracking-wider">Residual</TableHead>
-            <TableHead className="text-[10px] uppercase font-bold tracking-wider">Training</TableHead>
             <TableHead className={cn('text-[10px] uppercase font-bold tracking-wider', isMobile && 'hidden')}>Responsible</TableHead>
             <TableHead className={cn('text-[10px] uppercase font-bold tracking-wider', isMobile && 'hidden')}>Review</TableHead>
             <TableHead className="text-right text-[10px] uppercase font-bold tracking-wider">Actions</TableHead>
@@ -433,7 +432,7 @@ export default function RiskRegisterPage() {
         <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
           <DialogHeader className="p-6 pb-2 shrink-0 border-b bg-muted/5">
             <DialogTitle>Edit Hazard Details</DialogTitle>
-            <DialogDescription>Update hazard descriptions, reassess risks, and classify them for training.</DialogDescription>
+            <DialogDescription>Update hazard descriptions, reassess risks, and maintain mitigation controls.</DialogDescription>
           </DialogHeader>
           <div className="flex-1 overflow-y-auto px-6 pb-6 custom-scrollbar">
             <div className="py-4">
@@ -466,7 +465,7 @@ function RiskGroup({
     return (
       <TableRow>
         <TableCell className="font-bold text-sm text-primary whitespace-normal align-top">{hazard.hazard}</TableCell>
-        <TableCell colSpan={isMobile ? 5 : 7} className="text-center text-muted-foreground text-xs italic">No risks defined.</TableCell>
+        <TableCell colSpan={isMobile ? 4 : 6} className="text-center text-muted-foreground text-xs italic">No risks defined.</TableCell>
         <TableCell className="text-right align-top">
           {canManage ? (
             <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-muted" onClick={() => onEditClick(hazard)}>
@@ -517,18 +516,6 @@ function RiskGroup({
               </Badge>
             ) : <Badge variant="outline" className="text-[10px] h-5 opacity-50 font-black">N/A</Badge>}
           </TableCell>
-          {isFirstRowOfRisk && (
-            <TableCell rowSpan={riskRowSpan} className="align-top pt-4">
-              <div className="flex min-w-[100px] flex-col gap-1">
-                <Badge variant={risk.trainingClassification?.status === 'Active' ? 'default' : 'outline'} className="w-fit text-[9px] font-black uppercase">
-                  {risk.trainingClassification?.status || 'Unclassified'}
-                </Badge>
-                <span className="text-[10px] font-medium text-muted-foreground">
-                  {risk.trainingClassification?.trainingArea || 'Training area not assigned'}
-                </span>
-              </div>
-            </TableCell>
-          )}
           <TableCell className={cn('text-xs font-bold whitespace-nowrap py-4', isMobile && 'hidden')}>{personnelMap.get(mitigation.responsiblePersonId) || 'N/A'}</TableCell>
           <TableCell className={cn('text-xs font-bold whitespace-nowrap py-4', isMobile && 'hidden')}>{mitigation.reviewDate ? format(parseLocalDate(mitigation.reviewDate), 'dd MMM yy') : 'N/A'}</TableCell>
           {showHazardCell && (

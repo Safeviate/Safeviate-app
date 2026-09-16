@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronDown, FileWarning, Printer, ShieldAlert } from 'lucide-react';
+import { Building2, ChevronDown, FileWarning, Printer, ShieldAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -9,15 +9,16 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-type PrintTarget = 'safety' | 'technical' | 'all';
+type PrintTarget = 'safety' | 'technical' | 'facility' | 'all';
 
 const printOptions: Array<{ value: PrintTarget; label: string; icon: typeof ShieldAlert }> = [
   { value: 'safety', label: 'Safety Report QR Code', icon: ShieldAlert },
   { value: 'technical', label: 'Technical Report QR Code', icon: FileWarning },
+  { value: 'facility', label: 'Facility Report QR Codes', icon: Building2 },
   { value: 'all', label: 'All QR Codes', icon: Printer },
 ];
 
-export function QrCodePrintMenu() {
+export function QrCodePrintMenu({ technicalReportingEnabled = true }: { technicalReportingEnabled?: boolean }) {
   const handlePrint = (target: PrintTarget) => {
     document.documentElement.dataset.qrPrintTarget = target;
 
@@ -40,7 +41,7 @@ export function QrCodePrintMenu() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-56">
-        {printOptions.map((option) => {
+        {printOptions.filter((option) => technicalReportingEnabled || option.value !== 'technical').map((option) => {
           const Icon = option.icon;
           return (
             <DropdownMenuItem key={option.value} onSelect={() => handlePrint(option.value)}>

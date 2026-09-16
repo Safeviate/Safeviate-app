@@ -18,6 +18,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { CustomCalendar } from '@/components/ui/custom-calendar';
 import { useToast } from '@/hooks/use-toast';
 import { useUserProfile } from '@/hooks/use-user-profile';
+import { useTenantConfig } from '@/hooks/use-tenant-config';
+import { TenantLayoutDisabledState } from '@/components/tenant-layout-disabled-state';
 import type { Aircraft } from '@/types/aircraft';
 import type { QuickReportPhotoAttachment } from '@/types/quick-reports';
 import { cn } from '@/lib/utils';
@@ -44,6 +46,7 @@ export default function QuickTechnicalReportPage() {
   const params = useParams<{ tenantId?: string }>();
   const { toast } = useToast();
   const { tenantId: scopedTenantId } = useUserProfile();
+  const { tenant, isLoading: isTenantConfigLoading } = useTenantConfig();
   const [aircrafts, setAircrafts] = useState<Aircraft[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -55,6 +58,10 @@ export default function QuickTechnicalReportPage() {
   const lockedAircraft = lockedAircraftId ? aircrafts.find((aircraft) => aircraft.id === lockedAircraftId) || null : null;
   const returnHref = isPublicPortal && publicTenantId ? `/report/${encodeURIComponent(publicTenantId)}` : '/quick-reports';
   const showBackButton = !isPublicPortal;
+  const featureSettings = tenant && typeof tenant === 'object'
+    ? (tenant as unknown as Record<string, unknown>)['feature-settings'] as { enableTechnicalReports?: boolean } | undefined
+    : undefined;
+  const technicalReportingEnabled = featureSettings?.enableTechnicalReports !== false;
   const photoHelperText = useMemo(
     () => `${photoAttachments.length}/5 photos attached. Use this only for quick visual evidence.`,
     [photoAttachments.length]
@@ -209,6 +216,10 @@ export default function QuickTechnicalReportPage() {
 
     event.target.value = '';
   };
+
+  if (!isPublicPortal && !isTenantConfigLoading && !technicalReportingEnabled) {
+    return <TenantLayoutDisabledState message="Technical reporting is disabled for the current tenant." />;
+  }
 
   if (isSubmitted) {
     return (

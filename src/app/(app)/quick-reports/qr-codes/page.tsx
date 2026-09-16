@@ -1,14 +1,16 @@
 import { headers } from 'next/headers';
 import { redirect, notFound } from 'next/navigation';
+import Link from 'next/link';
 import { getServerSession } from 'next-auth';
 import QRCode from 'qrcode';
 import { type LucideIcon, Building2, ShieldAlert, FileWarning, CheckCircle2 } from 'lucide-react';
 import { authOptions } from '@/auth';
 import { prisma } from '@/lib/prisma';
 import { isMasterTenantEmail, resolveTenantOverride } from '@/lib/server/tenant-access';
+import { isTechnicalReportingEnabled } from '@/lib/server/tenant-features';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { MainPageHeader } from '@/components/page-header';
+import { cn } from '@/lib/utils';
 import { QrCodePrintMenu } from './qr-code-print-menu';
 
 type QrTarget = {
@@ -21,7 +23,24 @@ type QrTarget = {
   type: 'safety' | 'technical' | 'facility';
 };
 
-export default async function QuickReportQrCodesPage() {
+type QrView = 'overview' | QrTarget['type'];
+
+const QR_VIEW_OPTIONS: Array<{ value: QrView; label: string; description: string; icon: LucideIcon }> = [
+  { value: 'overview', label: 'Choose a QR code', description: 'Select the reporting route you want to display or print.', icon: CheckCircle2 },
+  { value: 'safety', label: 'Safety reporting', description: 'Public incident and safety reporting.', icon: ShieldAlert },
+  { value: 'technical', label: 'Technical reporting', description: 'Aircraft, vehicle, and technical defect reporting.', icon: FileWarning },
+  { value: 'facility', label: 'Facility reporting', description: 'Location-locked infrastructure and maintenance reporting.', icon: Building2 },
+];
+
+const resolveQrView = (value: string | undefined): QrView =>
+  value === 'safety' || value === 'technical' || value === 'facility' ? value : 'overview';
+
+export default async function QuickReportQrCodesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ view?: string }>;
+}) {
+  const requestedView = resolveQrView((await searchParams).view);
   const session = await getServerSession(authOptions);
   const baseTenantId = session?.user?.tenantId?.trim();
 
@@ -49,6 +68,9 @@ export default async function QuickReportQrCodesPage() {
   const proto = headerList.get('x-forwarded-proto') || (host.includes('localhost') ? 'http' : 'https');
   const baseUrl = host ? `${proto}://${host}` : '';
   const facilities = Array.isArray(configRows[0]?.data?.facilities) ? configRows[0].data.facilities as Record<string, unknown>[] : [];
+  const technicalReportingEnabled = isTechnicalReportingEnabled(configRows[0]?.data);
+  const view = !technicalReportingEnabled && requestedView === 'technical' ? 'overview' : requestedView;
+  const viewOptions = QR_VIEW_OPTIONS.filter((option) => technicalReportingEnabled || option.value !== 'technical');
 
   const qrTargets: QrTarget[] = [
     {
@@ -60,7 +82,7 @@ export default async function QuickReportQrCodesPage() {
       icon: ShieldAlert,
       type: 'safety',
     },
-    {
+    ...(technicalReportingEnabled ? [{
       title: 'Technical Report',
       placement: 'Maintenance Wall Mount',
       description: 'Direct link to the public technical quick report form.',
@@ -68,7 +90,7 @@ export default async function QuickReportQrCodesPage() {
       note: 'Use on maintenance desks, hangars, or vehicle cards.',
       icon: FileWarning,
       type: 'technical',
-    },
+    } satisfies QrTarget] : []),
     ...facilities.filter((facility) => typeof facility.id === 'string' && typeof facility.name === 'string').map((facility) => ({
       title: `${facility.name} Facility Report`,
       placement: 'Facility, apron, workshop, or equipment area',
@@ -95,25 +117,39 @@ export default async function QuickReportQrCodesPage() {
       }),
     }))
   );
+  const visibleCards = view === 'overview' ? [] : qrCards.filter((card) => card.type === view);
 
   return (
     <div className="mx-auto flex h-full min-h-0 w-full max-w-5xl flex-col gap-4 overflow-hidden p-4 print:max-w-none print:overflow-visible print:p-0 print:pb-0">
       <Card className="flex h-full min-h-0 flex-1 flex-col overflow-hidden border shadow-none print:border-0 print:shadow-none">
         <MainPageHeader
           title={`${tenant.name} QR Codes`}
-          description="Print public safety, technical, and facility maintenance QR codes. Facility codes are locked to the relevant airport, heliport, or base."
-          actions={<QrCodePrintMenu />}
+          description="Choose a reporting route, then display or print only the QR codes relevant to that purpose."
+          actions={view === 'overview' ? null : <QrCodePrintMenu technicalReportingEnabled={technicalReportingEnabled} />}
         />
 
         <CardContent className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4 print:space-y-3 print:overflow-visible">
-          <div className="flex flex-wrap items-center gap-2 rounded-xl border bg-muted/5 p-3 print:hidden">
-            <Badge variant="outline" className="h-5 px-2 text-[9px] font-black uppercase tracking-widest">
-              <CheckCircle2 className="mr-1 h-3 w-3" />
-              Print first
-            </Badge>
-            <p className="text-xs font-medium text-muted-foreground">
-              The QR blocks below are the primary content. Keep the scale near 100% when printing for desk mounts, dashboards, or wall mounts.
-            </p>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 print:hidden">
+            {viewOptions.map((option) => {
+              const Icon = option.icon;
+              const isActive = option.value === view;
+              return (
+                <Link
+                  key={option.value}
+                  href={option.value === 'overview' ? '/quick-reports/qr-codes' : `/quick-reports/qr-codes?view=${option.value}`}
+                  className={cn(
+                    'rounded-xl border p-3 transition-colors hover:bg-muted/50',
+                    isActive ? 'border-primary bg-primary/5' : 'bg-background',
+                  )}
+                >
+                  <div className="flex items-center gap-2">
+                    <Icon className="h-4 w-4 text-primary" />
+                    <span className="text-[10px] font-black uppercase tracking-widest">{option.label}</span>
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">{option.description}</p>
+                </Link>
+              );
+            })}
           </div>
 
           <style>{`@media print {
@@ -121,6 +157,11 @@ export default async function QuickReportQrCodesPage() {
             html[data-qr-print-target="technical"] [data-qr-type="safety"],
             html[data-qr-print-target="safety"] [data-qr-type="facility"],
             html[data-qr-print-target="technical"] [data-qr-type="facility"] {
+              display: none !important;
+            }
+
+            html[data-qr-print-target="facility"] [data-qr-type="safety"],
+            html[data-qr-print-target="facility"] [data-qr-type="technical"] {
               display: none !important;
             }
 
@@ -146,11 +187,35 @@ export default async function QuickReportQrCodesPage() {
               display: block !important;
             }
           }`}</style>
+          {view === 'overview' ? (
+            <div className="rounded-xl border border-dashed bg-muted/5 px-6 py-14 text-center">
+              <CheckCircle2 className="mx-auto h-8 w-8 text-primary" />
+              <h2 className="mt-4 text-sm font-black uppercase tracking-widest">Select a reporting route</h2>
+              <p className="mx-auto mt-2 max-w-lg text-sm text-muted-foreground">
+                Safety, technical, and facility reports have different operational destinations. Display one category at a time to avoid placing the wrong code at a reporting point.
+              </p>
+            </div>
+          ) : visibleCards.length === 0 ? (
+            <div className="rounded-xl border border-dashed bg-muted/5 px-6 py-14 text-center">
+              <Building2 className="mx-auto h-8 w-8 text-primary" />
+              <h2 className="mt-4 text-sm font-black uppercase tracking-widest">No facilities yet</h2>
+              <p className="mx-auto mt-2 max-w-lg text-sm text-muted-foreground">
+                Add an airport, heliport, base, or workshop in Facilities to generate its location-locked facility maintenance QR code.
+              </p>
+            </div>
+          ) : (
           <div className="qr-code-print-grid grid gap-4 md:grid-cols-2 print:grid-cols-2 print:gap-3">
           {qrCards.map((card) => {
             const Icon = card.icon;
             return (
-              <Card key={card.href} data-qr-type={card.type} className="qr-code-print-card overflow-hidden border shadow-none print:break-inside-avoid print:border">
+              <Card
+                key={card.href}
+                data-qr-type={card.type}
+                className={cn(
+                  'qr-code-print-card overflow-hidden border shadow-none print:break-inside-avoid print:border',
+                  card.type === view ? '' : 'hidden print:block',
+                )}
+              >
                 <CardHeader className="border-b bg-muted/5 text-center">
                   <div className="flex flex-col items-center gap-2">
                     <div className="flex h-10 w-10 items-center justify-center rounded-full border bg-background">
@@ -192,6 +257,7 @@ export default async function QuickReportQrCodesPage() {
             );
           })}
           </div>
+          )}
         </CardContent>
       </Card>
     </div>

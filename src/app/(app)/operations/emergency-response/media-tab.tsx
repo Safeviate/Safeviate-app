@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { PlusCircle, Trash2, Megaphone, Copy, Database, Printer, Pencil } from 'lucide-react';
 import type { ERPMediaTemplate } from '@/types/erp';
 import { HEADER_ACTION_BUTTON_CLASS, HEADER_SECONDARY_BUTTON_CLASS } from '@/components/page-header';
+import { createClientId } from '@/lib/client/create-client-id';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -89,7 +90,7 @@ export function MediaTab({ tenantId }: MediaTabProps) {
 
     const formData = new FormData(e.currentTarget);
     const newTemplate: ERPMediaTemplate = {
-      id: crypto.randomUUID(),
+      id: createClientId(),
       type: formData.get('type') as any,
       title: formData.get('title') as string,
       content: formData.get('content') as string,
@@ -120,7 +121,7 @@ export function MediaTab({ tenantId }: MediaTabProps) {
     if (!canAdmin) return;
     
     try {
-      const seeded = STANDARD_TEMPLATES.map(t => ({...t, id: crypto.randomUUID()}));
+      const seeded = STANDARD_TEMPLATES.map(t => ({...t, id: createClientId()}));
       void persistTemplates([...seeded, ...templates]);
       toast({ title: 'Standard Templates Added' });
     } catch (error: any) {

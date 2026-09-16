@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import type { Risk, RiskItem, Mitigation, RiskMatrixSettings, RiskRegisterSettings, RiskTrainingClassification } from '@/types/risk';
+import type { Risk, RiskItem, Mitigation, RiskMatrixSettings, RiskRegisterSettings } from '@/types/risk';
 import type { Personnel } from '@/app/(app)/users/personnel/page';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { CustomCalendar } from '@/components/ui/custom-calendar';
@@ -74,14 +74,6 @@ const formSchema = z.object({
 
 export type RiskFormValues = z.infer<typeof formSchema>;
 
-const defaultTrainingClassification = (): RiskTrainingClassification => ({
-    status: 'Unclassified',
-    audience: 'All Personnel',
-    trainingArea: '',
-    learningObjective: '',
-    notes: '',
-});
-
 // --- Helper Functions ---
 const mapDatesToObjects = (risk?: Risk | null): RiskFormValues => {
     if (!risk) {
@@ -96,7 +88,6 @@ const mapDatesToObjects = (risk?: Risk | null): RiskFormValues => {
         hazard: risk.hazard,
         risks: (risk.risks || []).map(r => ({
             ...r,
-            trainingClassification: r.trainingClassification || defaultTrainingClassification(),
             mitigations: (r.mitigations || []).map(m => ({
                 ...m,
                 reviewDate: parseLocalDate(m.reviewDate) || new Date(),
@@ -261,73 +252,6 @@ const RiskAssessmentEditor: React.FC<{ path: string; label: string; riskMatrixCo
 
 // --- Nested Field Arrays ---
 
-const TrainingClassificationFields = ({ riskIndex }: { riskIndex: number }) => {
-    const { control } = useFormContext<RiskFormValues>();
-    return (
-        <div className="space-y-4 rounded-xl border border-slate-200 bg-muted/5 p-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                    <h4 className="text-[10px] font-black uppercase tracking-widest text-primary">Training Classification</h4>
-                    <p className="mt-1 text-xs text-muted-foreground">Classify this risk for the training programme after it has been reviewed.</p>
-                </div>
-                <Badge variant="outline" className="text-[9px] font-black uppercase">Risk Register</Badge>
-            </div>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <FormField control={control} name={`risks.${riskIndex}.trainingClassification.status`} render={({ field }) => (
-                    <FormItem>
-                        <FormLabel className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Classification Status</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl><SelectTrigger className="h-9 bg-background"><SelectValue /></SelectTrigger></FormControl>
-                            <SelectContent>
-                                <SelectItem value="Unclassified">Unclassified</SelectItem>
-                                <SelectItem value="Proposed">Proposed</SelectItem>
-                                <SelectItem value="Active">Active</SelectItem>
-                            </SelectContent>
-                        </Select>
-                        <FormMessage />
-                    </FormItem>
-                )} />
-                <FormField control={control} name={`risks.${riskIndex}.trainingClassification.audience`} render={({ field }) => (
-                    <FormItem>
-                        <FormLabel className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Training Audience</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl><SelectTrigger className="h-9 bg-background"><SelectValue /></SelectTrigger></FormControl>
-                            <SelectContent>
-                                <SelectItem value="Instructors">Instructors</SelectItem>
-                                <SelectItem value="Students">Students</SelectItem>
-                                <SelectItem value="Both">Instructors and Students</SelectItem>
-                                <SelectItem value="All Personnel">All Personnel</SelectItem>
-                            </SelectContent>
-                        </Select>
-                        <FormMessage />
-                    </FormItem>
-                )} />
-                <FormField control={control} name={`risks.${riskIndex}.trainingClassification.trainingArea`} render={({ field }) => (
-                    <FormItem>
-                        <FormLabel className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Training Area</FormLabel>
-                        <FormControl><Input placeholder="e.g. Flight Operations" {...field} className="h-9 bg-background" /></FormControl>
-                        <FormMessage />
-                    </FormItem>
-                )} />
-                <FormField control={control} name={`risks.${riskIndex}.trainingClassification.learningObjective`} render={({ field }) => (
-                    <FormItem>
-                        <FormLabel className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Learning Objective</FormLabel>
-                        <FormControl><Input placeholder="What should change?" {...field} className="h-9 bg-background" /></FormControl>
-                        <FormMessage />
-                    </FormItem>
-                )} />
-            </div>
-            <FormField control={control} name={`risks.${riskIndex}.trainingClassification.notes`} render={({ field }) => (
-                <FormItem>
-                    <FormLabel className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Classification Notes</FormLabel>
-                    <FormControl><Textarea placeholder="Record why this risk belongs in the selected training area..." {...field} className="min-h-[64px] bg-background text-sm" /></FormControl>
-                    <FormMessage />
-                </FormItem>
-            )} />
-        </div>
-    );
-};
-
 const MitigationsArray = ({ riskIndex, personnel, riskMatrixColors }: { riskIndex: number; personnel: Personnel[]; riskMatrixColors?: Record<string, string> }) => {
     const { control } = useFormContext<RiskFormValues>();
     const { fields, append, remove } = useFieldArray({ control, name: `risks.${riskIndex}.mitigations` });
@@ -377,7 +301,6 @@ const RisksArray = ({ personnel, riskMatrixColors }: { personnel: Personnel[]; r
                         <CollapsibleContent>
                             <CardContent className="space-y-4 p-4 pt-6">
                                 <RiskAssessmentEditor path={`risks.${riskIndex}.initialRiskAssessment`} label="Initial Risk Assessment" riskMatrixColors={riskMatrixColors} />
-                                <TrainingClassificationFields riskIndex={riskIndex} />
                                 <h4 className="font-black text-[9px] uppercase text-muted-foreground pt-4 border-t tracking-[0.2em] mb-2">Mitigations & Controls</h4>
                                 <MitigationsArray riskIndex={riskIndex} personnel={personnel} riskMatrixColors={riskMatrixColors} />
                             </CardContent>
@@ -385,7 +308,7 @@ const RisksArray = ({ personnel, riskMatrixColors }: { personnel: Personnel[]; r
                     </Card>
                 </Collapsible>
             ))}
-            <Button type="button" variant="outline" className="w-full h-12 border-dashed border-2 font-black uppercase text-[10px] tracking-widest bg-primary/5 text-primary hover:bg-primary/10" onClick={() => append({ id: uuidv4(), description: '', initialRiskAssessment: { likelihood: 1, severity: 1, riskScore: 1, riskLevel: 'Low' }, trainingClassification: defaultTrainingClassification(), mitigations: [] })}><PlusCircle className="mr-2 h-4 w-4" /> Define New Risk Potential</Button>
+            <Button type="button" variant="outline" className="w-full h-12 border-dashed border-2 font-black uppercase text-[10px] tracking-widest bg-primary/5 text-primary hover:bg-primary/10" onClick={() => append({ id: uuidv4(), description: '', initialRiskAssessment: { likelihood: 1, severity: 1, riskScore: 1, riskLevel: 'Low' }, mitigations: [] })}><PlusCircle className="mr-2 h-4 w-4" /> Define New Risk Potential</Button>
         </div>
     )
 }
@@ -456,9 +379,6 @@ export function RiskForm({ existingRisk, personnel, onCancel, hideHeader = false
         ...data,
         risks: data.risks.map(risk => ({
             ...risk,
-            trainingClassification: risk.trainingClassification
-                ? { ...risk.trainingClassification, updatedAt: new Date().toISOString() }
-                : defaultTrainingClassification(),
             mitigations: risk.mitigations.map(mitigation => ({
                 ...mitigation,
                 reviewDate: new Date(Date.UTC(mitigation.reviewDate.getFullYear(), mitigation.reviewDate.getMonth(), mitigation.reviewDate.getDate(), 12)).toISOString()

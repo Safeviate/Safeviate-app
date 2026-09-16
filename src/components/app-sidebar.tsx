@@ -30,6 +30,7 @@ import {
 import type { Role } from '@/app/(app)/admin/roles/page';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useUserProfile } from '@/hooks/use-user-profile';
+import { useTenantConfig } from '@/hooks/use-tenant-config';
 import { MASTER_TENANT_ID } from '@/lib/tenant-constants';
 import { usePermissions } from '@/hooks/use-permissions';
 import { useTheme } from '@/components/theme-provider';
@@ -154,6 +155,8 @@ const SidebarItems = () => {
     const { setOpenMobile } = useSidebar();
     const { canAccessMenuItem } = usePermissions();
     const { tenantId, userProfile } = useUserProfile();
+    const { tenant: tenantConfig } = useTenantConfig();
+    const technicalReportingEnabled = ((tenantConfig as unknown as Record<string, unknown> | null)?.['feature-settings'] as { enableTechnicalReports?: boolean } | undefined)?.enableTechnicalReports !== false;
     const currentPathname = pathname ?? '';
     const lastSubmenuByParent = useMemo(() => getLastSubmenuByParent(), [pathname]);
     const normalizePath = (path: string) => path.replace(/\/+$/, '');
@@ -234,6 +237,9 @@ const SidebarItems = () => {
                     ? (roleBasedUserSubItems.length > 0 ? roleBasedUserSubItems : item.subItems || [])
                     : item.subItems || [];
                 const subItems = configuredSubItems.filter((sub) => {
+                  if (sub.href === '/quick-reports/technical-report' && !technicalReportingEnabled) {
+                    return false;
+                  }
                   if (sub.masterOnly && !(tenantId === MASTER_TENANT_ID && userProfile?.email?.trim().toLowerCase() === 'barry@safeviate.com')) {
                     return false;
                   }
@@ -289,7 +295,10 @@ const SidebarItems = () => {
                                     setOpenParents((current) => ({ ...current, [item.href]: true }));
                                   },
                                   selectedSubItem?.href,
-                                  (subItem) => canAccessMenuItem(subItem, item)
+                                  (subItem) => (
+                                    (technicalReportingEnabled || subItem.href !== '/quick-reports/technical-report') &&
+                                    canAccessMenuItem(subItem, item)
+                                  )
                                 )}
                             </SidebarCollapsibleContent>
                         </SidebarCollapsible>

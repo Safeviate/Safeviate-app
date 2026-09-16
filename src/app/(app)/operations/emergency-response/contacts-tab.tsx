@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { usePermissions } from '@/hooks/use-permissions';
 import { DeleteActionButton } from '@/components/record-action-buttons';
 import { HEADER_ACTION_BUTTON_CLASS, HEADER_SECONDARY_BUTTON_CLASS } from '@/components/page-header';
+import { createClientId } from '@/lib/client/create-client-id';
 
 interface ContactsTabProps {
   tenantId: string;
@@ -88,7 +89,7 @@ export function ContactsTab({ tenantId }: ContactsTabProps) {
       toast({ title: 'Contact Updated' });
     } else {
       const contactData: ERPContact = {
-        id: crypto.randomUUID(),
+        id: createClientId(),
         name: formData.get('name') as string,
         role: formData.get('role') as string,
         organization: formData.get('organization') as string,

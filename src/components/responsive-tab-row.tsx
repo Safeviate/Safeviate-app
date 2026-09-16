@@ -95,36 +95,39 @@ export function ResponsiveTabRow({
         <Tabs value={value} onValueChange={onValueChange} className={cn("w-full", leadingAction || action ? "" : "")}>
           <div className={cn("flex items-center gap-3", leadingAction || action ? "justify-between" : centerTabs ? "justify-center" : "justify-between")}>
             {leadingAction ? <div className="shrink-0">{leadingAction}</div> : null}
-            <TabsList className={cn(
-              flatTabs ? "bg-transparent border-0 shadow-none p-0 gap-2 overflow-x-auto no-scrollbar flex items-center" : `${HEADER_TAB_LIST_CLASS} bg-transparent border-b-0 overflow-x-auto no-scrollbar flex items-center`,
-              joinedDesktopTabs ? "gap-0 !rounded-none border border-input overflow-hidden" : "gap-1.5",
-              centerTabs ? "justify-center mx-auto" : "justify-start"
-            )}>
-              {options.map((option) => {
-                const Icon = option.icon;
-                return (
-                  <TabsTrigger
-                    key={option.value}
-                    value={option.value}
-                    className={cn(
-                      buttonLikeTabs
-                        ? `${HEADER_COMPACT_CONTROL_CLASS} text-[10px] font-medium shadow-sm data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm`
-                        : flatTabs
-                          ? `${HEADER_COMPACT_CONTROL_CLASS} bg-transparent px-4 tracking-[0.16em] text-foreground data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none`
-                          : `${HEADER_TAB_TRIGGER_CLASS} border bg-transparent data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none`,
-                      joinedDesktopTabs && !flatTabs
-                        ? "!rounded-none border-0 border-r border-input last:border-r-0 data-[state=active]:rounded-none"
-                        : flatTabs
-                          ? "shadow-none data-[state=active]:shadow-none"
-                          : "rounded-md shadow-none data-[state=active]:shadow-none"
-                    )}
-                  >
-                    {Icon ? <Icon className="h-3.5 w-3.5" /> : null}
-                    {option.label}
-                  </TabsTrigger>
-                );
-              })}
-            </TabsList>
+            <div className="min-w-0 flex-1 overflow-x-auto scroll-px-1 no-scrollbar">
+              <div className={cn("flex w-full min-w-max", centerTabs ? "justify-center" : "justify-start")}>
+                <TabsList className={cn(
+                  flatTabs ? "bg-transparent border-0 shadow-none p-0 gap-2 flex items-center" : `${HEADER_TAB_LIST_CLASS} bg-transparent border-b-0 flex items-center`,
+                  joinedDesktopTabs ? "gap-0 !rounded-none border border-input overflow-hidden" : "gap-1.5",
+                )}>
+                  {options.map((option) => {
+                    const Icon = option.icon;
+                    return (
+                      <TabsTrigger
+                        key={option.value}
+                        value={option.value}
+                        className={cn(
+                          buttonLikeTabs
+                            ? `${HEADER_COMPACT_CONTROL_CLASS} text-[10px] font-medium shadow-sm data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm`
+                            : flatTabs
+                              ? `${HEADER_COMPACT_CONTROL_CLASS} bg-transparent px-4 tracking-[0.16em] text-foreground data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none`
+                              : `${HEADER_TAB_TRIGGER_CLASS} border bg-transparent data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none`,
+                          joinedDesktopTabs && !flatTabs
+                            ? "!rounded-none border-0 border-r border-input last:border-r-0 data-[state=active]:rounded-none"
+                            : flatTabs
+                              ? "shadow-none data-[state=active]:shadow-none"
+                              : "rounded-md shadow-none data-[state=active]:shadow-none"
+                        )}
+                      >
+                        {Icon ? <Icon className="h-3.5 w-3.5" /> : null}
+                        {option.label}
+                      </TabsTrigger>
+                    );
+                  })}
+                </TabsList>
+              </div>
+            </div>
             {action}
           </div>
         </Tabs>

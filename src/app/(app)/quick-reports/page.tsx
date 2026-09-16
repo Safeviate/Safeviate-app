@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { MainPageHeader } from '@/components/page-header';
 import { Badge } from '@/components/ui/badge';
 import { FileWarning, ShieldAlert, CheckCircle2, QrCode } from 'lucide-react';
+import { useTenantConfig } from '@/hooks/use-tenant-config';
 
 const reportCards = [
   {
@@ -34,6 +35,12 @@ const reportCards = [
 ];
 
 export default function QuickReportsPage() {
+  const { tenant } = useTenantConfig();
+  const featureSettings = tenant && typeof tenant === 'object'
+    ? (tenant as unknown as Record<string, unknown>)['feature-settings'] as { enableTechnicalReports?: boolean } | undefined
+    : undefined;
+  const technicalReportingEnabled = featureSettings?.enableTechnicalReports !== false;
+
   return (
     <div className="mx-auto flex h-full w-full max-w-[1100px] flex-col gap-6 p-4">
       <Card className="flex flex-1 flex-col overflow-hidden border shadow-none">
@@ -47,7 +54,7 @@ export default function QuickReportsPage() {
           }
         />
         <CardContent className="grid gap-4 p-4 md:grid-cols-3">
-          {reportCards.map((card) => {
+          {reportCards.filter((card) => technicalReportingEnabled || card.href !== '/quick-reports/technical-report').map((card) => {
             const Icon = card.icon;
             return (
               <Card key={card.href} className="border shadow-none">

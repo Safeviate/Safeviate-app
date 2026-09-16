@@ -14,6 +14,7 @@ import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover
 import { CustomCalendar } from '@/components/ui/custom-calendar';
 import { CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { createClientId } from '@/lib/client/create-client-id';
 import { format } from 'date-fns';
 import { getPersonnelDisplayName } from '@/lib/personnel-label';
 import { getCanonicalClauseIndentation, getClauseGridTemplateColumns, getClauseIndentationOffset, splitClauseMarker } from '@/lib/regulation-clause-layout';
@@ -290,7 +291,7 @@ export function ComplianceItemForm({
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    item: existingItem ? { ...existingItem, ...dataToSave } : { ...dataToSave, id: crypto.randomUUID() },
+                    item: existingItem ? { ...existingItem, ...dataToSave } : { ...dataToSave, id: createClientId() },
                 }),
             });
             if (!response.ok) {

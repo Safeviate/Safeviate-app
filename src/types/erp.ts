@@ -45,6 +45,13 @@ export interface ERPCollectedDocument {
   status: 'Pending' | 'Secured' | 'Not Available';
 }
 
+export interface ERPFacilityRunCard {
+  id: string;
+  scenario: string;
+  title: string;
+  actions: string[];
+}
+
 export interface ERPEvent {
   id: string;
   title: string;
@@ -55,6 +62,9 @@ export interface ERPEvent {
   facilityId?: string;
   facilityName?: string;
   scenario?: string;
+  runCard?: ERPFacilityRunCard;
+  linkedDocumentIds?: string[];
+  followUpCapId?: string;
   completedTasks?: string[];
   collectedDocuments?: ERPCollectedDocument[];
   log: ERPLogEntry[];

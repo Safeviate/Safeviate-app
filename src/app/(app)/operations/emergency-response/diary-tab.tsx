@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { StopCircle, PlusCircle, Clock, User, Flag, ShieldAlert, CheckCircle2, ArrowLeft, History } from 'lucide-react';
-import type { ERPEvent, ERPLogEntry, ERPEventStatus, ERPTrigger } from '@/types/erp';
+import type { ERPEvent, ERPFacilityRunCard, ERPLogEntry, ERPEventStatus, ERPTrigger } from '@/types/erp';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -23,8 +23,18 @@ import { cn } from '@/lib/utils';
 import { HEADER_ACTION_BUTTON_CLASS, HEADER_SECONDARY_BUTTON_CLASS } from '@/components/page-header';
 import type { Personnel, PilotProfile } from '../../users/personnel/page';
 import { usePermissions } from '@/hooks/use-permissions';
+import { createClientId } from '@/lib/client/create-client-id';
 
 type Facility = { id: string; name: string; type: string };
+
+const FACILITY_RUN_CARDS: ERPFacilityRunCard[] = [
+  { id: 'aircraft-incident', scenario: 'Aircraft accident / incident', title: 'Aircraft accident / incident', actions: ['Protect life and activate emergency services', 'Secure the accident site and access routes', 'Notify the emergency coordinator and aviation authority', 'Start the live diary and preserve evidence'] },
+  { id: 'fire-fuel', scenario: 'Fire, fuel spill, or hazardous material', title: 'Fire, fuel spill, or hazardous material', actions: ['Raise alarm and establish an exclusion area', 'Stop fuel flow or isolate the source when safe', 'Deploy fire, rescue, and spill resources', 'Record operational restrictions and notifications'] },
+  { id: 'medical', scenario: 'Medical emergency', title: 'Medical emergency', actions: ['Call medical support and guide responders to the control point', 'Keep access routes clear', 'Record patient handover and operational impact'] },
+  { id: 'security', scenario: 'Security or unlawful interference', title: 'Security or unlawful interference', actions: ['Protect people and preserve the scene', 'Notify security, police, and the emergency coordinator', 'Apply access restrictions and record instructions received'] },
+  { id: 'weather-power', scenario: 'Severe weather or power failure', title: 'Severe weather or power failure', actions: ['Assess airfield serviceability and lighting', 'Apply restrictions or closure procedures as required', 'Notify affected operators and record restoration checks'] },
+  { id: 'heliport', scenario: 'Heliport approach, departure, or water-rescue event', title: 'Heliport approach, departure, or water-rescue event', actions: ['Activate rescue coordination and emergency services', 'Secure the landing area, access routes, and shoreline if relevant', 'Record aircraft, persons on board, and response handovers'] },
+];
 
 interface DiaryTabProps {
   tenantId: string;
@@ -200,7 +210,7 @@ export function DiaryTab({ tenantId, startOpen, onStartOpenChange }: DiaryTabPro
     }
 
     const newEvent: ERPEvent = {
-      id: crypto.randomUUID(),
+      id: createClientId(),
       title,
       status: isMock ? 'Mock' : 'Active' as ERPEventStatus,
       startedAt: new Date().toISOString(),
@@ -208,6 +218,7 @@ export function DiaryTab({ tenantId, startOpen, onStartOpenChange }: DiaryTabPro
       facilityId: facility?.id,
       facilityName: facility?.name,
       scenario: facility ? selectedScenario : undefined,
+      runCard: facility ? FACILITY_RUN_CARDS.find((card) => card.scenario === selectedScenario) : undefined,
       log: initialLog,
       collectedDocuments: []
     };
@@ -400,6 +411,20 @@ export function DiaryTab({ tenantId, startOpen, onStartOpenChange }: DiaryTabPro
           </form>
         </DialogContent>
       </Dialog>
+
+      {activeEvent?.runCard && (
+        <Card className="mx-4 mt-4 overflow-hidden border shadow-none">
+          <CardHeader className="border-b bg-muted/20 py-3">
+            <CardTitle className="text-sm">Facility run-card · {activeEvent.runCard.title}</CardTitle>
+            <CardDescription>Use these immediate actions alongside the live diary and emergency contacts.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-2 p-3 sm:grid-cols-2">
+            {activeEvent.runCard.actions.map((action) => (
+              <div key={action} className="rounded border bg-background px-3 py-2 text-sm">{action}</div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Conditionally render header row only if active/viewing session */}
       {currentActiveOrViewing && (

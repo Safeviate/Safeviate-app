@@ -3,6 +3,7 @@ import { ensureTechnicalReportsSchema } from '@/lib/server/bootstrap-db';
 import { allocateNextTechnicalReportNumber } from '@/lib/server/technical-report-sequence';
 import { invalidateTenantScopedCaches } from '@/lib/server/route-cache';
 import { resolveQuickReportContext } from '@/lib/server/quick-report-context';
+import { isTechnicalReportingEnabledForTenant } from '@/lib/server/tenant-features';
 import { NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
 
@@ -15,6 +16,9 @@ export async function POST(request: Request) {
       publicTenantId: typeof incoming?.tenantId === 'string' ? incoming.tenantId : null,
     });
     if (!context) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!(await isTechnicalReportingEnabledForTenant(context.tenantId))) {
+      return NextResponse.json({ error: 'Technical reporting is not enabled for this organization.' }, { status: 403 });
+    }
 
     await ensureTechnicalReportsSchema();
     const { tenantId: _tenantId, ...reportInput } = incoming as Record<string, unknown>;
@@ -62,6 +66,7 @@ export async function GET(request: Request) {
   try {
     const context = await resolveQuickReportContext({ request, publicTenantId: null });
     if (!context) return NextResponse.json({ reports: [] }, { status: 200 });
+    if (!(await isTechnicalReportingEnabledForTenant(context.tenantId))) return NextResponse.json({ reports: [] }, { status: 200 });
 
     await ensureTechnicalReportsSchema();
 
@@ -94,6 +99,9 @@ export async function PUT(request: Request) {
       publicTenantId: typeof incoming?.tenantId === 'string' ? incoming.tenantId : null,
     });
     if (!context) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!(await isTechnicalReportingEnabledForTenant(context.tenantId))) {
+      return NextResponse.json({ error: 'Technical reporting is not enabled for this organization.' }, { status: 403 });
+    }
 
     await ensureTechnicalReportsSchema();
 

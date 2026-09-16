@@ -2,6 +2,8 @@ import { authOptions } from '@/auth';
 import { prisma } from '@/lib/prisma';
 import { ensureErpStateSchema } from '@/lib/server/bootstrap-db';
 import { getTenantIdFromSession } from '@/lib/server/session-tenant';
+import { hasHierarchicalPermission, normalizePermissionIds } from '@/lib/permission-model';
+import { isMasterTenantEmail } from '@/lib/server/tenant-access';
 import { getServerSession } from 'next-auth';
 import { NextResponse } from 'next/server';
 
@@ -11,6 +13,33 @@ async function getTenantIdForSession(request: Request) {
     return null;
   }
   return getTenantIdFromSession(request);
+}
+
+async function canWriteErpCategory(request: Request, category: string) {
+  const session = await getServerSession(authOptions);
+  const email = session?.user?.email?.trim().toLowerCase() || '';
+  const role = session?.user?.role?.trim() || '';
+  if (!email) return false;
+  if (isMasterTenantEmail(email) || ['developer', 'dev'].includes(role.toLowerCase())) return true;
+
+  const tenantId = await getTenantIdForSession(request);
+  if (!tenantId) return false;
+  const person = await prisma.personnel.findFirst({ where: { tenantId, email }, select: { permissions: true, role: true } });
+  const resolvedRole = person?.role?.trim() || role;
+  const roleRecord = resolvedRole
+    ? await prisma.role.findFirst({ where: { tenantId, OR: [{ id: resolvedRole }, { name: resolvedRole }] }, select: { permissions: true } })
+    : null;
+  const normalizedPermissions = normalizePermissionIds([
+    ...(Array.isArray(roleRecord?.permissions) ? roleRecord.permissions : []),
+    ...(Array.isArray(person?.permissions) ? person.permissions : []),
+  ].filter((permission): permission is string => typeof permission === 'string'));
+  const deniedPermissions = new Set(normalizedPermissions.filter((permission) => permission.startsWith('!')).map((permission) => permission.slice(1)));
+  const permissions = new Set(normalizedPermissions.filter((permission) => !permission.startsWith('!')));
+  const requiresAdmin = ['contacts', 'triggers', 'media', 'facility-profiles'].includes(category);
+  const requiredPermission = requiresAdmin ? 'operations-erp-admin' : 'operations-erp-manage';
+  return permissions.has('*')
+    || hasHierarchicalPermission(permissions, 'admin-view', deniedPermissions)
+    || hasHierarchicalPermission(permissions, requiredPermission, deniedPermissions);
 }
 
 export async function GET(request: Request) {
@@ -52,6 +81,9 @@ export async function PUT(request: Request) {
 
     if (!category) {
       return NextResponse.json({ error: 'Missing category' }, { status: 400 });
+    }
+    if (!(await canWriteErpCategory(request, category))) {
+      return NextResponse.json({ error: 'You do not have permission to update this ERP record.' }, { status: 403 });
     }
 
     const existing = await prisma.$queryRawUnsafe<{ id: string }[]>(

@@ -35,6 +35,7 @@ import { extractClipboardText } from '@/lib/clipboard';
 import { getPersonnelDisplayName } from '@/lib/personnel-label';
 import { getCanonicalClauseIndentation, getClauseGridTemplateColumns, getClauseIndentationOffset, splitClauseMarker } from '@/lib/regulation-clause-layout';
 import { cn } from '@/lib/utils';
+import { createClientId } from '@/lib/client/create-client-id';
 import { normalizeIndentationArray, normalizeRegulationClipboardText, normalizeRegulationCode, sanitizeComplianceMatrixEntry } from '@/lib/regulation-code';
 
 const REGULATION_TABS = [
@@ -506,7 +507,7 @@ function UploadRegulationsDialog({
 
       const newItems = normalizedPreview.requirements.map((req) => ({
         ...req,
-        id: crypto.randomUUID(),
+        id: createClientId(),
         structureType: 'item' as const,
         organizationId,
         regulationFamily: targetFamily,

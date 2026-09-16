@@ -10,12 +10,15 @@ import type { ERPEvent, ERPCollectedDocument, ERPLogEntry } from '@/types/erp';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { useUserProfile } from '@/hooks/use-user-profile';
+import { usePermissions } from '@/hooks/use-permissions';
 import { v4 as uuidv4 } from 'uuid';
 import { cn } from '@/lib/utils';
 
 interface DocumentsTabProps {
   tenantId: string;
 }
+
+type ControlledDocument = { id: string; name: string; type?: string };
 
 const REQUIRED_DOCUMENTS = [
   { id: 'doc-1', name: 'Pilot Logbook' },
@@ -32,17 +35,25 @@ const REQUIRED_DOCUMENTS = [
 
 export function DocumentsTab({ tenantId }: DocumentsTabProps) {
   const { userProfile } = useUserProfile();
+  const { hasPermission } = usePermissions();
   const { toast } = useToast();
   const [events, setEvents] = useState<ERPEvent[]>([]);
+  const [controlledDocuments, setControlledDocuments] = useState<ControlledDocument[]>([]);
+  const canManage = hasPermission('operations-erp-manage');
 
   useEffect(() => {
     const loadEvents = async () => {
       try {
-        const response = await fetch('/api/erp-state?category=events', { cache: 'no-store' });
+        const [response, documentsResponse] = await Promise.all([
+          fetch('/api/erp-state?category=events', { cache: 'no-store' }),
+          fetch('/api/company-documents', { cache: 'no-store' }),
+        ]);
         if (!response.ok) return;
         const payload = await response.json();
+        const documentsPayload = documentsResponse.ok ? await documentsResponse.json() : { documents: [] };
         const parsed = (payload.data || []) as ERPEvent[];
         setEvents(parsed.sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime()));
+        setControlledDocuments(Array.isArray(documentsPayload.documents) ? documentsPayload.documents : []);
       } catch {
         // ignore load errors
       }
@@ -62,7 +73,7 @@ export function DocumentsTab({ tenantId }: DocumentsTabProps) {
   const activeEvent = useMemo(() => events?.find(e => e.status !== 'Closed'), [events]);
 
   const handleToggleDocument = (docId: string, docName: string) => {
-    if (!activeEvent) return;
+    if (!activeEvent || !canManage) return;
 
     const currentDocs = activeEvent.collectedDocuments || [];
     const existingIndex = currentDocs.findIndex(d => d.id === docId);
@@ -104,6 +115,16 @@ export function DocumentsTab({ tenantId }: DocumentsTabProps) {
     toast({ title: existingIndex > -1 ? 'Status reset' : 'Document Secured' });
   };
 
+  const toggleControlledDocument = (documentId: string) => {
+    if (!activeEvent || !canManage) return;
+    const linked = activeEvent.linkedDocumentIds || [];
+    const nextLinked = linked.includes(documentId)
+      ? linked.filter((id) => id !== documentId)
+      : [...linked, documentId];
+    const nextEvents = events.map((event) => event.id === activeEvent.id ? { ...event, linkedDocumentIds: nextLinked } : event);
+    void persistEvents(nextEvents);
+  };
+
   return (
     <div className="space-y-6">
       <div className="px-6 py-6">
@@ -119,6 +140,23 @@ export function DocumentsTab({ tenantId }: DocumentsTabProps) {
             : 'A guide to the critical documents that should be secured immediately following an incident.'}
         </p>
       </div>
+
+      {activeEvent && (
+        <section className="overflow-hidden border-y border-card-border">
+          <div className="border-b px-6 py-5">
+            <h4 className="font-headline text-lg font-semibold">Controlled ERP references</h4>
+            <p className="mt-1 text-sm text-muted-foreground">Link the approved ERP, airport diagram, contact list, or local procedure used for this session.</p>
+          </div>
+          <div className="grid gap-2 p-4 sm:grid-cols-2">
+            {controlledDocuments.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No controlled documents are available. Add them in Company Documents first.</p>
+            ) : controlledDocuments.map((document) => {
+              const linked = activeEvent.linkedDocumentIds?.includes(document.id) || false;
+              return <div key={document.id} className="flex items-center justify-between gap-3 rounded border px-3 py-2"><span className="min-w-0 truncate text-sm font-medium">{document.name}</span><Button size="sm" variant={linked ? 'secondary' : 'outline'} disabled={!canManage} onClick={() => toggleControlledDocument(document.id)}>{linked ? 'Linked' : 'Link'}</Button></div>;
+            })}
+          </div>
+        </section>
+      )}
 
       <section className="overflow-hidden border-y border-card-border">
         <div className="border-b px-6 py-5">
@@ -168,7 +206,7 @@ export function DocumentsTab({ tenantId }: DocumentsTabProps) {
                       {isSecured && securedInfo.securedAt ? format(new Date(securedInfo.securedAt), 'HH:mm:ss') : '-'}
                     </TableCell>
                     <TableCell className="text-right">
-                      {activeEvent ? (
+                      {activeEvent && canManage ? (
                         <Button 
                           size="sm" 
                           variant={isSecured ? "ghost" : "default"} 

@@ -28,6 +28,7 @@ export type FeatureSettings = {
   preFlightChecklistRequired: boolean;
   enableExternalCompanyTabs: boolean;
   betaNdaRequired: boolean;
+  enableTechnicalReports: boolean;
 };
 
 export type FindingLevel = {
@@ -72,7 +73,7 @@ export default function FeaturesPage() {
         const payload = await response.json().catch(() => ({}));
         const config = payload?.config && typeof payload.config === 'object' ? payload.config : {};
 
-        const defFeatures = { id: 'features', preFlightChecklistRequired: true, enableExternalCompanyTabs: true, betaNdaRequired: true };
+        const defFeatures = { id: 'features', preFlightChecklistRequired: true, enableExternalCompanyTabs: true, betaNdaRequired: true, enableTechnicalReports: true };
         const defLevels = { id: 'finding-levels', levels: defaultFindingLevels };
         const featureConfig = (config['feature-settings'] && typeof config['feature-settings'] === 'object' ? config['feature-settings'] : defFeatures) as typeof defFeatures;
         const levelsConfig = (config['finding-levels-settings'] && typeof config['finding-levels-settings'] === 'object' ? config['finding-levels-settings'] : defLevels) as typeof defLevels;
@@ -130,7 +131,7 @@ export default function FeaturesPage() {
   }, [debouncedLevelColors, findingLevelsSettings, isLoading]);
 
   const handleToggleChange = (feature: keyof Omit<FeatureSettings, 'id'>, value: boolean) => {
-    const nextSettings = { ...(featureSettings || { id: 'features', preFlightChecklistRequired: true, enableExternalCompanyTabs: true, betaNdaRequired: true }), [feature]: value };
+    const nextSettings = { ...(featureSettings || { id: 'features', preFlightChecklistRequired: true, enableExternalCompanyTabs: true, betaNdaRequired: true, enableTechnicalReports: true }), [feature]: value };
     setFeatureSettings(nextSettings);
     fetch('/api/tenant-config', {
       method: 'PUT',
@@ -324,6 +325,25 @@ export default function FeaturesPage() {
                         />
                     </div>
                 </div>
+
+                <div className="flex flex-col justify-between space-y-4 rounded-xl border p-5 bg-background shadow-sm">
+                    <div className='space-y-1.5'>
+                        <Label htmlFor="technical-reports" className="text-sm font-black uppercase tracking-tight">
+                            Enable Technical Reporting
+                        </Label>
+                        <p className='text-xs text-muted-foreground leading-relaxed font-medium'>
+                            Show technical report entry points and QR codes for aircraft, vehicle, and engineering defect reporting.
+                        </p>
+                    </div>
+                    <div className="flex items-center justify-between mt-auto pt-4 border-t">
+                        <span className="text-[10px] font-black uppercase text-muted-foreground">Status</span>
+                        <Switch
+                            id="technical-reports"
+                            checked={featureSettings?.enableTechnicalReports ?? true}
+                            onCheckedChange={(value) => handleToggleChange('enableTechnicalReports', value)}
+                        />
+                    </div>
+                </div>
             </div>
           </section>
 
@@ -367,6 +387,7 @@ export default function FeaturesPage() {
                   <Label htmlFor="dashboard-default-view" className="text-sm font-black uppercase tracking-tight">Default Dashboard View</Label>
                   <p className="text-xs text-muted-foreground">The first dashboard area shown when a user opens Company Dashboard.</p>
                 </div>
+
                 <Select
                   value={dashboardSettings.defaultView}
                   disabled={isSavingDashboard}

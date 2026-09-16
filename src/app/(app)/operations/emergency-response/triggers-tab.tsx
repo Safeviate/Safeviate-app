@@ -11,6 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { usePermissions } from '@/hooks/use-permissions';
 import { HEADER_ACTION_BUTTON_CLASS, HEADER_SECONDARY_BUTTON_CLASS } from '@/components/page-header';
+import { createClientId } from '@/lib/client/create-client-id';
 
 interface TriggersTabProps {
   tenantId: string;
@@ -54,7 +55,7 @@ export function TriggersTab({ tenantId }: TriggersTabProps) {
     const formData = new FormData(e.currentTarget);
     const checklistRaw = formData.get('checklist') as string;
     const newTrigger: ERPTrigger = {
-      id: crypto.randomUUID(),
+      id: createClientId(),
       eventType: formData.get('eventType') as string,
       criteria: formData.get('criteria') as string,
       checklist: checklistRaw.split('\n').filter(l => l.trim()),
