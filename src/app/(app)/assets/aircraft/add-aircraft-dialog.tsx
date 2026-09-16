@@ -14,6 +14,7 @@ import { ChevronsUpDown, PlusCircle, Plane, Box, Timer, Gauge, ShieldCheck } fro
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import { HEADER_COMPACT_CONTROL_CLASS } from '@/components/page-header';
+import { createClientId } from '@/lib/client/create-client-id';
 import {
   PAGE_FORMAT_PRIMARY_BUTTON_CLASS,
   PAGE_FORMAT_SECONDARY_BUTTON_CLASS,
@@ -57,7 +58,7 @@ export function AddAircraftDialog({ tenantId }: { tenantId: string }) {
         body: JSON.stringify({
           aircraft: {
             ...values,
-            id: values.tailNumber.replace('-', '').toUpperCase() + '-' + crypto.randomUUID().slice(0, 4),
+            id: values.tailNumber.replace('-', '').toUpperCase() + '-' + createClientId().slice(0, 4),
             components: [],
             documents: [],
             initialHobbs: values.currentHobbs,
@@ -73,7 +74,8 @@ export function AddAircraftDialog({ tenantId }: { tenantId: string }) {
       setIsOpen(false);
       form.reset();
     } catch (e) {
-      toast({ variant: 'destructive', title: 'Registration Failed' });
+      const message = e instanceof Error ? e.message : 'Failed to save aircraft.';
+      toast({ variant: 'destructive', title: 'Registration Failed', description: message });
     }
   };
 
